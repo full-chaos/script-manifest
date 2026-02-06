@@ -1,5 +1,5 @@
 {
-  "name": "@script-manifest/profile-project-service",
+  "name": "@script-manifest/search-indexer-service",
   "private": true,
   "type": "module",
   "scripts": {
@@ -12,8 +12,7 @@
   "dependencies": {
     "@script-manifest/contracts": "workspace:*",
     "fastify": "^5.1.0",
-    "undici": "^7.2.0",
-    "zod": "^3.23.8"
+    "undici": "^7.2.0"
   },
   "devDependencies": {
     "@types/node": "^22.8.1",

@@ -1,5 +1,5 @@
 {
-  "name": "@script-manifest/profile-project-service",
+  "name": "@script-manifest/competition-directory-service",
   "private": true,
   "type": "module",
   "scripts": {

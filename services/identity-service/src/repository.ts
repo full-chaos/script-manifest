@@ -144,7 +144,10 @@ export class PgIdentityRepository implements IdentityRepository {
     const db = getPool();
     const token = `sess_${randomUUID()}`;
     // Configurable session duration in days (default: 7 days)
-    const sessionDurationDays = Number(process.env.SESSION_DURATION_DAYS ?? 7);
+    const sessionDurationDays = parseInt(process.env.SESSION_DURATION_DAYS ?? "7", 10);
+    if (!Number.isFinite(sessionDurationDays) || sessionDurationDays <= 0) {
+      throw new Error("SESSION_DURATION_DAYS must be a positive integer");
+    }
     const expiresAt = new Date(Date.now() + sessionDurationDays * 24 * 60 * 60 * 1000).toISOString();
 
     await db.query(

@@ -71,7 +71,7 @@ export class PgProfileProjectRepository implements ProfileProjectRepository {
       `
         INSERT INTO writer_profiles (writer_id, display_name)
         VALUES ($1, $2)
-        ON CONFLICT (writer_id) DO UPDATE SET writer_id = EXCLUDED.writer_id
+        ON CONFLICT (writer_id) DO NOTHING
         RETURNING writer_id, display_name, bio, genres, representation_status
       `,
       [userRow.id, userRow.display_name]

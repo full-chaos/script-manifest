@@ -12,6 +12,10 @@ import {
   verifyPassword
 } from "./repository.js";
 
+// Dummy credentials for constant-time verification when user doesn't exist
+const DUMMY_SALT = "0000000000000000000000000000000000000000000000000000000000000000";
+const DUMMY_HASH = "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
+
 export type IdentityServiceOptions = {
   logger?: boolean;
   repository?: IdentityRepository;
@@ -67,13 +71,10 @@ export function buildServer(options: IdentityServiceOptions = {}): FastifyInstan
     const user = await repository.findUserByEmail(parsedBody.data.email);
     
     // Always run password verification to prevent timing attacks
-    // Use a dummy hash if user doesn't exist
-    const dummySalt = "0000000000000000000000000000000000000000000000000000000000000000";
-    const dummyHash = "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
-    
+    // Use dummy credentials if user doesn't exist
     const isValid = user
       ? verifyPassword(parsedBody.data.password, user.passwordHash, user.passwordSalt)
-      : verifyPassword(parsedBody.data.password, dummyHash, dummySalt);
+      : verifyPassword(parsedBody.data.password, DUMMY_HASH, DUMMY_SALT);
     
     if (!user || !isValid) {
       return reply.status(401).send({ error: "invalid_credentials" });

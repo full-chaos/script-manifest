@@ -75,6 +75,22 @@ Writer web pages now wired to the gateway:
 - `/competitions`
 - `/submissions`
 
+## Test Coverage Additions
+
+- `apps/writer-web` now runs Vitest + React Testing Library:
+  - API route proxy tests
+  - React behavior tests for:
+    - sign in/register/logout
+    - profile load/save
+    - project load/create/delete
+    - competition search
+    - submissions load/create
+- `services/api-gateway` has a platform flow functionality test that validates a full gateway-mediated path:
+  - auth register/me
+  - profile update
+  - project create/list
+  - submission create/list
+
 ## Notification Event Contract (Issue #21)
 
 Envelope fields:

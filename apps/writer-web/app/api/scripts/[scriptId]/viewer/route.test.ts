@@ -1,8 +1,8 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { describe, expect, it } from "vitest";
 import { GET } from "./route";
 
-test("viewer route proxies and validates payload", async (t) => {
+describe("viewer route", () => {
+  it("proxies and validates payload", async () => {
   const originalFetch = globalThis.fetch;
   process.env.SCRIPT_STORAGE_SERVICE_URL = "http://script-storage";
 
@@ -26,20 +26,20 @@ test("viewer route proxies and validates payload", async (t) => {
       { status: 200, headers: { "content-type": "application/json" } }
     )) as typeof fetch;
 
-  t.after(() => {
+  try {
+    const response = await GET(new Request("http://localhost/api/scripts/script_demo_01/viewer"), {
+      params: Promise.resolve({ scriptId: "script_demo_01" })
+    });
+
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.scriptId).toBe("script_demo_01");
+  } finally {
     globalThis.fetch = originalFetch;
+  }
   });
 
-  const response = await GET(new Request("http://localhost/api/scripts/script_demo_01/viewer"), {
-    params: Promise.resolve({ scriptId: "script_demo_01" })
-  });
-
-  assert.equal(response.status, 200);
-  const body = await response.json();
-  assert.equal(body.scriptId, "script_demo_01");
-});
-
-test("viewer route returns 502 when upstream is unavailable", async (t) => {
+  it("returns 502 when upstream is unavailable", async () => {
   const originalFetch = globalThis.fetch;
   process.env.SCRIPT_STORAGE_SERVICE_URL = "http://script-storage";
 
@@ -47,15 +47,16 @@ test("viewer route returns 502 when upstream is unavailable", async (t) => {
     throw new Error("connection refused");
   }) as typeof fetch;
 
-  t.after(() => {
+  try {
+    const response = await GET(new Request("http://localhost/api/scripts/script_demo_01/viewer"), {
+      params: Promise.resolve({ scriptId: "script_demo_01" })
+    });
+
+    expect(response.status).toBe(502);
+    const body = await response.json();
+    expect(body.error).toBe("script_storage_service_unavailable");
+  } finally {
     globalThis.fetch = originalFetch;
+  }
   });
-
-  const response = await GET(new Request("http://localhost/api/scripts/script_demo_01/viewer"), {
-    params: Promise.resolve({ scriptId: "script_demo_01" })
-  });
-
-  assert.equal(response.status, 502);
-  const body = await response.json();
-  assert.equal(body.error, "script_storage_service_unavailable");
 });

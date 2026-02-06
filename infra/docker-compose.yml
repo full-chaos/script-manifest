@@ -87,6 +87,155 @@ services:
       - "1025:1025"
       - "8025:8025"
 
+  profile-project-service:
+    image: node:22
+    container_name: manifest-profile-project-service
+    profiles: ["phase1-apps"]
+    working_dir: /workspace
+    volumes:
+      - ..:/workspace
+    environment:
+      PORT: "4001"
+      NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
+    command: >
+      sh -lc "corepack enable && pnpm install --frozen-lockfile=false &&
+      pnpm --filter @script-manifest/profile-project-service dev"
+    ports:
+      - "4001:4001"
+    depends_on:
+      - postgres
+      - notification-service
+
+  notification-service:
+    image: node:22
+    container_name: manifest-notification-service
+    profiles: ["phase1-apps"]
+    working_dir: /workspace
+    volumes:
+      - ..:/workspace
+    environment:
+      PORT: "4010"
+    command: >
+      sh -lc "corepack enable && pnpm install --frozen-lockfile=false &&
+      pnpm --filter @script-manifest/notification-service dev"
+    ports:
+      - "4010:4010"
+
+  search-indexer-service:
+    image: node:22
+    container_name: manifest-search-indexer-service
+    profiles: ["phase1-apps"]
+    working_dir: /workspace
+    volumes:
+      - ..:/workspace
+    environment:
+      PORT: "4003"
+      OPENSEARCH_URL: "http://opensearch:9200"
+      OPENSEARCH_INDEX: "competitions_v1"
+    command: >
+      sh -lc "corepack enable && pnpm install --frozen-lockfile=false &&
+      pnpm --filter @script-manifest/search-indexer-service dev"
+    ports:
+      - "4003:4003"
+    depends_on:
+      - opensearch
+
+  competition-directory-service:
+    image: node:22
+    container_name: manifest-competition-directory-service
+    profiles: ["phase1-apps"]
+    working_dir: /workspace
+    volumes:
+      - ..:/workspace
+    environment:
+      PORT: "4002"
+      SEARCH_INDEXER_URL: "http://search-indexer-service:4003"
+      NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
+    command: >
+      sh -lc "corepack enable && pnpm install --frozen-lockfile=false &&
+      pnpm --filter @script-manifest/competition-directory-service dev"
+    ports:
+      - "4002:4002"
+    depends_on:
+      - search-indexer-service
+      - notification-service
+
+  script-storage-service:
+    image: node:22
+    container_name: manifest-script-storage-service
+    profiles: ["phase1-apps"]
+    working_dir: /workspace
+    volumes:
+      - ..:/workspace
+    environment:
+      PORT: "4011"
+      STORAGE_BUCKET: "scripts"
+      STORAGE_UPLOAD_BASE_URL: "http://minio:9000"
+      STORAGE_PUBLIC_BASE_URL: "http://localhost:9000"
+    command: >
+      sh -lc "corepack enable && pnpm install --frozen-lockfile=false &&
+      pnpm --filter @script-manifest/script-storage-service dev"
+    ports:
+      - "4011:4011"
+    depends_on:
+      - minio
+
+  submission-tracking-service:
+    image: node:22
+    container_name: manifest-submission-tracking-service
+    profiles: ["phase1-apps"]
+    working_dir: /workspace
+    volumes:
+      - ..:/workspace
+    environment:
+      PORT: "4004"
+    command: >
+      sh -lc "corepack enable && pnpm install --frozen-lockfile=false &&
+      pnpm --filter @script-manifest/submission-tracking-service dev"
+    ports:
+      - "4004:4004"
+
+  api-gateway:
+    image: node:22
+    container_name: manifest-api-gateway
+    profiles: ["phase1-apps"]
+    working_dir: /workspace
+    volumes:
+      - ..:/workspace
+    environment:
+      PORT: "4000"
+      PROFILE_SERVICE_URL: "http://profile-project-service:4001"
+      COMPETITION_DIRECTORY_SERVICE_URL: "http://competition-directory-service:4002"
+      SUBMISSION_TRACKING_SERVICE_URL: "http://submission-tracking-service:4004"
+    command: >
+      sh -lc "corepack enable && pnpm install --frozen-lockfile=false &&
+      pnpm --filter @script-manifest/api-gateway dev"
+    ports:
+      - "4000:4000"
+    depends_on:
+      - profile-project-service
+      - competition-directory-service
+      - submission-tracking-service
+
+  writer-web:
+    image: node:22
+    container_name: manifest-writer-web
+    profiles: ["phase1-apps"]
+    working_dir: /workspace
+    volumes:
+      - ..:/workspace
+    environment:
+      SCRIPT_STORAGE_SERVICE_URL: "http://script-storage-service:4011"
+      WRITER_DEMO_USER_ID: "writer_01"
+    command: >
+      sh -lc "corepack enable && pnpm install --frozen-lockfile=false &&
+      pnpm --filter @script-manifest/writer-web dev"
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api-gateway
+      - script-storage-service
+
 volumes:
   postgres_data:
   opensearch_data:

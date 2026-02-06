@@ -12,6 +12,9 @@
 node_modules/
 dist/
 build/
+.turbo/
+.next/
+*.tsbuildinfo
 __pycache__/
 .pytest_cache/
 

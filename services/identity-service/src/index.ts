@@ -65,7 +65,17 @@ export function buildServer(options: IdentityServiceOptions = {}): FastifyInstan
     }
 
     const user = await repository.findUserByEmail(parsedBody.data.email);
-    if (!user || !verifyPassword(parsedBody.data.password, user.passwordHash, user.passwordSalt)) {
+    
+    // Always run password verification to prevent timing attacks
+    // Use a dummy hash if user doesn't exist
+    const dummySalt = "0000000000000000000000000000000000000000000000000000000000000000";
+    const dummyHash = "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
+    
+    const isValid = user
+      ? verifyPassword(parsedBody.data.password, user.passwordHash, user.passwordSalt)
+      : verifyPassword(parsedBody.data.password, dummyHash, dummySalt);
+    
+    if (!user || !isValid) {
       return reply.status(401).send({ error: "invalid_credentials" });
     }
 

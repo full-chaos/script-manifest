@@ -60,20 +60,34 @@ export class PgProfileProjectRepository implements ProfileProjectRepository {
       return null;
     }
 
-    await db.query(
+    // Use INSERT ON CONFLICT to handle race conditions
+    const inserted = await db.query<{
+      writer_id: string;
+      display_name: string;
+      bio: string;
+      genres: string[];
+      representation_status: "represented" | "unrepresented" | "seeking_rep";
+    }>(
       `
         INSERT INTO writer_profiles (writer_id, display_name)
         VALUES ($1, $2)
+        ON CONFLICT (writer_id) DO UPDATE SET writer_id = EXCLUDED.writer_id
+        RETURNING writer_id, display_name, bio, genres, representation_status
       `,
       [userRow.id, userRow.display_name]
     );
 
+    const insertedRow = inserted.rows[0];
+    if (!insertedRow) {
+      return null;
+    }
+
     return {
-      id: userRow.id,
-      displayName: userRow.display_name,
-      bio: "",
-      genres: [],
-      representationStatus: "unrepresented"
+      id: insertedRow.writer_id,
+      displayName: insertedRow.display_name,
+      bio: insertedRow.bio,
+      genres: insertedRow.genres,
+      representationStatus: insertedRow.representation_status
     };
   }
 
@@ -163,23 +177,34 @@ export class PgProfileProjectRepository implements ProfileProjectRepository {
 
   async listProjects(filters: ProjectFilters): Promise<Project[]> {
     const db = getPool();
-    const where: string[] = [];
+    const conditions: string[] = [];
     const values: unknown[] = [];
 
     if (filters.ownerUserId) {
       values.push(filters.ownerUserId);
-      where.push(`owner_user_id = $${values.length}`);
+      conditions.push(`owner_user_id = $${values.length}`);
     }
     if (filters.genre) {
       values.push(filters.genre);
-      where.push(`genre = $${values.length}`);
+      conditions.push(`genre = $${values.length}`);
     }
     if (filters.format) {
       values.push(filters.format);
-      where.push(`format = $${values.length}`);
+      conditions.push(`format = $${values.length}`);
     }
 
-    const whereClause = where.length > 0 ? `WHERE ${where.join(" AND ")}` : "";
+    // Build query with parameterized values only
+    let query = `
+      SELECT id, owner_user_id, title, logline, synopsis, format, genre, page_count, is_discoverable, created_at, updated_at
+      FROM projects
+    `;
+
+    if (conditions.length > 0) {
+      query += ` WHERE ${conditions.join(" AND ")}`;
+    }
+
+    query += ` ORDER BY updated_at DESC`;
+
     const result = await db.query<{
       id: string;
       owner_user_id: string;
@@ -192,15 +217,7 @@ export class PgProfileProjectRepository implements ProfileProjectRepository {
       is_discoverable: boolean;
       created_at: string;
       updated_at: string;
-    }>(
-      `
-        SELECT id, owner_user_id, title, logline, synopsis, format, genre, page_count, is_discoverable, created_at, updated_at
-        FROM projects
-        ${whereClause}
-        ORDER BY updated_at DESC
-      `,
-      values
-    );
+    }>(query, values);
 
     return result.rows.map(mapProject);
   }

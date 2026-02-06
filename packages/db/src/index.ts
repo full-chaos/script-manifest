@@ -2,23 +2,30 @@ import { Pool } from "pg";
 
 const DEFAULT_DATABASE_URL = "postgresql://manifest:manifest@localhost:5432/manifest";
 
-let pool: Pool | undefined;
+const pools = new Map<string, Pool>();
 
 export function getPool(databaseUrl = process.env.DATABASE_URL ?? DEFAULT_DATABASE_URL): Pool {
-  if (!pool) {
-    pool = new Pool({ connectionString: databaseUrl });
+  if (!pools.has(databaseUrl)) {
+    pools.set(databaseUrl, new Pool({ connectionString: databaseUrl }));
   }
 
-  return pool;
+  return pools.get(databaseUrl)!;
 }
 
-export async function closePool(): Promise<void> {
-  if (!pool) {
-    return;
+export async function closePool(databaseUrl?: string): Promise<void> {
+  if (databaseUrl) {
+    const pool = pools.get(databaseUrl);
+    if (pool) {
+      await pool.end();
+      pools.delete(databaseUrl);
+    }
+  } else {
+    // Close all pools if no specific URL provided
+    await Promise.all(
+      Array.from(pools.values()).map((pool) => pool.end())
+    );
+    pools.clear();
   }
-
-  await pool.end();
-  pool = undefined;
 }
 
 export async function ensureCoreTables(): Promise<void> {

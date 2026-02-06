@@ -31,7 +31,8 @@ export interface IdentityRepository {
 }
 
 export function hashPassword(password: string, salt: string): string {
-  return scryptSync(password, salt, 64).toString("hex");
+  // Use scrypt with explicit secure parameters: N=16384, r=8, p=1, keylen=64
+  return scryptSync(password, salt, 64, { N: 16384, r: 8, p: 1 }).toString("hex");
 }
 
 export function verifyPassword(password: string, hash: string, salt: string): boolean {
@@ -48,12 +49,15 @@ export class PgIdentityRepository implements IdentityRepository {
 
   async registerUser(input: RegisterUserInput): Promise<IdentityUser | null> {
     const db = getPool();
+    const client = await db.connect();
     const id = `user_${randomUUID()}`;
     const passwordSalt = randomUUID().replace(/-/g, "");
     const passwordHash = hashPassword(input.password, passwordSalt);
 
     try {
-      const result = await db.query<{
+      await client.query("BEGIN");
+
+      const result = await client.query<{
         id: string;
         email: string;
         display_name: string;
@@ -70,10 +74,11 @@ export class PgIdentityRepository implements IdentityRepository {
 
       const user = result.rows[0];
       if (!user) {
+        await client.query("ROLLBACK");
         return null;
       }
 
-      await db.query(
+      await client.query(
         `
           INSERT INTO writer_profiles (writer_id, display_name)
           VALUES ($1, $2)
@@ -81,6 +86,8 @@ export class PgIdentityRepository implements IdentityRepository {
         `,
         [user.id, user.display_name]
       );
+
+      await client.query("COMMIT");
 
       return {
         id: user.id,
@@ -90,11 +97,15 @@ export class PgIdentityRepository implements IdentityRepository {
         passwordSalt: user.password_salt
       };
     } catch (error) {
+      await client.query("ROLLBACK");
+      
       if (isUniqueViolation(error)) {
         return null;
       }
 
       throw error;
+    } finally {
+      client.release();
     }
   }
 
@@ -132,7 +143,12 @@ export class PgIdentityRepository implements IdentityRepository {
   async createSession(userId: string): Promise<IdentitySession> {
     const db = getPool();
     const token = `sess_${randomUUID()}`;
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    // Configurable session duration in days (default: 7 days)
+    const sessionDurationDays = parseInt(process.env.SESSION_DURATION_DAYS ?? "7", 10);
+    if (!Number.isFinite(sessionDurationDays) || sessionDurationDays <= 0) {
+      throw new Error("SESSION_DURATION_DAYS must be a positive integer");
+    }
+    const expiresAt = new Date(Date.now() + sessionDurationDays * 24 * 60 * 60 * 1000).toISOString();
 
     await db.query(
       `

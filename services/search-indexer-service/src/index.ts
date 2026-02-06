@@ -1,4 +1,5 @@
-import Fastify from "fastify";
+import Fastify, { type FastifyInstance } from "fastify";
+import { pathToFileURL } from "node:url";
 import { request } from "undici";
 import {
   CompetitionIndexBulkRequestSchema,
@@ -6,97 +7,118 @@ import {
   type Competition
 } from "@script-manifest/contracts";
 
-const server = Fastify({ logger: true });
-const port = Number(process.env.PORT ?? 4003);
-const openSearchBase = process.env.OPENSEARCH_URL ?? "http://localhost:9200";
-const openSearchIndex = process.env.OPENSEARCH_INDEX ?? "competitions_v1";
+type RequestFn = typeof request;
 
-server.get("/health", async () => ({
-  service: "search-indexer-service",
-  ok: true,
-  index: openSearchIndex
-}));
+export type SearchIndexerOptions = {
+  logger?: boolean;
+  requestFn?: RequestFn;
+  openSearchBase?: string;
+  openSearchIndex?: string;
+};
 
-server.post("/internal/index/competition", async (req, reply) => {
-  const parsedBody = CompetitionIndexDocumentSchema.safeParse(req.body);
-  if (!parsedBody.success) {
-    return reply.status(400).send({
-      error: "invalid_payload",
-      details: parsedBody.error.flatten()
-    });
-  }
+export function buildServer(options: SearchIndexerOptions = {}): FastifyInstance {
+  const server = Fastify({ logger: options.logger ?? true });
+  const requestFn = options.requestFn ?? request;
+  const openSearchBase = options.openSearchBase ?? "http://localhost:9200";
+  const openSearchIndex = options.openSearchIndex ?? "competitions_v1";
 
-  try {
-    await ensureIndex();
-    const upstream = await request(
-      `${openSearchBase}/${encodeURIComponent(openSearchIndex)}/_doc/${encodeURIComponent(parsedBody.data.id)}?refresh=true`,
-      {
-        method: "PUT",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(parsedBody.data)
-      }
-    );
+  server.get("/health", async () => ({
+    service: "search-indexer-service",
+    ok: true,
+    index: openSearchIndex
+  }));
 
-    const body = await readBody(upstream);
-    return reply.status(upstream.statusCode).send(body);
-  } catch (error) {
-    server.log.error(error);
-    return reply.status(502).send({ error: "opensearch_unavailable" });
-  }
-});
-
-server.post("/internal/index/competition/bulk", async (req, reply) => {
-  const parsedBody = CompetitionIndexBulkRequestSchema.safeParse(req.body);
-  if (!parsedBody.success) {
-    return reply.status(400).send({
-      error: "invalid_payload",
-      details: parsedBody.error.flatten()
-    });
-  }
-
-  const documents = parsedBody.data;
-  if (documents.length === 0) {
-    return reply.send({
-      index: openSearchIndex,
-      requested: 0,
-      indexed: 0
-    });
-  }
-
-  try {
-    await ensureIndex();
-    const bulkPayload = toBulkPayload(documents);
-    const upstream = await request(`${openSearchBase}/_bulk?refresh=true`, {
-      method: "POST",
-      headers: { "content-type": "application/x-ndjson" },
-      body: bulkPayload
-    });
-    const body = await readBody(upstream);
-
-    if (upstream.statusCode >= 400) {
-      return reply.status(upstream.statusCode).send(body);
+  server.post("/internal/index/competition", async (req, reply) => {
+    const parsedBody = CompetitionIndexDocumentSchema.safeParse(req.body);
+    if (!parsedBody.success) {
+      return reply.status(400).send({
+        error: "invalid_payload",
+        details: parsedBody.error.flatten()
+      });
     }
 
-    const indexed = countIndexed(body);
-    return reply.send({
-      index: openSearchIndex,
-      requested: documents.length,
-      indexed,
-      result: body
-    });
-  } catch (error) {
-    server.log.error(error);
-    return reply.status(502).send({ error: "opensearch_unavailable" });
-  }
-});
+    try {
+      await ensureIndex(requestFn, openSearchBase, openSearchIndex);
+      const upstream = await requestFn(
+        `${openSearchBase}/${encodeURIComponent(openSearchIndex)}/_doc/${encodeURIComponent(parsedBody.data.id)}?refresh=true`,
+        {
+          method: "PUT",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(parsedBody.data)
+        }
+      );
 
-server.listen({ port, host: "0.0.0.0" }).catch((error) => {
-  server.log.error(error);
-  process.exit(1);
-});
+      const body = await readBody(upstream);
+      return reply.status(upstream.statusCode).send(body);
+    } catch (error) {
+      server.log.error(error);
+      return reply.status(502).send({ error: "opensearch_unavailable" });
+    }
+  });
 
-async function ensureIndex(): Promise<void> {
-  const head = await request(`${openSearchBase}/${encodeURIComponent(openSearchIndex)}`, {
+  server.post("/internal/index/competition/bulk", async (req, reply) => {
+    const parsedBody = CompetitionIndexBulkRequestSchema.safeParse(req.body);
+    if (!parsedBody.success) {
+      return reply.status(400).send({
+        error: "invalid_payload",
+        details: parsedBody.error.flatten()
+      });
+    }
+
+    const documents = parsedBody.data;
+    if (documents.length === 0) {
+      return reply.send({
+        index: openSearchIndex,
+        requested: 0,
+        indexed: 0
+      });
+    }
+
+    try {
+      await ensureIndex(requestFn, openSearchBase, openSearchIndex);
+      const bulkPayload = toBulkPayload(documents, openSearchIndex);
+      const upstream = await requestFn(`${openSearchBase}/_bulk?refresh=true`, {
+        method: "POST",
+        headers: { "content-type": "application/x-ndjson" },
+        body: bulkPayload
+      });
+      const body = await readBody(upstream);
+
+      if (upstream.statusCode >= 400) {
+        return reply.status(upstream.statusCode).send(body);
+      }
+
+      const indexed = countIndexed(body);
+      return reply.send({
+        index: openSearchIndex,
+        requested: documents.length,
+        indexed,
+        result: body
+      });
+    } catch (error) {
+      server.log.error(error);
+      return reply.status(502).send({ error: "opensearch_unavailable" });
+    }
+  });
+
+  return server;
+}
+
+export async function startServer(): Promise<void> {
+  const port = Number(process.env.PORT ?? 4003);
+  const server = buildServer({
+    openSearchBase: process.env.OPENSEARCH_URL,
+    openSearchIndex: process.env.OPENSEARCH_INDEX
+  });
+  await server.listen({ port, host: "0.0.0.0" });
+}
+
+async function ensureIndex(
+  requestFn: RequestFn,
+  openSearchBase: string,
+  openSearchIndex: string
+): Promise<void> {
+  const head = await requestFn(`${openSearchBase}/${encodeURIComponent(openSearchIndex)}`, {
     method: "HEAD"
   });
   if (head.statusCode === 200) {
@@ -107,7 +129,7 @@ async function ensureIndex(): Promise<void> {
     throw new Error(`unexpected_index_check_status_${head.statusCode}`);
   }
 
-  const createIndex = await request(`${openSearchBase}/${encodeURIComponent(openSearchIndex)}`, {
+  const createIndex = await requestFn(`${openSearchBase}/${encodeURIComponent(openSearchIndex)}`, {
     method: "PUT",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
@@ -130,7 +152,7 @@ async function ensureIndex(): Promise<void> {
   }
 }
 
-function toBulkPayload(documents: Competition[]): string {
+function toBulkPayload(documents: Competition[], openSearchIndex: string): string {
   const lines = documents.flatMap((document) => [
     JSON.stringify({ index: { _index: openSearchIndex, _id: document.id } }),
     JSON.stringify(document)
@@ -181,4 +203,19 @@ async function readBody(upstream: Awaited<ReturnType<typeof request>>): Promise<
   } catch {
     return raw;
   }
+}
+
+function isMainModule(metaUrl: string): boolean {
+  if (!process.argv[1]) {
+    return false;
+  }
+
+  return metaUrl === pathToFileURL(process.argv[1]).href;
+}
+
+if (isMainModule(import.meta.url)) {
+  startServer().catch((error) => {
+    console.error(error);
+    process.exit(1);
+  });
 }

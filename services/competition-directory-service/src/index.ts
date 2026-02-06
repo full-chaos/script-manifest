@@ -1,5 +1,6 @@
-import Fastify from "fastify";
+import Fastify, { type FastifyInstance } from "fastify";
 import { randomUUID } from "node:crypto";
+import { pathToFileURL } from "node:url";
 import { request } from "undici";
 import {
   CompetitionFiltersSchema,
@@ -10,176 +11,211 @@ import {
 } from "@script-manifest/contracts";
 import { z } from "zod";
 
-const server = Fastify({ logger: true });
-const port = Number(process.env.PORT ?? 4002);
-const searchIndexerBase = process.env.SEARCH_INDEXER_URL ?? "http://localhost:4003";
-const notificationServiceBase = process.env.NOTIFICATION_SERVICE_URL ?? "http://localhost:4010";
+type RequestFn = typeof request;
 
-const seedCompetition = CompetitionSchema.parse({
-  id: "comp_001",
-  title: "Screenplay Sprint",
-  description: "Seed competition record for local development",
-  format: "feature",
-  genre: "drama",
-  feeUsd: 25,
-  deadline: "2026-05-01T23:59:59Z"
-});
+export type CompetitionDirectoryOptions = {
+  logger?: boolean;
+  requestFn?: RequestFn;
+  searchIndexerBase?: string;
+  notificationServiceBase?: string;
+};
 
-const competitions = new Map<string, Competition>([[seedCompetition.id, seedCompetition]]);
+export function buildServer(options: CompetitionDirectoryOptions = {}): FastifyInstance {
+  const server = Fastify({ logger: options.logger ?? true });
+  const requestFn = options.requestFn ?? request;
+  const searchIndexerBase = options.searchIndexerBase ?? "http://localhost:4003";
+  const notificationServiceBase = options.notificationServiceBase ?? "http://localhost:4010";
 
-server.get("/health", async () => ({
-  service: "competition-directory-service",
-  ok: true,
-  count: competitions.size
-}));
-
-server.get("/internal/competitions", async (req, reply) => {
-  const parsedFilters = CompetitionFiltersSchema.safeParse(req.query);
-  if (!parsedFilters.success) {
-    return reply.status(400).send({
-      error: "invalid_query",
-      details: parsedFilters.error.flatten()
-    });
-  }
-
-  const filters = parsedFilters.data;
-  const loweredQuery = filters.query?.toLowerCase();
-  const results = Array.from(competitions.values()).filter((competition) => {
-    if (
-      loweredQuery &&
-      !`${competition.title} ${competition.description}`.toLowerCase().includes(loweredQuery)
-    ) {
-      return false;
-    }
-
-    if (filters.format && competition.format.toLowerCase() !== filters.format.toLowerCase()) {
-      return false;
-    }
-
-    if (filters.genre && competition.genre.toLowerCase() !== filters.genre.toLowerCase()) {
-      return false;
-    }
-
-    if (typeof filters.maxFeeUsd === "number" && competition.feeUsd > filters.maxFeeUsd) {
-      return false;
-    }
-
-    if (filters.deadlineBefore && new Date(competition.deadline) >= filters.deadlineBefore) {
-      return false;
-    }
-
-    return true;
+  const seedCompetition = CompetitionSchema.parse({
+    id: "comp_001",
+    title: "Screenplay Sprint",
+    description: "Seed competition record for local development",
+    format: "feature",
+    genre: "drama",
+    feeUsd: 25,
+    deadline: "2026-05-01T23:59:59Z"
   });
 
-  return reply.send({ competitions: results });
-});
+  const competitions = new Map<string, Competition>([[seedCompetition.id, seedCompetition]]);
 
-server.post("/internal/competitions", async (req, reply) => {
-  const parsedBody = CompetitionUpsertRequestSchema.safeParse(req.body);
-  if (!parsedBody.success) {
-    return reply.status(400).send({
-      error: "invalid_payload",
-      details: parsedBody.error.flatten()
+  server.get("/health", async () => ({
+    service: "competition-directory-service",
+    ok: true,
+    count: competitions.size
+  }));
+
+  server.get("/internal/competitions", async (req, reply) => {
+    const parsedFilters = CompetitionFiltersSchema.safeParse(req.query);
+    if (!parsedFilters.success) {
+      return reply.status(400).send({
+        error: "invalid_query",
+        details: parsedFilters.error.flatten()
+      });
+    }
+
+    const filters = parsedFilters.data;
+    const loweredQuery = filters.query?.toLowerCase();
+    const results = Array.from(competitions.values()).filter((competition) => {
+      if (
+        loweredQuery &&
+        !`${competition.title} ${competition.description}`.toLowerCase().includes(loweredQuery)
+      ) {
+        return false;
+      }
+
+      if (filters.format && competition.format.toLowerCase() !== filters.format.toLowerCase()) {
+        return false;
+      }
+
+      if (filters.genre && competition.genre.toLowerCase() !== filters.genre.toLowerCase()) {
+        return false;
+      }
+
+      if (typeof filters.maxFeeUsd === "number" && competition.feeUsd > filters.maxFeeUsd) {
+        return false;
+      }
+
+      if (filters.deadlineBefore && new Date(competition.deadline) >= filters.deadlineBefore) {
+        return false;
+      }
+
+      return true;
     });
-  }
 
-  const competition = parsedBody.data;
-  const existed = competitions.has(competition.id);
-  competitions.set(competition.id, competition);
-
-  const indexing = await pushCompetitionToIndexer(competition);
-  if (!indexing.ok) {
-    server.log.warn({ competitionId: competition.id }, "competition saved but indexing failed");
-  }
-
-  return reply.status(existed ? 200 : 201).send({
-    competition,
-    upserted: true,
-    created: !existed,
-    indexed: indexing.ok
+    return reply.send({ competitions: results });
   });
-});
 
-server.post("/internal/competitions/reindex", async (_req, reply) => {
-  const allCompetitions = Array.from(competitions.values());
+  server.post("/internal/competitions", async (req, reply) => {
+    const parsedBody = CompetitionUpsertRequestSchema.safeParse(req.body);
+    if (!parsedBody.success) {
+      return reply.status(400).send({
+        error: "invalid_payload",
+        details: parsedBody.error.flatten()
+      });
+    }
 
-  try {
-    const upstream = await request(`${searchIndexerBase}/internal/index/competition/bulk`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(allCompetitions)
+    const competition = parsedBody.data;
+    const existed = competitions.has(competition.id);
+    competitions.set(competition.id, competition);
+
+    const indexing = await pushCompetitionToIndexer(requestFn, searchIndexerBase, competition);
+    if (!indexing.ok) {
+      server.log.warn({ competitionId: competition.id }, "competition saved but indexing failed");
+    }
+
+    return reply.status(existed ? 200 : 201).send({
+      competition,
+      upserted: true,
+      created: !existed,
+      indexed: indexing.ok
     });
+  });
 
-    const upstreamBody = await readBody(upstream);
-    return reply.status(upstream.statusCode).send({
-      pushed: allCompetitions.length,
-      indexer: upstreamBody
-    });
-  } catch (error) {
-    server.log.error(error);
-    return reply.status(502).send({ error: "reindex_failed" });
-  }
-});
+  server.post("/internal/competitions/reindex", async (_req, reply) => {
+    const allCompetitions = Array.from(competitions.values());
 
-const DeadlineReminderRequestSchema = z.object({
-  targetUserId: z.string().min(1),
-  actorUserId: z.string().min(1).optional(),
-  deadlineAt: z.string().datetime({ offset: true }),
-  message: z.string().max(500).optional()
-});
+    try {
+      const upstream = await requestFn(`${searchIndexerBase}/internal/index/competition/bulk`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(allCompetitions)
+      });
 
-server.post("/internal/competitions/:competitionId/deadline-reminders", async (req, reply) => {
-  const { competitionId } = req.params as { competitionId: string };
-  const parsedBody = DeadlineReminderRequestSchema.safeParse(req.body);
-  if (!parsedBody.success) {
-    return reply.status(400).send({
-      error: "invalid_payload",
-      details: parsedBody.error.flatten()
-    });
-  }
-
-  const event = NotificationEventEnvelopeSchema.parse({
-    eventId: randomUUID(),
-    eventType: "deadline_reminder",
-    occurredAt: new Date().toISOString(),
-    actorUserId: parsedBody.data.actorUserId,
-    targetUserId: parsedBody.data.targetUserId,
-    resourceType: "competition",
-    resourceId: competitionId,
-    payload: {
-      deadlineAt: parsedBody.data.deadlineAt,
-      message: parsedBody.data.message ?? null
+      const upstreamBody = await readBody(upstream);
+      return reply.status(upstream.statusCode).send({
+        pushed: allCompetitions.length,
+        indexer: upstreamBody
+      });
+    } catch (error) {
+      server.log.error(error);
+      return reply.status(502).send({ error: "reindex_failed" });
     }
   });
 
-  try {
-    const upstream = await request(`${notificationServiceBase}/internal/events`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(event)
-    });
+  const DeadlineReminderRequestSchema = z.object({
+    targetUserId: z.string().min(1),
+    actorUserId: z.string().min(1).optional(),
+    deadlineAt: z.string().datetime({ offset: true }),
+    message: z.string().max(500).optional()
+  });
 
-    if (upstream.statusCode >= 400) {
-      const details = await readBody(upstream);
-      return reply.status(502).send({ error: "notification_publish_failed", details });
+  server.post("/internal/competitions/:competitionId/deadline-reminders", async (req, reply) => {
+    const { competitionId } = req.params as { competitionId: string };
+    const parsedBody = DeadlineReminderRequestSchema.safeParse(req.body);
+    if (!parsedBody.success) {
+      return reply.status(400).send({
+        error: "invalid_payload",
+        details: parsedBody.error.flatten()
+      });
     }
 
-    return reply.status(202).send({ accepted: true, eventId: event.eventId });
-  } catch {
-    return reply.status(502).send({ error: "notification_publish_failed" });
-  }
-});
+    const event = NotificationEventEnvelopeSchema.parse({
+      eventId: randomUUID(),
+      eventType: "deadline_reminder",
+      occurredAt: new Date().toISOString(),
+      actorUserId: parsedBody.data.actorUserId,
+      targetUserId: parsedBody.data.targetUserId,
+      resourceType: "competition",
+      resourceId: competitionId,
+      payload: {
+        deadlineAt: parsedBody.data.deadlineAt,
+        message: parsedBody.data.message ?? null
+      }
+    });
 
-server.listen({ port, host: "0.0.0.0" }).catch((error) => {
-  server.log.error(error);
-  process.exit(1);
-});
+    try {
+      const upstream = await requestFn(`${notificationServiceBase}/internal/events`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(event)
+      });
+
+      if (upstream.statusCode >= 400) {
+        const details = await readBody(upstream);
+        return reply.status(502).send({ error: "notification_publish_failed", details });
+      }
+
+      return reply.status(202).send({ accepted: true, eventId: event.eventId });
+    } catch {
+      return reply.status(502).send({ error: "notification_publish_failed" });
+    }
+  });
+
+  return server;
+}
+
+export async function startServer(): Promise<void> {
+  const port = Number(process.env.PORT ?? 4002);
+  const server = buildServer({
+    searchIndexerBase: process.env.SEARCH_INDEXER_URL,
+    notificationServiceBase: process.env.NOTIFICATION_SERVICE_URL
+  });
+
+  await server.listen({ port, host: "0.0.0.0" });
+}
+
+function isMainModule(metaUrl: string): boolean {
+  if (!process.argv[1]) {
+    return false;
+  }
+
+  return metaUrl === pathToFileURL(process.argv[1]).href;
+}
+
+if (isMainModule(import.meta.url)) {
+  startServer().catch((error) => {
+    console.error(error);
+    process.exit(1);
+  });
+}
 
 async function pushCompetitionToIndexer(
+  requestFn: RequestFn,
+  searchIndexerBase: string,
   competition: Competition
 ): Promise<{ ok: boolean; body?: unknown }> {
   try {
-    const upstream = await request(`${searchIndexerBase}/internal/index/competition`, {
+    const upstream = await requestFn(`${searchIndexerBase}/internal/index/competition`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(competition)

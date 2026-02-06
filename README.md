@@ -30,6 +30,7 @@ Redpanda Console: `http://localhost:8080`
 
 ```bash
 pnpm install
+pnpm test
 pnpm typecheck
 ```
 

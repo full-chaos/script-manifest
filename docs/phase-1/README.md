@@ -22,6 +22,7 @@ This phase bootstraps the first deployable codebase for:
 
 ```bash
 pnpm install
+pnpm test
 pnpm typecheck
 ```
 

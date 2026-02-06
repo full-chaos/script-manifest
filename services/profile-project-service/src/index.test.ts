@@ -180,6 +180,31 @@ test("profile-project-service supports project CRUD", async (t) => {
   assert.equal(remove.json().deleted, true);
 });
 
+test("profile-project-service returns 404 for unknown records", async (t) => {
+  const server = buildServer({
+    logger: false,
+    repository: new MemoryRepository(),
+    publisher: async () => undefined
+  });
+  t.after(async () => {
+    await server.close();
+  });
+
+  const profile = await server.inject({
+    method: "GET",
+    url: "/internal/profiles/unknown_writer"
+  });
+  assert.equal(profile.statusCode, 404);
+  assert.equal(profile.json().error, "profile_not_found");
+
+  const project = await server.inject({
+    method: "GET",
+    url: "/internal/projects/project_missing"
+  });
+  assert.equal(project.statusCode, 404);
+  assert.equal(project.json().error, "project_not_found");
+});
+
 test("profile-project-service records access request and emits notification", async (t) => {
   const published: NotificationEventEnvelope[] = [];
   const server = buildServer({

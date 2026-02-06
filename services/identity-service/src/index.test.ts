@@ -121,3 +121,81 @@ test("identity register/login/me/logout flow", async (t) => {
   });
   assert.equal(logout.statusCode, 204);
 });
+
+test("identity register rejects duplicate email", async (t) => {
+  const server = buildServer({ logger: false, repository: new MemoryRepo() });
+  t.after(async () => {
+    await server.close();
+  });
+
+  const payload = {
+    email: "writer@example.com",
+    password: "password123",
+    displayName: "Writer One"
+  };
+
+  const first = await server.inject({
+    method: "POST",
+    url: "/internal/auth/register",
+    payload
+  });
+  assert.equal(first.statusCode, 201);
+
+  const second = await server.inject({
+    method: "POST",
+    url: "/internal/auth/register",
+    payload
+  });
+  assert.equal(second.statusCode, 409);
+  assert.equal(second.json().error, "email_already_registered");
+});
+
+test("identity login rejects invalid credentials", async (t) => {
+  const server = buildServer({ logger: false, repository: new MemoryRepo() });
+  t.after(async () => {
+    await server.close();
+  });
+
+  await server.inject({
+    method: "POST",
+    url: "/internal/auth/register",
+    payload: {
+      email: "writer@example.com",
+      password: "password123",
+      displayName: "Writer One"
+    }
+  });
+
+  const login = await server.inject({
+    method: "POST",
+    url: "/internal/auth/login",
+    payload: {
+      email: "writer@example.com",
+      password: "wrong-password"
+    }
+  });
+
+  assert.equal(login.statusCode, 401);
+  assert.equal(login.json().error, "invalid_credentials");
+});
+
+test("identity me/logout require bearer token", async (t) => {
+  const server = buildServer({ logger: false, repository: new MemoryRepo() });
+  t.after(async () => {
+    await server.close();
+  });
+
+  const me = await server.inject({
+    method: "GET",
+    url: "/internal/auth/me"
+  });
+  assert.equal(me.statusCode, 401);
+  assert.equal(me.json().error, "missing_bearer_token");
+
+  const logout = await server.inject({
+    method: "POST",
+    url: "/internal/auth/logout"
+  });
+  assert.equal(logout.statusCode, 401);
+  assert.equal(logout.json().error, "missing_bearer_token");
+});

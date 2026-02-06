@@ -102,14 +102,32 @@ services:
       - ..:/workspace
     environment:
       PORT: "4001"
+      DATABASE_URL: "postgresql://manifest:manifest@postgres:5432/manifest"
       NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
     command: >
-      sh -lc "pnpm install --frozen-lockfile=false && pnpm --filter @script-manifest/profile-project-service dev"
+      sh -lc "pnpm install --frozen-lockfile=false --force && pnpm --filter @script-manifest/profile-project-service dev"
     ports:
       - "4001:4001"
     depends_on:
       - postgres
       - notification-service
+
+  identity-service:
+    <<: *node-dev
+    container_name: manifest-identity-service
+    profiles: [ "phase1-apps" ]
+    working_dir: /workspace
+    volumes:
+      - ..:/workspace
+    environment:
+      PORT: "4005"
+      DATABASE_URL: "postgresql://manifest:manifest@postgres:5432/manifest"
+    command: >
+      sh -lc "pnpm install --frozen-lockfile=false --force && pnpm --filter @script-manifest/identity-service dev"
+    ports:
+      - "4005:4005"
+    depends_on:
+      - postgres
 
   notification-service:
     <<: *node-dev
@@ -121,7 +139,7 @@ services:
     environment:
       PORT: "4010"
     command: >
-      sh -lc "pnpm install --frozen-lockfile=false && pnpm --filter @script-manifest/notification-service dev"
+      sh -lc "pnpm install --frozen-lockfile=false --force && pnpm --filter @script-manifest/notification-service dev"
     ports:
       - "4010:4010"
 
@@ -137,7 +155,7 @@ services:
       OPENSEARCH_URL: "http://opensearch:9200"
       OPENSEARCH_INDEX: "competitions_v1"
     command: >
-      sh -lc "pnpm install --frozen-lockfile=false && pnpm --filter @script-manifest/search-indexer-service dev"
+      sh -lc "pnpm install --frozen-lockfile=false --force && pnpm --filter @script-manifest/search-indexer-service dev"
     ports:
       - "4003:4003"
     depends_on:
@@ -155,7 +173,7 @@ services:
       SEARCH_INDEXER_URL: "http://search-indexer-service:4003"
       NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
     command: >
-      sh -lc "pnpm install --frozen-lockfile=false && pnpm --filter @script-manifest/competition-directory-service dev"
+      sh -lc "pnpm install --frozen-lockfile=false --force && pnpm --filter @script-manifest/competition-directory-service dev"
     ports:
       - "4002:4002"
     depends_on:
@@ -175,7 +193,7 @@ services:
       STORAGE_UPLOAD_BASE_URL: "http://minio:9000"
       STORAGE_PUBLIC_BASE_URL: "http://localhost:9000"
     command: >
-      sh -lc "pnpm install --frozen-lockfile=false && pnpm --filter @script-manifest/script-storage-service dev"
+      sh -lc "pnpm install --frozen-lockfile=false --force && pnpm --filter @script-manifest/script-storage-service dev"
     ports:
       - "4011:4011"
     depends_on:
@@ -191,7 +209,7 @@ services:
     environment:
       PORT: "4004"
     command: >
-      sh -lc "pnpm install --frozen-lockfile=false && pnpm --filter @script-manifest/submission-tracking-service dev"
+      sh -lc "pnpm install --frozen-lockfile=false --force && pnpm --filter @script-manifest/submission-tracking-service dev"
     ports:
       - "4004:4004"
 
@@ -204,14 +222,16 @@ services:
       - ..:/workspace
     environment:
       PORT: "4000"
+      IDENTITY_SERVICE_URL: "http://identity-service:4005"
       PROFILE_SERVICE_URL: "http://profile-project-service:4001"
       COMPETITION_DIRECTORY_SERVICE_URL: "http://competition-directory-service:4002"
       SUBMISSION_TRACKING_SERVICE_URL: "http://submission-tracking-service:4004"
     command: >
-      sh -lc "pnpm install --frozen-lockfile=false && pnpm --filter @script-manifest/api-gateway dev"
+      sh -lc "pnpm install --frozen-lockfile=false --force && pnpm --filter @script-manifest/api-gateway dev"
     ports:
       - "4000:4000"
     depends_on:
+      - identity-service
       - profile-project-service
       - competition-directory-service
       - submission-tracking-service
@@ -225,9 +245,10 @@ services:
       - ..:/workspace
     environment:
       SCRIPT_STORAGE_SERVICE_URL: "http://script-storage-service:4011"
+      API_GATEWAY_URL: "http://api-gateway:4000"
       WRITER_DEMO_USER_ID: "writer_01"
     command: >
-      sh -lc "pnpm install --frozen-lockfile=false && pnpm --filter @script-manifest/writer-web dev"
+      sh -lc "pnpm install --frozen-lockfile=false --force && pnpm --filter @script-manifest/writer-web dev"
     ports:
       - "3000:3000"
     depends_on:

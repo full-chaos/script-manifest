@@ -14,6 +14,7 @@ dist/
 build/
 .turbo/
 .next/
+.pnpm-store/
 *.tsbuildinfo
 __pycache__/
 .pytest_cache/

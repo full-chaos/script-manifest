@@ -37,6 +37,7 @@ pnpm typecheck
 Start MVP shell services:
 
 ```bash
+pnpm --filter @script-manifest/identity-service dev
 pnpm --filter @script-manifest/profile-project-service dev
 pnpm --filter @script-manifest/api-gateway dev
 pnpm --filter @script-manifest/writer-web dev

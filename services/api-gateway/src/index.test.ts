@@ -40,6 +40,94 @@ test("api-gateway proxies submissions list with query params", async (t) => {
   assert.equal(payload.submissions.length, 1);
 });
 
+test("api-gateway proxies auth register", async (t) => {
+  const urls: string[] = [];
+  let requestBody = "";
+  const server = buildServer({
+    logger: false,
+    requestFn: (async (url, options) => {
+      urls.push(String(url));
+      requestBody = String(options?.body ?? "");
+      return jsonResponse({
+        token: "sess_1",
+        expiresAt: "2026-02-13T00:00:00.000Z",
+        user: { id: "user_1", email: "writer@example.com", displayName: "Writer One" }
+      });
+    }) as typeof request,
+    identityServiceBase: "http://identity-svc"
+  });
+  t.after(async () => {
+    await server.close();
+  });
+
+  const response = await server.inject({
+    method: "POST",
+    url: "/api/v1/auth/register",
+    payload: {
+      email: "writer@example.com",
+      password: "password123",
+      displayName: "Writer One"
+    }
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(urls[0], "http://identity-svc/internal/auth/register");
+  assert.match(requestBody, /"displayName":"Writer One"/);
+});
+
+test("api-gateway proxies authenticated me endpoint", async (t) => {
+  const authHeaders: Array<string | undefined> = [];
+  const server = buildServer({
+    logger: false,
+    requestFn: (async (_url, options) => {
+      authHeaders.push((options?.headers as Record<string, string> | undefined)?.authorization);
+      return jsonResponse({
+        user: { id: "user_1", email: "writer@example.com", displayName: "Writer One" },
+        expiresAt: "2026-02-13T00:00:00.000Z"
+      });
+    }) as typeof request,
+    identityServiceBase: "http://identity-svc"
+  });
+  t.after(async () => {
+    await server.close();
+  });
+
+  const response = await server.inject({
+    method: "GET",
+    url: "/api/v1/auth/me",
+    headers: {
+      authorization: "Bearer sess_1"
+    }
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(authHeaders[0], "Bearer sess_1");
+});
+
+test("api-gateway proxies project list with query params", async (t) => {
+  const urls: string[] = [];
+  const server = buildServer({
+    logger: false,
+    requestFn: (async (url) => {
+      urls.push(String(url));
+      return jsonResponse({ projects: [{ id: "project_1" }] });
+    }) as typeof request,
+    profileServiceBase: "http://profile-svc"
+  });
+  t.after(async () => {
+    await server.close();
+  });
+
+  const response = await server.inject({
+    method: "GET",
+    url: "/api/v1/projects?ownerUserId=user_1&genre=drama"
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.match(urls[0] ?? "", /http:\/\/profile-svc\/internal\/projects\?/);
+  assert.equal(response.json().projects.length, 1);
+});
+
 test("api-gateway proxies submission creation", async (t) => {
   let requestBody = "";
   const server = buildServer({

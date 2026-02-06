@@ -27,6 +27,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   <Link href="/competitions">Competitions</Link>
                 </li>
                 <li>
+                  <Link href="/submissions">Submissions</Link>
+                </li>
+                <li>
                   <Link href="/signin">Sign In</Link>
                 </li>
               </ul>

@@ -99,7 +99,6 @@ services:
   profile-project-service:
     <<: *node-dev
     container_name: manifest-profile-project-service
-    profiles: [ "phase1-apps" ]
     working_dir: /workspace
     volumes:
       - ..:/workspace
@@ -118,7 +117,6 @@ services:
   identity-service:
     <<: *node-dev
     container_name: manifest-identity-service
-    profiles: [ "phase1-apps" ]
     working_dir: /workspace
     volumes:
       - ..:/workspace
@@ -135,7 +133,6 @@ services:
   notification-service:
     <<: *node-dev
     container_name: manifest-notification-service
-    profiles: [ "phase1-apps" ]
     working_dir: /workspace
     volumes:
       - ..:/workspace
@@ -149,7 +146,6 @@ services:
   search-indexer-service:
     <<: *node-dev
     container_name: manifest-search-indexer-service
-    profiles: [ "phase1-apps" ]
     working_dir: /workspace
     volumes:
       - ..:/workspace
@@ -167,7 +163,6 @@ services:
   competition-directory-service:
     <<: *node-dev
     container_name: manifest-competition-directory-service
-    profiles: [ "phase1-apps" ]
     working_dir: /workspace
     volumes:
       - ..:/workspace
@@ -186,7 +181,6 @@ services:
   script-storage-service:
     <<: *node-dev
     container_name: manifest-script-storage-service
-    profiles: [ "phase1-apps" ]
     working_dir: /workspace
     volumes:
       - ..:/workspace
@@ -205,7 +199,6 @@ services:
   submission-tracking-service:
     <<: *node-dev
     container_name: manifest-submission-tracking-service
-    profiles: [ "phase1-apps" ]
     working_dir: /workspace
     volumes:
       - ..:/workspace
@@ -219,7 +212,6 @@ services:
   api-gateway:
     <<: *node-dev
     container_name: manifest-api-gateway
-    profiles: [ "phase1-apps" ]
     working_dir: /workspace
     volumes:
       - ..:/workspace
@@ -242,7 +234,6 @@ services:
   writer-web:
     <<: *node-dev
     container_name: manifest-writer-web
-    profiles: [ "phase1-apps" ]
     working_dir: /workspace
     volumes:
       - ..:/workspace

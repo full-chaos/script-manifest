@@ -46,5 +46,5 @@ pnpm --filter @script-manifest/writer-web dev
 Or use compose profile:
 
 ```bash
-docker compose -f infra/docker-compose.yml --profile phase1-apps up -d
+docker compose -f infra/docker-compose.yml up -d
 ```

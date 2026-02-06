@@ -43,7 +43,7 @@ pnpm --filter @script-manifest/submission-tracking-service dev
 Or boot infra + app services together:
 
 ```bash
-docker compose -f infra/docker-compose.yml --profile phase1-apps up -d
+docker compose -f infra/docker-compose.yml up -d
 ```
 
 ## Auth + Profile/Project CRUD (Issue #29)

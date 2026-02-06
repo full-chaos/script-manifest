@@ -60,5 +60,5 @@ jobs:
       - name: Validate default compose config
         run: docker compose -f infra/docker-compose.yml config -q
 
-      - name: Validate phase1-apps compose profile
-        run: docker compose -f infra/docker-compose.yml --profile phase1-apps config -q
+      - name: Validate compose config (repeatable)
+        run: docker compose -f infra/docker-compose.yml config -q

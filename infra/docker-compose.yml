@@ -87,6 +87,56 @@ services:
       - "1025:1025"
       - "8025:8025"
 
+  profile-project-service:
+    image: node:22
+    container_name: manifest-profile-project-service
+    profiles: ["phase1-apps"]
+    working_dir: /workspace
+    volumes:
+      - ..:/workspace
+    environment:
+      PORT: "4001"
+    command: >
+      sh -lc "corepack enable && pnpm install --frozen-lockfile=false &&
+      pnpm --filter @script-manifest/profile-project-service dev"
+    ports:
+      - "4001:4001"
+    depends_on:
+      - postgres
+
+  api-gateway:
+    image: node:22
+    container_name: manifest-api-gateway
+    profiles: ["phase1-apps"]
+    working_dir: /workspace
+    volumes:
+      - ..:/workspace
+    environment:
+      PORT: "4000"
+      PROFILE_SERVICE_URL: "http://profile-project-service:4001"
+    command: >
+      sh -lc "corepack enable && pnpm install --frozen-lockfile=false &&
+      pnpm --filter @script-manifest/api-gateway dev"
+    ports:
+      - "4000:4000"
+    depends_on:
+      - profile-project-service
+
+  writer-web:
+    image: node:22
+    container_name: manifest-writer-web
+    profiles: ["phase1-apps"]
+    working_dir: /workspace
+    volumes:
+      - ..:/workspace
+    command: >
+      sh -lc "corepack enable && pnpm install --frozen-lockfile=false &&
+      pnpm --filter @script-manifest/writer-web dev"
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api-gateway
+
 volumes:
   postgres_data:
   opensearch_data:

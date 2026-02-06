@@ -1,0 +1,13 @@
+{
+  "name": "@script-manifest/db",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "prisma:generate": "prisma generate",
+    "prisma:format": "prisma format",
+    "lint": "echo 'lint not configured'"
+  },
+  "devDependencies": {
+    "prisma": "^5.22.0"
+  }
+}

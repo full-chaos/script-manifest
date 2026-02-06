@@ -1,0 +1,28 @@
+# Local env
+.env
+.env.*
+!.env.example
+
+# OS/editor
+.DS_Store
+.vscode/
+.idea/
+
+# Node/Python build artifacts
+node_modules/
+dist/
+build/
+__pycache__/
+.pytest_cache/
+
+# Beads local db/runtime
+.beads/*.db
+.beads/*.db-shm
+.beads/*.db-wal
+.beads/daemon.*
+.beads/last-touched
+.beads/.jsonl.lock
+.beads/interactions.jsonl
+
+# Docker volumes (if bind-mounted later)
+*.log

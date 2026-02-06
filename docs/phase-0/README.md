@@ -11,6 +11,7 @@ This folder locks the non-code decisions required before Phase 1 build execution
 - `data-portability-policy.md`
 - `privacy-and-ip-policy.md`
 - `notification-architecture.md`
+- `signoff.md`
 
 ## Decision Summary
 
@@ -20,3 +21,4 @@ This folder locks the non-code decisions required before Phase 1 build execution
 - Writers retain IP rights; sharing requires explicit user permission.
 - Data export (CSV + PDF + script files) is a permanent product commitment.
 - Notifications are designed as a horizontal event-driven platform concern.
+- Phase 0 sign-off is recorded before Phase 1 implementation begins.

@@ -70,3 +70,102 @@ nav ul {
 .status-error {
   color: #8a1f11;
 }
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.stack-tight {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.inline-form {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.grid-two {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.75rem;
+}
+
+.input {
+  width: 100%;
+  border: 1px solid #bca98b;
+  border-radius: 8px;
+  padding: 0.6rem 0.75rem;
+  background: #fffdf9;
+  color: inherit;
+}
+
+.textarea {
+  resize: vertical;
+}
+
+.btn {
+  border: 1px solid #9f8d74;
+  border-radius: 8px;
+  background: #f6efe4;
+  color: inherit;
+  padding: 0.55rem 0.8rem;
+  cursor: pointer;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.btn-active {
+  background: #6f3205;
+  border-color: #6f3205;
+  color: #fff8ef;
+}
+
+.btn-danger {
+  border-color: #8a1f11;
+  color: #8a1f11;
+}
+
+.segmented {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.status-note {
+  margin: 0;
+  color: #6f3205;
+  font-weight: 600;
+}
+
+.muted {
+  color: #5a4f41;
+  margin: 0;
+}
+
+.subcard {
+  background: rgba(255, 255, 255, 0.65);
+  border: 1px solid #d8ccb9;
+  border-radius: 10px;
+  padding: 0.75rem;
+}
+
+.subcard-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.checkbox {
+  align-self: end;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+}

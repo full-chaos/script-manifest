@@ -37,6 +37,7 @@ pnpm typecheck
 Start MVP shell services:
 
 ```bash
+pnpm --filter @script-manifest/identity-service dev
 pnpm --filter @script-manifest/profile-project-service dev
 pnpm --filter @script-manifest/api-gateway dev
 pnpm --filter @script-manifest/writer-web dev
@@ -45,5 +46,5 @@ pnpm --filter @script-manifest/writer-web dev
 Or use compose profile:
 
 ```bash
-docker compose -f infra/docker-compose.yml --profile phase1-apps up -d
+docker compose -f infra/docker-compose.yml up -d
 ```

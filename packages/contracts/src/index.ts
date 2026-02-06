@@ -10,6 +10,104 @@ export const WriterProfileSchema = z.object({
 
 export type WriterProfile = z.infer<typeof WriterProfileSchema>;
 
+export const WriterProfileUpdateRequestSchema = z.object({
+  displayName: z.string().min(1).optional(),
+  bio: z.string().max(5000).optional(),
+  genres: z.array(z.string().min(1)).max(20).optional(),
+  representationStatus: z
+    .enum(["represented", "unrepresented", "seeking_rep"])
+    .optional()
+});
+
+export type WriterProfileUpdateRequest = z.infer<typeof WriterProfileUpdateRequestSchema>;
+
+export const ProjectSchema = z.object({
+  id: z.string().min(1),
+  ownerUserId: z.string().min(1),
+  title: z.string().min(1),
+  logline: z.string().default(""),
+  synopsis: z.string().default(""),
+  format: z.string().min(1),
+  genre: z.string().min(1),
+  pageCount: z.number().int().nonnegative().default(0),
+  isDiscoverable: z.boolean().default(false),
+  createdAt: z.string().datetime({ offset: true }),
+  updatedAt: z.string().datetime({ offset: true })
+});
+
+export type Project = z.infer<typeof ProjectSchema>;
+
+export const ProjectCreateRequestSchema = z.object({
+  ownerUserId: z.string().min(1),
+  title: z.string().min(1),
+  logline: z.string().default(""),
+  synopsis: z.string().default(""),
+  format: z.string().min(1),
+  genre: z.string().min(1),
+  pageCount: z.number().int().nonnegative().default(0),
+  isDiscoverable: z.boolean().default(false)
+});
+
+export type ProjectCreateRequest = z.infer<typeof ProjectCreateRequestSchema>;
+
+export const ProjectUpdateRequestSchema = z.object({
+  title: z.string().min(1).optional(),
+  logline: z.string().optional(),
+  synopsis: z.string().optional(),
+  format: z.string().min(1).optional(),
+  genre: z.string().min(1).optional(),
+  pageCount: z.number().int().nonnegative().optional(),
+  isDiscoverable: z.boolean().optional()
+});
+
+export type ProjectUpdateRequest = z.infer<typeof ProjectUpdateRequestSchema>;
+
+export const ProjectFiltersSchema = z.object({
+  ownerUserId: z.string().trim().min(1).optional(),
+  genre: z.string().trim().min(1).optional(),
+  format: z.string().trim().min(1).optional()
+});
+
+export type ProjectFilters = z.infer<typeof ProjectFiltersSchema>;
+
+export const AuthRegisterRequestSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(8).max(200),
+  displayName: z.string().min(1).max(120)
+});
+
+export type AuthRegisterRequest = z.infer<typeof AuthRegisterRequestSchema>;
+
+export const AuthLoginRequestSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(8).max(200)
+});
+
+export type AuthLoginRequest = z.infer<typeof AuthLoginRequestSchema>;
+
+export const AuthUserSchema = z.object({
+  id: z.string().min(1),
+  email: z.string().email(),
+  displayName: z.string().min(1)
+});
+
+export type AuthUser = z.infer<typeof AuthUserSchema>;
+
+export const AuthSessionResponseSchema = z.object({
+  token: z.string().min(1),
+  expiresAt: z.string().datetime({ offset: true }),
+  user: AuthUserSchema
+});
+
+export type AuthSessionResponse = z.infer<typeof AuthSessionResponseSchema>;
+
+export const AuthMeResponseSchema = z.object({
+  user: AuthUserSchema,
+  expiresAt: z.string().datetime({ offset: true })
+});
+
+export type AuthMeResponse = z.infer<typeof AuthMeResponseSchema>;
+
 export const NotificationEventTypeSchema = z.enum([
   "deadline_reminder",
   "script_access_requested",

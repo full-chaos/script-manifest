@@ -1,38 +1,120 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import { pathToFileURL } from "node:url";
-import { WriterProfileSchema } from "@script-manifest/contracts";
+import {
+  ProjectCreateRequestSchema,
+  ProjectFiltersSchema,
+  ProjectUpdateRequestSchema,
+  WriterProfileUpdateRequestSchema
+} from "@script-manifest/contracts";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { publishNotificationEvent } from "./notificationPublisher.js";
+import {
+  type ProfileProjectRepository,
+  PgProfileProjectRepository
+} from "./repository.js";
 
 type PublishNotificationEvent = typeof publishNotificationEvent;
 
 export type ProfileProjectServiceOptions = {
   logger?: boolean;
   publisher?: PublishNotificationEvent;
+  repository?: ProfileProjectRepository;
 };
 
 export function buildServer(options: ProfileProjectServiceOptions = {}): FastifyInstance {
   const server = Fastify({ logger: options.logger ?? true });
   const publisher = options.publisher ?? publishNotificationEvent;
+  const repository = options.repository ?? new PgProfileProjectRepository();
 
-  const demoProfile = WriterProfileSchema.parse({
-    id: "writer_01",
-    displayName: "Demo Writer",
-    bio: "Phase 1 seed profile",
-    genres: ["Drama", "Thriller"],
-    representationStatus: "unrepresented"
+  server.addHook("onReady", async () => {
+    await repository.init();
   });
 
   server.get("/health", async () => ({ service: "profile-project-service", ok: true }));
 
   server.get("/internal/profiles/:writerId", async (req, reply) => {
     const { writerId } = req.params as { writerId: string };
-    if (writerId !== demoProfile.id) {
+    const profile = await repository.getProfile(writerId);
+    if (!profile) {
       return reply.status(404).send({ error: "profile_not_found" });
     }
 
-    return reply.send({ profile: demoProfile });
+    return reply.send({ profile });
+  });
+
+  server.put("/internal/profiles/:writerId", async (req, reply) => {
+    const { writerId } = req.params as { writerId: string };
+    const parsed = WriterProfileUpdateRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
+    }
+
+    const profile = await repository.upsertProfile(writerId, parsed.data);
+    if (!profile) {
+      return reply.status(404).send({ error: "profile_not_found" });
+    }
+
+    return reply.send({ profile });
+  });
+
+  server.post("/internal/projects", async (req, reply) => {
+    const parsed = ProjectCreateRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
+    }
+
+    const project = await repository.createProject(parsed.data);
+    if (!project) {
+      return reply.status(404).send({ error: "owner_not_found" });
+    }
+
+    return reply.status(201).send({ project });
+  });
+
+  server.get("/internal/projects", async (req, reply) => {
+    const parsed = ProjectFiltersSchema.safeParse(req.query);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: "invalid_query", details: parsed.error.flatten() });
+    }
+
+    const projects = await repository.listProjects(parsed.data);
+    return reply.send({ projects });
+  });
+
+  server.get("/internal/projects/:projectId", async (req, reply) => {
+    const { projectId } = req.params as { projectId: string };
+    const project = await repository.getProject(projectId);
+    if (!project) {
+      return reply.status(404).send({ error: "project_not_found" });
+    }
+
+    return reply.send({ project });
+  });
+
+  server.put("/internal/projects/:projectId", async (req, reply) => {
+    const { projectId } = req.params as { projectId: string };
+    const parsed = ProjectUpdateRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
+    }
+
+    const project = await repository.updateProject(projectId, parsed.data);
+    if (!project) {
+      return reply.status(404).send({ error: "project_not_found" });
+    }
+
+    return reply.send({ project });
+  });
+
+  server.delete("/internal/projects/:projectId", async (req, reply) => {
+    const { projectId } = req.params as { projectId: string };
+    const deleted = await repository.deleteProject(projectId);
+    if (!deleted) {
+      return reply.status(404).send({ error: "project_not_found" });
+    }
+
+    return reply.send({ deleted: true });
   });
 
   const ScriptAccessRequestSchema = z.object({

@@ -2,12 +2,24 @@
   "name": "@script-manifest/db",
   "private": true,
   "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
   "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit",
     "prisma:generate": "prisma generate",
     "prisma:format": "prisma format",
     "lint": "echo 'lint not configured'"
   },
+  "dependencies": {
+    "pg": "^8.13.1"
+  },
   "devDependencies": {
+    "@types/pg": "^8.11.10",
     "prisma": "^5.22.0"
   }
 }

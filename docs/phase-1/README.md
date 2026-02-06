@@ -29,6 +29,7 @@ pnpm typecheck
 Run core surfaces:
 
 ```bash
+pnpm --filter @script-manifest/identity-service dev
 pnpm --filter @script-manifest/notification-service dev
 pnpm --filter @script-manifest/writer-web dev
 pnpm --filter @script-manifest/api-gateway dev
@@ -42,8 +43,53 @@ pnpm --filter @script-manifest/submission-tracking-service dev
 Or boot infra + app services together:
 
 ```bash
-docker compose -f infra/docker-compose.yml --profile phase1-apps up -d
+docker compose -f infra/docker-compose.yml up -d
 ```
+
+## Auth + Profile/Project CRUD (Issue #29)
+
+Identity service endpoints (`:4005`):
+- `GET /health`
+- `POST /internal/auth/register`
+- `POST /internal/auth/login`
+- `GET /internal/auth/me`
+- `POST /internal/auth/logout`
+
+Gateway endpoints (`:4000`):
+- `POST /api/v1/auth/register`
+- `POST /api/v1/auth/login`
+- `GET /api/v1/auth/me`
+- `POST /api/v1/auth/logout`
+- `GET /api/v1/profiles/:writerId`
+- `PUT /api/v1/profiles/:writerId`
+- `GET /api/v1/projects`
+- `POST /api/v1/projects`
+- `GET /api/v1/projects/:projectId`
+- `PUT /api/v1/projects/:projectId`
+- `DELETE /api/v1/projects/:projectId`
+
+Writer web pages now wired to the gateway:
+- `/signin`
+- `/profile`
+- `/projects`
+- `/competitions`
+- `/submissions`
+
+## Test Coverage Additions
+
+- `apps/writer-web` now runs Vitest + React Testing Library:
+  - API route proxy tests
+  - React behavior tests for:
+    - sign in/register/logout
+    - profile load/save
+    - project load/create/delete
+    - competition search
+    - submissions load/create
+- `services/api-gateway` has a platform flow functionality test that validates a full gateway-mediated path:
+  - auth register/me
+  - profile update
+  - project create/list
+  - submission create/list
 
 ## Notification Event Contract (Issue #21)
 

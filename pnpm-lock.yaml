@@ -147,6 +147,25 @@ importers:
         specifier: ^5.6.3
         version: 5.9.3
 
+  services/script-storage-service:
+    dependencies:
+      '@script-manifest/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      fastify:
+        specifier: ^5.1.0
+        version: 5.7.4
+    devDependencies:
+      '@types/node':
+        specifier: ^22.8.1
+        version: 22.19.9
+      tsx:
+        specifier: ^4.19.2
+        version: 4.21.0
+      typescript:
+        specifier: ^5.6.3
+        version: 5.9.3
+
   services/search-indexer-service:
     dependencies:
       '@script-manifest/contracts':
@@ -158,6 +177,28 @@ importers:
       undici:
         specifier: ^7.2.0
         version: 7.20.0
+    devDependencies:
+      '@types/node':
+        specifier: ^22.8.1
+        version: 22.19.9
+      tsx:
+        specifier: ^4.19.2
+        version: 4.21.0
+      typescript:
+        specifier: ^5.6.3
+        version: 5.9.3
+
+  services/submission-tracking-service:
+    dependencies:
+      '@script-manifest/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      fastify:
+        specifier: ^5.1.0
+        version: 5.7.4
+      zod:
+        specifier: ^3.23.8
+        version: 3.25.76
     devDependencies:
       '@types/node':
         specifier: ^22.8.1

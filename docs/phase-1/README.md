@@ -34,6 +34,8 @@ pnpm --filter @script-manifest/api-gateway dev
 pnpm --filter @script-manifest/profile-project-service dev
 pnpm --filter @script-manifest/competition-directory-service dev
 pnpm --filter @script-manifest/search-indexer-service dev
+pnpm --filter @script-manifest/script-storage-service dev
+pnpm --filter @script-manifest/submission-tracking-service dev
 ```
 
 Or boot infra + app services together:
@@ -132,4 +134,86 @@ curl -X POST http://localhost:4002/internal/competitions \
   -d '{"id":"comp_002","title":"TV Pilot Launchpad","description":"Pilot contest","format":"tv","genre":"comedy","feeUsd":35,"deadline":"2026-06-10T23:59:59Z"}'
 
 curl "http://localhost:4000/api/v1/competitions?genre=comedy&maxFeeUsd=40"
+```
+
+## Script Storage + In-Browser Viewer Scaffold (Issue #20)
+
+Script storage service endpoints (`:4011`):
+- `GET /health`
+- `POST /internal/scripts/upload-session` (returns mock upload URL + form fields + object metadata)
+- `POST /internal/scripts/register` (registers uploaded object metadata by `scriptId`)
+- `GET /internal/scripts/:scriptId/view?viewerUserId=` (returns viewer payload with object path/URL + access flags)
+
+Writer web integration:
+- Viewer page scaffold: `/projects/[scriptId]/viewer`
+- Writer web API proxy: `GET /api/scripts/:scriptId/viewer` -> script-storage-service view endpoint
+
+Quick run:
+
+```bash
+pnpm --filter @script-manifest/script-storage-service dev
+pnpm --filter @script-manifest/writer-web dev
+```
+
+Example storage + viewer flow:
+
+```bash
+curl http://localhost:4011/health
+
+curl -X POST http://localhost:4011/internal/scripts/upload-session \
+  -H "content-type: application/json" \
+  -d '{"scriptId":"script_demo_01","ownerUserId":"writer_01","filename":"demo-script.pdf","contentType":"application/pdf","size":240000}'
+
+curl -X POST http://localhost:4011/internal/scripts/register \
+  -H "content-type: application/json" \
+  -d '{"scriptId":"script_demo_01","ownerUserId":"writer_01","objectKey":"writer_01/script_demo_01/latest.pdf","filename":"demo-script.pdf","contentType":"application/pdf","size":240000}'
+
+curl "http://localhost:4011/internal/scripts/script_demo_01/view?viewerUserId=writer_01"
+
+curl "http://localhost:3000/api/scripts/script_demo_01/viewer"
+```
+
+## Submission Tracking + Placement Verification (Issue #19)
+
+Submission tracking service endpoints (`:4004`):
+- `GET /health`
+- `POST /internal/submissions`
+- `GET /internal/submissions?writerId=&projectId=&competitionId=&status=`
+- `POST /internal/submissions/:submissionId/placements`
+- `POST /internal/placements/:placementId/verify`
+
+Submission status values:
+- `pending`
+- `quarterfinalist`
+- `semifinalist`
+- `finalist`
+- `winner`
+
+Gateway endpoints (`:4000`):
+- `GET /api/v1/submissions`
+- `POST /api/v1/submissions`
+
+Quick run:
+
+```bash
+pnpm --filter @script-manifest/submission-tracking-service dev
+pnpm --filter @script-manifest/api-gateway dev
+```
+
+Example submission + placement flow:
+
+```bash
+curl -X POST http://localhost:4000/api/v1/submissions \
+  -H "content-type: application/json" \
+  -d '{"writerId":"writer_01","projectId":"project_01","competitionId":"comp_001","status":"pending"}'
+
+curl "http://localhost:4000/api/v1/submissions?writerId=writer_01&competitionId=comp_001"
+
+curl -X POST http://localhost:4004/internal/submissions/submission_123/placements \
+  -H "content-type: application/json" \
+  -d '{"status":"quarterfinalist"}'
+
+curl -X POST http://localhost:4004/internal/placements/placement_123/verify \
+  -H "content-type: application/json" \
+  -d '{"verificationState":"verified"}'
 ```

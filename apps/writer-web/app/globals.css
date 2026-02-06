@@ -48,3 +48,25 @@ nav ul {
   padding: 1rem;
   margin-bottom: 1rem;
 }
+
+.viewer-meta {
+  margin-top: 1rem;
+}
+
+.viewer-shell {
+  margin-top: 1rem;
+  border: 1px dashed #bca98b;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #f4ece0;
+}
+
+.viewer-frame {
+  width: 100%;
+  min-height: 560px;
+  border: 0;
+}
+
+.status-error {
+  color: #8a1f11;
+}

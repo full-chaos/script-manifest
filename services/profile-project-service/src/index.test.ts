@@ -315,6 +315,9 @@ test("profile-project-service supports project CRUD", async (t) => {
   const update = await server.inject({
     method: "PUT",
     url: `/internal/projects/${projectId}`,
+    headers: {
+      "x-auth-user-id": "writer_01"
+    },
     payload: {
       title: "My Script Revised"
     }
@@ -324,7 +327,10 @@ test("profile-project-service supports project CRUD", async (t) => {
 
   const remove = await server.inject({
     method: "DELETE",
-    url: `/internal/projects/${projectId}`
+    url: `/internal/projects/${projectId}`,
+    headers: {
+      "x-auth-user-id": "writer_01"
+    }
   });
   assert.equal(remove.statusCode, 200);
   assert.equal(remove.json().deleted, true);
@@ -385,6 +391,9 @@ test("profile-project-service supports co-writer and draft lifecycle endpoints",
   const addCoWriter = await server.inject({
     method: "POST",
     url: `/internal/projects/${projectId}/co-writers`,
+    headers: {
+      "x-auth-user-id": "writer_01"
+    },
     payload: {
       coWriterUserId: "writer_02",
       creditOrder: 2
@@ -443,6 +452,9 @@ test("profile-project-service supports co-writer and draft lifecycle endpoints",
   const archivePrimary = await server.inject({
     method: "PATCH",
     url: `/internal/projects/${projectId}/drafts/${draftTwoId}`,
+    headers: {
+      "x-auth-user-id": "writer_01"
+    },
     payload: {
       lifecycleState: "archived"
     }
@@ -462,7 +474,10 @@ test("profile-project-service supports co-writer and draft lifecycle endpoints",
 
   const removeCoWriter = await server.inject({
     method: "DELETE",
-    url: `/internal/projects/${projectId}/co-writers/writer_02`
+    url: `/internal/projects/${projectId}/co-writers/writer_02`,
+    headers: {
+      "x-auth-user-id": "writer_01"
+    }
   });
   assert.equal(removeCoWriter.statusCode, 200);
 });

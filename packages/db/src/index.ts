@@ -55,7 +55,7 @@ export async function ensureCoreTables(): Promise<void> {
     CREATE TABLE IF NOT EXISTS writer_profiles (
       writer_id TEXT PRIMARY KEY REFERENCES app_users(id) ON DELETE CASCADE,
       display_name TEXT NOT NULL,
-      bio TEXT NOT NULL DEFAULT '',
+      bio VARCHAR(5000) NOT NULL DEFAULT '',
       genres TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
       representation_status TEXT NOT NULL DEFAULT 'unrepresented',
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -67,8 +67,8 @@ export async function ensureCoreTables(): Promise<void> {
       id TEXT PRIMARY KEY,
       owner_user_id TEXT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
       title TEXT NOT NULL,
-      logline TEXT NOT NULL DEFAULT '',
-      synopsis TEXT NOT NULL DEFAULT '',
+      logline VARCHAR(500) NOT NULL DEFAULT '',
+      synopsis VARCHAR(5000) NOT NULL DEFAULT '',
       format TEXT NOT NULL,
       genre TEXT NOT NULL,
       page_count INTEGER NOT NULL DEFAULT 0,
@@ -97,7 +97,7 @@ export async function ensureCoreTables(): Promise<void> {
       owner_user_id TEXT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
       script_id TEXT NOT NULL,
       version_label TEXT NOT NULL,
-      change_summary TEXT NOT NULL DEFAULT '',
+      change_summary VARCHAR(4000) NOT NULL DEFAULT '',
       page_count INTEGER NOT NULL DEFAULT 0 CHECK (page_count >= 0),
       lifecycle_state TEXT NOT NULL DEFAULT 'active'
         CHECK (lifecycle_state IN ('active', 'archived')),
@@ -111,5 +111,26 @@ export async function ensureCoreTables(): Promise<void> {
     CREATE UNIQUE INDEX IF NOT EXISTS idx_project_drafts_primary
       ON project_drafts(project_id)
       WHERE is_primary = TRUE;
+  `);
+
+  // Add indexes for foreign keys and common queries
+  await db.query(`
+    CREATE INDEX IF NOT EXISTS idx_projects_owner_user_id
+      ON projects(owner_user_id);
+  `);
+
+  await db.query(`
+    CREATE INDEX IF NOT EXISTS idx_project_drafts_project_id
+      ON project_drafts(project_id);
+  `);
+
+  await db.query(`
+    CREATE INDEX IF NOT EXISTS idx_project_co_writers_co_writer_user_id
+      ON project_co_writers(co_writer_user_id);
+  `);
+
+  await db.query(`
+    CREATE INDEX IF NOT EXISTS idx_app_sessions_user_id
+      ON app_sessions(user_id);
   `);
 }

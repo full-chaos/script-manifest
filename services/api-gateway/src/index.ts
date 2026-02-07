@@ -67,13 +67,18 @@ export function buildServer(options: ApiGatewayOptions = {}): FastifyInstance {
 
   server.put("/api/v1/profiles/:writerId", async (req, reply) => {
     const { writerId } = req.params as { writerId: string };
+    const userId = await getUserIdFromAuth(requestFn, identityServiceBase, req.headers.authorization);
+    
     return proxyJsonRequest(
       reply,
       requestFn,
       `${profileServiceBase}/internal/profiles/${encodeURIComponent(writerId)}`,
       {
         method: "PUT",
-        headers: { "content-type": "application/json" },
+        headers: addAuthUserIdHeader(
+          { "content-type": "application/json" },
+          userId
+        ),
         body: JSON.stringify(req.body ?? {})
       }
     );
@@ -113,13 +118,18 @@ export function buildServer(options: ApiGatewayOptions = {}): FastifyInstance {
 
   server.put("/api/v1/projects/:projectId", async (req, reply) => {
     const { projectId } = req.params as { projectId: string };
+    const userId = await getUserIdFromAuth(requestFn, identityServiceBase, req.headers.authorization);
+    
     return proxyJsonRequest(
       reply,
       requestFn,
       `${profileServiceBase}/internal/projects/${encodeURIComponent(projectId)}`,
       {
         method: "PUT",
-        headers: { "content-type": "application/json" },
+        headers: addAuthUserIdHeader(
+          { "content-type": "application/json" },
+          userId
+        ),
         body: JSON.stringify(req.body ?? {})
       }
     );
@@ -127,12 +137,15 @@ export function buildServer(options: ApiGatewayOptions = {}): FastifyInstance {
 
   server.delete("/api/v1/projects/:projectId", async (req, reply) => {
     const { projectId } = req.params as { projectId: string };
+    const userId = await getUserIdFromAuth(requestFn, identityServiceBase, req.headers.authorization);
+    
     return proxyJsonRequest(
       reply,
       requestFn,
       `${profileServiceBase}/internal/projects/${encodeURIComponent(projectId)}`,
       {
-        method: "DELETE"
+        method: "DELETE",
+        headers: addAuthUserIdHeader({}, userId)
       }
     );
   });
@@ -151,13 +164,18 @@ export function buildServer(options: ApiGatewayOptions = {}): FastifyInstance {
 
   server.post("/api/v1/projects/:projectId/co-writers", async (req, reply) => {
     const { projectId } = req.params as { projectId: string };
+    const userId = await getUserIdFromAuth(requestFn, identityServiceBase, req.headers.authorization);
+    
     return proxyJsonRequest(
       reply,
       requestFn,
       `${profileServiceBase}/internal/projects/${encodeURIComponent(projectId)}/co-writers`,
       {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: addAuthUserIdHeader(
+          { "content-type": "application/json" },
+          userId
+        ),
         body: JSON.stringify(req.body ?? {})
       }
     );
@@ -168,12 +186,15 @@ export function buildServer(options: ApiGatewayOptions = {}): FastifyInstance {
       projectId: string;
       coWriterUserId: string;
     };
+    const userId = await getUserIdFromAuth(requestFn, identityServiceBase, req.headers.authorization);
+    
     return proxyJsonRequest(
       reply,
       requestFn,
       `${profileServiceBase}/internal/projects/${encodeURIComponent(projectId)}/co-writers/${encodeURIComponent(coWriterUserId)}`,
       {
-        method: "DELETE"
+        method: "DELETE",
+        headers: addAuthUserIdHeader({}, userId)
       }
     );
   });
@@ -192,13 +213,18 @@ export function buildServer(options: ApiGatewayOptions = {}): FastifyInstance {
 
   server.post("/api/v1/projects/:projectId/drafts", async (req, reply) => {
     const { projectId } = req.params as { projectId: string };
+    const userId = await getUserIdFromAuth(requestFn, identityServiceBase, req.headers.authorization);
+    
     return proxyJsonRequest(
       reply,
       requestFn,
       `${profileServiceBase}/internal/projects/${encodeURIComponent(projectId)}/drafts`,
       {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: addAuthUserIdHeader(
+          { "content-type": "application/json" },
+          userId
+        ),
         body: JSON.stringify(req.body ?? {})
       }
     );
@@ -206,13 +232,18 @@ export function buildServer(options: ApiGatewayOptions = {}): FastifyInstance {
 
   server.patch("/api/v1/projects/:projectId/drafts/:draftId", async (req, reply) => {
     const { projectId, draftId } = req.params as { projectId: string; draftId: string };
+    const userId = await getUserIdFromAuth(requestFn, identityServiceBase, req.headers.authorization);
+    
     return proxyJsonRequest(
       reply,
       requestFn,
       `${profileServiceBase}/internal/projects/${encodeURIComponent(projectId)}/drafts/${encodeURIComponent(draftId)}`,
       {
         method: "PATCH",
-        headers: { "content-type": "application/json" },
+        headers: addAuthUserIdHeader(
+          { "content-type": "application/json" },
+          userId
+        ),
         body: JSON.stringify(req.body ?? {})
       }
     );
@@ -220,13 +251,18 @@ export function buildServer(options: ApiGatewayOptions = {}): FastifyInstance {
 
   server.post("/api/v1/projects/:projectId/drafts/:draftId/primary", async (req, reply) => {
     const { projectId, draftId } = req.params as { projectId: string; draftId: string };
+    const userId = await getUserIdFromAuth(requestFn, identityServiceBase, req.headers.authorization);
+    
     return proxyJsonRequest(
       reply,
       requestFn,
       `${profileServiceBase}/internal/projects/${encodeURIComponent(projectId)}/drafts/${encodeURIComponent(draftId)}/primary`,
       {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: addAuthUserIdHeader(
+          { "content-type": "application/json" },
+          userId
+        ),
         body: JSON.stringify(req.body ?? {})
       }
     );
@@ -334,6 +370,42 @@ function copyAuthHeader(authorization: string | undefined): Record<string, strin
   }
 
   return { authorization };
+}
+
+async function getUserIdFromAuth(
+  requestFn: RequestFn,
+  identityServiceBase: string,
+  authorization: string | undefined
+): Promise<string | null> {
+  if (!authorization) {
+    return null;
+  }
+
+  try {
+    const response = await requestFn(`${identityServiceBase}/internal/auth/me`, {
+      method: "GET",
+      headers: { authorization }
+    });
+    
+    if (response.statusCode !== 200) {
+      return null;
+    }
+
+    const body = (await response.body.json()) as { user?: { id?: string } };
+    return body?.user?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function addAuthUserIdHeader(
+  headers: Record<string, string>,
+  userId: string | null
+): Record<string, string> {
+  if (userId) {
+    return { ...headers, "x-auth-user-id": userId };
+  }
+  return headers;
 }
 
 async function proxyJsonRequest(

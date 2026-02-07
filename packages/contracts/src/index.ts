@@ -65,7 +65,9 @@ export type ProjectUpdateRequest = z.infer<typeof ProjectUpdateRequestSchema>;
 export const ProjectFiltersSchema = z.object({
   ownerUserId: z.string().trim().min(1).optional(),
   genre: z.string().trim().min(1).optional(),
-  format: z.string().trim().min(1).optional()
+  format: z.string().trim().min(1).optional(),
+  limit: z.number().int().positive().max(100).default(30).optional(),
+  offset: z.number().int().nonnegative().default(0).optional()
 });
 
 export type ProjectFilters = z.infer<typeof ProjectFiltersSchema>;

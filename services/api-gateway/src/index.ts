@@ -137,6 +137,101 @@ export function buildServer(options: ApiGatewayOptions = {}): FastifyInstance {
     );
   });
 
+  server.get("/api/v1/projects/:projectId/co-writers", async (req, reply) => {
+    const { projectId } = req.params as { projectId: string };
+    return proxyJsonRequest(
+      reply,
+      requestFn,
+      `${profileServiceBase}/internal/projects/${encodeURIComponent(projectId)}/co-writers`,
+      {
+        method: "GET"
+      }
+    );
+  });
+
+  server.post("/api/v1/projects/:projectId/co-writers", async (req, reply) => {
+    const { projectId } = req.params as { projectId: string };
+    return proxyJsonRequest(
+      reply,
+      requestFn,
+      `${profileServiceBase}/internal/projects/${encodeURIComponent(projectId)}/co-writers`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(req.body ?? {})
+      }
+    );
+  });
+
+  server.delete("/api/v1/projects/:projectId/co-writers/:coWriterUserId", async (req, reply) => {
+    const { projectId, coWriterUserId } = req.params as {
+      projectId: string;
+      coWriterUserId: string;
+    };
+    return proxyJsonRequest(
+      reply,
+      requestFn,
+      `${profileServiceBase}/internal/projects/${encodeURIComponent(projectId)}/co-writers/${encodeURIComponent(coWriterUserId)}`,
+      {
+        method: "DELETE"
+      }
+    );
+  });
+
+  server.get("/api/v1/projects/:projectId/drafts", async (req, reply) => {
+    const { projectId } = req.params as { projectId: string };
+    return proxyJsonRequest(
+      reply,
+      requestFn,
+      `${profileServiceBase}/internal/projects/${encodeURIComponent(projectId)}/drafts`,
+      {
+        method: "GET"
+      }
+    );
+  });
+
+  server.post("/api/v1/projects/:projectId/drafts", async (req, reply) => {
+    const { projectId } = req.params as { projectId: string };
+    return proxyJsonRequest(
+      reply,
+      requestFn,
+      `${profileServiceBase}/internal/projects/${encodeURIComponent(projectId)}/drafts`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(req.body ?? {})
+      }
+    );
+  });
+
+  server.patch("/api/v1/projects/:projectId/drafts/:draftId", async (req, reply) => {
+    const { projectId, draftId } = req.params as { projectId: string; draftId: string };
+    return proxyJsonRequest(
+      reply,
+      requestFn,
+      `${profileServiceBase}/internal/projects/${encodeURIComponent(projectId)}/drafts/${encodeURIComponent(draftId)}`,
+      {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(req.body ?? {})
+      }
+    );
+  });
+
+  server.post("/api/v1/projects/:projectId/drafts/:draftId/primary", async (req, reply) => {
+    const { projectId, draftId } = req.params as { projectId: string; draftId: string };
+    return proxyJsonRequest(
+      reply,
+      requestFn,
+      `${profileServiceBase}/internal/projects/${encodeURIComponent(projectId)}/drafts/${encodeURIComponent(draftId)}/primary`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(req.body ?? {})
+      }
+    );
+  });
+
   server.get("/api/v1/competitions", async (req, reply) => {
     const querySuffix = buildQuerySuffix(req.query);
     return proxyJsonRequest(
@@ -167,6 +262,20 @@ export function buildServer(options: ApiGatewayOptions = {}): FastifyInstance {
       headers: { "content-type": "application/json" },
       body: JSON.stringify(req.body ?? {})
     });
+  });
+
+  server.patch("/api/v1/submissions/:submissionId/project", async (req, reply) => {
+    const { submissionId } = req.params as { submissionId: string };
+    return proxyJsonRequest(
+      reply,
+      requestFn,
+      `${submissionTrackingBase}/internal/submissions/${encodeURIComponent(submissionId)}/project`,
+      {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(req.body ?? {})
+      }
+    );
   });
 
   return server;

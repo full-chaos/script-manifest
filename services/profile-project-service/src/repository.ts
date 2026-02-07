@@ -3,10 +3,23 @@ import {
   ensureCoreTables,
   getPool
 } from "@script-manifest/db";
-import type { Project, ProjectCreateRequest, ProjectFilters, ProjectUpdateRequest, WriterProfile, WriterProfileUpdateRequest } from "@script-manifest/contracts";
+import type {
+  Project,
+  ProjectCoWriter,
+  ProjectCoWriterCreateRequest,
+  ProjectCreateRequest,
+  ProjectDraft,
+  ProjectDraftCreateRequest,
+  ProjectDraftUpdateRequest,
+  ProjectFilters,
+  ProjectUpdateRequest,
+  WriterProfile,
+  WriterProfileUpdateRequest
+} from "@script-manifest/contracts";
 
 export interface ProfileProjectRepository {
   init(): Promise<void>;
+  userExists(userId: string): Promise<boolean>;
   getProfile(writerId: string): Promise<WriterProfile | null>;
   upsertProfile(writerId: string, update: WriterProfileUpdateRequest): Promise<WriterProfile | null>;
   createProject(input: ProjectCreateRequest): Promise<Project | null>;
@@ -14,11 +27,31 @@ export interface ProfileProjectRepository {
   getProject(projectId: string): Promise<Project | null>;
   updateProject(projectId: string, update: ProjectUpdateRequest): Promise<Project | null>;
   deleteProject(projectId: string): Promise<boolean>;
+  listCoWriters(projectId: string): Promise<ProjectCoWriter[]>;
+  addCoWriter(projectId: string, input: ProjectCoWriterCreateRequest): Promise<ProjectCoWriter | null>;
+  removeCoWriter(projectId: string, coWriterUserId: string): Promise<boolean>;
+  listDrafts(projectId: string): Promise<ProjectDraft[]>;
+  createDraft(projectId: string, input: ProjectDraftCreateRequest): Promise<ProjectDraft | null>;
+  updateDraft(
+    projectId: string,
+    draftId: string,
+    update: ProjectDraftUpdateRequest
+  ): Promise<ProjectDraft | null>;
+  setPrimaryDraft(projectId: string, draftId: string, ownerUserId: string): Promise<ProjectDraft | null>;
 }
 
 export class PgProfileProjectRepository implements ProfileProjectRepository {
   async init(): Promise<void> {
     await ensureCoreTables();
+  }
+
+  async userExists(userId: string): Promise<boolean> {
+    const db = getPool();
+    const user = await db.query<{ id: string }>(
+      `SELECT id FROM app_users WHERE id = $1`,
+      [userId]
+    );
+    return Boolean(user.rows[0]);
   }
 
   async getProfile(writerId: string): Promise<WriterProfile | null> {
@@ -298,6 +331,336 @@ export class PgProfileProjectRepository implements ProfileProjectRepository {
     const result = await db.query(`DELETE FROM projects WHERE id = $1`, [projectId]);
     return (result.rowCount ?? 0) > 0;
   }
+
+  async listCoWriters(projectId: string): Promise<ProjectCoWriter[]> {
+    const db = getPool();
+    const rows = await db.query<{
+      project_id: string;
+      owner_user_id: string;
+      co_writer_user_id: string;
+      credit_order: number;
+      created_at: string;
+    }>(
+      `
+        SELECT project_id, owner_user_id, co_writer_user_id, credit_order, created_at
+        FROM project_co_writers
+        WHERE project_id = $1
+        ORDER BY credit_order ASC, created_at ASC
+      `,
+      [projectId]
+    );
+
+    return rows.rows.map(mapCoWriter);
+  }
+
+  async addCoWriter(
+    projectId: string,
+    input: ProjectCoWriterCreateRequest
+  ): Promise<ProjectCoWriter | null> {
+    const project = await this.getProject(projectId);
+    if (!project) {
+      return null;
+    }
+
+    const coWriterExists = await this.userExists(input.coWriterUserId);
+    if (!coWriterExists) {
+      return null;
+    }
+
+    const db = getPool();
+    const result = await db.query<{
+      project_id: string;
+      owner_user_id: string;
+      co_writer_user_id: string;
+      credit_order: number;
+      created_at: string;
+    }>(
+      `
+        INSERT INTO project_co_writers (project_id, owner_user_id, co_writer_user_id, credit_order)
+        VALUES ($1, $2, $3, $4)
+        ON CONFLICT (project_id, co_writer_user_id)
+        DO UPDATE SET credit_order = EXCLUDED.credit_order
+        RETURNING project_id, owner_user_id, co_writer_user_id, credit_order, created_at
+      `,
+      [projectId, project.ownerUserId, input.coWriterUserId, input.creditOrder]
+    );
+
+    const row = result.rows[0];
+    return row ? mapCoWriter(row) : null;
+  }
+
+  async removeCoWriter(projectId: string, coWriterUserId: string): Promise<boolean> {
+    const db = getPool();
+    const result = await db.query(
+      `DELETE FROM project_co_writers WHERE project_id = $1 AND co_writer_user_id = $2`,
+      [projectId, coWriterUserId]
+    );
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  async listDrafts(projectId: string): Promise<ProjectDraft[]> {
+    const db = getPool();
+    const result = await db.query<{
+      id: string;
+      project_id: string;
+      owner_user_id: string;
+      script_id: string;
+      version_label: string;
+      change_summary: string;
+      page_count: number;
+      lifecycle_state: "active" | "archived";
+      is_primary: boolean;
+      created_at: string;
+      updated_at: string;
+    }>(
+      `
+        SELECT id, project_id, owner_user_id, script_id, version_label, change_summary, page_count,
+               lifecycle_state, is_primary, created_at, updated_at
+        FROM project_drafts
+        WHERE project_id = $1
+        ORDER BY is_primary DESC, updated_at DESC
+      `,
+      [projectId]
+    );
+
+    return result.rows.map(mapDraft);
+  }
+
+  async createDraft(projectId: string, input: ProjectDraftCreateRequest): Promise<ProjectDraft | null> {
+    const db = getPool();
+    const client = await db.connect();
+
+    try {
+      await client.query("BEGIN");
+
+      const project = await client.query<{ owner_user_id: string }>(
+        `SELECT owner_user_id FROM projects WHERE id = $1`,
+        [projectId]
+      );
+      const projectRow = project.rows[0];
+      if (!projectRow || projectRow.owner_user_id !== input.ownerUserId) {
+        await client.query("ROLLBACK");
+        return null;
+      }
+
+      const existingPrimary = await client.query<{ count: string }>(
+        `
+          SELECT COUNT(*)::text AS count
+          FROM project_drafts
+          WHERE project_id = $1 AND is_primary = TRUE
+        `,
+        [projectId]
+      );
+      const hasPrimary = Number(existingPrimary.rows[0]?.count ?? "0") > 0;
+      const shouldSetPrimary = input.setPrimary || !hasPrimary;
+
+      if (shouldSetPrimary) {
+        await client.query(
+          `UPDATE project_drafts SET is_primary = FALSE, updated_at = NOW() WHERE project_id = $1`,
+          [projectId]
+        );
+      }
+
+      const id = `draft_${randomUUID()}`;
+      const created = await client.query<{
+        id: string;
+        project_id: string;
+        owner_user_id: string;
+        script_id: string;
+        version_label: string;
+        change_summary: string;
+        page_count: number;
+        lifecycle_state: "active" | "archived";
+        is_primary: boolean;
+        created_at: string;
+        updated_at: string;
+      }>(
+        `
+          INSERT INTO project_drafts (
+            id, project_id, owner_user_id, script_id, version_label, change_summary, page_count, lifecycle_state, is_primary
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, $7, 'active', $8)
+          RETURNING id, project_id, owner_user_id, script_id, version_label, change_summary, page_count,
+                    lifecycle_state, is_primary, created_at, updated_at
+        `,
+        [
+          id,
+          projectId,
+          input.ownerUserId,
+          input.scriptId,
+          input.versionLabel,
+          input.changeSummary,
+          input.pageCount,
+          shouldSetPrimary
+        ]
+      );
+
+      await client.query("COMMIT");
+      const row = created.rows[0];
+      return row ? mapDraft(row) : null;
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async updateDraft(
+    projectId: string,
+    draftId: string,
+    update: ProjectDraftUpdateRequest
+  ): Promise<ProjectDraft | null> {
+    const existing = await this.getDraft(projectId, draftId);
+    if (!existing) {
+      return null;
+    }
+
+    const next = {
+      ...existing,
+      ...update,
+      updatedAt: new Date().toISOString()
+    };
+
+    const db = getPool();
+    await db.query(
+      `
+        UPDATE project_drafts
+        SET version_label = $3,
+            change_summary = $4,
+            page_count = $5,
+            lifecycle_state = $6,
+            updated_at = NOW()
+        WHERE project_id = $1 AND id = $2
+      `,
+      [
+        projectId,
+        draftId,
+        next.versionLabel,
+        next.changeSummary,
+        next.pageCount,
+        next.lifecycleState
+      ]
+    );
+
+    if (next.lifecycleState === "archived" && next.isPrimary) {
+      await db.query(
+        `UPDATE project_drafts SET is_primary = FALSE, updated_at = NOW() WHERE project_id = $1 AND id = $2`,
+        [projectId, draftId]
+      );
+
+      await db.query(
+        `
+          WITH candidate AS (
+            SELECT id
+            FROM project_drafts
+            WHERE project_id = $1 AND id <> $2 AND lifecycle_state = 'active'
+            ORDER BY updated_at DESC
+            LIMIT 1
+          )
+          UPDATE project_drafts
+          SET is_primary = TRUE, updated_at = NOW()
+          WHERE id IN (SELECT id FROM candidate)
+        `,
+        [projectId, draftId]
+      );
+    }
+
+    return this.getDraft(projectId, draftId);
+  }
+
+  async setPrimaryDraft(
+    projectId: string,
+    draftId: string,
+    ownerUserId: string
+  ): Promise<ProjectDraft | null> {
+    const db = getPool();
+    const client = await db.connect();
+
+    try {
+      await client.query("BEGIN");
+
+      const project = await client.query<{ owner_user_id: string }>(
+        `SELECT owner_user_id FROM projects WHERE id = $1`,
+        [projectId]
+      );
+      const projectRow = project.rows[0];
+      if (!projectRow || projectRow.owner_user_id !== ownerUserId) {
+        await client.query("ROLLBACK");
+        return null;
+      }
+
+      await client.query(
+        `UPDATE project_drafts SET is_primary = FALSE, updated_at = NOW() WHERE project_id = $1`,
+        [projectId]
+      );
+
+      const result = await client.query<{
+        id: string;
+        project_id: string;
+        owner_user_id: string;
+        script_id: string;
+        version_label: string;
+        change_summary: string;
+        page_count: number;
+        lifecycle_state: "active" | "archived";
+        is_primary: boolean;
+        created_at: string;
+        updated_at: string;
+      }>(
+        `
+          UPDATE project_drafts
+          SET is_primary = TRUE, updated_at = NOW()
+          WHERE project_id = $1 AND id = $2 AND lifecycle_state = 'active'
+          RETURNING id, project_id, owner_user_id, script_id, version_label, change_summary, page_count,
+                    lifecycle_state, is_primary, created_at, updated_at
+        `,
+        [projectId, draftId]
+      );
+
+      const row = result.rows[0];
+      if (!row) {
+        await client.query("ROLLBACK");
+        return null;
+      }
+
+      await client.query("COMMIT");
+      return mapDraft(row);
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  private async getDraft(projectId: string, draftId: string): Promise<ProjectDraft | null> {
+    const db = getPool();
+    const result = await db.query<{
+      id: string;
+      project_id: string;
+      owner_user_id: string;
+      script_id: string;
+      version_label: string;
+      change_summary: string;
+      page_count: number;
+      lifecycle_state: "active" | "archived";
+      is_primary: boolean;
+      created_at: string;
+      updated_at: string;
+    }>(
+      `
+        SELECT id, project_id, owner_user_id, script_id, version_label, change_summary, page_count,
+               lifecycle_state, is_primary, created_at, updated_at
+        FROM project_drafts
+        WHERE project_id = $1 AND id = $2
+      `,
+      [projectId, draftId]
+    );
+
+    const row = result.rows[0];
+    return row ? mapDraft(row) : null;
+  }
 }
 
 function mapProject(row: {
@@ -323,6 +686,50 @@ function mapProject(row: {
     genre: row.genre,
     pageCount: row.page_count,
     isDiscoverable: row.is_discoverable,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
+function mapCoWriter(row: {
+  project_id: string;
+  owner_user_id: string;
+  co_writer_user_id: string;
+  credit_order: number;
+  created_at: string;
+}): ProjectCoWriter {
+  return {
+    projectId: row.project_id,
+    ownerUserId: row.owner_user_id,
+    coWriterUserId: row.co_writer_user_id,
+    creditOrder: row.credit_order,
+    createdAt: row.created_at
+  };
+}
+
+function mapDraft(row: {
+  id: string;
+  project_id: string;
+  owner_user_id: string;
+  script_id: string;
+  version_label: string;
+  change_summary: string;
+  page_count: number;
+  lifecycle_state: "active" | "archived";
+  is_primary: boolean;
+  created_at: string;
+  updated_at: string;
+}): ProjectDraft {
+  return {
+    id: row.id,
+    projectId: row.project_id,
+    ownerUserId: row.owner_user_id,
+    scriptId: row.script_id,
+    versionLabel: row.version_label,
+    changeSummary: row.change_summary,
+    pageCount: row.page_count,
+    lifecycleState: row.lifecycle_state,
+    isPrimary: row.is_primary,
     createdAt: row.created_at,
     updatedAt: row.updated_at
   };

@@ -31,6 +31,7 @@ services:
       discovery.type: single-node
       plugins.security.disabled: "true"
       OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
+      OPENSEARCH_INITIAL_ADMIN_PASSWORD: Manifest123!
     ports:
       - "9200:9200"
       - "9600:9600"
@@ -101,7 +102,7 @@ services:
     container_name: manifest-profile-project-service
     working_dir: /workspace
     volumes:
-      - ..:/workspace
+      - .:/workspace
     environment:
       PORT: "4001"
       DATABASE_URL: "postgresql://manifest:manifest@postgres:5432/manifest"
@@ -119,7 +120,7 @@ services:
     container_name: manifest-identity-service
     working_dir: /workspace
     volumes:
-      - ..:/workspace
+      - .:/workspace
     environment:
       PORT: "4005"
       DATABASE_URL: "postgresql://manifest:manifest@postgres:5432/manifest"
@@ -135,7 +136,7 @@ services:
     container_name: manifest-notification-service
     working_dir: /workspace
     volumes:
-      - ..:/workspace
+      - .:/workspace
     environment:
       PORT: "4010"
     command: >
@@ -148,7 +149,7 @@ services:
     container_name: manifest-search-indexer-service
     working_dir: /workspace
     volumes:
-      - ..:/workspace
+      - .:/workspace
     environment:
       PORT: "4003"
       OPENSEARCH_URL: "http://opensearch:9200"
@@ -165,7 +166,7 @@ services:
     container_name: manifest-competition-directory-service
     working_dir: /workspace
     volumes:
-      - ..:/workspace
+      - .:/workspace
     environment:
       PORT: "4002"
       SEARCH_INDEXER_URL: "http://search-indexer-service:4003"
@@ -183,7 +184,7 @@ services:
     container_name: manifest-script-storage-service
     working_dir: /workspace
     volumes:
-      - ..:/workspace
+      - .:/workspace
     environment:
       PORT: "4011"
       STORAGE_BUCKET: "scripts"
@@ -201,7 +202,7 @@ services:
     container_name: manifest-submission-tracking-service
     working_dir: /workspace
     volumes:
-      - ..:/workspace
+      - .:/workspace
     environment:
       PORT: "4004"
     command: >
@@ -214,7 +215,7 @@ services:
     container_name: manifest-api-gateway
     working_dir: /workspace
     volumes:
-      - ..:/workspace
+      - .:/workspace
     environment:
       PORT: "4000"
       IDENTITY_SERVICE_URL: "http://identity-service:4005"
@@ -236,7 +237,7 @@ services:
     container_name: manifest-writer-web
     working_dir: /workspace
     volumes:
-      - ..:/workspace
+      - .:/workspace
     environment:
       SCRIPT_STORAGE_SERVICE_URL: "http://script-storage-service:4011"
       API_GATEWAY_URL: "http://api-gateway:4000"

@@ -1,7 +1,11 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import { pathToFileURL } from "node:url";
 import {
+  ProjectCoWriterCreateRequestSchema,
   ProjectCreateRequestSchema,
+  ProjectDraftCreateRequestSchema,
+  ProjectDraftPrimaryRequestSchema,
+  ProjectDraftUpdateRequestSchema,
   ProjectFiltersSchema,
   ProjectUpdateRequestSchema,
   WriterProfileUpdateRequestSchema
@@ -115,6 +119,131 @@ export function buildServer(options: ProfileProjectServiceOptions = {}): Fastify
     }
 
     return reply.send({ deleted: true });
+  });
+
+  server.get("/internal/projects/:projectId/co-writers", async (req, reply) => {
+    const { projectId } = req.params as { projectId: string };
+    const project = await repository.getProject(projectId);
+    if (!project) {
+      return reply.status(404).send({ error: "project_not_found" });
+    }
+
+    const coWriters = await repository.listCoWriters(projectId);
+    return reply.send({ coWriters });
+  });
+
+  server.post("/internal/projects/:projectId/co-writers", async (req, reply) => {
+    const { projectId } = req.params as { projectId: string };
+    const parsed = ProjectCoWriterCreateRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
+    }
+
+    const project = await repository.getProject(projectId);
+    if (!project) {
+      return reply.status(404).send({ error: "project_not_found" });
+    }
+
+    if (project.ownerUserId === parsed.data.coWriterUserId) {
+      return reply.status(400).send({ error: "owner_cannot_be_co_writer" });
+    }
+
+    const coWriterExists = await repository.userExists(parsed.data.coWriterUserId);
+    if (!coWriterExists) {
+      return reply.status(404).send({ error: "co_writer_not_found" });
+    }
+
+    const coWriter = await repository.addCoWriter(projectId, parsed.data);
+    if (!coWriter) {
+      return reply.status(404).send({ error: "co_writer_not_found" });
+    }
+
+    return reply.status(201).send({ coWriter });
+  });
+
+  server.delete("/internal/projects/:projectId/co-writers/:coWriterUserId", async (req, reply) => {
+    const { projectId, coWriterUserId } = req.params as {
+      projectId: string;
+      coWriterUserId: string;
+    };
+    const deleted = await repository.removeCoWriter(projectId, coWriterUserId);
+    if (!deleted) {
+      return reply.status(404).send({ error: "co_writer_not_found" });
+    }
+
+    return reply.send({ deleted: true });
+  });
+
+  server.get("/internal/projects/:projectId/drafts", async (req, reply) => {
+    const { projectId } = req.params as { projectId: string };
+    const project = await repository.getProject(projectId);
+    if (!project) {
+      return reply.status(404).send({ error: "project_not_found" });
+    }
+
+    const drafts = await repository.listDrafts(projectId);
+    return reply.send({ drafts });
+  });
+
+  server.post("/internal/projects/:projectId/drafts", async (req, reply) => {
+    const { projectId } = req.params as { projectId: string };
+    const parsed = ProjectDraftCreateRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
+    }
+
+    const project = await repository.getProject(projectId);
+    if (!project) {
+      return reply.status(404).send({ error: "project_not_found" });
+    }
+    if (project.ownerUserId !== parsed.data.ownerUserId) {
+      return reply.status(403).send({ error: "owner_mismatch" });
+    }
+
+    const draft = await repository.createDraft(projectId, parsed.data);
+    if (!draft) {
+      return reply.status(404).send({ error: "project_not_found" });
+    }
+
+    return reply.status(201).send({ draft });
+  });
+
+  server.patch("/internal/projects/:projectId/drafts/:draftId", async (req, reply) => {
+    const { projectId, draftId } = req.params as { projectId: string; draftId: string };
+    const parsed = ProjectDraftUpdateRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
+    }
+
+    const draft = await repository.updateDraft(projectId, draftId, parsed.data);
+    if (!draft) {
+      return reply.status(404).send({ error: "draft_not_found" });
+    }
+
+    return reply.send({ draft });
+  });
+
+  server.post("/internal/projects/:projectId/drafts/:draftId/primary", async (req, reply) => {
+    const { projectId, draftId } = req.params as { projectId: string; draftId: string };
+    const parsed = ProjectDraftPrimaryRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
+    }
+
+    const project = await repository.getProject(projectId);
+    if (!project) {
+      return reply.status(404).send({ error: "project_not_found" });
+    }
+    if (project.ownerUserId !== parsed.data.ownerUserId) {
+      return reply.status(403).send({ error: "owner_mismatch" });
+    }
+
+    const draft = await repository.setPrimaryDraft(projectId, draftId, parsed.data.ownerUserId);
+    if (!draft) {
+      return reply.status(404).send({ error: "draft_not_found" });
+    }
+
+    return reply.send({ draft });
   });
 
   const ScriptAccessRequestSchema = z.object({

@@ -77,4 +77,39 @@ export async function ensureCoreTables(): Promise<void> {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
   `);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS project_co_writers (
+      project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      owner_user_id TEXT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+      co_writer_user_id TEXT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+      credit_order INTEGER NOT NULL DEFAULT 1 CHECK (credit_order > 0),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      PRIMARY KEY (project_id, co_writer_user_id),
+      CHECK (owner_user_id <> co_writer_user_id)
+    );
+  `);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS project_drafts (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      owner_user_id TEXT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+      script_id TEXT NOT NULL,
+      version_label TEXT NOT NULL,
+      change_summary TEXT NOT NULL DEFAULT '',
+      page_count INTEGER NOT NULL DEFAULT 0 CHECK (page_count >= 0),
+      lifecycle_state TEXT NOT NULL DEFAULT 'active'
+        CHECK (lifecycle_state IN ('active', 'archived')),
+      is_primary BOOLEAN NOT NULL DEFAULT FALSE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+
+  await db.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_project_drafts_primary
+      ON project_drafts(project_id)
+      WHERE is_primary = TRUE;
+  `);
 }

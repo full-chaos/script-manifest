@@ -11,8 +11,8 @@ test("submission tracking create/list/placement/verify flow", async (t) => {
   const createSubmissionResponse = await server.inject({
     method: "POST",
     url: "/internal/submissions",
+    headers: { "x-auth-user-id": "writer_01" },
     payload: {
-      writerId: "writer_01",
       projectId: "project_01",
       competitionId: "comp_001",
       status: "pending"
@@ -49,6 +49,7 @@ test("submission tracking create/list/placement/verify flow", async (t) => {
   const reassignResponse = await server.inject({
     method: "PATCH",
     url: `/internal/submissions/${submissionId}/project`,
+    headers: { "x-auth-user-id": "writer_01" },
     payload: { projectId: "project_02" }
   });
   assert.equal(reassignResponse.statusCode, 200);

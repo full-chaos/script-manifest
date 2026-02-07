@@ -2,9 +2,9 @@ import Fastify, { type FastifyInstance } from "fastify";
 import { pathToFileURL } from "node:url";
 import {
   ProjectCoWriterCreateRequestSchema,
-  ProjectCreateRequestSchema,
-  ProjectDraftCreateRequestSchema,
-  ProjectDraftPrimaryRequestSchema,
+  ProjectCreateInternalSchema,
+  ProjectDraftCreateInternalSchema,
+  ProjectDraftPrimaryInternalSchema,
   ProjectDraftUpdateRequestSchema,
   ProjectFiltersSchema,
   ProjectUpdateRequestSchema,
@@ -76,7 +76,15 @@ export function buildServer(options: ProfileProjectServiceOptions = {}): Fastify
   });
 
   server.post("/internal/projects", async (req, reply) => {
-    const parsed = ProjectCreateRequestSchema.safeParse(req.body);
+    const authUserId = getAuthUserId(req.headers);
+    if (!authUserId) {
+      return reply.status(403).send({ error: "forbidden" });
+    }
+
+    const parsed = ProjectCreateInternalSchema.safeParse({
+      ...(req.body as object),
+      ownerUserId: authUserId
+    });
     if (!parsed.success) {
       return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
     }
@@ -243,7 +251,15 @@ export function buildServer(options: ProfileProjectServiceOptions = {}): Fastify
 
   server.post("/internal/projects/:projectId/drafts", async (req, reply) => {
     const { projectId } = req.params as { projectId: string };
-    const parsed = ProjectDraftCreateRequestSchema.safeParse(req.body);
+    const authUserId = getAuthUserId(req.headers);
+    if (!authUserId) {
+      return reply.status(403).send({ error: "forbidden" });
+    }
+
+    const parsed = ProjectDraftCreateInternalSchema.safeParse({
+      ...(req.body as object),
+      ownerUserId: authUserId
+    });
     if (!parsed.success) {
       return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
     }
@@ -252,7 +268,7 @@ export function buildServer(options: ProfileProjectServiceOptions = {}): Fastify
     if (!project) {
       return reply.status(404).send({ error: "project_not_found" });
     }
-    if (project.ownerUserId !== parsed.data.ownerUserId) {
+    if (project.ownerUserId !== authUserId) {
       return reply.status(403).send({ error: "owner_mismatch" });
     }
 
@@ -293,20 +309,20 @@ export function buildServer(options: ProfileProjectServiceOptions = {}): Fastify
 
   server.post("/internal/projects/:projectId/drafts/:draftId/primary", async (req, reply) => {
     const { projectId, draftId } = req.params as { projectId: string; draftId: string };
-    const parsed = ProjectDraftPrimaryRequestSchema.safeParse(req.body);
-    if (!parsed.success) {
-      return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
+    const authUserId = getAuthUserId(req.headers);
+    if (!authUserId) {
+      return reply.status(403).send({ error: "forbidden" });
     }
 
     const project = await repository.getProject(projectId);
     if (!project) {
       return reply.status(404).send({ error: "project_not_found" });
     }
-    if (project.ownerUserId !== parsed.data.ownerUserId) {
+    if (project.ownerUserId !== authUserId) {
       return reply.status(403).send({ error: "owner_mismatch" });
     }
 
-    const draft = await repository.setPrimaryDraft(projectId, draftId, parsed.data.ownerUserId);
+    const draft = await repository.setPrimaryDraft(projectId, draftId, authUserId);
     if (!draft) {
       return reply.status(404).send({ error: "draft_not_found" });
     }

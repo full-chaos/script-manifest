@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import type { Competition, Project, Submission, SubmissionStatus } from "@script-manifest/contracts";
-import { readStoredSession } from "../lib/authSession";
+import { getAuthHeaders, readStoredSession } from "../lib/authSession";
 
 const statuses: SubmissionStatus[] = [
   "pending",
@@ -40,10 +40,11 @@ export default function SubmissionsPage() {
     setLoading(true);
     setMessage("");
     try {
+      const authHeaders = getAuthHeaders();
       const [projectResponse, competitionResponse, submissionResponse] = await Promise.all([
-        fetch(`/api/v1/projects?ownerUserId=${encodeURIComponent(writerId)}`, { cache: "no-store" }),
+        fetch(`/api/v1/projects?ownerUserId=${encodeURIComponent(writerId)}`, { cache: "no-store", headers: authHeaders }),
         fetch("/api/v1/competitions", { cache: "no-store" }),
-        fetch(`/api/v1/submissions?writerId=${encodeURIComponent(writerId)}`, { cache: "no-store" })
+        fetch(`/api/v1/submissions?writerId=${encodeURIComponent(writerId)}`, { cache: "no-store", headers: authHeaders })
       ]);
       const [projectBody, competitionBody, submissionBody] = await Promise.all([
         projectResponse.json(),
@@ -91,9 +92,8 @@ export default function SubmissionsPage() {
     try {
       const response = await fetch("/api/v1/submissions", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify({
-          writerId,
           projectId,
           competitionId,
           status
@@ -131,7 +131,7 @@ export default function SubmissionsPage() {
     try {
       const response = await fetch(`/api/v1/submissions/${encodeURIComponent(submissionId)}/project`, {
         method: "PATCH",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify({ projectId: targetProjectId })
       });
       const body = await response.json();

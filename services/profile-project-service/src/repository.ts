@@ -238,6 +238,14 @@ export class PgProfileProjectRepository implements ProfileProjectRepository {
 
     query += ` ORDER BY updated_at DESC`;
 
+    // Add pagination
+    const limit = filters.limit ?? 30;
+    const offset = filters.offset ?? 0;
+    values.push(limit);
+    query += ` LIMIT $${values.length}`;
+    values.push(offset);
+    query += ` OFFSET $${values.length}`;
+
     const result = await db.query<{
       id: string;
       owner_user_id: string;
@@ -511,62 +519,100 @@ export class PgProfileProjectRepository implements ProfileProjectRepository {
     draftId: string,
     update: ProjectDraftUpdateRequest
   ): Promise<ProjectDraft | null> {
-    const existing = await this.getDraft(projectId, draftId);
-    if (!existing) {
-      return null;
-    }
-
-    const next = {
-      ...existing,
-      ...update,
-      updatedAt: new Date().toISOString()
-    };
-
     const db = getPool();
-    await db.query(
-      `
-        UPDATE project_drafts
-        SET version_label = $3,
-            change_summary = $4,
-            page_count = $5,
-            lifecycle_state = $6,
-            updated_at = NOW()
-        WHERE project_id = $1 AND id = $2
-      `,
-      [
-        projectId,
-        draftId,
-        next.versionLabel,
-        next.changeSummary,
-        next.pageCount,
-        next.lifecycleState
-      ]
-    );
+    const client = await db.connect();
 
-    if (next.lifecycleState === "archived" && next.isPrimary) {
-      await db.query(
-        `UPDATE project_drafts SET is_primary = FALSE, updated_at = NOW() WHERE project_id = $1 AND id = $2`,
-        [projectId, draftId]
-      );
+    try {
+      await client.query("BEGIN");
 
-      await db.query(
+      // Get existing draft using transaction client
+      const existingResult = await client.query<{
+        id: string;
+        project_id: string;
+        owner_user_id: string;
+        script_id: string;
+        version_label: string;
+        change_summary: string;
+        page_count: number;
+        lifecycle_state: "active" | "archived";
+        is_primary: boolean;
+        created_at: string;
+        updated_at: string;
+      }>(
         `
-          WITH candidate AS (
-            SELECT id
-            FROM project_drafts
-            WHERE project_id = $1 AND id <> $2 AND lifecycle_state = 'active'
-            ORDER BY updated_at DESC
-            LIMIT 1
-          )
-          UPDATE project_drafts
-          SET is_primary = TRUE, updated_at = NOW()
-          WHERE id IN (SELECT id FROM candidate)
+          SELECT id, project_id, owner_user_id, script_id, version_label, change_summary, page_count,
+                 lifecycle_state, is_primary, created_at, updated_at
+          FROM project_drafts
+          WHERE project_id = $1 AND id = $2
         `,
         [projectId, draftId]
       );
-    }
 
-    return this.getDraft(projectId, draftId);
+      const existing = existingResult.rows[0];
+      if (!existing) {
+        await client.query("ROLLBACK");
+        return null;
+      }
+
+      const next = {
+        ...mapDraft(existing),
+        ...update,
+        updatedAt: new Date().toISOString()
+      };
+
+      await client.query(
+        `
+          UPDATE project_drafts
+          SET version_label = $3,
+              change_summary = $4,
+              page_count = $5,
+              lifecycle_state = $6,
+              updated_at = NOW()
+          WHERE project_id = $1 AND id = $2
+        `,
+        [
+          projectId,
+          draftId,
+          next.versionLabel,
+          next.changeSummary,
+          next.pageCount,
+          next.lifecycleState
+        ]
+      );
+
+      if (next.lifecycleState === "archived" && next.isPrimary) {
+        await client.query(
+          `UPDATE project_drafts SET is_primary = FALSE, updated_at = NOW() WHERE project_id = $1 AND id = $2`,
+          [projectId, draftId]
+        );
+
+        await client.query(
+          `
+            WITH candidate AS (
+              SELECT id
+              FROM project_drafts
+              WHERE project_id = $1 AND id <> $2 AND lifecycle_state = 'active'
+              ORDER BY updated_at DESC
+              LIMIT 1
+            )
+            UPDATE project_drafts
+            SET is_primary = TRUE, updated_at = NOW()
+            WHERE id IN (SELECT id FROM candidate)
+          `,
+          [projectId, draftId]
+        );
+      }
+
+      await client.query("COMMIT");
+      
+      // After commit, release client and fetch with fresh connection
+      client.release();
+      return this.getDraft(projectId, draftId);
+    } catch (error) {
+      await client.query("ROLLBACK");
+      client.release();
+      throw error;
+    }
   }
 
   async setPrimaryDraft(

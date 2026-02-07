@@ -156,3 +156,64 @@ test("api-gateway proxies submission creation", async (t) => {
   assert.equal(response.statusCode, 201);
   assert.match(requestBody, /"writerId":"writer_01"/);
 });
+
+test("api-gateway proxies project co-writer endpoints", async (t) => {
+  const urls: string[] = [];
+  const methods: Array<string | undefined> = [];
+  const server = buildServer({
+    logger: false,
+    requestFn: (async (url, options) => {
+      urls.push(String(url));
+      methods.push(options?.method);
+      return jsonResponse({ coWriters: [] });
+    }) as typeof request,
+    profileServiceBase: "http://profile-svc"
+  });
+  t.after(async () => {
+    await server.close();
+  });
+
+  const getResponse = await server.inject({
+    method: "GET",
+    url: "/api/v1/projects/project_1/co-writers"
+  });
+  assert.equal(getResponse.statusCode, 200);
+  assert.equal(urls[0], "http://profile-svc/internal/projects/project_1/co-writers");
+  assert.equal(methods[0], "GET");
+
+  const postResponse = await server.inject({
+    method: "POST",
+    url: "/api/v1/projects/project_1/co-writers",
+    payload: { coWriterUserId: "writer_02", creditOrder: 2 }
+  });
+  assert.equal(postResponse.statusCode, 200);
+  assert.equal(urls[1], "http://profile-svc/internal/projects/project_1/co-writers");
+  assert.equal(methods[1], "POST");
+});
+
+test("api-gateway proxies submission project reassignment", async (t) => {
+  const urls: string[] = [];
+  let body = "";
+  const server = buildServer({
+    logger: false,
+    requestFn: (async (url, options) => {
+      urls.push(String(url));
+      body = String(options?.body ?? "");
+      return jsonResponse({ submission: { id: "submission_1", projectId: "project_2" } });
+    }) as typeof request,
+    submissionTrackingBase: "http://submission-svc"
+  });
+  t.after(async () => {
+    await server.close();
+  });
+
+  const response = await server.inject({
+    method: "PATCH",
+    url: "/api/v1/submissions/submission_1/project",
+    payload: { projectId: "project_2" }
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(urls[0], "http://submission-svc/internal/submissions/submission_1/project");
+  assert.match(body, /"projectId":"project_2"/);
+});

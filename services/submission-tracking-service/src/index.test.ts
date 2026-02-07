@@ -45,4 +45,12 @@ test("submission tracking create/list/placement/verify flow", async (t) => {
 
   assert.equal(verifyResponse.statusCode, 200);
   assert.equal(verifyResponse.json().placement.verificationState, "verified");
+
+  const reassignResponse = await server.inject({
+    method: "PATCH",
+    url: `/internal/submissions/${submissionId}/project`,
+    payload: { projectId: "project_02" }
+  });
+  assert.equal(reassignResponse.statusCode, 200);
+  assert.equal(reassignResponse.json().submission.projectId, "project_02");
 });

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import ProjectsPage from "./page";
@@ -28,31 +28,129 @@ describe("ProjectsPage", () => {
     vi.restoreAllMocks();
   });
 
-  it("loads, creates, and deletes projects", async () => {
-    const fetchMock = vi
-      .fn<typeof fetch>()
-      .mockResolvedValueOnce(jsonResponse({ projects: [] }))
-      .mockResolvedValueOnce(
-        jsonResponse(
-          {
-            project: {
-              id: "project_1",
-              ownerUserId: "writer_01",
-              title: "My Script",
-              logline: "A writer keeps shipping",
-              synopsis: "",
-              format: "feature",
-              genre: "drama",
-              pageCount: 110,
-              isDiscoverable: true,
-              createdAt: "2026-02-06T00:00:00.000Z",
-              updatedAt: "2026-02-06T00:00:00.000Z"
-            }
-          },
-          201
-        )
-      )
-      .mockResolvedValueOnce(jsonResponse({ deleted: true }));
+  it("loads projects and supports co-writer + draft lifecycle actions", async () => {
+    const projects: Array<Record<string, unknown>> = [];
+    const coWriters: Array<Record<string, unknown>> = [];
+    const drafts: Array<Record<string, unknown>> = [];
+
+    const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
+      const url = typeof input === "string" ? input : input.toString();
+      const method = (init?.method ?? "GET").toUpperCase();
+
+      if (url.startsWith("/api/v1/projects?") && method === "GET") {
+        return jsonResponse({ projects });
+      }
+
+      if (url === "/api/v1/projects" && method === "POST") {
+        const payload = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
+        const project = {
+          id: "project_1",
+          ownerUserId: payload.ownerUserId,
+          title: payload.title,
+          logline: payload.logline,
+          synopsis: payload.synopsis,
+          format: payload.format,
+          genre: payload.genre,
+          pageCount: payload.pageCount,
+          isDiscoverable: payload.isDiscoverable,
+          createdAt: "2026-02-06T00:00:00.000Z",
+          updatedAt: "2026-02-06T00:00:00.000Z"
+        };
+        projects.unshift(project);
+        return jsonResponse({ project }, 201);
+      }
+
+      if (url === "/api/v1/projects/project_1" && method === "DELETE") {
+        projects.splice(
+          0,
+          projects.length,
+          ...projects.filter((project) => project.id !== "project_1")
+        );
+        coWriters.splice(0, coWriters.length);
+        drafts.splice(0, drafts.length);
+        return jsonResponse({ deleted: true });
+      }
+
+      if (url === "/api/v1/projects/project_1/co-writers" && method === "GET") {
+        return jsonResponse({ coWriters });
+      }
+
+      if (url === "/api/v1/projects/project_1/co-writers" && method === "POST") {
+        const payload = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
+        const coWriter = {
+          projectId: "project_1",
+          ownerUserId: "writer_01",
+          coWriterUserId: payload.coWriterUserId,
+          creditOrder: payload.creditOrder,
+          createdAt: "2026-02-06T00:00:00.000Z"
+        };
+        coWriters.push(coWriter);
+        return jsonResponse({ coWriter }, 201);
+      }
+
+      if (url === "/api/v1/projects/project_1/co-writers/writer_02" && method === "DELETE") {
+        coWriters.splice(
+          0,
+          coWriters.length,
+          ...coWriters.filter((entry) => entry.coWriterUserId !== "writer_02")
+        );
+        return jsonResponse({ deleted: true });
+      }
+
+      if (url === "/api/v1/projects/project_1/drafts" && method === "GET") {
+        return jsonResponse({ drafts });
+      }
+
+      if (url === "/api/v1/projects/project_1/drafts" && method === "POST") {
+        const payload = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
+        const setPrimary = Boolean(payload.setPrimary);
+        if (setPrimary) {
+          for (const draft of drafts) {
+            draft.isPrimary = false;
+          }
+        }
+        const draft = {
+          id: `draft_${drafts.length + 1}`,
+          projectId: "project_1",
+          ownerUserId: "writer_01",
+          scriptId: payload.scriptId,
+          versionLabel: payload.versionLabel,
+          changeSummary: payload.changeSummary,
+          pageCount: payload.pageCount,
+          lifecycleState: "active",
+          isPrimary: setPrimary || drafts.length === 0,
+          createdAt: "2026-02-06T00:00:00.000Z",
+          updatedAt: "2026-02-06T00:00:00.000Z"
+        };
+        drafts.unshift(draft);
+        return jsonResponse({ draft }, 201);
+      }
+
+      if (url === "/api/v1/projects/project_1/drafts/draft_2/primary" && method === "POST") {
+        for (const draft of drafts) {
+          draft.isPrimary = draft.id === "draft_2";
+        }
+        const draft = drafts.find((entry) => entry.id === "draft_2");
+        return jsonResponse({ draft });
+      }
+
+      if (url === "/api/v1/projects/project_1/drafts/draft_2" && method === "PATCH") {
+        for (const draft of drafts) {
+          if (draft.id === "draft_2") {
+            draft.lifecycleState = "archived";
+            draft.isPrimary = false;
+          }
+          if (draft.id === "draft_1") {
+            draft.isPrimary = true;
+          }
+        }
+        const draft = drafts.find((entry) => entry.id === "draft_2");
+        return jsonResponse({ draft });
+      }
+
+      throw new Error(`Unexpected request: ${method} ${url}`);
+    });
+
     vi.stubGlobal("fetch", fetchMock);
 
     render(<ProjectsPage />);
@@ -63,15 +161,50 @@ describe("ProjectsPage", () => {
 
     await user.type(screen.getByLabelText("Title"), "My Script");
     await user.type(screen.getByLabelText("Logline"), "A writer keeps shipping");
-    await user.click(screen.getByRole("checkbox", { name: "Discoverable" }));
     await user.click(screen.getByRole("button", { name: "Create project" }));
 
     await screen.findByText("Project created.");
     expect(screen.getByText("My Script")).toBeInTheDocument();
 
+    await user.click(screen.getByRole("button", { name: "Manage co-writers + drafts" }));
+
+    await user.type(screen.getByLabelText("Co-writer user ID"), "writer_02");
+    await user.click(screen.getByRole("button", { name: "Add co-writer" }));
+    await screen.findByText("Co-writer added.");
+    expect(screen.getByText("writer_02")).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText("Script ID"), "script_1");
+    await user.type(screen.getByLabelText("Version label"), "v1");
+    await user.click(screen.getByRole("button", { name: "Create draft" }));
+    await screen.findByText("Draft created.");
+    expect(screen.getByText("v1 (script_1)")).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText("Script ID"), "script_2");
+    await user.type(screen.getByLabelText("Version label"), "v2");
+    await user.click(screen.getByLabelText("Set as primary draft"));
+    await user.click(screen.getByRole("button", { name: "Create draft" }));
+    await screen.findByText("v2 (script_2)");
+
+    const draftCard = screen.getByText("v2 (script_2)").closest("article");
+    expect(draftCard).toBeTruthy();
+    if (!draftCard) {
+      return;
+    }
+
+    await user.click(within(draftCard).getByRole("button", { name: "Set primary" }));
+    await screen.findByText("Primary draft updated.");
+
+    await user.click(within(draftCard).getByRole("button", { name: "Archive draft" }));
+    await screen.findByText("Draft archived.");
+
+    await user.click(screen.getByRole("button", { name: "Remove co-writer" }));
+    await screen.findByText("Co-writer removed.");
+
     await user.click(screen.getByRole("button", { name: "Delete" }));
     await waitFor(() => {
       expect(screen.queryByText("My Script")).not.toBeInTheDocument();
     });
+
+    expect(fetchMock).toHaveBeenCalled();
   });
 });

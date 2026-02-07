@@ -7,6 +7,7 @@ import {
   PlacementVerificationUpdateRequestSchema,
   SubmissionCreateRequestSchema,
   SubmissionFiltersSchema,
+  SubmissionProjectReassignmentRequestSchema,
   SubmissionSchema,
   type Placement,
   type Submission
@@ -47,6 +48,31 @@ export function buildServer(options: SubmissionTrackingOptions = {}): FastifyIns
     submissions.set(submission.id, submission);
 
     return reply.status(201).send({ submission });
+  });
+
+  server.patch("/internal/submissions/:submissionId/project", async (req, reply) => {
+    const { submissionId } = req.params as { submissionId: string };
+    const submission = submissions.get(submissionId);
+    if (!submission) {
+      return reply.status(404).send({ error: "submission_not_found" });
+    }
+
+    const parsedBody = SubmissionProjectReassignmentRequestSchema.safeParse(req.body);
+    if (!parsedBody.success) {
+      return reply.status(400).send({
+        error: "invalid_payload",
+        details: parsedBody.error.flatten()
+      });
+    }
+
+    const updatedSubmission = SubmissionSchema.parse({
+      ...submission,
+      projectId: parsedBody.data.projectId,
+      updatedAt: new Date().toISOString()
+    });
+    submissions.set(submissionId, updatedSubmission);
+
+    return reply.send({ submission: updatedSubmission });
   });
 
   server.get("/internal/submissions", async (req, reply) => {

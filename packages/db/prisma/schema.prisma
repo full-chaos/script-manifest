@@ -38,4 +38,35 @@ model Project {
   genre       String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  coWriters ProjectCoWriter[]
+  drafts    ProjectDraft[]
+}
+
+model ProjectCoWriter {
+  projectId     String
+  ownerUserId   String
+  coWriterUserId String
+  creditOrder   Int
+  createdAt     DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@id([projectId, coWriterUserId])
+}
+
+model ProjectDraft {
+  id             String   @id
+  projectId       String
+  ownerUserId     String
+  scriptId        String
+  versionLabel    String
+  changeSummary   String   @default("")
+  pageCount       Int      @default(0)
+  lifecycleState  String
+  isPrimary       Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 }

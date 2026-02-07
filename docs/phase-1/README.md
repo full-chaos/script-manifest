@@ -264,3 +264,28 @@ curl -X POST http://localhost:4004/internal/placements/placement_123/verify \
   -H "content-type: application/json" \
   -d '{"verificationState":"verified"}'
 ```
+
+## Co-Writer + Draft Lifecycle (Issue #32)
+
+Profile project service endpoints (`:4001`):
+- `GET /internal/projects/:projectId/co-writers`
+- `POST /internal/projects/:projectId/co-writers`
+- `DELETE /internal/projects/:projectId/co-writers/:coWriterUserId`
+- `GET /internal/projects/:projectId/drafts`
+- `POST /internal/projects/:projectId/drafts`
+- `PATCH /internal/projects/:projectId/drafts/:draftId`
+- `POST /internal/projects/:projectId/drafts/:draftId/primary`
+
+Gateway endpoints (`:4000`):
+- `GET /api/v1/projects/:projectId/co-writers`
+- `POST /api/v1/projects/:projectId/co-writers`
+- `DELETE /api/v1/projects/:projectId/co-writers/:coWriterUserId`
+- `GET /api/v1/projects/:projectId/drafts`
+- `POST /api/v1/projects/:projectId/drafts`
+- `PATCH /api/v1/projects/:projectId/drafts/:draftId`
+- `POST /api/v1/projects/:projectId/drafts/:draftId/primary`
+- `PATCH /api/v1/submissions/:submissionId/project`
+
+Writer web updates:
+- `/projects` now includes co-writer management and draft lifecycle controls (create/archive/set primary)
+- `/submissions` now supports moving existing submissions to a different project

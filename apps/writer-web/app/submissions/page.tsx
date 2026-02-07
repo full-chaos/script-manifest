@@ -20,6 +20,7 @@ export default function SubmissionsPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [competitions, setCompetitions] = useState<Competition[]>([]);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
+  const [reassignTargets, setReassignTargets] = useState<Record<string, string>>({});
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -61,6 +62,9 @@ export default function SubmissionsPage() {
       setProjects(nextProjects);
       setCompetitions(nextCompetitions);
       setSubmissions(nextSubmissions);
+      setReassignTargets(
+        Object.fromEntries(nextSubmissions.map((entry) => [entry.id, entry.projectId]))
+      );
       if (!projectId && nextProjects[0]) {
         setProjectId(nextProjects[0].id);
       }
@@ -101,8 +105,46 @@ export default function SubmissionsPage() {
         return;
       }
 
-      setSubmissions((current) => [body.submission as Submission, ...current]);
+      const created = body.submission as Submission;
+      setSubmissions((current) => [created, ...current]);
+      setReassignTargets((current) => ({
+        ...current,
+        [created.id]: created.projectId
+      }));
       setMessage("Submission recorded.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "unknown_error");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function moveSubmission(submissionId: string) {
+    const targetProjectId = reassignTargets[submissionId];
+    if (!targetProjectId) {
+      setMessage("Select a target project before moving.");
+      return;
+    }
+
+    setLoading(true);
+    setMessage("");
+    try {
+      const response = await fetch(`/api/v1/submissions/${encodeURIComponent(submissionId)}/project`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ projectId: targetProjectId })
+      });
+      const body = await response.json();
+      if (!response.ok) {
+        setMessage(body.error ? `Error: ${body.error}` : "Submission move failed.");
+        return;
+      }
+
+      const updated = body.submission as Submission;
+      setSubmissions((current) =>
+        current.map((entry) => (entry.id === updated.id ? updated : entry))
+      );
+      setMessage("Submission moved.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "unknown_error");
     } finally {
@@ -192,6 +234,33 @@ export default function SubmissionsPage() {
               project {submission.projectId} | competition {submission.competitionId}
             </p>
             <p>Status: {submission.status}</p>
+            <div className="inline-form">
+              <select
+                className="input"
+                aria-label={`Move target for ${submission.id}`}
+                value={reassignTargets[submission.id] ?? submission.projectId}
+                onChange={(event) =>
+                  setReassignTargets((current) => ({
+                    ...current,
+                    [submission.id]: event.target.value
+                  }))
+                }
+              >
+                {projects.map((project) => (
+                  <option key={project.id} value={project.id}>
+                    {project.title}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => moveSubmission(submission.id)}
+                disabled={loading}
+              >
+                Move submission
+              </button>
+            </div>
           </article>
         ))}
       </section>

@@ -525,14 +525,37 @@ export class PgProfileProjectRepository implements ProfileProjectRepository {
     try {
       await client.query("BEGIN");
 
-      const existing = await this.getDraft(projectId, draftId);
+      // Get existing draft using transaction client
+      const existingResult = await client.query<{
+        id: string;
+        project_id: string;
+        owner_user_id: string;
+        script_id: string;
+        version_label: string;
+        change_summary: string;
+        page_count: number;
+        lifecycle_state: "active" | "archived";
+        is_primary: boolean;
+        created_at: string;
+        updated_at: string;
+      }>(
+        `
+          SELECT id, project_id, owner_user_id, script_id, version_label, change_summary, page_count,
+                 lifecycle_state, is_primary, created_at, updated_at
+          FROM project_drafts
+          WHERE project_id = $1 AND id = $2
+        `,
+        [projectId, draftId]
+      );
+
+      const existing = existingResult.rows[0];
       if (!existing) {
         await client.query("ROLLBACK");
         return null;
       }
 
       const next = {
-        ...existing,
+        ...mapDraft(existing),
         ...update,
         updatedAt: new Date().toISOString()
       };
@@ -581,12 +604,14 @@ export class PgProfileProjectRepository implements ProfileProjectRepository {
       }
 
       await client.query("COMMIT");
+      
+      // After commit, release client and fetch with fresh connection
+      client.release();
       return this.getDraft(projectId, draftId);
     } catch (error) {
       await client.query("ROLLBACK");
-      throw error;
-    } finally {
       client.release();
+      throw error;
     }
   }
 

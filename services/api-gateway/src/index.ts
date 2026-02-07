@@ -388,12 +388,18 @@ async function getUserIdFromAuth(
     });
     
     if (response.statusCode !== 200) {
+      console.warn(`Auth verification failed with status ${response.statusCode}`);
       return null;
     }
 
     const body = (await response.body.json()) as { user?: { id?: string } };
-    return body?.user?.id ?? null;
-  } catch {
+    if (!body?.user?.id) {
+      console.warn("Auth response missing user.id", body);
+      return null;
+    }
+    return body.user.id;
+  } catch (error) {
+    console.error("Error verifying auth token:", error);
     return null;
   }
 }

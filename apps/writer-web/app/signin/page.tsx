@@ -85,84 +85,98 @@ export default function SignInPage() {
   }
 
   return (
-    <section className="card stack">
-      <h2>Sign In</h2>
-      <p className="muted">Use email credentials for local Phase 1 testing.</p>
+    <section className="space-y-4">
+      <article className="hero-card">
+        <p className="eyebrow">Authentication</p>
+        <h1 className="text-4xl text-ink-900">Secure writer identity</h1>
+        <p className="max-w-3xl text-ink-700">
+          Use email credentials for local Phase 1 testing. Session state powers profile, projects,
+          and submissions autoload behavior.
+        </p>
+      </article>
 
-      {session ? (
-        <div className="stack">
-          <p>
-            Signed in as <strong>{formatUserLabel(session.user)}</strong>
-          </p>
-          <p className="muted">Session expires: {new Date(session.expiresAt).toLocaleString()}</p>
-          <button type="button" className="btn" onClick={signOut}>
-            Sign out
-          </button>
-        </div>
-      ) : (
-        <form className="stack" onSubmit={submit}>
-          <label className="stack-tight">
-            <span>{modeLabel}</span>
-            <div className="segmented">
-              <button
-                type="button"
-                className={mode === "login" ? "btn btn-active" : "btn"}
-                onClick={() => setMode("login")}
-              >
-                Login
-              </button>
-              <button
-                type="button"
-                className={mode === "register" ? "btn btn-active" : "btn"}
-                onClick={() => setMode("register")}
-              >
-                Register
+      <article className="panel stack max-w-2xl">
+        <h2 className="section-title">Sign In</h2>
+
+        {session ? (
+          <div className="stack">
+            <p>
+              Signed in as <strong>{formatUserLabel(session.user)}</strong>
+            </p>
+            <p className="muted">Session expires: {new Date(session.expiresAt).toLocaleString()}</p>
+            <div className="inline-form">
+              <button type="button" className="btn btn-secondary" onClick={signOut}>
+                Sign out
               </button>
             </div>
-          </label>
-
-          {mode === "register" ? (
+          </div>
+        ) : (
+          <form className="stack" onSubmit={submit}>
             <label className="stack-tight">
-              <span>Display name</span>
+              <span>{modeLabel}</span>
+              <div className="segmented">
+                <button
+                  type="button"
+                  className={mode === "login" ? "btn btn-primary" : "btn btn-secondary"}
+                  onClick={() => setMode("login")}
+                >
+                  Login
+                </button>
+                <button
+                  type="button"
+                  className={mode === "register" ? "btn btn-primary" : "btn btn-secondary"}
+                  onClick={() => setMode("register")}
+                >
+                  Register
+                </button>
+              </div>
+            </label>
+
+            {mode === "register" ? (
+              <label className="stack-tight">
+                <span>Display name</span>
+                <input
+                  className="input"
+                  value={displayName}
+                  onChange={(event) => setDisplayName(event.target.value)}
+                  required
+                />
+              </label>
+            ) : null}
+
+            <label className="stack-tight">
+              <span>Email</span>
               <input
                 className="input"
-                value={displayName}
-                onChange={(event) => setDisplayName(event.target.value)}
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
                 required
               />
             </label>
-          ) : null}
 
-          <label className="stack-tight">
-            <span>Email</span>
-            <input
-              className="input"
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              required
-            />
-          </label>
+            <label className="stack-tight">
+              <span>Password</span>
+              <input
+                className="input"
+                type="password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                minLength={8}
+                required
+              />
+            </label>
 
-          <label className="stack-tight">
-            <span>Password</span>
-            <input
-              className="input"
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              minLength={8}
-              required
-            />
-          </label>
+            <div className="inline-form">
+              <button type="submit" className="btn btn-primary" disabled={submitting}>
+                {submitting ? "Submitting..." : modeLabel}
+              </button>
+            </div>
+          </form>
+        )}
+      </article>
 
-          <button type="submit" className="btn btn-active" disabled={submitting}>
-            {submitting ? "Submitting..." : modeLabel}
-          </button>
-        </form>
-      )}
-
-      {status ? <p className="status-note">{status}</p> : null}
+      {status ? <p className={status.startsWith("Error:") ? "status-error" : "status-note"}>{status}</p> : null}
     </section>
   );
 }

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import SubmissionsPage from "./page";
@@ -28,7 +28,7 @@ describe("SubmissionsPage", () => {
     vi.restoreAllMocks();
   });
 
-  it("loads dependencies, creates a submission, and moves it to another project", async () => {
+  it("autoloads dependencies, creates a submission in a modal, and moves it", async () => {
     const projects = [
       {
         id: "project_1",
@@ -90,7 +90,7 @@ describe("SubmissionsPage", () => {
         const payload = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
         const submission = {
           id: "submission_1",
-          writerId: payload.writerId,
+          writerId: "writer_01",
           projectId: payload.projectId,
           competitionId: payload.competitionId,
           status: payload.status,
@@ -120,10 +120,12 @@ describe("SubmissionsPage", () => {
     render(<SubmissionsPage />);
     const user = userEvent.setup();
 
-    await user.click(screen.getByRole("button", { name: "Load" }));
     await screen.findByText("Submission data loaded.");
 
     await user.click(screen.getByRole("button", { name: "Create submission" }));
+    const dialog = await screen.findByRole("dialog", { name: "Create submission" });
+    await user.click(within(dialog).getByRole("button", { name: "Create submission" }));
+
     await screen.findByText("Submission recorded.");
     expect(screen.getByText("submission_1")).toBeInTheDocument();
     expect(screen.getByText(/project project_1/i)).toBeInTheDocument();

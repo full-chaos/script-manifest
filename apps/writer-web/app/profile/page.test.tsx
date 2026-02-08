@@ -28,7 +28,7 @@ describe("ProfilePage", () => {
     vi.restoreAllMocks();
   });
 
-  it("loads and updates a profile", async () => {
+  it("autoloads and updates a profile", async () => {
     const fetchMock = vi
       .fn<typeof fetch>()
       .mockResolvedValueOnce(
@@ -58,7 +58,6 @@ describe("ProfilePage", () => {
     render(<ProfilePage />);
     const user = userEvent.setup();
 
-    await user.click(screen.getByRole("button", { name: "Load" }));
     await screen.findByDisplayValue("Writer One");
 
     const displayName = screen.getByLabelText("Display name");
@@ -71,6 +70,11 @@ describe("ProfilePage", () => {
     await user.click(screen.getByRole("button", { name: "Save profile" }));
 
     await screen.findByText("Profile saved.");
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "/api/v1/profiles/writer_01",
+      expect.objectContaining({ cache: "no-store" })
+    );
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
       "/api/v1/profiles/writer_01",

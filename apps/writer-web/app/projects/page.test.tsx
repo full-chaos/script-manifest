@@ -28,7 +28,7 @@ describe("ProjectsPage", () => {
     vi.restoreAllMocks();
   });
 
-  it("loads projects and supports co-writer + draft lifecycle actions", async () => {
+  it("autoloads projects and supports modal co-writer + draft lifecycle actions", async () => {
     const projects: Array<Record<string, unknown>> = [];
     const coWriters: Array<Record<string, unknown>> = [];
     const drafts: Array<Record<string, unknown>> = [];
@@ -45,7 +45,7 @@ describe("ProjectsPage", () => {
         const payload = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
         const project = {
           id: "project_1",
-          ownerUserId: payload.ownerUserId,
+          ownerUserId: "writer_01",
           title: payload.title,
           logline: payload.logline,
           synopsis: payload.synopsis,
@@ -156,33 +156,42 @@ describe("ProjectsPage", () => {
     render(<ProjectsPage />);
     const user = userEvent.setup();
 
-    await user.click(screen.getByRole("button", { name: "Load projects" }));
     await screen.findByText("Loaded 0 projects.");
 
-    await user.type(screen.getByLabelText("Title"), "My Script");
-    await user.type(screen.getByLabelText("Logline"), "A writer keeps shipping");
     await user.click(screen.getByRole("button", { name: "Create project" }));
+    const projectDialog = await screen.findByRole("dialog", { name: "Create project" });
+
+    await user.type(within(projectDialog).getByLabelText("Title"), "My Script");
+    await user.type(within(projectDialog).getByLabelText("Logline"), "A writer keeps shipping");
+    await user.click(within(projectDialog).getByRole("button", { name: "Create project" }));
 
     await screen.findByText("Project created.");
-    expect(screen.getByText("My Script")).toBeInTheDocument();
+    expect(screen.getAllByText("My Script").length).toBeGreaterThan(0);
 
-    await user.click(screen.getByRole("button", { name: "Manage co-writers + drafts" }));
-
-    await user.type(screen.getByLabelText("Co-writer user ID"), "writer_02");
     await user.click(screen.getByRole("button", { name: "Add co-writer" }));
+    const coWriterDialog = await screen.findByRole("dialog", { name: "Add co-writer" });
+    await user.type(within(coWriterDialog).getByLabelText("Co-writer user ID"), "writer_02");
+    await user.click(within(coWriterDialog).getByRole("button", { name: "Add co-writer" }));
+
     await screen.findByText("Co-writer added.");
     expect(screen.getByText("writer_02")).toBeInTheDocument();
 
-    await user.type(screen.getByLabelText("Script ID"), "script_1");
-    await user.type(screen.getByLabelText("Version label"), "v1");
     await user.click(screen.getByRole("button", { name: "Create draft" }));
+    const draftDialog = await screen.findByRole("dialog", { name: "Create draft" });
+    await user.type(within(draftDialog).getByLabelText("Script ID"), "script_1");
+    await user.type(within(draftDialog).getByLabelText("Version label"), "v1");
+    await user.click(within(draftDialog).getByRole("button", { name: "Create draft" }));
+
     await screen.findByText("Draft created.");
     expect(screen.getByText("v1 (script_1)")).toBeInTheDocument();
 
-    await user.type(screen.getByLabelText("Script ID"), "script_2");
-    await user.type(screen.getByLabelText("Version label"), "v2");
-    await user.click(screen.getByLabelText("Set as primary draft"));
     await user.click(screen.getByRole("button", { name: "Create draft" }));
+    const draftDialog2 = await screen.findByRole("dialog", { name: "Create draft" });
+    await user.type(within(draftDialog2).getByLabelText("Script ID"), "script_2");
+    await user.type(within(draftDialog2).getByLabelText("Version label"), "v2");
+    await user.click(within(draftDialog2).getByLabelText("Set as primary draft"));
+    await user.click(within(draftDialog2).getByRole("button", { name: "Create draft" }));
+
     await screen.findByText("v2 (script_2)");
 
     const draftCard = screen.getByText("v2 (script_2)").closest("article");

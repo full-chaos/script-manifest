@@ -7,9 +7,9 @@ import type {
   Project,
   ProjectCoWriter,
   ProjectCoWriterCreateRequest,
-  ProjectCreateRequest,
+  ProjectCreateInternal,
   ProjectDraft,
-  ProjectDraftCreateRequest,
+  ProjectDraftCreateInternal,
   ProjectDraftUpdateRequest,
   ProjectFilters,
   ProjectUpdateRequest,
@@ -22,7 +22,7 @@ export interface ProfileProjectRepository {
   userExists(userId: string): Promise<boolean>;
   getProfile(writerId: string): Promise<WriterProfile | null>;
   upsertProfile(writerId: string, update: WriterProfileUpdateRequest): Promise<WriterProfile | null>;
-  createProject(input: ProjectCreateRequest): Promise<Project | null>;
+  createProject(input: ProjectCreateInternal): Promise<Project | null>;
   listProjects(filters: ProjectFilters): Promise<Project[]>;
   getProject(projectId: string): Promise<Project | null>;
   updateProject(projectId: string, update: ProjectUpdateRequest): Promise<Project | null>;
@@ -31,7 +31,7 @@ export interface ProfileProjectRepository {
   addCoWriter(projectId: string, input: ProjectCoWriterCreateRequest): Promise<ProjectCoWriter | null>;
   removeCoWriter(projectId: string, coWriterUserId: string): Promise<boolean>;
   listDrafts(projectId: string): Promise<ProjectDraft[]>;
-  createDraft(projectId: string, input: ProjectDraftCreateRequest): Promise<ProjectDraft | null>;
+  createDraft(projectId: string, input: ProjectDraftCreateInternal): Promise<ProjectDraft | null>;
   updateDraft(
     projectId: string,
     draftId: string,
@@ -162,7 +162,7 @@ export class PgProfileProjectRepository implements ProfileProjectRepository {
     return nextProfile;
   }
 
-  async createProject(input: ProjectCreateRequest): Promise<Project | null> {
+  async createProject(input: ProjectCreateInternal): Promise<Project | null> {
     const db = getPool();
     const owner = await db.query<{ id: string }>(
       `SELECT id FROM app_users WHERE id = $1`,
@@ -434,7 +434,7 @@ export class PgProfileProjectRepository implements ProfileProjectRepository {
     return result.rows.map(mapDraft);
   }
 
-  async createDraft(projectId: string, input: ProjectDraftCreateRequest): Promise<ProjectDraft | null> {
+  async createDraft(projectId: string, input: ProjectDraftCreateInternal): Promise<ProjectDraft | null> {
     const db = getPool();
     const client = await db.connect();
 

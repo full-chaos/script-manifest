@@ -128,14 +128,24 @@ test("api-gateway proxies project list with query params", async (t) => {
   assert.equal(response.json().projects.length, 1);
 });
 
-test("api-gateway proxies submission creation", async (t) => {
+test("api-gateway proxies submission creation with auth", async (t) => {
   let requestBody = "";
+  let authUserIdHeader = "";
   const server = buildServer({
     logger: false,
-    requestFn: (async (_url, options) => {
+    requestFn: (async (url, options) => {
+      const urlStr = String(url);
+      if (urlStr.includes("/internal/auth/me")) {
+        return jsonResponse({
+          user: { id: "writer_01", email: "w@example.com", displayName: "Writer One" },
+          expiresAt: "2026-12-31T00:00:00.000Z"
+        });
+      }
       requestBody = String(options?.body ?? "");
+      authUserIdHeader = (options?.headers as Record<string, string> | undefined)?.["x-auth-user-id"] ?? "";
       return jsonResponse({ submission: { id: "submission_1" } }, 201);
     }) as typeof request,
+    identityServiceBase: "http://identity-svc",
     submissionTrackingBase: "http://submission-svc"
   });
   t.after(async () => {
@@ -145,8 +155,8 @@ test("api-gateway proxies submission creation", async (t) => {
   const response = await server.inject({
     method: "POST",
     url: "/api/v1/submissions",
+    headers: { authorization: "Bearer sess_test" },
     payload: {
-      writerId: "writer_01",
       projectId: "project_01",
       competitionId: "comp_001",
       status: "pending"
@@ -154,7 +164,8 @@ test("api-gateway proxies submission creation", async (t) => {
   });
 
   assert.equal(response.statusCode, 201);
-  assert.match(requestBody, /"writerId":"writer_01"/);
+  assert.match(requestBody, /"projectId":"project_01"/);
+  assert.equal(authUserIdHeader, "writer_01");
 });
 
 test("api-gateway proxies project co-writer endpoints", async (t) => {
@@ -163,10 +174,18 @@ test("api-gateway proxies project co-writer endpoints", async (t) => {
   const server = buildServer({
     logger: false,
     requestFn: (async (url, options) => {
-      urls.push(String(url));
+      const urlStr = String(url);
+      if (urlStr.includes("/internal/auth/me")) {
+        return jsonResponse({
+          user: { id: "user_1", email: "w@example.com", displayName: "Writer One" },
+          expiresAt: "2026-12-31T00:00:00.000Z"
+        });
+      }
+      urls.push(urlStr);
       methods.push(options?.method);
       return jsonResponse({ coWriters: [] });
     }) as typeof request,
+    identityServiceBase: "http://identity-svc",
     profileServiceBase: "http://profile-svc"
   });
   t.after(async () => {
@@ -184,6 +203,7 @@ test("api-gateway proxies project co-writer endpoints", async (t) => {
   const postResponse = await server.inject({
     method: "POST",
     url: "/api/v1/projects/project_1/co-writers",
+    headers: { authorization: "Bearer sess_test" },
     payload: { coWriterUserId: "writer_02", creditOrder: 2 }
   });
   assert.equal(postResponse.statusCode, 200);
@@ -191,16 +211,24 @@ test("api-gateway proxies project co-writer endpoints", async (t) => {
   assert.equal(methods[1], "POST");
 });
 
-test("api-gateway proxies submission project reassignment", async (t) => {
+test("api-gateway proxies submission project reassignment with auth", async (t) => {
   const urls: string[] = [];
   let body = "";
   const server = buildServer({
     logger: false,
     requestFn: (async (url, options) => {
-      urls.push(String(url));
+      const urlStr = String(url);
+      if (urlStr.includes("/internal/auth/me")) {
+        return jsonResponse({
+          user: { id: "writer_01", email: "w@example.com", displayName: "Writer One" },
+          expiresAt: "2026-12-31T00:00:00.000Z"
+        });
+      }
+      urls.push(urlStr);
       body = String(options?.body ?? "");
       return jsonResponse({ submission: { id: "submission_1", projectId: "project_2" } });
     }) as typeof request,
+    identityServiceBase: "http://identity-svc",
     submissionTrackingBase: "http://submission-svc"
   });
   t.after(async () => {
@@ -210,6 +238,7 @@ test("api-gateway proxies submission project reassignment", async (t) => {
   const response = await server.inject({
     method: "PATCH",
     url: "/api/v1/submissions/submission_1/project",
+    headers: { authorization: "Bearer sess_test" },
     payload: { projectId: "project_2" }
   });
 

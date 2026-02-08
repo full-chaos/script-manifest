@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import type { WriterProfile, WriterProfileUpdateRequest } from "@script-manifest/contracts";
-import { readStoredSession } from "../lib/authSession";
+import { getAuthHeaders, readStoredSession } from "../lib/authSession";
 
 type EditableProfile = {
   displayName: string;
@@ -43,7 +43,8 @@ export default function ProfilePage() {
 
     try {
       const response = await fetch(`/api/v1/profiles/${encodeURIComponent(writerId)}`, {
-        cache: "no-store"
+        cache: "no-store",
+        headers: getAuthHeaders()
       });
       const body = await response.json();
       if (!response.ok) {
@@ -89,7 +90,7 @@ export default function ProfilePage() {
     try {
       const response = await fetch(`/api/v1/profiles/${encodeURIComponent(writerId)}`, {
         method: "PUT",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify(payload)
       });
       const body = await response.json();

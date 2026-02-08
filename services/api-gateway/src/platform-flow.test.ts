@@ -182,7 +182,7 @@ function buildPlatformRequestFn() {
       }
 
       if (path === "/internal/projects" && method === "POST") {
-        const ownerUserId = String(body.ownerUserId ?? "");
+        const ownerUserId = String(headers["x-auth-user-id"] ?? "");
         if (!usersById.has(ownerUserId)) {
           return jsonResponse({ error: "owner_not_found" }, 404);
         }
@@ -221,7 +221,7 @@ function buildPlatformRequestFn() {
         const now = new Date().toISOString();
         const submission: SubmissionRecord = {
           id: `submission_${randomUUID()}`,
-          writerId: String(body.writerId ?? ""),
+          writerId: String(headers["x-auth-user-id"] ?? ""),
           projectId: String(body.projectId ?? ""),
           competitionId: String(body.competitionId ?? ""),
           status: String(body.status ?? "pending"),
@@ -284,9 +284,12 @@ test("platform flow through api gateway: auth + profile + project + submissions"
   assert.equal(me.statusCode, 200);
   assert.equal(me.json().user.id, writerId);
 
+  const authHeaders = { authorization: `Bearer ${token}` };
+
   const updateProfile = await server.inject({
     method: "PUT",
     url: `/api/v1/profiles/${writerId}`,
+    headers: authHeaders,
     payload: {
       bio: "Updated profile",
       genres: ["Drama", "Thriller"],
@@ -299,8 +302,8 @@ test("platform flow through api gateway: auth + profile + project + submissions"
   const createProject = await server.inject({
     method: "POST",
     url: "/api/v1/projects",
+    headers: authHeaders,
     payload: {
-      ownerUserId: writerId,
       title: "My Script",
       logline: "A writer keeps shipping",
       synopsis: "",
@@ -323,8 +326,8 @@ test("platform flow through api gateway: auth + profile + project + submissions"
   const createSubmission = await server.inject({
     method: "POST",
     url: "/api/v1/submissions",
+    headers: authHeaders,
     payload: {
-      writerId,
       projectId,
       competitionId: "comp_001",
       status: "pending"

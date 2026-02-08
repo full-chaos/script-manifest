@@ -5,9 +5,9 @@ import type {
   Project,
   ProjectCoWriter,
   ProjectCoWriterCreateRequest,
-  ProjectCreateRequest,
+  ProjectCreateInternal,
   ProjectDraft,
-  ProjectDraftCreateRequest,
+  ProjectDraftCreateInternal,
   ProjectDraftUpdateRequest,
   ProjectFilters,
   ProjectUpdateRequest,
@@ -63,7 +63,7 @@ class MemoryRepository implements ProfileProjectRepository {
     return next;
   }
 
-  async createProject(input: ProjectCreateRequest): Promise<Project | null> {
+  async createProject(input: ProjectCreateInternal): Promise<Project | null> {
     if (!this.profiles.has(input.ownerUserId)) {
       return null;
     }
@@ -166,7 +166,7 @@ class MemoryRepository implements ProfileProjectRepository {
     );
   }
 
-  async createDraft(projectId: string, input: ProjectDraftCreateRequest): Promise<ProjectDraft | null> {
+  async createDraft(projectId: string, input: ProjectDraftCreateInternal): Promise<ProjectDraft | null> {
     const project = this.projects.get(projectId);
     if (!project || project.ownerUserId !== input.ownerUserId) {
       return null;
@@ -291,8 +291,10 @@ test("profile-project-service supports project CRUD", async (t) => {
   const create = await server.inject({
     method: "POST",
     url: "/internal/projects",
+    headers: {
+      "x-auth-user-id": "writer_01"
+    },
     payload: {
-      ownerUserId: "writer_01",
       title: "My Script",
       logline: "A writer chases momentum",
       synopsis: "",
@@ -374,8 +376,10 @@ test("profile-project-service supports co-writer and draft lifecycle endpoints",
   const create = await server.inject({
     method: "POST",
     url: "/internal/projects",
+    headers: {
+      "x-auth-user-id": "writer_01"
+    },
     payload: {
-      ownerUserId: "writer_01",
       title: "Co-Writer Project",
       logline: "Two writers collaborate",
       synopsis: "",
@@ -411,8 +415,10 @@ test("profile-project-service supports co-writer and draft lifecycle endpoints",
   const draftOne = await server.inject({
     method: "POST",
     url: `/internal/projects/${projectId}/drafts`,
+    headers: {
+      "x-auth-user-id": "writer_01"
+    },
     payload: {
-      ownerUserId: "writer_01",
       scriptId: "script_a",
       versionLabel: "v1",
       changeSummary: "initial",
@@ -426,8 +432,10 @@ test("profile-project-service supports co-writer and draft lifecycle endpoints",
   const draftTwo = await server.inject({
     method: "POST",
     url: `/internal/projects/${projectId}/drafts`,
+    headers: {
+      "x-auth-user-id": "writer_01"
+    },
     payload: {
-      ownerUserId: "writer_01",
       scriptId: "script_b",
       versionLabel: "v2",
       changeSummary: "revisions",
@@ -441,8 +449,8 @@ test("profile-project-service supports co-writer and draft lifecycle endpoints",
   const setPrimary = await server.inject({
     method: "POST",
     url: `/internal/projects/${projectId}/drafts/${draftTwoId}/primary`,
-    payload: {
-      ownerUserId: "writer_01"
+    headers: {
+      "x-auth-user-id": "writer_01"
     }
   });
   assert.equal(setPrimary.statusCode, 200);

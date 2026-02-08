@@ -97,9 +97,14 @@ export function buildServer(options: ApiGatewayOptions = {}): FastifyInstance {
   });
 
   server.post("/api/v1/projects", async (req, reply) => {
+    const userId = await getUserIdFromAuth(requestFn, identityServiceBase, req.headers.authorization);
+
     return proxyJsonRequest(reply, requestFn, `${profileServiceBase}/internal/projects`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: addAuthUserIdHeader(
+        { "content-type": "application/json" },
+        userId
+      ),
       body: JSON.stringify(req.body ?? {})
     });
   });
@@ -293,22 +298,32 @@ export function buildServer(options: ApiGatewayOptions = {}): FastifyInstance {
   });
 
   server.post("/api/v1/submissions", async (req, reply) => {
+    const userId = await getUserIdFromAuth(requestFn, identityServiceBase, req.headers.authorization);
+
     return proxyJsonRequest(reply, requestFn, `${submissionTrackingBase}/internal/submissions`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: addAuthUserIdHeader(
+        { "content-type": "application/json" },
+        userId
+      ),
       body: JSON.stringify(req.body ?? {})
     });
   });
 
   server.patch("/api/v1/submissions/:submissionId/project", async (req, reply) => {
     const { submissionId } = req.params as { submissionId: string };
+    const userId = await getUserIdFromAuth(requestFn, identityServiceBase, req.headers.authorization);
+
     return proxyJsonRequest(
       reply,
       requestFn,
       `${submissionTrackingBase}/internal/submissions/${encodeURIComponent(submissionId)}/project`,
       {
         method: "PATCH",
-        headers: { "content-type": "application/json" },
+        headers: addAuthUserIdHeader(
+          { "content-type": "application/json" },
+          userId
+        ),
         body: JSON.stringify(req.body ?? {})
       }
     );

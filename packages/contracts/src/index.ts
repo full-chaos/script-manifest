@@ -38,7 +38,6 @@ export const ProjectSchema = z.object({
 export type Project = z.infer<typeof ProjectSchema>;
 
 export const ProjectCreateRequestSchema = z.object({
-  ownerUserId: z.string().min(1),
   title: z.string().min(1),
   logline: z.string().default(""),
   synopsis: z.string().default(""),
@@ -49,6 +48,12 @@ export const ProjectCreateRequestSchema = z.object({
 });
 
 export type ProjectCreateRequest = z.infer<typeof ProjectCreateRequestSchema>;
+
+export const ProjectCreateInternalSchema = ProjectCreateRequestSchema.extend({
+  ownerUserId: z.string().min(1)
+});
+
+export type ProjectCreateInternal = z.infer<typeof ProjectCreateInternalSchema>;
 
 export const ProjectUpdateRequestSchema = z.object({
   title: z.string().min(1).optional(),
@@ -110,7 +115,6 @@ export const ProjectDraftSchema = z.object({
 export type ProjectDraft = z.infer<typeof ProjectDraftSchema>;
 
 export const ProjectDraftCreateRequestSchema = z.object({
-  ownerUserId: z.string().min(1),
   scriptId: z.string().min(1),
   versionLabel: z.string().min(1),
   changeSummary: z.string().max(4000).default(""),
@@ -119,6 +123,12 @@ export const ProjectDraftCreateRequestSchema = z.object({
 });
 
 export type ProjectDraftCreateRequest = z.infer<typeof ProjectDraftCreateRequestSchema>;
+
+export const ProjectDraftCreateInternalSchema = ProjectDraftCreateRequestSchema.extend({
+  ownerUserId: z.string().min(1)
+});
+
+export type ProjectDraftCreateInternal = z.infer<typeof ProjectDraftCreateInternalSchema>;
 
 export const ProjectDraftUpdateRequestSchema = z.object({
   versionLabel: z.string().min(1).optional(),
@@ -129,11 +139,15 @@ export const ProjectDraftUpdateRequestSchema = z.object({
 
 export type ProjectDraftUpdateRequest = z.infer<typeof ProjectDraftUpdateRequestSchema>;
 
-export const ProjectDraftPrimaryRequestSchema = z.object({
+export const ProjectDraftPrimaryRequestSchema = z.object({});
+
+export type ProjectDraftPrimaryRequest = z.infer<typeof ProjectDraftPrimaryRequestSchema>;
+
+export const ProjectDraftPrimaryInternalSchema = ProjectDraftPrimaryRequestSchema.extend({
   ownerUserId: z.string().min(1)
 });
 
-export type ProjectDraftPrimaryRequest = z.infer<typeof ProjectDraftPrimaryRequestSchema>;
+export type ProjectDraftPrimaryInternal = z.infer<typeof ProjectDraftPrimaryInternalSchema>;
 
 export const AuthRegisterRequestSchema = z.object({
   email: z.string().email(),
@@ -329,13 +343,18 @@ export const SubmissionSchema = z.object({
 export type Submission = z.infer<typeof SubmissionSchema>;
 
 export const SubmissionCreateRequestSchema = z.object({
-  writerId: z.string().min(1),
   projectId: z.string().min(1),
   competitionId: z.string().min(1),
   status: SubmissionStatusSchema.default("pending")
 });
 
 export type SubmissionCreateRequest = z.infer<typeof SubmissionCreateRequestSchema>;
+
+export const SubmissionCreateInternalSchema = SubmissionCreateRequestSchema.extend({
+  writerId: z.string().min(1)
+});
+
+export type SubmissionCreateInternal = z.infer<typeof SubmissionCreateInternalSchema>;
 
 export const SubmissionFiltersSchema = z.object({
   writerId: z.string().trim().min(1).optional(),

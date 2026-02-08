@@ -8,7 +8,7 @@ import type {
   ProjectCreateRequest,
   ProjectDraft
 } from "@script-manifest/contracts";
-import { readStoredSession } from "../lib/authSession";
+import { getAuthHeaders, readStoredSession } from "../lib/authSession";
 
 type ProjectForm = {
   title: string;
@@ -78,9 +78,10 @@ export default function ProjectsPage() {
 
     setContextLoading(true);
     try {
+      const authHeaders = getAuthHeaders();
       const [coWritersResponse, draftsResponse] = await Promise.all([
-        fetch(`/api/v1/projects/${encodeURIComponent(projectId)}/co-writers`, { cache: "no-store" }),
-        fetch(`/api/v1/projects/${encodeURIComponent(projectId)}/drafts`, { cache: "no-store" })
+        fetch(`/api/v1/projects/${encodeURIComponent(projectId)}/co-writers`, { cache: "no-store", headers: authHeaders }),
+        fetch(`/api/v1/projects/${encodeURIComponent(projectId)}/drafts`, { cache: "no-store", headers: authHeaders })
       ]);
       const [coWritersBody, draftsBody] = await Promise.all([
         coWritersResponse.json(),
@@ -112,7 +113,7 @@ export default function ProjectsPage() {
     try {
       const response = await fetch(
         `/api/v1/projects?ownerUserId=${encodeURIComponent(ownerUserId)}`,
-        { cache: "no-store" }
+        { cache: "no-store", headers: getAuthHeaders() }
       );
       const body = await response.json();
       if (!response.ok) {
@@ -145,7 +146,6 @@ export default function ProjectsPage() {
     setStatus("");
 
     const payload: ProjectCreateRequest = {
-      ownerUserId,
       title: projectForm.title,
       logline: projectForm.logline,
       synopsis: projectForm.synopsis,
@@ -158,7 +158,7 @@ export default function ProjectsPage() {
     try {
       const response = await fetch("/api/v1/projects", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify(payload)
       });
       const body = await response.json();
@@ -185,7 +185,8 @@ export default function ProjectsPage() {
     setStatus("");
     try {
       const response = await fetch(`/api/v1/projects/${encodeURIComponent(projectId)}`, {
-        method: "DELETE"
+        method: "DELETE",
+        headers: getAuthHeaders()
       });
       if (!response.ok) {
         const body = await response.json();
@@ -222,7 +223,7 @@ export default function ProjectsPage() {
         `/api/v1/projects/${encodeURIComponent(selectedProjectId)}/co-writers`,
         {
           method: "POST",
-          headers: { "content-type": "application/json" },
+          headers: { "content-type": "application/json", ...getAuthHeaders() },
           body: JSON.stringify({
             coWriterUserId,
             creditOrder: Number.isFinite(coWriterCreditOrder) ? coWriterCreditOrder : 1
@@ -255,7 +256,7 @@ export default function ProjectsPage() {
     try {
       const response = await fetch(
         `/api/v1/projects/${encodeURIComponent(selectedProjectId)}/co-writers/${encodeURIComponent(coWriterId)}`,
-        { method: "DELETE" }
+        { method: "DELETE", headers: getAuthHeaders() }
       );
       if (!response.ok) {
         const body = await response.json();
@@ -284,9 +285,8 @@ export default function ProjectsPage() {
     try {
       const response = await fetch(`/api/v1/projects/${encodeURIComponent(selectedProjectId)}/drafts`, {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify({
-          ownerUserId,
           scriptId: draftForm.scriptId,
           versionLabel: draftForm.versionLabel,
           changeSummary: draftForm.changeSummary,
@@ -322,8 +322,7 @@ export default function ProjectsPage() {
         `/api/v1/projects/${encodeURIComponent(selectedProjectId)}/drafts/${encodeURIComponent(draftId)}/primary`,
         {
           method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ ownerUserId })
+          headers: { "content-type": "application/json", ...getAuthHeaders() }
         }
       );
       const body = await response.json();
@@ -353,7 +352,7 @@ export default function ProjectsPage() {
         `/api/v1/projects/${encodeURIComponent(selectedProjectId)}/drafts/${encodeURIComponent(draftId)}`,
         {
           method: "PATCH",
-          headers: { "content-type": "application/json" },
+          headers: { "content-type": "application/json", ...getAuthHeaders() },
           body: JSON.stringify({ lifecycleState: "archived" })
         }
       );

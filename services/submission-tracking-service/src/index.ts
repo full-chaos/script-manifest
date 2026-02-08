@@ -5,7 +5,7 @@ import {
   PlacementCreateRequestSchema,
   PlacementSchema,
   PlacementVerificationUpdateRequestSchema,
-  SubmissionCreateRequestSchema,
+  SubmissionCreateInternalSchema,
   SubmissionFiltersSchema,
   SubmissionProjectReassignmentRequestSchema,
   SubmissionSchema,
@@ -22,6 +22,11 @@ export function buildServer(options: SubmissionTrackingOptions = {}): FastifyIns
   const submissions = new Map<string, Submission>();
   const placements = new Map<string, Placement>();
 
+  const getAuthUserId = (headers: Record<string, unknown>): string | null => {
+    const userId = headers["x-auth-user-id"];
+    return typeof userId === "string" && userId.length > 0 ? userId : null;
+  };
+
   server.get("/health", async () => ({
     service: "submission-tracking-service",
     ok: true,
@@ -30,7 +35,15 @@ export function buildServer(options: SubmissionTrackingOptions = {}): FastifyIns
   }));
 
   server.post("/internal/submissions", async (req, reply) => {
-    const parsedBody = SubmissionCreateRequestSchema.safeParse(req.body);
+    const authUserId = getAuthUserId(req.headers);
+    if (!authUserId) {
+      return reply.status(403).send({ error: "forbidden" });
+    }
+
+    const parsedBody = SubmissionCreateInternalSchema.safeParse({
+      ...(req.body as object),
+      writerId: authUserId
+    });
     if (!parsedBody.success) {
       return reply.status(400).send({
         error: "invalid_payload",
@@ -52,9 +65,18 @@ export function buildServer(options: SubmissionTrackingOptions = {}): FastifyIns
 
   server.patch("/internal/submissions/:submissionId/project", async (req, reply) => {
     const { submissionId } = req.params as { submissionId: string };
+    const authUserId = getAuthUserId(req.headers);
+    if (!authUserId) {
+      return reply.status(403).send({ error: "forbidden" });
+    }
+
     const submission = submissions.get(submissionId);
     if (!submission) {
       return reply.status(404).send({ error: "submission_not_found" });
+    }
+
+    if (submission.writerId !== authUserId) {
+      return reply.status(403).send({ error: "forbidden" });
     }
 
     const parsedBody = SubmissionProjectReassignmentRequestSchema.safeParse(req.body);

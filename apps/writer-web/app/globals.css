@@ -33,7 +33,7 @@
 
 @layer components {
   .panel {
-    @apply rounded-3xl border border-zinc-300/65 bg-white/80 p-5 shadow-panel backdrop-blur;
+    @apply rounded-3xl border border-zinc-300/60 bg-white/80 p-5 shadow-panel backdrop-blur;
   }
 
   .card {
@@ -69,7 +69,7 @@
   }
 
   .input {
-    @apply w-full rounded-xl border border-zinc-300 bg-white/92 px-3 py-2.5 text-sm text-ink-900;
+    @apply w-full rounded-xl border border-zinc-300 bg-white/90 px-3 py-2.5 text-sm text-ink-900;
     @apply outline-none focus:border-ember-500 focus:ring-2 focus:ring-ember-500/20;
   }
 
@@ -83,7 +83,7 @@
   }
 
   .btn-secondary {
-    @apply btn border-zinc-300 bg-white/85 text-ink-900;
+    @apply btn border-zinc-300 bg-white/80 text-ink-900;
   }
 
   .btn-primary,
@@ -92,7 +92,7 @@
   }
 
   .btn-danger {
-    @apply btn border-ember-500/45 bg-rose-50 text-ember-700;
+    @apply btn border-ember-500/40 bg-rose-50 text-ember-700;
   }
 
   .segmented {
@@ -112,7 +112,7 @@
   }
 
   .subcard {
-    @apply rounded-2xl border border-zinc-300/65 bg-white/72 p-4;
+    @apply rounded-2xl border border-zinc-300/60 bg-white/70 p-4;
   }
 
   .subcard-header {
@@ -148,10 +148,10 @@
   }
 
   .empty-state {
-    @apply rounded-2xl border border-dashed border-zinc-400/80 bg-white/45 p-6 text-center text-sm text-ink-500;
+    @apply rounded-2xl border border-dashed border-zinc-400/80 bg-white/40 p-6 text-center text-sm text-ink-500;
   }
 
   .stat-chip {
-    @apply inline-flex items-center rounded-full border border-emerald-700/35 bg-emerald-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.1em] text-emerald-800;
+    @apply inline-flex items-center rounded-full border border-emerald-700/30 bg-emerald-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.1em] text-emerald-800;
   }
 }

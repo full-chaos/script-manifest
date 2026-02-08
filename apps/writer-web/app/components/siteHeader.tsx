@@ -54,7 +54,7 @@ export function SiteHeader() {
   );
 
   return (
-    <header className="panel sticky top-3 z-40 border-zinc-200/80 bg-white/88">
+    <header className="panel sticky top-3 z-40 border-zinc-200/80 bg-white/90">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="space-y-1">
           <Link href="/" className="font-display text-3xl font-semibold text-ink-900 no-underline">

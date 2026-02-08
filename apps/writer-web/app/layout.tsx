@@ -1,42 +1,34 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { Cormorant_Garamond, Manrope } from "next/font/google";
 import "./globals.css";
+import { SiteHeader } from "./components/siteHeader";
+
+const displayFont = Cormorant_Garamond({
+  subsets: ["latin"],
+  variable: "--font-display",
+  weight: ["500", "600", "700"]
+});
+
+const bodyFont = Manrope({
+  subsets: ["latin"],
+  variable: "--font-body",
+  weight: ["400", "500", "600", "700"]
+});
 
 export const metadata: Metadata = {
   title: "Script Manifest | Writer Hub",
-  description: "Phase 1 MVP shell for writer profiles, projects, and competition tracking."
+  description:
+    "A writer-first platform for profiles, scripts, competitions, and submission tracking."
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body>
-        <main>
-          <header>
-            <h1>Script Manifest</h1>
-            <p>Phase 1 MVP Writer Hub</p>
-            <nav aria-label="Primary">
-              <ul>
-                <li>
-                  <Link href="/profile">Profile</Link>
-                </li>
-                <li>
-                  <Link href="/projects">Projects</Link>
-                </li>
-                <li>
-                  <Link href="/competitions">Competitions</Link>
-                </li>
-                <li>
-                  <Link href="/submissions">Submissions</Link>
-                </li>
-                <li>
-                  <Link href="/signin">Sign In</Link>
-                </li>
-              </ul>
-            </nav>
-          </header>
-          {children}
-        </main>
+      <body className={`${displayFont.variable} ${bodyFont.variable}`}>
+        <div className="app-shell">
+          <SiteHeader />
+          <main className="page-shell">{children}</main>
+        </div>
       </body>
     </html>
   );

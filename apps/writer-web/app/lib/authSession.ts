@@ -1,6 +1,7 @@
 import type { AuthSessionResponse, AuthUser } from "@script-manifest/contracts";
 
 export const SESSION_STORAGE_KEY = "script_manifest_session";
+export const SESSION_CHANGED_EVENT = "script_manifest_session_changed";
 
 export function readStoredSession(): AuthSessionResponse | null {
   if (typeof window === "undefined") {
@@ -25,6 +26,7 @@ export function writeStoredSession(session: AuthSessionResponse): void {
   }
 
   window.localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
+  window.dispatchEvent(new CustomEvent(SESSION_CHANGED_EVENT));
 }
 
 export function clearStoredSession(): void {
@@ -33,6 +35,7 @@ export function clearStoredSession(): void {
   }
 
   window.localStorage.removeItem(SESSION_STORAGE_KEY);
+  window.dispatchEvent(new CustomEvent(SESSION_CHANGED_EVENT));
 }
 
 export function readStoredUserId(): string | null {

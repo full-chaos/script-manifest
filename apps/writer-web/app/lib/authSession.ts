@@ -41,8 +41,12 @@ export function readStoredUserId(): string | null {
 
 export function getAuthHeaders(): Record<string, string> {
   const session = readStoredSession();
-  if (!session) return {};
-  return { authorization: `Bearer ${session.token}` };
+
+  if (session) {
+    return { authorization: `Bearer ${session.token}` };
+  }
+
+  return {};
 }
 
 export function formatUserLabel(user: AuthUser): string {

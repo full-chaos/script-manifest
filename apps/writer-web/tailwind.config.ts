@@ -9,22 +9,26 @@ const config: Config = {
     extend: {
       colors: {
         ink: {
-          900: "#171618",
-          700: "#34323a",
-          500: "#5d5965"
+          900: "#101827",
+          700: "#243247",
+          500: "#4a607a"
         },
         cream: {
-          50: "#f9f6ee",
-          100: "#f3efe3",
-          200: "#e6decd"
+          50: "#f7fafc",
+          100: "#eff3f8",
+          200: "#dfe8f1"
         },
         ember: {
-          500: "#c74724",
-          700: "#9e3019"
+          500: "#e05b2b",
+          700: "#bb3f1c"
+        },
+        tide: {
+          500: "#0f766e",
+          700: "#115e59"
         }
       },
       boxShadow: {
-        panel: "0 14px 38px rgba(55, 38, 24, 0.10)"
+        panel: "0 20px 46px rgba(16, 24, 39, 0.12)"
       },
       fontFamily: {
         display: ["var(--font-display)"],

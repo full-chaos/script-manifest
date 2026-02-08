@@ -2,6 +2,17 @@
 
 This app uses Tailwind CSS as the primary styling system.
 
+## Theme
+
+This pass applies a custom `theme-factory` theme named **Studio Signal**:
+
+- `ink` text scale: deep blue-slate for strong readability
+- `cream` surface scale: cool paper tones for cards and backgrounds
+- `ember` action scale: warm call-to-action color for primary controls
+- `tide` support scale: success/info feedback accents
+
+Theme tokens live in `/Users/chris/projects/script-manifest/apps/writer-web/tailwind.config.ts`.
+
 ## Principles
 
 - Use utility-first classes directly in JSX for page-specific layout and spacing.

@@ -11,19 +11,24 @@
     @apply box-border;
   }
 
+  html,
   body {
-    @apply min-h-screen bg-[radial-gradient(circle_at_0%_-10%,_#f6dfc8_0%,_transparent_35%),radial-gradient(circle_at_100%_0%,_#d8e8dc_0%,_transparent_32%),linear-gradient(140deg,_#f9f6ee_0%,_#f3efe3_58%,_#e7dece_100%)] text-ink-900;
+    @apply min-h-screen;
+  }
+
+  body {
+    @apply bg-[radial-gradient(circle_at_0%_0%,_#dbe6f5_0%,_transparent_36%),radial-gradient(circle_at_100%_0%,_#ffe4d6_0%,_transparent_30%),linear-gradient(180deg,_#f7fafc_0%,_#eff3f8_48%,_#e8eff7_100%)] text-ink-900;
   }
 
   h1,
   h2,
   h3,
   h4 {
-    @apply font-display font-semibold tracking-[0.01em];
+    @apply font-display font-semibold tracking-[0.01em] text-ink-900;
   }
 
   a {
-    @apply text-ember-700;
+    @apply text-ember-700 underline-offset-2;
   }
 
   a:hover {
@@ -33,7 +38,7 @@
 
 @layer components {
   .panel {
-    @apply rounded-3xl border border-zinc-300/60 bg-white/80 p-5 shadow-panel backdrop-blur;
+    @apply rounded-2xl border border-ink-500/15 bg-white/90 p-5 shadow-panel backdrop-blur;
   }
 
   .card {
@@ -41,11 +46,11 @@
   }
 
   .hero-card {
-    @apply panel space-y-4 bg-[linear-gradient(148deg,rgba(255,255,255,0.94),rgba(249,245,236,0.9)),radial-gradient(circle_at_90%_18%,rgba(246,188,165,0.33),transparent_48%)];
+    @apply panel space-y-4 bg-[linear-gradient(145deg,rgba(255,255,255,0.96),rgba(241,246,252,0.92)),radial-gradient(circle_at_88%_14%,rgba(224,91,43,0.2),transparent_45%)];
   }
 
   .feature-card {
-    @apply flex min-h-44 flex-col gap-2 rounded-2xl border border-zinc-300/60 bg-white/75 p-4 shadow-sm;
+    @apply flex min-h-44 flex-col gap-2 rounded-xl border border-ink-500/15 bg-white/85 p-4 shadow-sm;
   }
 
   .stack {
@@ -69,7 +74,7 @@
   }
 
   .input {
-    @apply w-full rounded-xl border border-zinc-300 bg-white/90 px-3 py-2.5 text-sm text-ink-900;
+    @apply w-full rounded-lg border border-ink-500/20 bg-white px-3 py-2.5 text-sm text-ink-900;
     @apply outline-none focus:border-ember-500 focus:ring-2 focus:ring-ember-500/20;
   }
 
@@ -78,12 +83,12 @@
   }
 
   .btn {
-    @apply inline-flex items-center justify-center rounded-xl border px-3 py-2 text-sm font-semibold;
+    @apply inline-flex items-center justify-center rounded-lg border px-3 py-2 text-sm font-semibold;
     @apply transition hover:-translate-y-0.5 hover:no-underline disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60;
   }
 
   .btn-secondary {
-    @apply btn border-zinc-300 bg-white/80 text-ink-900;
+    @apply btn border-ink-500/20 bg-white text-ink-900 hover:bg-cream-100;
   }
 
   .btn-primary,
@@ -92,7 +97,7 @@
   }
 
   .btn-danger {
-    @apply btn border-ember-500/40 bg-rose-50 text-ember-700;
+    @apply btn border-red-300 bg-red-50 text-red-700;
   }
 
   .segmented {
@@ -100,11 +105,11 @@
   }
 
   .status-note {
-    @apply text-sm font-semibold text-ink-700;
+    @apply text-sm font-semibold text-tide-700;
   }
 
   .status-error {
-    @apply text-sm font-semibold text-ember-700;
+    @apply text-sm font-semibold text-red-700;
   }
 
   .muted {
@@ -112,7 +117,7 @@
   }
 
   .subcard {
-    @apply rounded-2xl border border-zinc-300/60 bg-white/70 p-4;
+    @apply rounded-xl border border-ink-500/15 bg-white/85 p-4;
   }
 
   .subcard-header {
@@ -124,7 +129,7 @@
   }
 
   .badge {
-    @apply inline-flex items-center rounded-full border border-zinc-300/80 bg-white px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-ink-500;
+    @apply inline-flex items-center rounded-full border border-ink-500/20 bg-cream-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-700;
   }
 
   .viewer-meta {
@@ -132,7 +137,7 @@
   }
 
   .viewer-shell {
-    @apply mt-3 overflow-hidden rounded-xl border border-dashed border-zinc-400 bg-cream-100;
+    @apply mt-3 overflow-hidden rounded-xl border border-dashed border-ink-500/25 bg-cream-100;
   }
 
   .viewer-frame {
@@ -148,10 +153,10 @@
   }
 
   .empty-state {
-    @apply rounded-2xl border border-dashed border-zinc-400/80 bg-white/40 p-6 text-center text-sm text-ink-500;
+    @apply rounded-xl border border-dashed border-ink-500/30 bg-white/70 p-6 text-center text-sm text-ink-500;
   }
 
   .stat-chip {
-    @apply inline-flex items-center rounded-full border border-emerald-700/30 bg-emerald-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.1em] text-emerald-800;
+    @apply inline-flex items-center rounded-full border border-tide-500/30 bg-tide-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.1em] text-tide-700;
   }
 }

@@ -1,48 +1,114 @@
+"use client";
+
 import Link from "next/link";
 import type { Route } from "next";
+import { useEffect, useState } from "react";
+import type { AuthUser } from "@script-manifest/contracts";
+import { SESSION_CHANGED_EVENT, readStoredSession } from "./lib/authSession";
 
-const sections = [
-  {
-    title: "Auth",
-    description: "Register and sign in with session token storage for local flows.",
-    href: "/signin" as Route
-  },
+type Surface = {
+  title: string;
+  description: string;
+  href: Route;
+};
+
+const writerSurfaces: Surface[] = [
   {
     title: "Profile",
-    description: "Load and update your writer profile fields through profile-project-service.",
-    href: "/profile" as Route
+    description: "Create a public writer profile with your bio, genres, and representation status.",
+    href: "/profile"
   },
   {
     title: "Projects",
-    description: "Create and list projects with metadata, discoverability, and viewer scaffold links.",
-    href: "/projects" as Route
+    description: "Manage scripts, co-writers, and your draft lifecycle in one workspace.",
+    href: "/projects"
   },
   {
     title: "Competitions",
-    description: "Query indexed competitions with keyword/format/genre/fee filters.",
-    href: "/competitions" as Route
+    description: "Search opportunities by format, fee, genre, and deadline proximity.",
+    href: "/competitions"
   },
   {
     title: "Submissions",
-    description: "Record manual competition submissions and track statuses in one place.",
-    href: "/submissions" as Route
+    description: "Track placements and move submissions across project drafts.",
+    href: "/submissions"
   }
 ];
 
 export default function HomePage() {
+  const [user, setUser] = useState<AuthUser | null>(null);
+
+  useEffect(() => {
+    const syncSession = () => {
+      setUser(readStoredSession()?.user ?? null);
+    };
+
+    syncSession();
+    window.addEventListener("storage", syncSession);
+    window.addEventListener(SESSION_CHANGED_EVENT, syncSession);
+
+    return () => {
+      window.removeEventListener("storage", syncSession);
+      window.removeEventListener(SESSION_CHANGED_EVENT, syncSession);
+    };
+  }, []);
+
+  if (!user) {
+    return (
+      <section className="space-y-4">
+        <article className="hero-card">
+          <p className="eyebrow">Phase 1 Writer Hub</p>
+          <h1 className="max-w-4xl font-display text-4xl font-semibold leading-tight text-ink-900 md:text-6xl">
+            Build your screenwriting portfolio without losing your history again.
+          </h1>
+          <p className="max-w-3xl text-base text-ink-700 md:text-lg">
+            Script Manifest gives writers a durable home for profiles, projects, submissions, and
+            discovery workflows. Your work stays portable and under your control.
+          </p>
+          <div className="flex flex-wrap gap-3">
+            <Link href="/signin" className="btn btn-primary">
+              Create account
+            </Link>
+            <Link href="/competitions" className="btn btn-secondary">
+              Browse competitions
+            </Link>
+          </div>
+        </article>
+
+        <section aria-label="Platform capabilities" className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {writerSurfaces.map((surface) => (
+            <article key={surface.title} className="feature-card">
+              <h2 className="font-display text-2xl font-semibold text-ink-900">{surface.title}</h2>
+              <p className="text-sm text-ink-700">{surface.description}</p>
+              <Link href={surface.href} className="text-sm font-semibold text-ember-700 hover:underline">
+                Open {surface.title}
+              </Link>
+            </article>
+          ))}
+        </section>
+      </section>
+    );
+  }
+
   return (
-    <section className="card stack">
-      <h2>Phase 1 Writer Hub</h2>
-      <p className="muted">Core MVP surfaces are now wired to gateway-backed services.</p>
-      <div className="stack">
-        {sections.map((section) => (
-          <article className="subcard" key={section.title}>
-            <h3>{section.title}</h3>
-            <p>{section.description}</p>
-            <Link href={section.href}>Open {section.title}</Link>
+    <section className="space-y-4">
+      <article className="panel">
+        <p className="eyebrow">Welcome back</p>
+        <h2 className="font-display text-4xl font-semibold text-ink-900">{user.displayName}</h2>
+        <p className="text-ink-700">Jump directly into your active writer workflow.</p>
+      </article>
+
+      <section aria-label="Quick actions" className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        {writerSurfaces.map((surface) => (
+          <article key={surface.title} className="feature-card">
+            <h3 className="font-display text-2xl font-semibold text-ink-900">{surface.title}</h3>
+            <p className="text-sm text-ink-700">{surface.description}</p>
+            <Link className="btn btn-secondary" href={surface.href}>
+              Open {surface.title}
+            </Link>
           </article>
         ))}
-      </div>
+      </section>
     </section>
   );
 }

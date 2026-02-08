@@ -35,6 +35,12 @@ const writerSurfaces: Surface[] = [
   }
 ];
 
+const trustPrinciples = [
+  "CSV and PDF exports are first-class, not hidden settings.",
+  "No script leaves your control without explicit permission.",
+  "Every major ranking or recommendation decision is documented."
+];
+
 export default function HomePage() {
   const [user, setUser] = useState<AuthUser | null>(null);
 
@@ -65,11 +71,11 @@ export default function HomePage() {
             Script Manifest gives writers a durable home for profiles, projects, submissions, and
             discovery workflows. Your work stays portable and under your control.
           </p>
-          <div className="flex flex-wrap gap-3">
-            <Link href="/signin" className="btn btn-primary">
+          <div className="inline-form">
+            <Link href="/signin" className="btn btn-primary no-underline">
               Create account
             </Link>
-            <Link href="/competitions" className="btn btn-secondary">
+            <Link href="/competitions" className="btn btn-secondary no-underline">
               Browse competitions
             </Link>
           </div>
@@ -86,13 +92,26 @@ export default function HomePage() {
             </article>
           ))}
         </section>
+
+        <article className="panel">
+          <p className="eyebrow">Trust Contract</p>
+          <h2 className="section-title">Writers should not lose years of work overnight.</h2>
+          <ul className="mt-3 space-y-2 text-sm text-ink-700">
+            {trustPrinciples.map((principle) => (
+              <li key={principle} className="flex items-start gap-2">
+                <span className="mt-1 h-1.5 w-1.5 rounded-full bg-ember-500" aria-hidden />
+                <span>{principle}</span>
+              </li>
+            ))}
+          </ul>
+        </article>
       </section>
     );
   }
 
   return (
     <section className="space-y-4">
-      <article className="panel">
+      <article className="hero-card">
         <p className="eyebrow">Welcome back</p>
         <h2 className="font-display text-4xl font-semibold text-ink-900">{user.displayName}</h2>
         <p className="text-ink-700">Jump directly into your active writer workflow.</p>
@@ -103,7 +122,7 @@ export default function HomePage() {
           <article key={surface.title} className="feature-card">
             <h3 className="font-display text-2xl font-semibold text-ink-900">{surface.title}</h3>
             <p className="text-sm text-ink-700">{surface.description}</p>
-            <Link className="btn btn-secondary" href={surface.href}>
+            <Link className="btn btn-secondary no-underline" href={surface.href}>
               Open {surface.title}
             </Link>
           </article>

@@ -12,7 +12,7 @@
   }
 
   body {
-    @apply min-h-screen bg-[radial-gradient(circle_at_8%_-10%,_#f8ddc7_0%,_transparent_40%),radial-gradient(circle_at_92%_-12%,_#dbeadf_0%,_transparent_34%),linear-gradient(130deg,_#f9f6ee_0%,_#f3efe3_55%,_#e6decd_100%)] text-ink-900;
+    @apply min-h-screen bg-[radial-gradient(circle_at_0%_-10%,_#f6dfc8_0%,_transparent_35%),radial-gradient(circle_at_100%_0%,_#d8e8dc_0%,_transparent_32%),linear-gradient(140deg,_#f9f6ee_0%,_#f3efe3_58%,_#e7dece_100%)] text-ink-900;
   }
 
   h1,
@@ -33,20 +33,19 @@
 
 @layer components {
   .panel {
-    @apply rounded-2xl border border-zinc-300/60 bg-white/80 p-4 shadow-panel backdrop-blur;
-  }
-
-  .hero-card {
-    @apply panel space-y-4 bg-[linear-gradient(140deg,rgba(255,255,255,0.92),rgba(252,249,243,0.88)),radial-gradient(circle_at_92%_18%,rgba(246,188,165,0.35),transparent_46%)];
-  }
-
-  .feature-card {
-    @apply rounded-xl border border-zinc-300/60 bg-white/75 p-4 shadow-sm;
-    @apply flex min-h-44 flex-col gap-2;
+    @apply rounded-3xl border border-zinc-300/65 bg-white/80 p-5 shadow-panel backdrop-blur;
   }
 
   .card {
     @apply panel;
+  }
+
+  .hero-card {
+    @apply panel space-y-4 bg-[linear-gradient(148deg,rgba(255,255,255,0.94),rgba(249,245,236,0.9)),radial-gradient(circle_at_90%_18%,rgba(246,188,165,0.33),transparent_48%)];
+  }
+
+  .feature-card {
+    @apply flex min-h-44 flex-col gap-2 rounded-2xl border border-zinc-300/60 bg-white/75 p-4 shadow-sm;
   }
 
   .stack {
@@ -65,8 +64,12 @@
     @apply grid gap-3 md:grid-cols-2;
   }
 
+  .grid-three {
+    @apply grid gap-3 md:grid-cols-3;
+  }
+
   .input {
-    @apply w-full rounded-lg border border-zinc-300 bg-white/90 px-3 py-2 text-sm text-ink-900;
+    @apply w-full rounded-xl border border-zinc-300 bg-white/92 px-3 py-2.5 text-sm text-ink-900;
     @apply outline-none focus:border-ember-500 focus:ring-2 focus:ring-ember-500/20;
   }
 
@@ -75,12 +78,12 @@
   }
 
   .btn {
-    @apply inline-flex items-center justify-center rounded-lg border px-3 py-2 text-sm font-semibold;
-    @apply transition hover:-translate-y-0.5 hover:no-underline disabled:translate-y-0 disabled:opacity-60;
+    @apply inline-flex items-center justify-center rounded-xl border px-3 py-2 text-sm font-semibold;
+    @apply transition hover:-translate-y-0.5 hover:no-underline disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60;
   }
 
   .btn-secondary {
-    @apply btn border-zinc-300 bg-white/80 text-ink-900;
+    @apply btn border-zinc-300 bg-white/85 text-ink-900;
   }
 
   .btn-primary,
@@ -89,7 +92,7 @@
   }
 
   .btn-danger {
-    @apply btn border-ember-500/50 bg-rose-50 text-ember-700;
+    @apply btn border-ember-500/45 bg-rose-50 text-ember-700;
   }
 
   .segmented {
@@ -97,7 +100,7 @@
   }
 
   .status-note {
-    @apply text-sm font-semibold text-ember-700;
+    @apply text-sm font-semibold text-ink-700;
   }
 
   .status-error {
@@ -109,7 +112,7 @@
   }
 
   .subcard {
-    @apply rounded-xl border border-zinc-300/60 bg-white/70 p-3;
+    @apply rounded-2xl border border-zinc-300/65 bg-white/72 p-4;
   }
 
   .subcard-header {
@@ -118,6 +121,10 @@
 
   .checkbox {
     @apply flex flex-row items-center gap-2;
+  }
+
+  .badge {
+    @apply inline-flex items-center rounded-full border border-zinc-300/80 bg-white px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-ink-500;
   }
 
   .viewer-meta {
@@ -134,5 +141,17 @@
 
   .eyebrow {
     @apply text-xs font-bold uppercase tracking-[0.2em] text-ink-500;
+  }
+
+  .section-title {
+    @apply text-2xl text-ink-900;
+  }
+
+  .empty-state {
+    @apply rounded-2xl border border-dashed border-zinc-400/80 bg-white/45 p-6 text-center text-sm text-ink-500;
+  }
+
+  .stat-chip {
+    @apply inline-flex items-center rounded-full border border-emerald-700/35 bg-emerald-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.1em] text-emerald-800;
   }
 }

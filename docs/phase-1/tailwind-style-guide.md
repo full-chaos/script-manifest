@@ -4,33 +4,48 @@ This app uses Tailwind CSS as the primary styling system.
 
 ## Principles
 
-- Use utility-first classes directly in JSX for one-off layout and spacing.
-- Use shared component classes in `app/globals.css` via `@layer components` and `@apply` for repeated patterns (`.panel`, `.btn`, `.input`, `.feature-card`).
+- Use utility-first classes directly in JSX for page-specific layout and spacing.
+- Use shared component classes in `/Users/chris/projects/script-manifest/apps/writer-web/app/globals.css` via `@layer components` for repeated patterns (`.panel`, `.hero-card`, `.btn-*`, `.input`, `.subcard`, `.badge`, `.empty-state`).
 - Keep visual hierarchy consistent across all pages:
-  - Page containers: `.card` / `.panel`
-  - Form controls: `.input`, `.stack`, `.grid-two`
+  - Page intro: `.hero-card` + `.eyebrow`
+  - Content sections: `.panel`
+  - Data rows/cards: `.subcard`
+  - Forms: `.stack`, `.grid-two`, `.input`
   - Actions: `.btn-primary`, `.btn-secondary`, `.btn-danger`
-  - Status text: `.status-note`, `.status-error`, `.muted`
 
 ## Theme Tokens
 
-Defined in `tailwind.config.ts`:
+Defined in `/Users/chris/projects/script-manifest/apps/writer-web/tailwind.config.ts`:
 
 - `ink.*` for text colors
-- `cream.*` for soft surfaces
+- `cream.*` for neutral surfaces
 - `ember.*` for action colors
-- `shadow-panel` for primary container depth
+- `shadow-panel` for elevated containers
 - `font.display` and `font.body` mapped to Next fonts
+
+## Modal Pattern
+
+All create workflows use modal forms:
+
+- Shared component: `/Users/chris/projects/script-manifest/apps/writer-web/app/components/modal.tsx`
+- Behavior:
+  - `role="dialog"` + `aria-modal="true"`
+  - Escape key closes modal
+  - Body scroll lock while modal is open
+- Use modal flows for creation tasks (`Create project`, `Create draft`, `Create submission`, `Add co-writer`) to reduce page clutter.
 
 ## Page Composition Pattern
 
-- Use a top-level `section` with `space-y-*`.
-- Start with a title card (`.card`) and one-line context.
-- Place interactive forms in `.card` blocks and outputs in `.subcard` items.
-- Avoid inline color values in JSX; use tokens or shared classes.
+- Start with a summary hero (`.hero-card`) that explains scope and key actions.
+- Follow with data sections as panels (`.panel`) and cards (`.subcard`).
+- Surface status and state explicitly:
+  - Empty: `.empty-state`
+  - Success/info: `.status-note`
+  - Error: `.status-error`
 
 ## Accessibility
 
-- Keep visible labels for all form fields.
-- Preserve semantic headings (`h1/h2/h3`) and `aria-label` on dynamic controls.
-- Use explicit focus states through `.input` and button classes.
+- Keep visible labels for all form controls.
+- Maintain semantic heading order (`h1` then section `h2/h3`).
+- Use `aria-label` on dynamic controls (submission move target selectors).
+- Ensure color contrast by using tokenized text/surface classes rather than ad hoc color values.

@@ -54,38 +54,45 @@ export function SiteHeader() {
   );
 
   return (
-    <header className="rounded-2xl border border-zinc-300/60 bg-white/80 p-4 shadow-panel backdrop-blur">
+    <header className="panel sticky top-3 z-40 border-zinc-200/80 bg-white/88">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="space-y-1">
-          <Link href="/" className="font-display text-3xl font-semibold text-ink-900">
+          <Link href="/" className="font-display text-3xl font-semibold text-ink-900 no-underline">
             Script Manifest
           </Link>
-          <p className="text-sm text-ink-500">Writers first. Ownership always.</p>
+          <p className="text-sm text-ink-500">Portfolio durability for screenwriters.</p>
         </div>
 
         <nav aria-label="Primary" className="flex flex-wrap items-center gap-2">
-          {visibleLinks.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              className={
-                isActive(pathname, link.href)
-                  ? "rounded-full border border-ember-500/35 bg-ember-500/10 px-3 py-1.5 text-sm font-semibold text-ember-700"
-                  : "rounded-full border border-transparent bg-white/70 px-3 py-1.5 text-sm font-medium text-ink-700 hover:border-zinc-300"
-              }
-            >
-              {link.label}
-            </Link>
-          ))}
+          {visibleLinks.map((link) => {
+            const active = isActive(pathname, link.href);
+            return (
+              <Link
+                key={link.href}
+                href={link.href}
+                className={
+                  active
+                    ? "rounded-full border border-ember-500/40 bg-ember-500/10 px-3 py-1.5 text-sm font-semibold text-ember-700 no-underline"
+                    : "rounded-full border border-zinc-200/80 bg-white/75 px-3 py-1.5 text-sm font-medium text-ink-700 no-underline hover:border-zinc-300"
+                }
+              >
+                {link.label}
+              </Link>
+            );
+          })}
         </nav>
 
         <div className="flex items-center gap-2">
           {user ? (
-            <span className="hidden rounded-full border border-zinc-300/70 bg-white/70 px-3 py-1 text-xs text-ink-700 md:inline-flex">
+            <span className="hidden rounded-full border border-zinc-300/80 bg-white px-3 py-1 text-xs text-ink-700 lg:inline-flex">
               Signed in: {user.displayName}
             </span>
-          ) : null}
-          <Link href="/signin" className="btn btn-primary">
+          ) : (
+            <span className="hidden rounded-full border border-zinc-300/80 bg-white px-3 py-1 text-xs text-ink-500 lg:inline-flex">
+              Writer hub beta
+            </span>
+          )}
+          <Link href="/signin" className="btn btn-primary no-underline">
             {user ? "Account" : "Sign in"}
           </Link>
         </div>

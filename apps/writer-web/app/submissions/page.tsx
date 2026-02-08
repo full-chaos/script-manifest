@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import type { Competition, Project, Submission, SubmissionStatus } from "@script-manifest/contracts";
+import { Modal } from "../components/modal";
 import { getAuthHeaders, readStoredSession } from "../lib/authSession";
 
 const statuses: SubmissionStatus[] = [
@@ -23,17 +24,23 @@ export default function SubmissionsPage() {
   const [reassignTargets, setReassignTargets] = useState<Record<string, string>>({});
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
+  const [createModalOpen, setCreateModalOpen] = useState(false);
 
   useEffect(() => {
     const session = readStoredSession();
-    if (session) {
-      setWriterId(session.user.id);
+    if (!session) {
+      setMessage("Sign in to load submissions.");
+      return;
     }
+
+    setWriterId(session.user.id);
+    void loadData(session.user.id);
   }, []);
 
-  async function loadData() {
-    if (!writerId.trim()) {
-      setMessage("Set writer ID or sign in first.");
+  async function loadData(explicitWriterId?: string) {
+    const targetWriterId = explicitWriterId ?? writerId;
+    if (!targetWriterId.trim()) {
+      setMessage("Sign in to load submissions.");
       return;
     }
 
@@ -42,9 +49,9 @@ export default function SubmissionsPage() {
     try {
       const authHeaders = getAuthHeaders();
       const [projectResponse, competitionResponse, submissionResponse] = await Promise.all([
-        fetch(`/api/v1/projects?ownerUserId=${encodeURIComponent(writerId)}`, { cache: "no-store", headers: authHeaders }),
+        fetch(`/api/v1/projects?ownerUserId=${encodeURIComponent(targetWriterId)}`, { cache: "no-store", headers: authHeaders }),
         fetch("/api/v1/competitions", { cache: "no-store" }),
-        fetch(`/api/v1/submissions?writerId=${encodeURIComponent(writerId)}`, { cache: "no-store", headers: authHeaders })
+        fetch(`/api/v1/submissions?writerId=${encodeURIComponent(targetWriterId)}`, { cache: "no-store", headers: authHeaders })
       ]);
       const [projectBody, competitionBody, submissionBody] = await Promise.all([
         projectResponse.json(),
@@ -66,12 +73,8 @@ export default function SubmissionsPage() {
       setReassignTargets(
         Object.fromEntries(nextSubmissions.map((entry) => [entry.id, entry.projectId]))
       );
-      if (!projectId && nextProjects[0]) {
-        setProjectId(nextProjects[0].id);
-      }
-      if (!competitionId && nextCompetitions[0]) {
-        setCompetitionId(nextCompetitions[0].id);
-      }
+      setProjectId((current) => current || nextProjects[0]?.id || "");
+      setCompetitionId((current) => current || nextCompetitions[0]?.id || "");
       setMessage("Submission data loaded.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "unknown_error");
@@ -111,6 +114,7 @@ export default function SubmissionsPage() {
         ...current,
         [created.id]: created.projectId
       }));
+      setCreateModalOpen(false);
       setMessage("Submission recorded.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "unknown_error");
@@ -153,90 +157,52 @@ export default function SubmissionsPage() {
   }
 
   return (
-    <section className="card stack">
-      <h2>Submissions</h2>
-      <p className="muted">Manual submission tracking for Phase 1 MVP.</p>
-
-      <div className="inline-form">
-        <input
-          className="input"
-          value={writerId}
-          onChange={(event) => setWriterId(event.target.value)}
-          placeholder="writer id"
-        />
-        <button type="button" className="btn btn-active" onClick={loadData} disabled={loading}>
-          {loading ? "Loading..." : "Load"}
-        </button>
-      </div>
-
-      <form className="stack" onSubmit={createSubmission}>
-        <label className="stack-tight">
-          <span>Project</span>
-          <select
-            className="input"
-            value={projectId}
-            onChange={(event) => setProjectId(event.target.value)}
-            required
+    <section className="space-y-4">
+      <article className="hero-card">
+        <p className="eyebrow">Submission Hub</p>
+        <h1 className="text-4xl text-ink-900">Track every competition outcome</h1>
+        <p className="max-w-3xl text-ink-700">
+          Keep all manual submission records and reassignments in one dashboard, with your signed-in
+          profile loaded automatically.
+        </p>
+        <div className="inline-form">
+          <span className="badge">Writer: {writerId || "Not signed in"}</span>
+          <button type="button" className="btn btn-secondary" onClick={() => void loadData()} disabled={loading || !writerId}>
+            {loading ? "Refreshing..." : "Refresh submissions"}
+          </button>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => setCreateModalOpen(true)}
+            disabled={!writerId || projects.length === 0 || competitions.length === 0}
           >
-            <option value="">Select project</option>
-            {projects.map((project) => (
-              <option key={project.id} value={project.id}>
-                {project.title}
-              </option>
-            ))}
-          </select>
-        </label>
+            Create submission
+          </button>
+        </div>
+      </article>
 
-        <label className="stack-tight">
-          <span>Competition</span>
-          <select
-            className="input"
-            value={competitionId}
-            onChange={(event) => setCompetitionId(event.target.value)}
-            required
-          >
-            <option value="">Select competition</option>
-            {competitions.map((competition) => (
-              <option key={competition.id} value={competition.id}>
-                {competition.title}
-              </option>
-            ))}
-          </select>
-        </label>
+      {!writerId ? (
+        <article className="empty-state">Sign in first to load and track submissions.</article>
+      ) : null}
 
-        <label className="stack-tight">
-          <span>Status</span>
-          <select
-            className="input"
-            value={status}
-            onChange={(event) => setStatus(event.target.value as SubmissionStatus)}
-          >
-            {statuses.map((entry) => (
-              <option key={entry} value={entry}>
-                {entry}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <button type="submit" className="btn btn-active" disabled={loading}>
-          {loading ? "Saving..." : "Create submission"}
-        </button>
-      </form>
-
-      <section className="stack">
-        <h3>Tracked Submissions</h3>
-        {submissions.length === 0 ? <p className="muted">No submissions recorded.</p> : null}
+      <article className="panel stack">
+        <div className="subcard-header">
+          <h2 className="section-title">Tracked Submissions</h2>
+          <span className="badge">{submissions.length} total</span>
+        </div>
+        {submissions.length === 0 ? <p className="empty-state">No submissions recorded.</p> : null}
         {submissions.map((submission) => (
           <article key={submission.id} className="subcard">
-            <strong>{submission.id}</strong>
-            <p className="muted">
+            <div className="subcard-header">
+              <strong>{submission.id}</strong>
+              <span className="badge">{submission.status}</span>
+            </div>
+            <p className="muted mt-2">
               project {submission.projectId} | competition {submission.competitionId}
             </p>
-            <p>Status: {submission.status}</p>
-            <div className="inline-form">
+            <div className="inline-form mt-3">
               <select
-                className="input"
+                className="input md:w-72"
                 aria-label={`Move target for ${submission.id}`}
                 value={reassignTargets[submission.id] ?? submission.projectId}
                 onChange={(event) =>
@@ -254,8 +220,8 @@ export default function SubmissionsPage() {
               </select>
               <button
                 type="button"
-                className="btn"
-                onClick={() => moveSubmission(submission.id)}
+                className="btn btn-secondary"
+                onClick={() => void moveSubmission(submission.id)}
                 disabled={loading}
               >
                 Move submission
@@ -263,9 +229,73 @@ export default function SubmissionsPage() {
             </div>
           </article>
         ))}
-      </section>
+      </article>
 
-      {message ? <p className="status-note">{message}</p> : null}
+      <Modal
+        open={createModalOpen}
+        onClose={() => setCreateModalOpen(false)}
+        title="Create submission"
+        description="Record a manual competition submission from your current project list."
+      >
+        <form className="stack" onSubmit={createSubmission}>
+          <label className="stack-tight">
+            <span>Project</span>
+            <select
+              className="input"
+              value={projectId}
+              onChange={(event) => setProjectId(event.target.value)}
+              required
+            >
+              <option value="">Select project</option>
+              {projects.map((project) => (
+                <option key={project.id} value={project.id}>
+                  {project.title}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="stack-tight">
+            <span>Competition</span>
+            <select
+              className="input"
+              value={competitionId}
+              onChange={(event) => setCompetitionId(event.target.value)}
+              required
+            >
+              <option value="">Select competition</option>
+              {competitions.map((competition) => (
+                <option key={competition.id} value={competition.id}>
+                  {competition.title}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="stack-tight">
+            <span>Status</span>
+            <select
+              className="input"
+              value={status}
+              onChange={(event) => setStatus(event.target.value as SubmissionStatus)}
+            >
+              {statuses.map((entry) => (
+                <option key={entry} value={entry}>
+                  {entry}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <div className="inline-form">
+            <button type="submit" className="btn btn-primary" disabled={loading}>
+              {loading ? "Saving..." : "Create submission"}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {message ? <p className={message.startsWith("Error:") ? "status-error" : "status-note"}>{message}</p> : null}
     </section>
   );
 }

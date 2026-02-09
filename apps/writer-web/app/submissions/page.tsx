@@ -1,7 +1,14 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import type { Competition, Project, Submission, SubmissionStatus } from "@script-manifest/contracts";
+import type {
+  Competition,
+  PlacementListItem,
+  PlacementVerificationState,
+  Project,
+  Submission,
+  SubmissionStatus
+} from "@script-manifest/contracts";
 import { Modal } from "../components/modal";
 import { getAuthHeaders, readStoredSession } from "../lib/authSession";
 
@@ -21,10 +28,14 @@ export default function SubmissionsPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [competitions, setCompetitions] = useState<Competition[]>([]);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
+  const [placements, setPlacements] = useState<PlacementListItem[]>([]);
   const [reassignTargets, setReassignTargets] = useState<Record<string, string>>({});
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [placementModalOpen, setPlacementModalOpen] = useState(false);
+  const [targetSubmissionId, setTargetSubmissionId] = useState("");
+  const [placementStatus, setPlacementStatus] = useState<SubmissionStatus>("quarterfinalist");
 
   useEffect(() => {
     const session = readStoredSession();
@@ -53,13 +64,18 @@ export default function SubmissionsPage() {
         fetch("/api/v1/competitions", { cache: "no-store" }),
         fetch(`/api/v1/submissions?writerId=${encodeURIComponent(targetWriterId)}`, { cache: "no-store", headers: authHeaders })
       ]);
+      const placementsResponse = await fetch(
+        `/api/v1/placements?writerId=${encodeURIComponent(targetWriterId)}`,
+        { cache: "no-store", headers: authHeaders }
+      );
       const [projectBody, competitionBody, submissionBody] = await Promise.all([
         projectResponse.json(),
         competitionResponse.json(),
         submissionResponse.json()
       ]);
+      const placementsBody = await placementsResponse.json();
 
-      if (!projectResponse.ok || !competitionResponse.ok || !submissionResponse.ok) {
+      if (!projectResponse.ok || !competitionResponse.ok || !submissionResponse.ok || !placementsResponse.ok) {
         setMessage("Failed to load one or more submission dependencies.");
         return;
       }
@@ -70,6 +86,7 @@ export default function SubmissionsPage() {
       setProjects(nextProjects);
       setCompetitions(nextCompetitions);
       setSubmissions(nextSubmissions);
+      setPlacements((placementsBody.placements as PlacementListItem[]) ?? []);
       setReassignTargets(
         Object.fromEntries(nextSubmissions.map((entry) => [entry.id, entry.projectId]))
       );
@@ -156,6 +173,71 @@ export default function SubmissionsPage() {
     }
   }
 
+  async function createPlacement(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!targetSubmissionId) {
+      setMessage("Choose a submission first.");
+      return;
+    }
+
+    setLoading(true);
+    setMessage("");
+    try {
+      const response = await fetch(
+        `/api/v1/submissions/${encodeURIComponent(targetSubmissionId)}/placements`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json", ...getAuthHeaders() },
+          body: JSON.stringify({ status: placementStatus })
+        }
+      );
+      const body = await response.json();
+      if (!response.ok) {
+        setMessage(body.error ? `Error: ${body.error}` : "Placement creation failed.");
+        return;
+      }
+
+      const updatedSubmission = body.submission as Submission | undefined;
+      if (updatedSubmission) {
+        setSubmissions((current) =>
+          current.map((entry) => (entry.id === updatedSubmission.id ? updatedSubmission : entry))
+        );
+      }
+      await loadData();
+
+      setPlacementModalOpen(false);
+      setTargetSubmissionId("");
+      setMessage("Placement recorded.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "unknown_error");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function verifyPlacement(placementId: string, verificationState: PlacementVerificationState) {
+    setLoading(true);
+    setMessage("");
+    try {
+      const response = await fetch(`/api/v1/placements/${encodeURIComponent(placementId)}/verify`, {
+        method: "POST",
+        headers: { "content-type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify({ verificationState })
+      });
+      const body = await response.json();
+      if (!response.ok) {
+        setMessage(body.error ? `Error: ${body.error}` : "Placement verification update failed.");
+        return;
+      }
+      await loadData();
+      setMessage(`Placement marked ${verificationState}.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "unknown_error");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <section className="space-y-4">
       <article className="hero-card">
@@ -177,6 +259,14 @@ export default function SubmissionsPage() {
             disabled={!writerId || projects.length === 0 || competitions.length === 0}
           >
             Create submission
+          </button>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => setPlacementModalOpen(true)}
+            disabled={!writerId || submissions.length === 0}
+          >
+            Record placement
           </button>
         </div>
       </article>
@@ -226,6 +316,42 @@ export default function SubmissionsPage() {
               >
                 Move submission
               </button>
+            </div>
+            <div className="stack mt-3">
+              <p className="eyebrow">Placements</p>
+              {placements.filter((placement) => placement.submissionId === submission.id).length === 0 ? (
+                <p className="muted">No placements recorded.</p>
+              ) : null}
+              {placements
+                .filter((placement) => placement.submissionId === submission.id)
+                .map((placement) => (
+                  <article key={placement.id} className="rounded-xl border border-zinc-300/60 bg-white p-3">
+                    <div className="subcard-header">
+                      <strong>{placement.id}</strong>
+                      <span className="badge">
+                        {placement.status} | {placement.verificationState}
+                      </span>
+                    </div>
+                    <div className="inline-form mt-2">
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={() => void verifyPlacement(placement.id, "verified")}
+                        disabled={loading || placement.verificationState === "verified"}
+                      >
+                        Mark verified
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-danger"
+                        onClick={() => void verifyPlacement(placement.id, "rejected")}
+                        disabled={loading || placement.verificationState === "rejected"}
+                      >
+                        Mark rejected
+                      </button>
+                    </div>
+                  </article>
+                ))}
             </div>
           </article>
         ))}
@@ -290,6 +416,55 @@ export default function SubmissionsPage() {
           <div className="inline-form">
             <button type="submit" className="btn btn-primary" disabled={loading}>
               {loading ? "Saving..." : "Create submission"}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal
+        open={placementModalOpen}
+        onClose={() => setPlacementModalOpen(false)}
+        title="Record placement"
+        description="Attach a placement outcome to an existing submission."
+      >
+        <form className="stack" onSubmit={createPlacement}>
+          <label className="stack-tight">
+            <span>Submission</span>
+            <select
+              className="input"
+              value={targetSubmissionId}
+              onChange={(event) => setTargetSubmissionId(event.target.value)}
+              required
+            >
+              <option value="">Select submission</option>
+              {submissions.map((submission) => (
+                <option key={submission.id} value={submission.id}>
+                  {submission.id} ({submission.status})
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="stack-tight">
+            <span>Placement status</span>
+            <select
+              className="input"
+              value={placementStatus}
+              onChange={(event) => setPlacementStatus(event.target.value as SubmissionStatus)}
+            >
+              {statuses
+                .filter((value) => value !== "pending")
+                .map((entry) => (
+                  <option key={entry} value={entry}>
+                    {entry}
+                  </option>
+                ))}
+            </select>
+          </label>
+
+          <div className="inline-form">
+            <button type="submit" className="btn btn-primary" disabled={loading}>
+              {loading ? "Saving..." : "Create placement"}
             </button>
           </div>
         </form>

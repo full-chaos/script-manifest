@@ -197,6 +197,35 @@ export const AuthMeResponseSchema = z.object({
 
 export type AuthMeResponse = z.infer<typeof AuthMeResponseSchema>;
 
+export const OAuthProviderSchema = z.enum(["github"]);
+
+export type OAuthProvider = z.infer<typeof OAuthProviderSchema>;
+
+export const OAuthStartRequestSchema = z.object({
+  redirectUri: OptionalUrlStringSchema.default(""),
+  loginHint: z.string().trim().min(1).max(120).optional()
+});
+
+export type OAuthStartRequest = z.infer<typeof OAuthStartRequestSchema>;
+
+export const OAuthStartResponseSchema = z.object({
+  provider: OAuthProviderSchema,
+  state: z.string().min(16),
+  callbackUrl: z.string().url(),
+  authorizationUrl: z.string().url(),
+  mockCode: z.string().min(16),
+  expiresAt: z.string().datetime({ offset: true })
+});
+
+export type OAuthStartResponse = z.infer<typeof OAuthStartResponseSchema>;
+
+export const OAuthCompleteRequestSchema = z.object({
+  state: z.string().min(16),
+  code: z.string().min(16)
+});
+
+export type OAuthCompleteRequest = z.infer<typeof OAuthCompleteRequestSchema>;
+
 export const NotificationEventTypeSchema = z.enum([
   "deadline_reminder",
   "script_access_requested",
@@ -330,6 +359,53 @@ export const ScriptViewResponseSchema = z.object({
 
 export type ScriptViewResponse = z.infer<typeof ScriptViewResponseSchema>;
 
+export const ScriptAccessRequestStatusSchema = z.enum(["pending", "approved", "rejected"]);
+
+export type ScriptAccessRequestStatus = z.infer<typeof ScriptAccessRequestStatusSchema>;
+
+export const ScriptAccessRequestSchema = z.object({
+  id: z.string().min(1),
+  scriptId: z.string().min(1),
+  requesterUserId: z.string().min(1),
+  ownerUserId: z.string().min(1),
+  status: ScriptAccessRequestStatusSchema,
+  reason: z.string().default(""),
+  decisionReason: z.string().nullable(),
+  decidedByUserId: z.string().nullable(),
+  requestedAt: z.string().datetime({ offset: true }),
+  decidedAt: z.string().datetime({ offset: true }).nullable(),
+  createdAt: z.string().datetime({ offset: true }),
+  updatedAt: z.string().datetime({ offset: true })
+});
+
+export type ScriptAccessRequest = z.infer<typeof ScriptAccessRequestSchema>;
+
+export const ScriptAccessRequestCreateRequestSchema = z.object({
+  requesterUserId: z.string().min(1),
+  ownerUserId: z.string().min(1),
+  reason: z.string().max(500).optional()
+});
+
+export type ScriptAccessRequestCreateRequest = z.infer<
+  typeof ScriptAccessRequestCreateRequestSchema
+>;
+
+export const ScriptAccessRequestFiltersSchema = z.object({
+  requesterUserId: z.string().trim().min(1).optional(),
+  ownerUserId: z.string().trim().min(1).optional(),
+  status: ScriptAccessRequestStatusSchema.optional()
+});
+
+export type ScriptAccessRequestFilters = z.infer<typeof ScriptAccessRequestFiltersSchema>;
+
+export const ScriptAccessRequestDecisionRequestSchema = z.object({
+  decisionReason: z.string().max(500).optional()
+});
+
+export type ScriptAccessRequestDecisionRequest = z.infer<
+  typeof ScriptAccessRequestDecisionRequestSchema
+>;
+
 export const SubmissionStatusSchema = z.enum([
   "pending",
   "quarterfinalist",
@@ -412,3 +488,41 @@ export const PlacementVerificationUpdateRequestSchema = z.object({
 export type PlacementVerificationUpdateRequest = z.infer<
   typeof PlacementVerificationUpdateRequestSchema
 >;
+
+export const PlacementListItemSchema = PlacementSchema.extend({
+  writerId: z.string().min(1),
+  projectId: z.string().min(1),
+  competitionId: z.string().min(1)
+});
+
+export type PlacementListItem = z.infer<typeof PlacementListItemSchema>;
+
+export const PlacementFiltersSchema = z.object({
+  submissionId: z.string().trim().min(1).optional(),
+  writerId: z.string().trim().min(1).optional(),
+  projectId: z.string().trim().min(1).optional(),
+  competitionId: z.string().trim().min(1).optional(),
+  status: SubmissionStatusSchema.optional(),
+  verificationState: PlacementVerificationStateSchema.optional()
+});
+
+export type PlacementFilters = z.infer<typeof PlacementFiltersSchema>;
+
+export const LeaderboardEntrySchema = z.object({
+  writerId: z.string().min(1),
+  totalScore: z.number().int(),
+  submissionCount: z.number().int().nonnegative(),
+  placementCount: z.number().int().nonnegative(),
+  lastUpdatedAt: z.string().datetime({ offset: true }).nullable()
+});
+
+export type LeaderboardEntry = z.infer<typeof LeaderboardEntrySchema>;
+
+export const LeaderboardFiltersSchema = z.object({
+  format: z.string().trim().min(1).optional(),
+  genre: z.string().trim().min(1).optional(),
+  limit: z.coerce.number().int().positive().max(100).default(20).optional(),
+  offset: z.coerce.number().int().nonnegative().default(0).optional()
+});
+
+export type LeaderboardFilters = z.infer<typeof LeaderboardFiltersSchema>;

@@ -11,6 +11,7 @@
     "lint": "echo 'lint not configured'"
   },
   "dependencies": {
+    "@script-manifest/contracts": "workspace:*",
     "fastify": "^5.1.0",
     "undici": "^7.2.0"
   },

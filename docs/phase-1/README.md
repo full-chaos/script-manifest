@@ -10,13 +10,15 @@ This phase bootstraps the first deployable codebase for:
 
 ## Active Branch
 
-- `codex/phase-1-writer-hub`
+- `codex/phase-1-gap-closure`
 
 ## Tracking
 
 - Feature issue: `#14`
 - Tasks: `#15` to `#22`
 - Subtasks: `#23` to `#25`
+- Gap-closure feature issue: `#63`
+- Gap-closure tasks: `#64`, `#65`
 
 ## Bootstrapping
 
@@ -310,3 +312,85 @@ Gateway endpoints (`:4000`):
 Writer web updates:
 - `/projects` now includes co-writer management and draft lifecycle controls (create/archive/set primary)
 - `/submissions` now supports moving existing submissions to a different project
+
+## OAuth Scaffold + Session UX
+
+Identity service endpoints (`:4005`):
+- `POST /internal/auth/oauth/:provider/start`
+- `POST /internal/auth/oauth/:provider/complete`
+- `GET /internal/auth/oauth/:provider/callback`
+
+Gateway endpoints (`:4000`):
+- `POST /api/v1/auth/oauth/:provider/start`
+- `POST /api/v1/auth/oauth/:provider/complete`
+- `GET /api/v1/auth/oauth/:provider/callback`
+
+Writer web updates:
+- `/signin` includes `Continue with GitHub` and completes the local OAuth scaffold flow.
+
+User guide:
+- `/Users/chris/projects/script-manifest/docs/phase-1/oauth-signin-user-manual.md`
+
+## Lightweight Leaderboard
+
+Gateway endpoint (`:4000`):
+- `GET /api/v1/leaderboard?format=&genre=&limit=&offset=`
+
+Writer web updates:
+- `/leaderboard` lists writer rows with score, submission count, placement count, and last update.
+- Header navigation now exposes `Leaderboard`.
+
+User guide:
+- `/Users/chris/projects/script-manifest/docs/phase-1/leaderboard-user-manual.md`
+
+## Script Access Workflow + Audit Trail
+
+Profile project service endpoints (`:4001`):
+- `POST /internal/scripts/:scriptId/access-requests`
+- `GET /internal/scripts/:scriptId/access-requests`
+- `POST /internal/scripts/:scriptId/access-requests/:requestId/approve`
+- `POST /internal/scripts/:scriptId/access-requests/:requestId/reject`
+
+Gateway endpoints (`:4000`):
+- `POST /api/v1/scripts/:scriptId/access-requests`
+- `GET /api/v1/scripts/:scriptId/access-requests`
+- `POST /api/v1/scripts/:scriptId/access-requests/:requestId/approve`
+- `POST /api/v1/scripts/:scriptId/access-requests/:requestId/reject`
+
+Writer web updates:
+- `/projects` now includes script-level access request creation, decisioning, and audit history.
+
+User guide:
+- `/Users/chris/projects/script-manifest/docs/phase-1/script-access-workflow-user-manual.md`
+
+## Placements Workflow UX Expansion
+
+Gateway endpoints (`:4000`):
+- `GET /api/v1/placements`
+- `GET /api/v1/submissions/:submissionId/placements`
+- `POST /api/v1/submissions/:submissionId/placements`
+- `GET /api/v1/placements/:placementId`
+- `POST /api/v1/placements/:placementId/verify`
+
+Writer web updates:
+- `/submissions` can create placements and mark placements verified/rejected.
+
+User guide:
+- `/Users/chris/projects/script-manifest/docs/phase-1/submissions-placements-user-manual.md`
+
+## Admin Competition Curation
+
+Competition directory service endpoints (`:4002`):
+- `POST /internal/admin/competitions`
+- `PUT /internal/admin/competitions/:competitionId`
+
+Gateway endpoints (`:4000`):
+- `POST /api/v1/admin/competitions`
+- `PUT /api/v1/admin/competitions/:competitionId`
+
+Writer web updates:
+- `/admin/competitions` provides admin curation workflow.
+- Header shows `Admin` link for signed-in admin-like users (`id` contains `admin`).
+
+User guide:
+- `/Users/chris/projects/script-manifest/docs/phase-1/admin-competition-curation-user-manual.md`

@@ -69,6 +69,7 @@ describe("SubmissionsPage", () => {
       }
     ];
     const submissions: Array<Record<string, unknown>> = [];
+    const placements: Array<Record<string, unknown>> = [];
 
     const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
       const url = typeof input === "string" ? input : input.toString();
@@ -84,6 +85,10 @@ describe("SubmissionsPage", () => {
 
       if (url.startsWith("/api/v1/submissions?") && method === "GET") {
         return jsonResponse({ submissions });
+      }
+
+      if (url.startsWith("/api/v1/placements?") && method === "GET") {
+        return jsonResponse({ placements });
       }
 
       if (url === "/api/v1/submissions" && method === "POST") {
@@ -110,6 +115,42 @@ describe("SubmissionsPage", () => {
         };
         submissions[0] = updated;
         return jsonResponse({ submission: updated });
+      }
+
+      if (url === "/api/v1/submissions/submission_1/placements" && method === "POST") {
+        const payload = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
+        const placement = {
+          id: "placement_1",
+          submissionId: "submission_1",
+          writerId: "writer_01",
+          projectId: submissions[0]?.projectId,
+          competitionId: submissions[0]?.competitionId,
+          status: payload.status,
+          verificationState: "pending",
+          createdAt: "2026-02-06T00:30:00.000Z",
+          updatedAt: "2026-02-06T00:30:00.000Z",
+          verifiedAt: null
+        };
+        placements.unshift(placement);
+        submissions[0] = {
+          ...submissions[0],
+          status: payload.status
+        };
+        return jsonResponse({ placement, submission: submissions[0] }, 201);
+      }
+
+      if (url === "/api/v1/placements/placement_1/verify" && method === "POST") {
+        const payload = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
+        placements[0] = {
+          ...placements[0],
+          verificationState: payload.verificationState,
+          verifiedAt:
+            payload.verificationState === "verified"
+              ? "2026-02-06T00:40:00.000Z"
+              : null,
+          updatedAt: "2026-02-06T00:40:00.000Z"
+        };
+        return jsonResponse({ placement: placements[0] });
       }
 
       throw new Error(`Unexpected request: ${method} ${url}`);
@@ -139,5 +180,18 @@ describe("SubmissionsPage", () => {
       "/api/v1/submissions/submission_1/project",
       expect.objectContaining({ method: "PATCH" })
     );
+
+    await user.click(screen.getByRole("button", { name: "Record placement" }));
+    const placementDialog = await screen.findByRole("dialog", { name: "Record placement" });
+    await user.selectOptions(within(placementDialog).getByLabelText("Submission"), "submission_1");
+    await user.selectOptions(within(placementDialog).getByLabelText("Placement status"), "finalist");
+    await user.click(within(placementDialog).getByRole("button", { name: "Create placement" }));
+
+    await screen.findByText("Placement recorded.");
+    expect(screen.getByText(/finalist \| pending/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Mark verified" }));
+    await screen.findByText("Placement marked verified.");
+    expect(screen.getByText(/finalist \| verified/i)).toBeInTheDocument();
   });
 });

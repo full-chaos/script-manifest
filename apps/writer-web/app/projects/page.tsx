@@ -7,6 +7,7 @@ import type {
   ProjectCoWriter,
   ProjectCreateRequest,
   ProjectDraft,
+  ScriptAccessRequest,
   ScriptRegisterResponse,
   ScriptUploadSessionResponse
 } from "@script-manifest/contracts";
@@ -68,6 +69,8 @@ export default function ProjectsPage() {
   const [selectedProjectId, setSelectedProjectId] = useState("");
   const [coWriters, setCoWriters] = useState<ProjectCoWriter[]>([]);
   const [drafts, setDrafts] = useState<ProjectDraft[]>([]);
+  const [selectedScriptId, setSelectedScriptId] = useState("");
+  const [accessRequests, setAccessRequests] = useState<ScriptAccessRequest[]>([]);
 
   const [projectForm, setProjectForm] = useState<ProjectForm>(initialProjectForm);
   const [coWriterUserId, setCoWriterUserId] = useState("");
@@ -80,10 +83,14 @@ export default function ProjectsPage() {
   const [projectModalOpen, setProjectModalOpen] = useState(false);
   const [coWriterModalOpen, setCoWriterModalOpen] = useState(false);
   const [draftModalOpen, setDraftModalOpen] = useState(false);
+  const [accessRequestModalOpen, setAccessRequestModalOpen] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [contextLoading, setContextLoading] = useState(false);
   const [status, setStatus] = useState("");
+  const [requesterUserId, setRequesterUserId] = useState("");
+  const [accessRequestReason, setAccessRequestReason] = useState("");
+  const [decisionReason, setDecisionReason] = useState("");
 
   const selectedProject = projects.find((project) => project.id === selectedProjectId) ?? null;
 
@@ -102,6 +109,8 @@ export default function ProjectsPage() {
     if (!projectId) {
       setCoWriters([]);
       setDrafts([]);
+      setAccessRequests([]);
+      setSelectedScriptId("");
       return;
     }
 
@@ -123,11 +132,118 @@ export default function ProjectsPage() {
       }
 
       setCoWriters(coWritersBody.coWriters as ProjectCoWriter[]);
-      setDrafts(draftsBody.drafts as ProjectDraft[]);
+      const nextDrafts = draftsBody.drafts as ProjectDraft[];
+      setDrafts(nextDrafts);
+      const primaryDraft = nextDrafts.find((draft) => draft.isPrimary && draft.lifecycleState === "active");
+      const fallbackDraft = nextDrafts.find((draft) => draft.lifecycleState === "active") ?? nextDrafts[0];
+      const nextScriptId = primaryDraft?.scriptId ?? fallbackDraft?.scriptId ?? "";
+      setSelectedScriptId(nextScriptId);
+      await loadAccessRequests(nextScriptId);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "unknown_error");
     } finally {
       setContextLoading(false);
+    }
+  }
+
+  async function loadAccessRequests(scriptId: string) {
+    if (!scriptId) {
+      setAccessRequests([]);
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `/api/v1/scripts/${encodeURIComponent(scriptId)}/access-requests?ownerUserId=${encodeURIComponent(ownerUserId)}`,
+        { cache: "no-store", headers: getAuthHeaders() }
+      );
+      const body = await response.json();
+      if (!response.ok) {
+        setStatus(body.error ? `Error: ${body.error}` : "Unable to load access requests.");
+        return;
+      }
+
+      setAccessRequests((body.accessRequests as ScriptAccessRequest[]) ?? []);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "unknown_error");
+    }
+  }
+
+  async function createAccessRequest(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedScriptId) {
+      setStatus("Select a script before creating an access request.");
+      return;
+    }
+    if (!requesterUserId.trim()) {
+      setStatus("Requester user ID is required.");
+      return;
+    }
+
+    setLoading(true);
+    setStatus("");
+    try {
+      const response = await fetch(
+        `/api/v1/scripts/${encodeURIComponent(selectedScriptId)}/access-requests`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json", ...getAuthHeaders() },
+          body: JSON.stringify({
+            requesterUserId: requesterUserId.trim(),
+            ownerUserId: ownerUserId,
+            reason: accessRequestReason.trim() || undefined
+          })
+        }
+      );
+      const body = await response.json();
+      if (!response.ok) {
+        setStatus(body.error ? `Error: ${body.error}` : "Unable to create access request.");
+        return;
+      }
+
+      setRequesterUserId("");
+      setAccessRequestReason("");
+      setAccessRequestModalOpen(false);
+      await loadAccessRequests(selectedScriptId);
+      setStatus("Access request recorded.");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "unknown_error");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function decideAccessRequest(requestId: string, action: "approve" | "reject") {
+    if (!selectedScriptId) {
+      return;
+    }
+
+    setLoading(true);
+    setStatus("");
+    try {
+      const response = await fetch(
+        `/api/v1/scripts/${encodeURIComponent(selectedScriptId)}/access-requests/${encodeURIComponent(requestId)}/${action}`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json", ...getAuthHeaders() },
+          body: JSON.stringify({
+            decisionReason: decisionReason.trim() || undefined
+          })
+        }
+      );
+      const body = await response.json();
+      if (!response.ok) {
+        setStatus(body.error ? `Error: ${body.error}` : `Unable to ${action} access request.`);
+        return;
+      }
+
+      await loadAccessRequests(selectedScriptId);
+      setDecisionReason("");
+      setStatus(`Access request ${action}d.`);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "unknown_error");
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -597,88 +713,160 @@ export default function ProjectsPage() {
         {!selectedProject ? (
           <p className="empty-state">Select a project to manage co-writers and drafts.</p>
         ) : (
-          <section className="grid gap-3 md:grid-cols-2">
+          <div className="stack">
+            <section className="grid gap-3 md:grid-cols-2">
+              <article className="subcard stack">
+                <div className="subcard-header">
+                  <h3 className="text-2xl text-ink-900">Co-Writers</h3>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => setCoWriterModalOpen(true)}
+                    disabled={loading || contextLoading}
+                  >
+                    Add co-writer
+                  </button>
+                </div>
+
+                {coWriters.length === 0 ? <p className="muted">No co-writers added.</p> : null}
+                {coWriters.map((coWriter) => (
+                  <article key={coWriter.coWriterUserId} className="rounded-xl border border-zinc-300/60 bg-white p-3">
+                    <div className="subcard-header">
+                      <strong>{coWriter.coWriterUserId}</strong>
+                      <button
+                        type="button"
+                        className="btn btn-danger"
+                        onClick={() => void removeCoWriter(coWriter.coWriterUserId)}
+                        disabled={loading || contextLoading}
+                      >
+                        Remove co-writer
+                      </button>
+                    </div>
+                    <p className="muted">Credit order: {coWriter.creditOrder}</p>
+                  </article>
+                ))}
+              </article>
+
+              <article className="subcard stack">
+                <div className="subcard-header">
+                  <h3 className="text-2xl text-ink-900">Draft Lifecycle</h3>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => setDraftModalOpen(true)}
+                    disabled={loading || contextLoading}
+                  >
+                    Create draft
+                  </button>
+                </div>
+
+                {drafts.length === 0 ? <p className="muted">No drafts added yet.</p> : null}
+                {drafts.map((draft) => (
+                  <article key={draft.id} className="rounded-xl border border-zinc-300/60 bg-white p-3">
+                    <div className="subcard-header">
+                      <strong>
+                        {draft.versionLabel} ({draft.scriptId})
+                      </strong>
+                      <span className="badge">
+                        {draft.lifecycleState}
+                        {draft.isPrimary ? " | primary" : ""}
+                      </span>
+                    </div>
+                    {draft.changeSummary ? <p className="mt-2 text-sm text-ink-700">{draft.changeSummary}</p> : null}
+                    <p className="muted mt-2">{draft.pageCount} pages</p>
+                    <div className="inline-form mt-3">
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={() => void setPrimaryDraft(draft.id)}
+                        disabled={loading || contextLoading || draft.lifecycleState === "archived" || draft.isPrimary}
+                      >
+                        Set primary
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-danger"
+                        onClick={() => void archiveDraft(draft.id)}
+                        disabled={loading || contextLoading || draft.lifecycleState === "archived"}
+                      >
+                        Archive draft
+                      </button>
+                      <button
+                        type="button"
+                        className={selectedScriptId === draft.scriptId ? "btn btn-primary" : "btn btn-secondary"}
+                        onClick={() => {
+                          setSelectedScriptId(draft.scriptId);
+                          void loadAccessRequests(draft.scriptId);
+                        }}
+                        disabled={loading || contextLoading}
+                      >
+                        {selectedScriptId === draft.scriptId ? "Tracking access" : "Track access"}
+                      </button>
+                    </div>
+                  </article>
+                ))}
+              </article>
+            </section>
+
+            <div className="subcard-header">
+              <h3 className="text-2xl text-ink-900">Script Access Workflow + Audit Trail</h3>
+              <span className="badge">Script: {selectedScriptId || "Select a draft"}</span>
+            </div>
+
             <article className="subcard stack">
-              <div className="subcard-header">
-                <h3 className="text-2xl text-ink-900">Co-Writers</h3>
+              <div className="inline-form">
                 <button
                   type="button"
                   className="btn btn-secondary"
-                  onClick={() => setCoWriterModalOpen(true)}
-                  disabled={loading || contextLoading}
+                  onClick={() => setAccessRequestModalOpen(true)}
+                  disabled={!selectedScriptId || loading || contextLoading}
                 >
-                  Add co-writer
+                  New access request
                 </button>
-              </div>
-
-              {coWriters.length === 0 ? <p className="muted">No co-writers added.</p> : null}
-              {coWriters.map((coWriter) => (
-                <article key={coWriter.coWriterUserId} className="rounded-xl border border-zinc-300/60 bg-white p-3">
-                  <div className="subcard-header">
-                    <strong>{coWriter.coWriterUserId}</strong>
-                    <button
-                      type="button"
-                      className="btn btn-danger"
-                      onClick={() => void removeCoWriter(coWriter.coWriterUserId)}
-                      disabled={loading || contextLoading}
-                    >
-                      Remove co-writer
-                    </button>
-                  </div>
-                  <p className="muted">Credit order: {coWriter.creditOrder}</p>
-                </article>
-              ))}
-            </article>
-
-            <article className="subcard stack">
-              <div className="subcard-header">
-                <h3 className="text-2xl text-ink-900">Draft Lifecycle</h3>
                 <button
                   type="button"
                   className="btn btn-secondary"
-                  onClick={() => setDraftModalOpen(true)}
+                  onClick={() => void loadAccessRequests(selectedScriptId)}
                   disabled={loading || contextLoading}
                 >
-                  Create draft
+                  Refresh access log
                 </button>
               </div>
-
-              {drafts.length === 0 ? <p className="muted">No drafts added yet.</p> : null}
-              {drafts.map((draft) => (
-                <article key={draft.id} className="rounded-xl border border-zinc-300/60 bg-white p-3">
+              {!selectedScriptId ? <p className="empty-state">Pick a draft and click Track access to load audit entries.</p> : null}
+              {selectedScriptId && accessRequests.length === 0 ? <p className="empty-state">No access requests for this script yet.</p> : null}
+              {accessRequests.map((entry) => (
+                <article key={entry.id} className="rounded-xl border border-zinc-300/60 bg-white p-3">
                   <div className="subcard-header">
-                    <strong>
-                      {draft.versionLabel} ({draft.scriptId})
-                    </strong>
-                    <span className="badge">
-                      {draft.lifecycleState}
-                      {draft.isPrimary ? " | primary" : ""}
-                    </span>
+                    <strong>{entry.requesterUserId}</strong>
+                    <span className="badge">{entry.status}</span>
                   </div>
-                  {draft.changeSummary ? <p className="mt-2 text-sm text-ink-700">{draft.changeSummary}</p> : null}
-                  <p className="muted mt-2">{draft.pageCount} pages</p>
-                  <div className="inline-form mt-3">
-                    <button
-                      type="button"
-                      className="btn btn-secondary"
-                      onClick={() => void setPrimaryDraft(draft.id)}
-                      disabled={loading || contextLoading || draft.lifecycleState === "archived" || draft.isPrimary}
-                    >
-                      Set primary
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-danger"
-                      onClick={() => void archiveDraft(draft.id)}
-                      disabled={loading || contextLoading || draft.lifecycleState === "archived"}
-                    >
-                      Archive draft
-                    </button>
-                  </div>
+                  <p className="muted mt-2">Requested: {new Date(entry.requestedAt).toLocaleString()}</p>
+                  {entry.reason ? <p className="mt-2 text-sm text-ink-700">{entry.reason}</p> : null}
+                  {entry.status === "pending" ? (
+                    <div className="inline-form mt-3">
+                      <input
+                        className="input md:w-96"
+                        value={decisionReason}
+                        onChange={(event) => setDecisionReason(event.target.value)}
+                        placeholder="Decision reason (optional)"
+                      />
+                      <button type="button" className="btn btn-primary" onClick={() => void decideAccessRequest(entry.id, "approve")} disabled={loading}>
+                        Approve
+                      </button>
+                      <button type="button" className="btn btn-danger" onClick={() => void decideAccessRequest(entry.id, "reject")} disabled={loading}>
+                        Reject
+                      </button>
+                    </div>
+                  ) : null}
+                  {entry.decidedAt ? (
+                    <p className="muted mt-2">
+                      Decision: {entry.decisionReason || "No reason provided"} ({new Date(entry.decidedAt).toLocaleString()})
+                    </p>
+                  ) : null}
                 </article>
               ))}
             </article>
-          </section>
+          </div>
         )}
       </article>
 
@@ -932,6 +1120,49 @@ export default function ProjectsPage() {
               disabled={loading || contextLoading || scriptUploadLoading}
             >
               Create draft
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal
+        open={accessRequestModalOpen}
+        onClose={() => setAccessRequestModalOpen(false)}
+        title="Create script access request"
+        description="Record a new access request and track approvals/rejections in the project audit trail."
+      >
+        <form className="stack" onSubmit={createAccessRequest}>
+          <label className="stack-tight">
+            <span>Script ID</span>
+            <input className="input" value={selectedScriptId} disabled readOnly />
+          </label>
+
+          <label className="stack-tight">
+            <span>Requester user ID</span>
+            <input
+              className="input"
+              value={requesterUserId}
+              onChange={(event) => setRequesterUserId(event.target.value)}
+              placeholder="writer_02"
+              required
+            />
+          </label>
+
+          <label className="stack-tight">
+            <span>Reason (optional)</span>
+            <textarea
+              className="input textarea"
+              rows={3}
+              maxLength={500}
+              value={accessRequestReason}
+              onChange={(event) => setAccessRequestReason(event.target.value)}
+              placeholder="Requesting read access for review."
+            />
+          </label>
+
+          <div className="inline-form">
+            <button type="submit" className="btn btn-primary" disabled={loading || !selectedScriptId}>
+              Record request
             </button>
           </div>
         </form>

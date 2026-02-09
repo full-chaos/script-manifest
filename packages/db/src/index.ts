@@ -121,6 +121,24 @@ export async function ensureCoreTables(): Promise<void> {
   `);
 
   await db.query(`
+    CREATE TABLE IF NOT EXISTS script_access_requests (
+      id TEXT PRIMARY KEY,
+      script_id TEXT NOT NULL,
+      requester_user_id TEXT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+      owner_user_id TEXT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+      status TEXT NOT NULL DEFAULT 'pending'
+        CHECK (status IN ('pending', 'approved', 'rejected')),
+      reason VARCHAR(500) NOT NULL DEFAULT '',
+      decision_reason VARCHAR(500) NULL,
+      decided_by_user_id TEXT NULL REFERENCES app_users(id) ON DELETE SET NULL,
+      requested_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      decided_at TIMESTAMPTZ NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+
+  await db.query(`
     CREATE UNIQUE INDEX IF NOT EXISTS idx_project_drafts_primary
       ON project_drafts(project_id)
       WHERE is_primary = TRUE;
@@ -140,6 +158,21 @@ export async function ensureCoreTables(): Promise<void> {
   await db.query(`
     CREATE INDEX IF NOT EXISTS idx_project_co_writers_co_writer_user_id
       ON project_co_writers(co_writer_user_id);
+  `);
+
+  await db.query(`
+    CREATE INDEX IF NOT EXISTS idx_script_access_requests_script_id
+      ON script_access_requests(script_id);
+  `);
+
+  await db.query(`
+    CREATE INDEX IF NOT EXISTS idx_script_access_requests_owner_user_id
+      ON script_access_requests(owner_user_id);
+  `);
+
+  await db.query(`
+    CREATE INDEX IF NOT EXISTS idx_script_access_requests_requester_user_id
+      ON script_access_requests(requester_user_id);
   `);
 
   await db.query(`

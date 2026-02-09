@@ -13,6 +13,10 @@ import type {
   ProjectDraftUpdateRequest,
   ProjectFilters,
   ProjectUpdateRequest,
+  ScriptAccessRequest,
+  ScriptAccessRequestCreateRequest,
+  ScriptAccessRequestFilters,
+  ScriptAccessRequestStatus,
   WriterProfile,
   WriterProfileUpdateRequest
 } from "@script-manifest/contracts";
@@ -38,6 +42,21 @@ export interface ProfileProjectRepository {
     update: ProjectDraftUpdateRequest
   ): Promise<ProjectDraft | null>;
   setPrimaryDraft(projectId: string, draftId: string, ownerUserId: string): Promise<ProjectDraft | null>;
+  createScriptAccessRequest(
+    scriptId: string,
+    input: ScriptAccessRequestCreateRequest
+  ): Promise<ScriptAccessRequest | null>;
+  listScriptAccessRequests(
+    scriptId: string,
+    filters: ScriptAccessRequestFilters
+  ): Promise<ScriptAccessRequest[]>;
+  decideScriptAccessRequest(
+    scriptId: string,
+    requestId: string,
+    ownerUserId: string,
+    status: Exclude<ScriptAccessRequestStatus, "pending">,
+    decisionReason?: string
+  ): Promise<ScriptAccessRequest | null>;
 }
 
 export class PgProfileProjectRepository implements ProfileProjectRepository {
@@ -706,6 +725,140 @@ export class PgProfileProjectRepository implements ProfileProjectRepository {
     }
   }
 
+  async createScriptAccessRequest(
+    scriptId: string,
+    input: ScriptAccessRequestCreateRequest
+  ): Promise<ScriptAccessRequest | null> {
+    const db = getPool();
+    const id = `access_${randomUUID()}`;
+    const result = await db.query<{
+      id: string;
+      script_id: string;
+      requester_user_id: string;
+      owner_user_id: string;
+      status: ScriptAccessRequestStatus;
+      reason: string;
+      decision_reason: string | null;
+      decided_by_user_id: string | null;
+      requested_at: string;
+      decided_at: string | null;
+      created_at: string;
+      updated_at: string;
+    }>(
+      `
+        INSERT INTO script_access_requests (
+          id,
+          script_id,
+          requester_user_id,
+          owner_user_id,
+          status,
+          reason,
+          requested_at
+        )
+        VALUES ($1, $2, $3, $4, 'pending', $5, NOW())
+        RETURNING id, script_id, requester_user_id, owner_user_id, status, reason,
+                  decision_reason, decided_by_user_id, requested_at, decided_at, created_at, updated_at
+      `,
+      [id, scriptId, input.requesterUserId, input.ownerUserId, input.reason ?? ""]
+    );
+
+    const row = result.rows[0];
+    return row ? mapScriptAccessRequest(row) : null;
+  }
+
+  async listScriptAccessRequests(
+    scriptId: string,
+    filters: ScriptAccessRequestFilters
+  ): Promise<ScriptAccessRequest[]> {
+    const db = getPool();
+    const conditions = ["script_id = $1"];
+    const values: unknown[] = [scriptId];
+
+    if (filters.requesterUserId) {
+      values.push(filters.requesterUserId);
+      conditions.push(`requester_user_id = $${values.length}`);
+    }
+
+    if (filters.ownerUserId) {
+      values.push(filters.ownerUserId);
+      conditions.push(`owner_user_id = $${values.length}`);
+    }
+
+    if (filters.status) {
+      values.push(filters.status);
+      conditions.push(`status = $${values.length}`);
+    }
+
+    const result = await db.query<{
+      id: string;
+      script_id: string;
+      requester_user_id: string;
+      owner_user_id: string;
+      status: ScriptAccessRequestStatus;
+      reason: string;
+      decision_reason: string | null;
+      decided_by_user_id: string | null;
+      requested_at: string;
+      decided_at: string | null;
+      created_at: string;
+      updated_at: string;
+    }>(
+      `
+        SELECT id, script_id, requester_user_id, owner_user_id, status, reason,
+               decision_reason, decided_by_user_id, requested_at, decided_at, created_at, updated_at
+        FROM script_access_requests
+        WHERE ${conditions.join(" AND ")}
+        ORDER BY updated_at DESC, created_at DESC
+      `,
+      values
+    );
+
+    return result.rows.map(mapScriptAccessRequest);
+  }
+
+  async decideScriptAccessRequest(
+    scriptId: string,
+    requestId: string,
+    ownerUserId: string,
+    status: Exclude<ScriptAccessRequestStatus, "pending">,
+    decisionReason?: string
+  ): Promise<ScriptAccessRequest | null> {
+    const db = getPool();
+    const result = await db.query<{
+      id: string;
+      script_id: string;
+      requester_user_id: string;
+      owner_user_id: string;
+      status: ScriptAccessRequestStatus;
+      reason: string;
+      decision_reason: string | null;
+      decided_by_user_id: string | null;
+      requested_at: string;
+      decided_at: string | null;
+      created_at: string;
+      updated_at: string;
+    }>(
+      `
+        UPDATE script_access_requests
+        SET status = $4,
+            decision_reason = $5,
+            decided_by_user_id = $6,
+            decided_at = NOW(),
+            updated_at = NOW()
+        WHERE id = $1
+          AND script_id = $2
+          AND owner_user_id = $3
+          AND status = 'pending'
+        RETURNING id, script_id, requester_user_id, owner_user_id, status, reason,
+                  decision_reason, decided_by_user_id, requested_at, decided_at, created_at, updated_at
+      `,
+      [requestId, scriptId, ownerUserId, status, decisionReason ?? null, ownerUserId]
+    );
+
+    const row = result.rows[0];
+    return row ? mapScriptAccessRequest(row) : null;
+  }
+
   private async getDraft(projectId: string, draftId: string): Promise<ProjectDraft | null> {
     const db = getPool();
     const result = await db.query<{
@@ -802,6 +955,36 @@ function mapDraft(row: {
     pageCount: row.page_count,
     lifecycleState: row.lifecycle_state,
     isPrimary: row.is_primary,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
+function mapScriptAccessRequest(row: {
+  id: string;
+  script_id: string;
+  requester_user_id: string;
+  owner_user_id: string;
+  status: ScriptAccessRequestStatus;
+  reason: string;
+  decision_reason: string | null;
+  decided_by_user_id: string | null;
+  requested_at: string;
+  decided_at: string | null;
+  created_at: string;
+  updated_at: string;
+}): ScriptAccessRequest {
+  return {
+    id: row.id,
+    scriptId: row.script_id,
+    requesterUserId: row.requester_user_id,
+    ownerUserId: row.owner_user_id,
+    status: row.status,
+    reason: row.reason,
+    decisionReason: row.decision_reason,
+    decidedByUserId: row.decided_by_user_id,
+    requestedAt: row.requested_at,
+    decidedAt: row.decided_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at
   };

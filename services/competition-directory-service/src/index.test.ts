@@ -86,3 +86,47 @@ test("competition deadline reminder publishes notification event", async (t) => 
   assert.equal(response.statusCode, 202);
   assert.match(urls[0] ?? "", /notification-service\/internal\/events$/);
 });
+
+test("competition admin curation route enforces allowlist header", async (t) => {
+  process.env.COMPETITION_ADMIN_ALLOWLIST = "admin_writer";
+
+  const server = buildServer({
+    logger: false,
+    requestFn: (async () => textResponse({ ok: true }, 201)) as typeof request
+  });
+  t.after(async () => {
+    delete process.env.COMPETITION_ADMIN_ALLOWLIST;
+    await server.close();
+  });
+
+  const forbidden = await server.inject({
+    method: "POST",
+    url: "/internal/admin/competitions",
+    payload: {
+      id: "comp_admin_1",
+      title: "Admin Curated",
+      description: "Secured route",
+      format: "feature",
+      genre: "thriller",
+      feeUsd: 10,
+      deadline: "2026-08-01T00:00:00Z"
+    }
+  });
+  assert.equal(forbidden.statusCode, 403);
+
+  const allowed = await server.inject({
+    method: "POST",
+    url: "/internal/admin/competitions",
+    headers: { "x-admin-user-id": "admin_writer" },
+    payload: {
+      id: "comp_admin_1",
+      title: "Admin Curated",
+      description: "Secured route",
+      format: "feature",
+      genre: "thriller",
+      feeUsd: 10,
+      deadline: "2026-08-01T00:00:00Z"
+    }
+  });
+  assert.equal(allowed.statusCode, 201);
+});

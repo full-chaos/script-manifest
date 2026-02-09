@@ -23,6 +23,10 @@ export async function proxyRequest(request: Request, path: string): Promise<Next
   if (authorization) {
     headers.set("authorization", authorization);
   }
+  const adminUserId = request.headers.get("x-admin-user-id");
+  if (adminUserId) {
+    headers.set("x-admin-user-id", adminUserId);
+  }
 
   const method = request.method;
   const canHaveBody = !["GET", "HEAD"].includes(method.toUpperCase());

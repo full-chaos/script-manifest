@@ -1,6 +1,13 @@
 import Fastify, { type FastifyInstance, type FastifyReply } from "fastify";
 import { pathToFileURL } from "node:url";
 import { request } from "undici";
+import {
+  LeaderboardFiltersSchema,
+  PlacementListItemSchema,
+  SubmissionSchema,
+  type PlacementListItem,
+  type Submission
+} from "@script-manifest/contracts";
 
 type RequestFn = typeof request;
 
@@ -12,6 +19,7 @@ export type ApiGatewayOptions = {
   competitionDirectoryBase?: string;
   submissionTrackingBase?: string;
   scriptStorageBase?: string;
+  competitionAdminAllowlist?: string[];
 };
 
 export function buildServer(options: ApiGatewayOptions = {}): FastifyInstance {
@@ -22,6 +30,10 @@ export function buildServer(options: ApiGatewayOptions = {}): FastifyInstance {
   const competitionDirectoryBase = options.competitionDirectoryBase ?? "http://localhost:4002";
   const submissionTrackingBase = options.submissionTrackingBase ?? "http://localhost:4004";
   const scriptStorageBase = options.scriptStorageBase ?? "http://localhost:4011";
+  const competitionAdminAllowlist = new Set(
+    options.competitionAdminAllowlist ??
+      parseAllowlist(process.env.COMPETITION_ADMIN_ALLOWLIST ?? "admin_01,user_admin_01")
+  );
 
   server.get("/health", async () => ({ service: "api-gateway", ok: true }));
 
@@ -53,6 +65,47 @@ export function buildServer(options: ApiGatewayOptions = {}): FastifyInstance {
       method: "POST",
       headers: copyAuthHeader(req.headers.authorization)
     });
+  });
+
+  server.post("/api/v1/auth/oauth/:provider/start", async (req, reply) => {
+    const { provider } = req.params as { provider: string };
+    return proxyJsonRequest(
+      reply,
+      requestFn,
+      `${identityServiceBase}/internal/auth/oauth/${encodeURIComponent(provider)}/start`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(req.body ?? {})
+      }
+    );
+  });
+
+  server.post("/api/v1/auth/oauth/:provider/complete", async (req, reply) => {
+    const { provider } = req.params as { provider: string };
+    return proxyJsonRequest(
+      reply,
+      requestFn,
+      `${identityServiceBase}/internal/auth/oauth/${encodeURIComponent(provider)}/complete`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(req.body ?? {})
+      }
+    );
+  });
+
+  server.get("/api/v1/auth/oauth/:provider/callback", async (req, reply) => {
+    const { provider } = req.params as { provider: string };
+    const querySuffix = buildQuerySuffix(req.query);
+    return proxyJsonRequest(
+      reply,
+      requestFn,
+      `${identityServiceBase}/internal/auth/oauth/${encodeURIComponent(provider)}/callback${querySuffix}`,
+      {
+        method: "GET"
+      }
+    );
   });
 
   server.get("/api/v1/profiles/:writerId", async (req, reply) => {
@@ -301,6 +354,54 @@ export function buildServer(options: ApiGatewayOptions = {}): FastifyInstance {
     );
   });
 
+  server.post("/api/v1/admin/competitions", async (req, reply) => {
+    const adminUserId = await resolveAdminUserId(
+      requestFn,
+      identityServiceBase,
+      req.headers,
+      competitionAdminAllowlist
+    );
+    if (!adminUserId) {
+      return reply.status(403).send({ error: "forbidden" });
+    }
+
+    return proxyJsonRequest(reply, requestFn, `${competitionDirectoryBase}/internal/admin/competitions`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-admin-user-id": adminUserId
+      },
+      body: JSON.stringify(req.body ?? {})
+    });
+  });
+
+  server.put("/api/v1/admin/competitions/:competitionId", async (req, reply) => {
+    const { competitionId } = req.params as { competitionId: string };
+    const adminUserId = await resolveAdminUserId(
+      requestFn,
+      identityServiceBase,
+      req.headers,
+      competitionAdminAllowlist
+    );
+    if (!adminUserId) {
+      return reply.status(403).send({ error: "forbidden" });
+    }
+
+    return proxyJsonRequest(
+      reply,
+      requestFn,
+      `${competitionDirectoryBase}/internal/admin/competitions/${encodeURIComponent(competitionId)}`,
+      {
+        method: "PUT",
+        headers: {
+          "content-type": "application/json",
+          "x-admin-user-id": adminUserId
+        },
+        body: JSON.stringify(req.body ?? {})
+      }
+    );
+  });
+
   server.get("/api/v1/submissions", async (req, reply) => {
     const querySuffix = buildQuerySuffix(req.query);
     return proxyJsonRequest(
@@ -311,6 +412,122 @@ export function buildServer(options: ApiGatewayOptions = {}): FastifyInstance {
         method: "GET"
       }
     );
+  });
+
+  server.get("/api/v1/placements", async (req, reply) => {
+    const querySuffix = buildQuerySuffix(req.query);
+    const userId = await getUserIdFromAuth(requestFn, identityServiceBase, req.headers.authorization);
+    return proxyJsonRequest(
+      reply,
+      requestFn,
+      `${submissionTrackingBase}/internal/placements${querySuffix}`,
+      {
+        method: "GET",
+        headers: addAuthUserIdHeader({}, userId)
+      }
+    );
+  });
+
+  server.get("/api/v1/submissions/:submissionId/placements", async (req, reply) => {
+    const { submissionId } = req.params as { submissionId: string };
+    const userId = await getUserIdFromAuth(requestFn, identityServiceBase, req.headers.authorization);
+    return proxyJsonRequest(
+      reply,
+      requestFn,
+      `${submissionTrackingBase}/internal/submissions/${encodeURIComponent(submissionId)}/placements`,
+      {
+        method: "GET",
+        headers: addAuthUserIdHeader({}, userId)
+      }
+    );
+  });
+
+  server.post("/api/v1/submissions/:submissionId/placements", async (req, reply) => {
+    const { submissionId } = req.params as { submissionId: string };
+    const userId = await getUserIdFromAuth(requestFn, identityServiceBase, req.headers.authorization);
+    return proxyJsonRequest(
+      reply,
+      requestFn,
+      `${submissionTrackingBase}/internal/submissions/${encodeURIComponent(submissionId)}/placements`,
+      {
+        method: "POST",
+        headers: addAuthUserIdHeader({ "content-type": "application/json" }, userId),
+        body: JSON.stringify(req.body ?? {})
+      }
+    );
+  });
+
+  server.get("/api/v1/placements/:placementId", async (req, reply) => {
+    const { placementId } = req.params as { placementId: string };
+    const userId = await getUserIdFromAuth(requestFn, identityServiceBase, req.headers.authorization);
+    return proxyJsonRequest(
+      reply,
+      requestFn,
+      `${submissionTrackingBase}/internal/placements/${encodeURIComponent(placementId)}`,
+      {
+        method: "GET",
+        headers: addAuthUserIdHeader({}, userId)
+      }
+    );
+  });
+
+  server.post("/api/v1/placements/:placementId/verify", async (req, reply) => {
+    const { placementId } = req.params as { placementId: string };
+    const userId = await getUserIdFromAuth(requestFn, identityServiceBase, req.headers.authorization);
+    return proxyJsonRequest(
+      reply,
+      requestFn,
+      `${submissionTrackingBase}/internal/placements/${encodeURIComponent(placementId)}/verify`,
+      {
+        method: "POST",
+        headers: addAuthUserIdHeader({ "content-type": "application/json" }, userId),
+        body: JSON.stringify(req.body ?? {})
+      }
+    );
+  });
+
+  server.get("/api/v1/leaderboard", async (req, reply) => {
+    const parsedFilters = LeaderboardFiltersSchema.safeParse(req.query);
+    if (!parsedFilters.success) {
+      return reply.status(400).send({
+        error: "invalid_query",
+        details: parsedFilters.error.flatten()
+      });
+    }
+
+    const filters = parsedFilters.data;
+    const visibleProjectIds = await resolveVisibleProjectIds(requestFn, profileServiceBase, filters);
+    const submissionRows = await fetchSubmissionsForLeaderboard(requestFn, submissionTrackingBase);
+    if ("error" in submissionRows) {
+      return reply.status(submissionRows.statusCode).send({ error: submissionRows.error });
+    }
+
+    const filteredSubmissions = submissionRows.submissions.filter((submission) => {
+      if (!visibleProjectIds) {
+        return true;
+      }
+      return visibleProjectIds.has(submission.projectId);
+    });
+
+    const placementRows = await fetchPlacementsForLeaderboard(requestFn, submissionTrackingBase);
+    if ("error" in placementRows) {
+      return reply.status(placementRows.statusCode).send({ error: placementRows.error });
+    }
+
+    const submissionById = new Map<string, Submission>(
+      filteredSubmissions.map((submission) => [submission.id, submission])
+    );
+    const filteredPlacements = placementRows.placements.filter((placement) =>
+      submissionById.has(placement.submissionId)
+    );
+
+    const leaderboard = buildLeaderboardRows(filteredSubmissions, filteredPlacements);
+    const offset = filters.offset ?? 0;
+    const limit = filters.limit ?? 20;
+    return reply.send({
+      leaderboard: leaderboard.slice(offset, offset + limit),
+      total: leaderboard.length
+    });
   });
 
   server.post("/api/v1/submissions", async (req, reply) => {
@@ -345,6 +562,66 @@ export function buildServer(options: ApiGatewayOptions = {}): FastifyInstance {
       headers: { "content-type": "application/json" },
       body: JSON.stringify(req.body ?? {})
     });
+  });
+
+  server.post("/api/v1/scripts/:scriptId/access-requests", async (req, reply) => {
+    const { scriptId } = req.params as { scriptId: string };
+    const userId = await getUserIdFromAuth(requestFn, identityServiceBase, req.headers.authorization);
+    return proxyJsonRequest(
+      reply,
+      requestFn,
+      `${profileServiceBase}/internal/scripts/${encodeURIComponent(scriptId)}/access-requests`,
+      {
+        method: "POST",
+        headers: addAuthUserIdHeader({ "content-type": "application/json" }, userId),
+        body: JSON.stringify(req.body ?? {})
+      }
+    );
+  });
+
+  server.get("/api/v1/scripts/:scriptId/access-requests", async (req, reply) => {
+    const { scriptId } = req.params as { scriptId: string };
+    const querySuffix = buildQuerySuffix(req.query);
+    const userId = await getUserIdFromAuth(requestFn, identityServiceBase, req.headers.authorization);
+    return proxyJsonRequest(
+      reply,
+      requestFn,
+      `${profileServiceBase}/internal/scripts/${encodeURIComponent(scriptId)}/access-requests${querySuffix}`,
+      {
+        method: "GET",
+        headers: addAuthUserIdHeader({}, userId)
+      }
+    );
+  });
+
+  server.post("/api/v1/scripts/:scriptId/access-requests/:requestId/approve", async (req, reply) => {
+    const { scriptId, requestId } = req.params as { scriptId: string; requestId: string };
+    const userId = await getUserIdFromAuth(requestFn, identityServiceBase, req.headers.authorization);
+    return proxyJsonRequest(
+      reply,
+      requestFn,
+      `${profileServiceBase}/internal/scripts/${encodeURIComponent(scriptId)}/access-requests/${encodeURIComponent(requestId)}/approve`,
+      {
+        method: "POST",
+        headers: addAuthUserIdHeader({ "content-type": "application/json" }, userId),
+        body: JSON.stringify(req.body ?? {})
+      }
+    );
+  });
+
+  server.post("/api/v1/scripts/:scriptId/access-requests/:requestId/reject", async (req, reply) => {
+    const { scriptId, requestId } = req.params as { scriptId: string; requestId: string };
+    const userId = await getUserIdFromAuth(requestFn, identityServiceBase, req.headers.authorization);
+    return proxyJsonRequest(
+      reply,
+      requestFn,
+      `${profileServiceBase}/internal/scripts/${encodeURIComponent(scriptId)}/access-requests/${encodeURIComponent(requestId)}/reject`,
+      {
+        method: "POST",
+        headers: addAuthUserIdHeader({ "content-type": "application/json" }, userId),
+        body: JSON.stringify(req.body ?? {})
+      }
+    );
   });
 
   server.patch("/api/v1/submissions/:submissionId/project", async (req, reply) => {
@@ -396,7 +673,8 @@ export async function startServer(): Promise<void> {
     profileServiceBase: process.env.PROFILE_SERVICE_URL,
     competitionDirectoryBase: process.env.COMPETITION_DIRECTORY_SERVICE_URL,
     submissionTrackingBase: process.env.SUBMISSION_TRACKING_SERVICE_URL,
-    scriptStorageBase: process.env.SCRIPT_STORAGE_SERVICE_URL
+    scriptStorageBase: process.env.SCRIPT_STORAGE_SERVICE_URL,
+    competitionAdminAllowlist: parseAllowlist(process.env.COMPETITION_ADMIN_ALLOWLIST ?? "")
   });
 
   await server.listen({ port, host: "0.0.0.0" });
@@ -465,6 +743,202 @@ function addAuthUserIdHeader(
     return { ...headers, "x-auth-user-id": userId };
   }
   return headers;
+}
+
+async function resolveAdminUserId(
+  requestFn: RequestFn,
+  identityServiceBase: string,
+  headers: Record<string, unknown>,
+  allowlist: Set<string>
+): Promise<string | null> {
+  const headerAdminUserId = readHeaderValue(headers, "x-admin-user-id");
+  if (headerAdminUserId && allowlist.has(headerAdminUserId)) {
+    return headerAdminUserId;
+  }
+
+  const authorization = readHeaderValue(headers, "authorization");
+  const authedUserId = await getUserIdFromAuth(requestFn, identityServiceBase, authorization);
+  if (authedUserId && allowlist.has(authedUserId)) {
+    return authedUserId;
+  }
+
+  return null;
+}
+
+async function resolveVisibleProjectIds(
+  requestFn: RequestFn,
+  profileServiceBase: string,
+  filters: { format?: string; genre?: string }
+): Promise<Set<string> | null> {
+  if (!filters.format && !filters.genre) {
+    return null;
+  }
+
+  const search = new URLSearchParams();
+  if (filters.format) {
+    search.set("format", filters.format);
+  }
+  if (filters.genre) {
+    search.set("genre", filters.genre);
+  }
+  search.set("limit", "100");
+  search.set("offset", "0");
+
+  try {
+    const response = await requestFn(`${profileServiceBase}/internal/projects?${search.toString()}`, {
+      method: "GET"
+    });
+    if (response.statusCode >= 400) {
+      return null;
+    }
+    const body = safeJsonParse(await response.body.text()) as {
+      projects?: Array<{ id?: string }>;
+    };
+    const ids = new Set<string>();
+    for (const project of body.projects ?? []) {
+      if (typeof project.id === "string" && project.id.length > 0) {
+        ids.add(project.id);
+      }
+    }
+    return ids;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchSubmissionsForLeaderboard(
+  requestFn: RequestFn,
+  submissionTrackingBase: string
+): Promise<{ submissions: Submission[] } | { error: string; statusCode: number }> {
+  try {
+    const response = await requestFn(`${submissionTrackingBase}/internal/submissions`, {
+      method: "GET"
+    });
+    if (response.statusCode >= 400) {
+      return { error: "submissions_unavailable", statusCode: 502 };
+    }
+    const body = safeJsonParse(await response.body.text()) as { submissions?: unknown[] };
+    const submissions: Submission[] = [];
+    for (const row of body.submissions ?? []) {
+      const parsed = SubmissionSchema.safeParse(row);
+      if (parsed.success) {
+        submissions.push(parsed.data);
+      }
+    }
+    return { submissions };
+  } catch {
+    return { error: "submissions_unavailable", statusCode: 502 };
+  }
+}
+
+async function fetchPlacementsForLeaderboard(
+  requestFn: RequestFn,
+  submissionTrackingBase: string
+): Promise<{ placements: PlacementListItem[] } | { error: string; statusCode: number }> {
+  try {
+    const response = await requestFn(`${submissionTrackingBase}/internal/placements`, {
+      method: "GET"
+    });
+    if (response.statusCode >= 400) {
+      return { error: "placements_unavailable", statusCode: 502 };
+    }
+    const body = safeJsonParse(await response.body.text()) as { placements?: unknown[] };
+    const placements: PlacementListItem[] = [];
+    for (const row of body.placements ?? []) {
+      const parsed = PlacementListItemSchema.safeParse(row);
+      if (parsed.success) {
+        placements.push(parsed.data);
+      }
+    }
+    return { placements };
+  } catch {
+    return { error: "placements_unavailable", statusCode: 502 };
+  }
+}
+
+function buildLeaderboardRows(submissions: Submission[], placements: PlacementListItem[]) {
+  const statusWeights: Record<Submission["status"], number> = {
+    pending: 0,
+    quarterfinalist: 2,
+    semifinalist: 4,
+    finalist: 7,
+    winner: 10
+  };
+  const placementMultipliers: Record<PlacementListItem["verificationState"], number> = {
+    pending: 0.5,
+    verified: 1,
+    rejected: 0
+  };
+
+  const byWriter = new Map<
+    string,
+    { writerId: string; totalScore: number; submissionCount: number; placementCount: number; lastUpdatedAt: string | null }
+  >();
+  const submissionById = new Map<string, Submission>(submissions.map((submission) => [submission.id, submission]));
+
+  for (const submission of submissions) {
+    const row = byWriter.get(submission.writerId) ?? {
+      writerId: submission.writerId,
+      totalScore: 0,
+      submissionCount: 0,
+      placementCount: 0,
+      lastUpdatedAt: null
+    };
+    row.submissionCount += 1;
+    row.totalScore += statusWeights[submission.status];
+    row.lastUpdatedAt = maxIsoTimestamp(row.lastUpdatedAt, submission.updatedAt);
+    byWriter.set(submission.writerId, row);
+  }
+
+  for (const placement of placements) {
+    const submission = submissionById.get(placement.submissionId);
+    if (!submission) {
+      continue;
+    }
+    const row = byWriter.get(submission.writerId) ?? {
+      writerId: submission.writerId,
+      totalScore: 0,
+      submissionCount: 0,
+      placementCount: 0,
+      lastUpdatedAt: null
+    };
+    row.placementCount += 1;
+    row.totalScore += Math.round(statusWeights[placement.status] * placementMultipliers[placement.verificationState]);
+    row.lastUpdatedAt = maxIsoTimestamp(row.lastUpdatedAt, placement.updatedAt);
+    byWriter.set(submission.writerId, row);
+  }
+
+  return Array.from(byWriter.values()).sort((left, right) => {
+    if (right.totalScore !== left.totalScore) {
+      return right.totalScore - left.totalScore;
+    }
+    if (right.placementCount !== left.placementCount) {
+      return right.placementCount - left.placementCount;
+    }
+    return right.submissionCount - left.submissionCount;
+  });
+}
+
+function maxIsoTimestamp(left: string | null, right: string): string {
+  if (!left) {
+    return right;
+  }
+  return left > right ? left : right;
+}
+
+function readHeaderValue(headers: Record<string, unknown>, headerName: string): string | undefined {
+  const rawValue = headers[headerName];
+  if (typeof rawValue === "string" && rawValue.length > 0) {
+    return rawValue;
+  }
+  return undefined;
+}
+
+function parseAllowlist(rawValue: string): string[] {
+  return rawValue
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
 }
 
 async function proxyJsonRequest(

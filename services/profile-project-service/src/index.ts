@@ -4,14 +4,15 @@ import {
   ProjectCoWriterCreateRequestSchema,
   ProjectCreateInternalSchema,
   ProjectDraftCreateInternalSchema,
-  ProjectDraftPrimaryInternalSchema,
   ProjectDraftUpdateRequestSchema,
   ProjectFiltersSchema,
   ProjectUpdateRequestSchema,
+  ScriptAccessRequestCreateRequestSchema,
+  ScriptAccessRequestDecisionRequestSchema,
+  ScriptAccessRequestFiltersSchema,
   WriterProfileUpdateRequestSchema
 } from "@script-manifest/contracts";
 import { randomUUID } from "node:crypto";
-import { z } from "zod";
 import { publishNotificationEvent } from "./notificationPublisher.js";
 import {
   type ProfileProjectRepository,
@@ -330,20 +331,36 @@ export function buildServer(options: ProfileProjectServiceOptions = {}): Fastify
     return reply.send({ draft });
   });
 
-  const ScriptAccessRequestSchema = z.object({
-    requesterUserId: z.string().min(1),
-    ownerUserId: z.string().min(1),
-    reason: z.string().max(500).optional()
-  });
-
   server.post("/internal/scripts/:scriptId/access-requests", async (req, reply) => {
     const { scriptId } = req.params as { scriptId: string };
-    const parseResult = ScriptAccessRequestSchema.safeParse(req.body);
+    const authUserId = getAuthUserId(req.headers);
+    const parseResult = ScriptAccessRequestCreateRequestSchema.safeParse(req.body);
     if (!parseResult.success) {
       return reply.status(400).send({
         error: "invalid_script_access_request",
-        issues: parseResult.error.issues
+        details: parseResult.error.flatten()
       });
+    }
+
+    if (authUserId && authUserId !== parseResult.data.requesterUserId) {
+      return reply.status(403).send({ error: "forbidden" });
+    }
+
+    if (parseResult.data.requesterUserId === parseResult.data.ownerUserId) {
+      return reply.status(400).send({ error: "requester_cannot_be_owner" });
+    }
+
+    const [requesterExists, ownerExists] = await Promise.all([
+      repository.userExists(parseResult.data.requesterUserId),
+      repository.userExists(parseResult.data.ownerUserId)
+    ]);
+    if (!requesterExists || !ownerExists) {
+      return reply.status(404).send({ error: "user_not_found" });
+    }
+
+    const accessRequest = await repository.createScriptAccessRequest(scriptId, parseResult.data);
+    if (!accessRequest) {
+      return reply.status(404).send({ error: "access_request_create_failed" });
     }
 
     const eventId = randomUUID();
@@ -352,12 +369,13 @@ export function buildServer(options: ProfileProjectServiceOptions = {}): Fastify
         eventId,
         eventType: "script_access_requested",
         occurredAt: new Date().toISOString(),
-        actorUserId: parseResult.data.requesterUserId,
-        targetUserId: parseResult.data.ownerUserId,
+        actorUserId: accessRequest.requesterUserId,
+        targetUserId: accessRequest.ownerUserId,
         resourceType: "script",
         resourceId: scriptId,
         payload: {
-          reason: parseResult.data.reason ?? null
+          accessRequestId: accessRequest.id,
+          reason: accessRequest.reason || null
         }
       });
     } catch (error) {
@@ -365,8 +383,111 @@ export function buildServer(options: ProfileProjectServiceOptions = {}): Fastify
       return reply.status(502).send({ error: "notification_publish_failed" });
     }
 
-    return reply.status(202).send({ accepted: true, eventId });
+    return reply.status(202).send({ accepted: true, eventId, accessRequest });
   });
+
+  server.get("/internal/scripts/:scriptId/access-requests", async (req, reply) => {
+    const { scriptId } = req.params as { scriptId: string };
+    const parseResult = ScriptAccessRequestFiltersSchema.safeParse(req.query);
+    if (!parseResult.success) {
+      return reply.status(400).send({
+        error: "invalid_query",
+        details: parseResult.error.flatten()
+      });
+    }
+
+    const accessRequests = await repository.listScriptAccessRequests(scriptId, parseResult.data);
+    const authUserId = getAuthUserId(req.headers);
+    const visibleAccessRequests = authUserId
+      ? accessRequests.filter(
+          (entry) => entry.requesterUserId === authUserId || entry.ownerUserId === authUserId
+        )
+      : accessRequests;
+
+    return reply.send({ accessRequests: visibleAccessRequests });
+  });
+
+  server.post(
+    "/internal/scripts/:scriptId/access-requests/:requestId/approve",
+    async (req, reply) => {
+      const { scriptId, requestId } = req.params as { scriptId: string; requestId: string };
+      const authUserId = getAuthUserId(req.headers);
+      if (!authUserId) {
+        return reply.status(403).send({ error: "forbidden" });
+      }
+
+      const parsedBody = ScriptAccessRequestDecisionRequestSchema.safeParse(req.body ?? {});
+      if (!parsedBody.success) {
+        return reply.status(400).send({
+          error: "invalid_payload",
+          details: parsedBody.error.flatten()
+        });
+      }
+
+      const accessRequest = await repository.decideScriptAccessRequest(
+        scriptId,
+        requestId,
+        authUserId,
+        "approved",
+        parsedBody.data.decisionReason
+      );
+      if (!accessRequest) {
+        return reply.status(404).send({ error: "access_request_not_found" });
+      }
+
+      try {
+        await publisher({
+          eventId: randomUUID(),
+          eventType: "script_access_approved",
+          occurredAt: new Date().toISOString(),
+          actorUserId: authUserId,
+          targetUserId: accessRequest.requesterUserId,
+          resourceType: "script",
+          resourceId: scriptId,
+          payload: {
+            accessRequestId: accessRequest.id,
+            decisionReason: accessRequest.decisionReason
+          }
+        });
+      } catch (error) {
+        server.log.warn({ error }, "failed to publish script access approval event");
+      }
+
+      return reply.send({ accessRequest });
+    }
+  );
+
+  server.post(
+    "/internal/scripts/:scriptId/access-requests/:requestId/reject",
+    async (req, reply) => {
+      const { scriptId, requestId } = req.params as { scriptId: string; requestId: string };
+      const authUserId = getAuthUserId(req.headers);
+      if (!authUserId) {
+        return reply.status(403).send({ error: "forbidden" });
+      }
+
+      const parsedBody = ScriptAccessRequestDecisionRequestSchema.safeParse(req.body ?? {});
+      if (!parsedBody.success) {
+        return reply.status(400).send({
+          error: "invalid_payload",
+          details: parsedBody.error.flatten()
+        });
+      }
+
+      const accessRequest = await repository.decideScriptAccessRequest(
+        scriptId,
+        requestId,
+        authUserId,
+        "rejected",
+        parsedBody.data.decisionReason
+      );
+      if (!accessRequest) {
+        return reply.status(404).send({ error: "access_request_not_found" });
+      }
+
+      return reply.send({ accessRequest });
+    }
+  );
 
   return server;
 }

@@ -199,3 +199,65 @@ test("identity me/logout require bearer token", async (t) => {
   assert.equal(logout.statusCode, 401);
   assert.equal(logout.json().error, "missing_bearer_token");
 });
+
+test("identity oauth start/complete issues session and enforces one-time state", async (t) => {
+  const server = buildServer({ logger: false, repository: new MemoryRepo() });
+  t.after(async () => {
+    await server.close();
+  });
+
+  const start = await server.inject({
+    method: "POST",
+    url: "/internal/auth/oauth/github/start",
+    payload: { loginHint: "Writer Two" }
+  });
+  assert.equal(start.statusCode, 201);
+  const startPayload = start.json();
+  assert.equal(startPayload.provider, "github");
+  assert.match(startPayload.authorizationUrl as string, /state=/);
+  assert.match(startPayload.authorizationUrl as string, /code=/);
+
+  const complete = await server.inject({
+    method: "POST",
+    url: "/internal/auth/oauth/github/complete",
+    payload: {
+      state: startPayload.state,
+      code: startPayload.mockCode
+    }
+  });
+  assert.equal(complete.statusCode, 200);
+  assert.ok(complete.json().token);
+  assert.match(complete.json().user.email as string, /^github\+writer-two@oauth\.local$/);
+
+  const replay = await server.inject({
+    method: "POST",
+    url: "/internal/auth/oauth/github/complete",
+    payload: {
+      state: startPayload.state,
+      code: startPayload.mockCode
+    }
+  });
+  assert.equal(replay.statusCode, 400);
+  assert.equal(replay.json().error, "invalid_oauth_state");
+});
+
+test("identity oauth callback validates code", async (t) => {
+  const server = buildServer({ logger: false, repository: new MemoryRepo() });
+  t.after(async () => {
+    await server.close();
+  });
+
+  const start = await server.inject({
+    method: "POST",
+    url: "/internal/auth/oauth/github/start"
+  });
+  assert.equal(start.statusCode, 201);
+  const startPayload = start.json();
+
+  const callback = await server.inject({
+    method: "GET",
+    url: `/internal/auth/oauth/github/callback?state=${encodeURIComponent(startPayload.state as string)}&code=${"1".repeat(32)}`
+  });
+  assert.equal(callback.statusCode, 400);
+  assert.equal(callback.json().error, "invalid_oauth_code");
+});

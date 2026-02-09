@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Cormorant_Garamond, Manrope } from "next/font/google";
 import "./globals.css";
 import { SiteHeader } from "./components/siteHeader";
@@ -17,7 +17,17 @@ const bodyFont = Manrope({
 
 export const metadata: Metadata = {
   title: "Script Manifest | Writer Hub",
-  description: "A writer-first platform for profiles, scripts, competitions, and submissions."
+  description: "A writer-first platform for profiles, scripts, competitions, and submissions.",
+  manifest: "/manifest.webmanifest",
+  icons: {
+    icon: [{ url: "/pwa/writer-hub-192.svg", type: "image/svg+xml" }],
+    apple: [{ url: "/pwa/writer-hub-192.svg", type: "image/svg+xml" }]
+  }
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0f172a",
+  colorScheme: "light"
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

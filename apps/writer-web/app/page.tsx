@@ -16,22 +16,27 @@ const writerSurfaces: Surface[] = [
   {
     title: "Profile",
     description: "Create a public writer profile with your bio, genres, and representation status.",
-    href: "/profile"
+    href: "/profile" as Route
   },
   {
     title: "Projects",
     description: "Manage scripts, co-writers, and your draft lifecycle in one workspace.",
-    href: "/projects"
+    href: "/projects" as Route
   },
   {
     title: "Competitions",
     description: "Search opportunities by format, fee, genre, and deadline proximity.",
-    href: "/competitions"
+    href: "/competitions" as Route
+  },
+  {
+    title: "Leaderboard",
+    description: "Track momentum with a lightweight public ranking of active writers.",
+    href: "/leaderboard" as Route
   },
   {
     title: "Submissions",
     description: "Track placements and move submissions across project drafts.",
-    href: "/submissions"
+    href: "/submissions" as Route
   }
 ];
 

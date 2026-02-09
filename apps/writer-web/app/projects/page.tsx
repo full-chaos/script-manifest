@@ -6,7 +6,9 @@ import type {
   Project,
   ProjectCoWriter,
   ProjectCreateRequest,
-  ProjectDraft
+  ProjectDraft,
+  ScriptRegisterResponse,
+  ScriptUploadSessionResponse
 } from "@script-manifest/contracts";
 import { Modal } from "../components/modal";
 import { getAuthHeaders, readStoredSession } from "../lib/authSession";
@@ -47,6 +49,19 @@ const initialDraftForm: DraftForm = {
   setPrimary: true
 };
 
+function createScriptId(): string {
+  const randomId = globalThis.crypto?.randomUUID?.();
+  if (randomId) {
+    return `script_${randomId}`;
+  }
+
+  return `script_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function getScriptContentType(file: File): string {
+  return file.type || "application/octet-stream";
+}
+
 export default function ProjectsPage() {
   const [ownerUserId, setOwnerUserId] = useState("");
   const [projects, setProjects] = useState<Project[]>([]);
@@ -58,6 +73,9 @@ export default function ProjectsPage() {
   const [coWriterUserId, setCoWriterUserId] = useState("");
   const [coWriterCreditOrder, setCoWriterCreditOrder] = useState(2);
   const [draftForm, setDraftForm] = useState<DraftForm>(initialDraftForm);
+  const [draftUploadFile, setDraftUploadFile] = useState<File | null>(null);
+  const [scriptUploadLoading, setScriptUploadLoading] = useState(false);
+  const [uploadedScriptId, setUploadedScriptId] = useState("");
 
   const [projectModalOpen, setProjectModalOpen] = useState(false);
   const [coWriterModalOpen, setCoWriterModalOpen] = useState(false);
@@ -292,10 +310,108 @@ export default function ProjectsPage() {
     }
   }
 
+  async function uploadAndRegisterScript() {
+    if (!ownerUserId.trim()) {
+      setStatus("Sign in to upload scripts.");
+      return;
+    }
+
+    if (!draftUploadFile) {
+      setStatus("Select a script file before uploading.");
+      return;
+    }
+
+    const scriptId = createScriptId();
+    const contentType = getScriptContentType(draftUploadFile);
+    setScriptUploadLoading(true);
+    setStatus("");
+
+    try {
+      const uploadSessionResponse = await fetch("/api/v1/scripts/upload-session", {
+        method: "POST",
+        headers: { "content-type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify({
+          scriptId,
+          ownerUserId,
+          filename: draftUploadFile.name,
+          contentType,
+          size: draftUploadFile.size
+        })
+      });
+      const uploadSessionBody = (await uploadSessionResponse.json()) as
+        | ScriptUploadSessionResponse
+        | { error?: string };
+
+      if (!uploadSessionResponse.ok) {
+        setStatus(
+          "error" in uploadSessionBody && uploadSessionBody.error
+            ? `Error: ${uploadSessionBody.error}`
+            : "Unable to create script upload session."
+        );
+        return;
+      }
+
+      const uploadSession = uploadSessionBody as ScriptUploadSessionResponse;
+      const formData = new FormData();
+      for (const [key, value] of Object.entries(uploadSession.uploadFields)) {
+        formData.append(key, value);
+      }
+      formData.append("file", draftUploadFile);
+
+      const uploadResponse = await fetch(uploadSession.uploadUrl, {
+        method: "POST",
+        body: formData
+      });
+      if (!uploadResponse.ok) {
+        const detail = await uploadResponse.text();
+        setStatus(detail ? `Upload failed: ${detail}` : "Upload failed.");
+        return;
+      }
+
+      const registerResponse = await fetch("/api/v1/scripts/register", {
+        method: "POST",
+        headers: { "content-type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify({
+          scriptId,
+          ownerUserId,
+          objectKey: uploadSession.objectKey,
+          filename: draftUploadFile.name,
+          contentType,
+          size: draftUploadFile.size
+        })
+      });
+      const registerBody = (await registerResponse.json()) as
+        | ScriptRegisterResponse
+        | { error?: string };
+      if (!registerResponse.ok) {
+        setStatus(
+          "error" in registerBody && registerBody.error
+            ? `Error: ${registerBody.error}`
+            : "Unable to register uploaded script."
+        );
+        return;
+      }
+
+      const registerPayload = registerBody as ScriptRegisterResponse;
+      const nextScriptId = registerPayload.script.scriptId;
+      setDraftForm((current) => ({ ...current, scriptId: nextScriptId }));
+      setUploadedScriptId(nextScriptId);
+      setStatus(`Script uploaded and registered (${nextScriptId}).`);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "unknown_error");
+    } finally {
+      setScriptUploadLoading(false);
+    }
+  }
+
   async function createDraft(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selectedProjectId || !ownerUserId) {
       setStatus("Select a project and sign in first.");
+      return;
+    }
+    if (!draftForm.scriptId.trim()) {
+      setStatus("Upload/register a script or enter a script ID first.");
       return;
     }
 
@@ -320,6 +436,8 @@ export default function ProjectsPage() {
       }
 
       setDraftForm(initialDraftForm);
+      setDraftUploadFile(null);
+      setUploadedScriptId("");
       setDraftModalOpen(false);
       await loadProjectContext(selectedProjectId);
       setStatus("Draft created.");
@@ -715,6 +833,33 @@ export default function ProjectsPage() {
         description="Add a new version and optionally mark it as the primary draft."
       >
         <form className="stack" onSubmit={createDraft}>
+          <label className="stack-tight">
+            <span>Script file</span>
+            <input
+              className="input"
+              type="file"
+              accept=".pdf,.txt,.fdx,.doc,.docx"
+              onChange={(event) => setDraftUploadFile(event.target.files?.[0] ?? null)}
+            />
+          </label>
+
+          <div className="inline-form">
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => void uploadAndRegisterScript()}
+              disabled={
+                loading ||
+                contextLoading ||
+                scriptUploadLoading ||
+                !draftUploadFile
+              }
+            >
+              {scriptUploadLoading ? "Uploading script..." : "Upload + register script"}
+            </button>
+            {uploadedScriptId ? <span className="badge">Uploaded: {uploadedScriptId}</span> : null}
+          </div>
+
           <div className="grid-two">
             <label className="stack-tight">
               <span>Script ID</span>
@@ -781,7 +926,11 @@ export default function ProjectsPage() {
           </div>
 
           <div className="inline-form">
-            <button type="submit" className="btn btn-primary" disabled={loading || contextLoading}>
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={loading || contextLoading || scriptUploadLoading}
+            >
               Create draft
             </button>
           </div>

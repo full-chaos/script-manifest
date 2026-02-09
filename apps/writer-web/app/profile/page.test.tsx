@@ -38,7 +38,11 @@ describe("ProfilePage", () => {
             displayName: "Writer One",
             bio: "First draft",
             genres: ["Drama"],
-            representationStatus: "unrepresented"
+            demographics: [],
+            representationStatus: "unrepresented",
+            headshotUrl: "",
+            customProfileUrl: "",
+            isSearchable: true
           }
         })
       )
@@ -49,7 +53,11 @@ describe("ProfilePage", () => {
             displayName: "Writer Updated",
             bio: "Updated bio",
             genres: ["Drama", "Thriller"],
-            representationStatus: "seeking_rep"
+            demographics: ["Latinx", "Disabled"],
+            representationStatus: "seeking_rep",
+            headshotUrl: "https://cdn.example.com/writer-updated.jpg",
+            customProfileUrl: "https://profiles.example.com/writer-updated",
+            isSearchable: false
           }
         })
       );
@@ -66,6 +74,13 @@ describe("ProfilePage", () => {
     const bio = screen.getByLabelText("Bio");
     await user.clear(bio);
     await user.type(bio, "Updated bio");
+    const demographics = screen.getByLabelText("Demographics (comma separated)");
+    await user.type(demographics, "Latinx, Disabled");
+    const headshotUrl = screen.getByLabelText("Headshot URL");
+    await user.type(headshotUrl, "https://cdn.example.com/writer-updated.jpg");
+    const customProfileUrl = screen.getByLabelText("Custom profile URL");
+    await user.type(customProfileUrl, "https://profiles.example.com/writer-updated");
+    await user.click(screen.getByLabelText("Allow profile in search results"));
     await user.selectOptions(screen.getByLabelText("Representation status"), "seeking_rep");
     await user.click(screen.getByRole("button", { name: "Save profile" }));
 
@@ -78,7 +93,19 @@ describe("ProfilePage", () => {
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
       "/api/v1/profiles/writer_01",
-      expect.objectContaining({ method: "PUT" })
+      expect.objectContaining({
+        method: "PUT",
+        body: JSON.stringify({
+          displayName: "Writer Updated",
+          bio: "Updated bio",
+          genres: ["Drama"],
+          demographics: ["Latinx", "Disabled"],
+          representationStatus: "seeking_rep",
+          headshotUrl: "https://cdn.example.com/writer-updated.jpg",
+          customProfileUrl: "https://profiles.example.com/writer-updated",
+          isSearchable: false
+        })
+      })
     );
   });
 });

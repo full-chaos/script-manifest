@@ -128,6 +128,40 @@ test("api-gateway proxies project list with query params", async (t) => {
   assert.equal(response.json().projects.length, 1);
 });
 
+test("api-gateway proxies competition deadline reminder", async (t) => {
+  const urls: string[] = [];
+  let requestBody = "";
+  const server = buildServer({
+    logger: false,
+    requestFn: (async (url, options) => {
+      urls.push(String(url));
+      requestBody = String(options?.body ?? "");
+      return jsonResponse({ accepted: true, eventId: "evt_123" }, 202);
+    }) as typeof request,
+    competitionDirectoryBase: "http://competition-svc"
+  });
+  t.after(async () => {
+    await server.close();
+  });
+
+  const response = await server.inject({
+    method: "POST",
+    url: "/api/v1/competitions/comp_001/deadline-reminders",
+    payload: {
+      targetUserId: "writer_01",
+      deadlineAt: "2026-03-01T00:00:00.000Z",
+      message: "Submission closes soon"
+    }
+  });
+
+  assert.equal(response.statusCode, 202);
+  assert.equal(
+    urls[0],
+    "http://competition-svc/internal/competitions/comp_001/deadline-reminders"
+  );
+  assert.match(requestBody, /"targetUserId":"writer_01"/);
+});
+
 test("api-gateway proxies submission creation with auth", async (t) => {
   let requestBody = "";
   let authUserIdHeader = "";
@@ -166,6 +200,90 @@ test("api-gateway proxies submission creation with auth", async (t) => {
   assert.equal(response.statusCode, 201);
   assert.match(requestBody, /"projectId":"project_01"/);
   assert.equal(authUserIdHeader, "writer_01");
+});
+
+test("api-gateway proxies script upload session creation", async (t) => {
+  const urls: string[] = [];
+  let requestBody = "";
+  const server = buildServer({
+    logger: false,
+    requestFn: (async (url, options) => {
+      urls.push(String(url));
+      requestBody = String(options?.body ?? "");
+      return jsonResponse({
+        uploadUrl: "http://upload-svc/scripts",
+        uploadFields: { key: "writer_01/script_1/latest.pdf" },
+        bucket: "scripts",
+        objectKey: "writer_01/script_1/latest.pdf",
+        expiresAt: "2026-02-13T00:00:00.000Z"
+      }, 201);
+    }) as typeof request,
+    scriptStorageBase: "http://script-storage-svc"
+  });
+  t.after(async () => {
+    await server.close();
+  });
+
+  const response = await server.inject({
+    method: "POST",
+    url: "/api/v1/scripts/upload-session",
+    payload: {
+      scriptId: "script_1",
+      ownerUserId: "writer_01",
+      filename: "first-draft.pdf",
+      contentType: "application/pdf",
+      size: 1024
+    }
+  });
+
+  assert.equal(response.statusCode, 201);
+  assert.equal(urls[0], "http://script-storage-svc/internal/scripts/upload-session");
+  assert.match(requestBody, /"scriptId":"script_1"/);
+});
+
+test("api-gateway proxies script registration", async (t) => {
+  const urls: string[] = [];
+  let requestBody = "";
+  const server = buildServer({
+    logger: false,
+    requestFn: (async (url, options) => {
+      urls.push(String(url));
+      requestBody = String(options?.body ?? "");
+      return jsonResponse({
+        registered: true,
+        script: {
+          scriptId: "script_1",
+          ownerUserId: "writer_01",
+          objectKey: "writer_01/script_1/latest.pdf",
+          filename: "first-draft.pdf",
+          contentType: "application/pdf",
+          size: 1024,
+          registeredAt: "2026-02-13T00:00:00.000Z"
+        }
+      }, 201);
+    }) as typeof request,
+    scriptStorageBase: "http://script-storage-svc"
+  });
+  t.after(async () => {
+    await server.close();
+  });
+
+  const response = await server.inject({
+    method: "POST",
+    url: "/api/v1/scripts/register",
+    payload: {
+      scriptId: "script_1",
+      ownerUserId: "writer_01",
+      objectKey: "writer_01/script_1/latest.pdf",
+      filename: "first-draft.pdf",
+      contentType: "application/pdf",
+      size: 1024
+    }
+  });
+
+  assert.equal(response.statusCode, 201);
+  assert.equal(urls[0], "http://script-storage-svc/internal/scripts/register");
+  assert.match(requestBody, /"objectKey":"writer_01\/script_1\/latest.pdf"/);
 });
 
 test("api-gateway proxies project co-writer endpoints", async (t) => {

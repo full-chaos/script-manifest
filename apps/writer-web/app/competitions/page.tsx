@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import type { Competition } from "@script-manifest/contracts";
+import { Modal } from "../components/modal";
+import { getAuthHeaders, readStoredSession } from "../lib/authSession";
 
 type Filters = {
   query: string;
@@ -17,11 +19,51 @@ const initialFilters: Filters = {
   maxFeeUsd: ""
 };
 
+function describeDeadlineDistance(deadline: string): string {
+  const deltaMs = new Date(deadline).getTime() - Date.now();
+  const dayMs = 24 * 60 * 60 * 1000;
+
+  if (deltaMs < 0) {
+    return "Closed";
+  }
+
+  const daysRemaining = Math.ceil(deltaMs / dayMs);
+  if (daysRemaining === 0) {
+    return "Due today";
+  }
+
+  if (daysRemaining === 1) {
+    return "Due in 1 day";
+  }
+
+  return `Due in ${daysRemaining as number} days`;
+}
+
 export default function CompetitionsPage() {
   const [filters, setFilters] = useState<Filters>(initialFilters);
   const [results, setResults] = useState<Competition[]>([]);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState("");
+  const [signedInUserId, setSignedInUserId] = useState("");
+  const [reminderModalOpen, setReminderModalOpen] = useState(false);
+  const [selectedCompetition, setSelectedCompetition] = useState<Competition | null>(null);
+  const [reminderTargetUserId, setReminderTargetUserId] = useState("");
+  const [reminderMessage, setReminderMessage] = useState("");
+  const [sendingReminder, setSendingReminder] = useState(false);
+
+  const upcomingDeadlines = useMemo(() => {
+    const now = Date.now();
+
+    return [...results]
+      .map((competition) => ({
+        competition,
+        deadlineAt: new Date(competition.deadline).getTime()
+      }))
+      .filter((entry) => Number.isFinite(entry.deadlineAt) && entry.deadlineAt >= now)
+      .sort((left, right) => left.deadlineAt - right.deadlineAt)
+      .slice(0, 8)
+      .map((entry) => entry.competition);
+  }, [results]);
 
   async function search(event?: FormEvent<HTMLFormElement>) {
     event?.preventDefault();
@@ -36,13 +78,13 @@ export default function CompetitionsPage() {
 
     try {
       const response = await fetch(`/api/v1/competitions?${params.toString()}`, { cache: "no-store" });
-      const body = await response.json();
+      const body = (await response.json()) as { competitions?: Competition[]; error?: string };
       if (!response.ok) {
         setStatus(body.error ? `Error: ${body.error}` : "Competition search failed.");
         return;
       }
 
-      const competitions = body.competitions as Competition[];
+      const competitions = body.competitions ?? [];
       setResults(competitions);
       setStatus(`Found ${competitions.length as number} competitions.`);
     } catch (error) {
@@ -53,8 +95,77 @@ export default function CompetitionsPage() {
   }
 
   useEffect(() => {
+    const session = readStoredSession();
+    if (session) {
+      setSignedInUserId(session.user.id);
+      setReminderTargetUserId(session.user.id);
+    }
+
     void search();
   }, []);
+
+  function openReminderModal(competition: Competition) {
+    setSelectedCompetition(competition);
+    setReminderTargetUserId(signedInUserId);
+    setReminderMessage("");
+    setStatus("");
+    setReminderModalOpen(true);
+  }
+
+  function closeReminderModal() {
+    setReminderModalOpen(false);
+    setSelectedCompetition(null);
+  }
+
+  async function sendReminder(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!selectedCompetition) {
+      setStatus("Select a competition before sending a reminder.");
+      return;
+    }
+
+    const targetUserId = reminderTargetUserId.trim();
+    if (!targetUserId) {
+      setStatus("Target user ID is required.");
+      return;
+    }
+
+    setSendingReminder(true);
+    setStatus("");
+
+    try {
+      const response = await fetch(
+        `/api/v1/competitions/${encodeURIComponent(selectedCompetition.id)}/deadline-reminders`,
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            ...getAuthHeaders()
+          },
+          body: JSON.stringify({
+            targetUserId,
+            actorUserId: signedInUserId || undefined,
+            deadlineAt: selectedCompetition.deadline,
+            message: reminderMessage.trim() || undefined
+          })
+        }
+      );
+
+      const body = (await response.json()) as { error?: string };
+      if (!response.ok) {
+        setStatus(body.error ? `Error: ${body.error}` : "Reminder request failed.");
+        return;
+      }
+
+      setStatus(`Reminder scheduled for ${selectedCompetition.title}.`);
+      closeReminderModal();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "unknown_error");
+    } finally {
+      setSendingReminder(false);
+    }
+  }
 
   return (
     <section className="space-y-4">
@@ -65,6 +176,9 @@ export default function CompetitionsPage() {
           Filter by format, genre, fee, and deadline to find opportunities without manually
           cross-referencing dozens of websites.
         </p>
+        <div className="mt-4 inline-form">
+          <span className="badge">Reminder default: {signedInUserId || "Sign in to auto-fill"}</span>
+        </div>
       </article>
 
       <article className="panel stack">
@@ -131,6 +245,29 @@ export default function CompetitionsPage() {
 
       <article className="panel stack">
         <div className="subcard-header">
+          <h2 className="section-title">Upcoming deadlines</h2>
+          <span className="badge">{upcomingDeadlines.length} upcoming</span>
+        </div>
+        {upcomingDeadlines.length === 0 ? (
+          <p className="empty-state">Search competitions to populate the deadline calendar.</p>
+        ) : null}
+        <ol className="stack" aria-label="Upcoming deadline calendar">
+          {upcomingDeadlines.map((competition) => (
+            <li key={`calendar-${competition.id}`} className="subcard">
+              <div className="subcard-header">
+                <h3 className="text-lg text-ink-900">{competition.title}</h3>
+                <span className="badge">{competition.format}</span>
+              </div>
+              <p className="muted mt-2">
+                {new Date(competition.deadline).toLocaleDateString()} | {describeDeadlineDistance(competition.deadline)}
+              </p>
+            </li>
+          ))}
+        </ol>
+      </article>
+
+      <article className="panel stack">
+        <div className="subcard-header">
           <h2 className="section-title">Results</h2>
           <span className="badge">{results.length} matches</span>
         </div>
@@ -145,9 +282,76 @@ export default function CompetitionsPage() {
             <p className="muted mt-2">
               {competition.genre} | ${competition.feeUsd} | deadline {new Date(competition.deadline).toLocaleDateString()}
             </p>
+            <div className="mt-3 inline-form">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => openReminderModal(competition)}
+              >
+                Set reminder
+              </button>
+            </div>
           </article>
         ))}
       </article>
+
+      <Modal
+        open={reminderModalOpen}
+        onClose={closeReminderModal}
+        title="Set deadline reminder"
+        description={
+          selectedCompetition
+            ? `Queue a deadline reminder event for ${selectedCompetition.title}.`
+            : "Queue a deadline reminder event."
+        }
+      >
+        {selectedCompetition ? (
+          <form className="stack" onSubmit={sendReminder}>
+            <label className="stack-tight">
+              <span>Competition</span>
+              <input className="input" value={selectedCompetition.title} disabled readOnly />
+            </label>
+
+            <label className="stack-tight">
+              <span>Deadline</span>
+              <input
+                className="input"
+                value={new Date(selectedCompetition.deadline).toLocaleString()}
+                disabled
+                readOnly
+              />
+            </label>
+
+            <label className="stack-tight">
+              <span>Target user ID</span>
+              <input
+                className="input"
+                value={reminderTargetUserId}
+                onChange={(event) => setReminderTargetUserId(event.target.value)}
+                placeholder="writer_01"
+                required
+              />
+            </label>
+
+            <label className="stack-tight">
+              <span>Message (optional)</span>
+              <textarea
+                className="input min-h-24"
+                value={reminderMessage}
+                onChange={(event) => setReminderMessage(event.target.value)}
+                placeholder="Submission closes in 48 hours"
+                maxLength={500}
+              />
+            </label>
+
+            <div className="inline-form">
+              <button type="submit" className="btn btn-primary" disabled={sendingReminder}>
+                {sendingReminder ? "Sending..." : "Send reminder"}
+              </button>
+            </div>
+          </form>
+        ) : null}
+      </Modal>
 
       {status ? <p className={status.startsWith("Error:") ? "status-error" : "status-note"}>{status}</p> : null}
     </section>

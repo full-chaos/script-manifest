@@ -75,6 +75,9 @@ Writer web pages now wired to the gateway:
 - `/competitions`
 - `/submissions`
 
+Profile user guide:
+- `/Users/chris/projects/script-manifest/docs/phase-1/profile-fields-user-manual.md`
+
 ## Test Coverage Additions
 
 - `apps/writer-web` now runs Vitest + React Testing Library:
@@ -164,6 +167,10 @@ Search indexer service endpoints (`:4003`):
 
 Gateway endpoint (`:4000`):
 - `GET /api/v1/competitions` proxies to directory service and supports the same filters.
+- `POST /api/v1/competitions/:competitionId/deadline-reminders` proxies reminder creation.
+
+User guide:
+- `/Users/chris/projects/script-manifest/docs/phase-1/competitions-calendar-reminders-user-manual.md`
 
 Quick run:
 
@@ -191,9 +198,23 @@ Script storage service endpoints (`:4011`):
 - `POST /internal/scripts/register` (registers uploaded object metadata by `scriptId`)
 - `GET /internal/scripts/:scriptId/view?viewerUserId=` (returns viewer payload with object path/URL + access flags)
 
+Gateway endpoints (`:4000`):
+- `POST /api/v1/scripts/upload-session`
+- `POST /api/v1/scripts/register`
+
 Writer web integration:
 - Viewer page scaffold: `/projects/[scriptId]/viewer`
 - Writer web API proxy: `GET /api/scripts/:scriptId/viewer` -> script-storage-service view endpoint
+- Writer web API proxies:
+  - `POST /api/v1/scripts/upload-session` -> gateway
+  - `POST /api/v1/scripts/register` -> gateway
+- Projects page draft flow (`/projects`):
+  - In `Create draft`, choose a local script file.
+  - Click `Upload + register script` to create upload session, upload object, and register metadata.
+  - Use the returned `scriptId` in the draft form (auto-filled) and complete draft creation.
+
+User guide:
+- `/Users/chris/projects/script-manifest/docs/phase-1/script-upload-user-manual.md`
 
 Quick run:
 

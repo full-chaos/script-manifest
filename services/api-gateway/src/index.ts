@@ -11,6 +11,7 @@ export type ApiGatewayOptions = {
   profileServiceBase?: string;
   competitionDirectoryBase?: string;
   submissionTrackingBase?: string;
+  scriptStorageBase?: string;
 };
 
 export function buildServer(options: ApiGatewayOptions = {}): FastifyInstance {
@@ -20,6 +21,7 @@ export function buildServer(options: ApiGatewayOptions = {}): FastifyInstance {
   const profileServiceBase = options.profileServiceBase ?? "http://localhost:4001";
   const competitionDirectoryBase = options.competitionDirectoryBase ?? "http://localhost:4002";
   const submissionTrackingBase = options.submissionTrackingBase ?? "http://localhost:4004";
+  const scriptStorageBase = options.scriptStorageBase ?? "http://localhost:4011";
 
   server.get("/health", async () => ({ service: "api-gateway", ok: true }));
 
@@ -310,6 +312,27 @@ export function buildServer(options: ApiGatewayOptions = {}): FastifyInstance {
     });
   });
 
+  server.post("/api/v1/scripts/upload-session", async (req, reply) => {
+    return proxyJsonRequest(
+      reply,
+      requestFn,
+      `${scriptStorageBase}/internal/scripts/upload-session`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(req.body ?? {})
+      }
+    );
+  });
+
+  server.post("/api/v1/scripts/register", async (req, reply) => {
+    return proxyJsonRequest(reply, requestFn, `${scriptStorageBase}/internal/scripts/register`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(req.body ?? {})
+    });
+  });
+
   server.patch("/api/v1/submissions/:submissionId/project", async (req, reply) => {
     const { submissionId } = req.params as { submissionId: string };
     const userId = await getUserIdFromAuth(requestFn, identityServiceBase, req.headers.authorization);
@@ -358,7 +381,8 @@ export async function startServer(): Promise<void> {
     identityServiceBase: process.env.IDENTITY_SERVICE_URL,
     profileServiceBase: process.env.PROFILE_SERVICE_URL,
     competitionDirectoryBase: process.env.COMPETITION_DIRECTORY_SERVICE_URL,
-    submissionTrackingBase: process.env.SUBMISSION_TRACKING_SERVICE_URL
+    submissionTrackingBase: process.env.SUBMISSION_TRACKING_SERVICE_URL,
+    scriptStorageBase: process.env.SCRIPT_STORAGE_SERVICE_URL
   });
 
   await server.listen({ port, host: "0.0.0.0" });

@@ -191,9 +191,23 @@ Script storage service endpoints (`:4011`):
 - `POST /internal/scripts/register` (registers uploaded object metadata by `scriptId`)
 - `GET /internal/scripts/:scriptId/view?viewerUserId=` (returns viewer payload with object path/URL + access flags)
 
+Gateway endpoints (`:4000`):
+- `POST /api/v1/scripts/upload-session`
+- `POST /api/v1/scripts/register`
+
 Writer web integration:
 - Viewer page scaffold: `/projects/[scriptId]/viewer`
 - Writer web API proxy: `GET /api/scripts/:scriptId/viewer` -> script-storage-service view endpoint
+- Writer web API proxies:
+  - `POST /api/v1/scripts/upload-session` -> gateway
+  - `POST /api/v1/scripts/register` -> gateway
+- Projects page draft flow (`/projects`):
+  - In `Create draft`, choose a local script file.
+  - Click `Upload + register script` to create upload session, upload object, and register metadata.
+  - Use the returned `scriptId` in the draft form (auto-filled) and complete draft creation.
+
+User guide:
+- `/Users/chris/projects/script-manifest/docs/phase-1/script-upload-user-manual.md`
 
 Quick run:
 

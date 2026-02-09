@@ -168,6 +168,90 @@ test("api-gateway proxies submission creation with auth", async (t) => {
   assert.equal(authUserIdHeader, "writer_01");
 });
 
+test("api-gateway proxies script upload session creation", async (t) => {
+  const urls: string[] = [];
+  let requestBody = "";
+  const server = buildServer({
+    logger: false,
+    requestFn: (async (url, options) => {
+      urls.push(String(url));
+      requestBody = String(options?.body ?? "");
+      return jsonResponse({
+        uploadUrl: "http://upload-svc/scripts",
+        uploadFields: { key: "writer_01/script_1/latest.pdf" },
+        bucket: "scripts",
+        objectKey: "writer_01/script_1/latest.pdf",
+        expiresAt: "2026-02-13T00:00:00.000Z"
+      }, 201);
+    }) as typeof request,
+    scriptStorageBase: "http://script-storage-svc"
+  });
+  t.after(async () => {
+    await server.close();
+  });
+
+  const response = await server.inject({
+    method: "POST",
+    url: "/api/v1/scripts/upload-session",
+    payload: {
+      scriptId: "script_1",
+      ownerUserId: "writer_01",
+      filename: "first-draft.pdf",
+      contentType: "application/pdf",
+      size: 1024
+    }
+  });
+
+  assert.equal(response.statusCode, 201);
+  assert.equal(urls[0], "http://script-storage-svc/internal/scripts/upload-session");
+  assert.match(requestBody, /"scriptId":"script_1"/);
+});
+
+test("api-gateway proxies script registration", async (t) => {
+  const urls: string[] = [];
+  let requestBody = "";
+  const server = buildServer({
+    logger: false,
+    requestFn: (async (url, options) => {
+      urls.push(String(url));
+      requestBody = String(options?.body ?? "");
+      return jsonResponse({
+        registered: true,
+        script: {
+          scriptId: "script_1",
+          ownerUserId: "writer_01",
+          objectKey: "writer_01/script_1/latest.pdf",
+          filename: "first-draft.pdf",
+          contentType: "application/pdf",
+          size: 1024,
+          registeredAt: "2026-02-13T00:00:00.000Z"
+        }
+      }, 201);
+    }) as typeof request,
+    scriptStorageBase: "http://script-storage-svc"
+  });
+  t.after(async () => {
+    await server.close();
+  });
+
+  const response = await server.inject({
+    method: "POST",
+    url: "/api/v1/scripts/register",
+    payload: {
+      scriptId: "script_1",
+      ownerUserId: "writer_01",
+      objectKey: "writer_01/script_1/latest.pdf",
+      filename: "first-draft.pdf",
+      contentType: "application/pdf",
+      size: 1024
+    }
+  });
+
+  assert.equal(response.statusCode, 201);
+  assert.equal(urls[0], "http://script-storage-svc/internal/scripts/register");
+  assert.match(requestBody, /"objectKey":"writer_01\/script_1\/latest.pdf"/);
+});
+
 test("api-gateway proxies project co-writer endpoints", async (t) => {
   const urls: string[] = [];
   const methods: Array<string | undefined> = [];

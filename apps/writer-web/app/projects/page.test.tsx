@@ -32,6 +32,7 @@ describe("ProjectsPage", () => {
     const projects: Array<Record<string, unknown>> = [];
     const coWriters: Array<Record<string, unknown>> = [];
     const drafts: Array<Record<string, unknown>> = [];
+    let uploadedScriptId = "";
 
     const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
       const url = typeof input === "string" ? input : input.toString();
@@ -99,6 +100,43 @@ describe("ProjectsPage", () => {
 
       if (url === "/api/v1/projects/project_1/drafts" && method === "GET") {
         return jsonResponse({ drafts });
+      }
+
+      if (url === "/api/v1/scripts/upload-session" && method === "POST") {
+        const payload = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
+        uploadedScriptId = String(payload.scriptId ?? "");
+        return jsonResponse(
+          {
+            uploadUrl: "http://upload-svc/scripts",
+            uploadFields: {
+              key: `writer_01/${uploadedScriptId}/latest.pdf`,
+              bucket: "scripts",
+              "Content-Type": String(payload.contentType ?? "application/octet-stream")
+            },
+            bucket: "scripts",
+            objectKey: `writer_01/${uploadedScriptId}/latest.pdf`,
+            expiresAt: "2026-02-06T00:10:00.000Z"
+          },
+          201
+        );
+      }
+
+      if (url === "http://upload-svc/scripts" && method === "POST") {
+        return new Response(null, { status: 204 });
+      }
+
+      if (url === "/api/v1/scripts/register" && method === "POST") {
+        const payload = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
+        const script = {
+          scriptId: payload.scriptId,
+          ownerUserId: payload.ownerUserId,
+          objectKey: payload.objectKey,
+          filename: payload.filename,
+          contentType: payload.contentType,
+          size: payload.size,
+          registeredAt: "2026-02-06T00:00:00.000Z"
+        };
+        return jsonResponse({ registered: true, script }, 201);
       }
 
       if (url === "/api/v1/projects/project_1/drafts" && method === "POST") {
@@ -178,12 +216,18 @@ describe("ProjectsPage", () => {
 
     await user.click(screen.getByRole("button", { name: "Create draft" }));
     const draftDialog = await screen.findByRole("dialog", { name: "Create draft" });
-    await user.type(within(draftDialog).getByLabelText("Script ID"), "script_1");
+    const scriptFile = new File(["INT. OFFICE - DAY"], "first-draft.pdf", {
+      type: "application/pdf"
+    });
+    await user.upload(within(draftDialog).getByLabelText("Script file"), scriptFile);
+    await user.click(within(draftDialog).getByRole("button", { name: "Upload + register script" }));
+    await screen.findByText(/Script uploaded and registered/);
     await user.type(within(draftDialog).getByLabelText("Version label"), "v1");
     await user.click(within(draftDialog).getByRole("button", { name: "Create draft" }));
 
     await screen.findByText("Draft created.");
-    expect(screen.getByText("v1 (script_1)")).toBeInTheDocument();
+    expect(uploadedScriptId).toBeTruthy();
+    expect(screen.getByText(`v1 (${uploadedScriptId})`)).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Create draft" }));
     const draftDialog2 = await screen.findByRole("dialog", { name: "Create draft" });

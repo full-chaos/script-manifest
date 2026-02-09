@@ -75,6 +75,9 @@ Writer web pages now wired to the gateway:
 - `/competitions`
 - `/submissions`
 
+Profile user guide:
+- `/Users/chris/projects/script-manifest/docs/phase-1/profile-fields-user-manual.md`
+
 ## Test Coverage Additions
 
 - `apps/writer-web` now runs Vitest + React Testing Library:
@@ -164,6 +167,10 @@ Search indexer service endpoints (`:4003`):
 
 Gateway endpoint (`:4000`):
 - `GET /api/v1/competitions` proxies to directory service and supports the same filters.
+- `POST /api/v1/competitions/:competitionId/deadline-reminders` proxies reminder creation.
+
+User guide:
+- `/Users/chris/projects/script-manifest/docs/phase-1/competitions-calendar-reminders-user-manual.md`
 
 Quick run:
 

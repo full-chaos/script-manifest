@@ -40,4 +40,3 @@ The UI submits:
 ## Troubleshooting
 
 - `Error: ...` status means the reminder request failed upstream.
-- If the API gateway does not yet expose `POST /api/v1/competitions/:competitionId/deadline-reminders`, reminder calls will fail until that route is available.

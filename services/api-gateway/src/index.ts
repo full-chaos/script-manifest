@@ -287,6 +287,20 @@ export function buildServer(options: ApiGatewayOptions = {}): FastifyInstance {
     );
   });
 
+  server.post("/api/v1/competitions/:competitionId/deadline-reminders", async (req, reply) => {
+    const { competitionId } = req.params as { competitionId: string };
+    return proxyJsonRequest(
+      reply,
+      requestFn,
+      `${competitionDirectoryBase}/internal/competitions/${encodeURIComponent(competitionId)}/deadline-reminders`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(req.body ?? {})
+      }
+    );
+  });
+
   server.get("/api/v1/submissions", async (req, reply) => {
     const querySuffix = buildQuerySuffix(req.query);
     return proxyJsonRequest(

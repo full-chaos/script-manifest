@@ -128,6 +128,40 @@ test("api-gateway proxies project list with query params", async (t) => {
   assert.equal(response.json().projects.length, 1);
 });
 
+test("api-gateway proxies competition deadline reminder", async (t) => {
+  const urls: string[] = [];
+  let requestBody = "";
+  const server = buildServer({
+    logger: false,
+    requestFn: (async (url, options) => {
+      urls.push(String(url));
+      requestBody = String(options?.body ?? "");
+      return jsonResponse({ accepted: true, eventId: "evt_123" }, 202);
+    }) as typeof request,
+    competitionDirectoryBase: "http://competition-svc"
+  });
+  t.after(async () => {
+    await server.close();
+  });
+
+  const response = await server.inject({
+    method: "POST",
+    url: "/api/v1/competitions/comp_001/deadline-reminders",
+    payload: {
+      targetUserId: "writer_01",
+      deadlineAt: "2026-03-01T00:00:00.000Z",
+      message: "Submission closes soon"
+    }
+  });
+
+  assert.equal(response.statusCode, 202);
+  assert.equal(
+    urls[0],
+    "http://competition-svc/internal/competitions/comp_001/deadline-reminders"
+  );
+  assert.match(requestBody, /"targetUserId":"writer_01"/);
+});
+
 test("api-gateway proxies submission creation with auth", async (t) => {
   let requestBody = "";
   let authUserIdHeader = "";

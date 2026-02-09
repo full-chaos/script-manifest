@@ -62,10 +62,15 @@ export class PgProfileProjectRepository implements ProfileProjectRepository {
       display_name: string;
       bio: string;
       genres: string[];
+      demographics: string[];
       representation_status: "represented" | "unrepresented" | "seeking_rep";
+      headshot_url: string;
+      custom_profile_url: string;
+      is_searchable: boolean;
     }>(
       `
-        SELECT writer_id, display_name, bio, genres, representation_status
+        SELECT writer_id, display_name, bio, genres, demographics, representation_status,
+               headshot_url, custom_profile_url, is_searchable
         FROM writer_profiles
         WHERE writer_id = $1
       `,
@@ -79,7 +84,11 @@ export class PgProfileProjectRepository implements ProfileProjectRepository {
         displayName: row.display_name,
         bio: row.bio,
         genres: row.genres,
-        representationStatus: row.representation_status
+        demographics: row.demographics,
+        representationStatus: row.representation_status,
+        headshotUrl: row.headshot_url,
+        customProfileUrl: row.custom_profile_url,
+        isSearchable: row.is_searchable
       };
     }
 
@@ -99,13 +108,18 @@ export class PgProfileProjectRepository implements ProfileProjectRepository {
       display_name: string;
       bio: string;
       genres: string[];
+      demographics: string[];
       representation_status: "represented" | "unrepresented" | "seeking_rep";
+      headshot_url: string;
+      custom_profile_url: string;
+      is_searchable: boolean;
     }>(
       `
         INSERT INTO writer_profiles (writer_id, display_name)
         VALUES ($1, $2)
         ON CONFLICT (writer_id) DO NOTHING
-        RETURNING writer_id, display_name, bio, genres, representation_status
+        RETURNING writer_id, display_name, bio, genres, demographics, representation_status,
+                  headshot_url, custom_profile_url, is_searchable
       `,
       [userRow.id, userRow.display_name]
     );
@@ -120,7 +134,11 @@ export class PgProfileProjectRepository implements ProfileProjectRepository {
       displayName: insertedRow.display_name,
       bio: insertedRow.bio,
       genres: insertedRow.genres,
-      representationStatus: insertedRow.representation_status
+      demographics: insertedRow.demographics,
+      representationStatus: insertedRow.representation_status,
+      headshotUrl: insertedRow.headshot_url,
+      customProfileUrl: insertedRow.custom_profile_url,
+      isSearchable: insertedRow.is_searchable
     };
   }
 
@@ -146,7 +164,11 @@ export class PgProfileProjectRepository implements ProfileProjectRepository {
         SET display_name = $2,
             bio = $3,
             genres = $4,
-            representation_status = $5,
+            demographics = $5,
+            representation_status = $6,
+            headshot_url = $7,
+            custom_profile_url = $8,
+            is_searchable = $9,
             updated_at = NOW()
         WHERE writer_id = $1
       `,
@@ -155,7 +177,11 @@ export class PgProfileProjectRepository implements ProfileProjectRepository {
         nextProfile.displayName,
         nextProfile.bio,
         nextProfile.genres,
-        nextProfile.representationStatus
+        nextProfile.demographics,
+        nextProfile.representationStatus,
+        nextProfile.headshotUrl,
+        nextProfile.customProfileUrl,
+        nextProfile.isSearchable
       ]
     );
 

@@ -26,6 +26,13 @@ const initialDraft: EditableProfile = {
   isSearchable: true
 };
 
+const initialDraft: EditableProfile = {
+  displayName: "",
+  bio: "",
+  genres: "",
+  representationStatus: "unrepresented"
+};
+
 export default function ProfilePage() {
   const [writerId, setWriterId] = useState("");
   const [profile, setProfile] = useState<WriterProfile | null>(null);

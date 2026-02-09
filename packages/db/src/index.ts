@@ -57,9 +57,22 @@ export async function ensureCoreTables(): Promise<void> {
       display_name TEXT NOT NULL,
       bio VARCHAR(5000) NOT NULL DEFAULT '',
       genres TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+      demographics TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
       representation_status TEXT NOT NULL DEFAULT 'unrepresented',
+      headshot_url VARCHAR(2048) NOT NULL DEFAULT '',
+      custom_profile_url VARCHAR(2048) NOT NULL DEFAULT '',
+      is_searchable BOOLEAN NOT NULL DEFAULT TRUE,
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
+  `);
+
+  // Backfill profile table columns for databases created before rich profile fields existed.
+  await db.query(`
+    ALTER TABLE writer_profiles
+    ADD COLUMN IF NOT EXISTS demographics TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+    ADD COLUMN IF NOT EXISTS headshot_url VARCHAR(2048) NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS custom_profile_url VARCHAR(2048) NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS is_searchable BOOLEAN NOT NULL DEFAULT TRUE;
   `);
 
   await db.query(`

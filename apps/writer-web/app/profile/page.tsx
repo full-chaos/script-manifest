@@ -8,14 +8,22 @@ type EditableProfile = {
   displayName: string;
   bio: string;
   genres: string;
+  demographics: string;
   representationStatus: WriterProfile["representationStatus"];
+  headshotUrl: string;
+  customProfileUrl: string;
+  isSearchable: boolean;
 };
 
 const initialDraft: EditableProfile = {
   displayName: "",
   bio: "",
   genres: "",
-  representationStatus: "unrepresented"
+  demographics: "",
+  representationStatus: "unrepresented",
+  headshotUrl: "",
+  customProfileUrl: "",
+  isSearchable: true
 };
 
 export default function ProfilePage() {
@@ -52,7 +60,11 @@ export default function ProfilePage() {
         displayName: nextProfile.displayName,
         bio: nextProfile.bio,
         genres: nextProfile.genres.join(", "),
-        representationStatus: nextProfile.representationStatus
+        demographics: nextProfile.demographics.join(", "),
+        representationStatus: nextProfile.representationStatus,
+        headshotUrl: nextProfile.headshotUrl,
+        customProfileUrl: nextProfile.customProfileUrl,
+        isSearchable: nextProfile.isSearchable
       });
       setStatus("Profile loaded.");
     } catch (error) {
@@ -90,7 +102,14 @@ export default function ProfilePage() {
         .split(",")
         .map((genre) => genre.trim())
         .filter(Boolean),
-      representationStatus: draft.representationStatus
+      demographics: draft.demographics
+        .split(",")
+        .map((entry) => entry.trim())
+        .filter(Boolean),
+      representationStatus: draft.representationStatus,
+      headshotUrl: draft.headshotUrl.trim(),
+      customProfileUrl: draft.customProfileUrl.trim(),
+      isSearchable: draft.isSearchable
     };
 
     try {
@@ -111,7 +130,11 @@ export default function ProfilePage() {
         displayName: updated.displayName,
         bio: updated.bio,
         genres: updated.genres.join(", "),
-        representationStatus: updated.representationStatus
+        demographics: updated.demographics.join(", "),
+        representationStatus: updated.representationStatus,
+        headshotUrl: updated.headshotUrl,
+        customProfileUrl: updated.customProfileUrl,
+        isSearchable: updated.isSearchable
       });
       setStatus("Profile saved.");
     } catch (error) {
@@ -127,8 +150,8 @@ export default function ProfilePage() {
         <p className="eyebrow">Writer Profile</p>
         <h1 className="text-4xl text-ink-900">Your public writer resume</h1>
         <p className="max-w-2xl text-ink-700">
-          Keep bio, genre focus, and representation status current. This profile underpins search,
-          discovery, and future ranking surfaces.
+          Keep your bio, genres, demographics, profile links, and search visibility current.
+          This profile underpins discovery and ranking surfaces.
         </p>
         <div className="inline-form">
           <span className="badge">Writer ID: {writerId || "Not signed in"}</span>
@@ -197,6 +220,60 @@ export default function ProfilePage() {
                 placeholder="Drama, Thriller"
               />
             </label>
+
+            <label className="stack-tight">
+              <span>Demographics (comma separated)</span>
+              <input
+                className="input"
+                value={draft.demographics}
+                onChange={(event) =>
+                  setDraft((current) => ({ ...current, demographics: event.target.value }))
+                }
+                placeholder="LGBTQ+, Veteran"
+              />
+            </label>
+
+            <div className="grid-two">
+              <label className="stack-tight">
+                <span>Headshot URL</span>
+                <input
+                  className="input"
+                  type="url"
+                  value={draft.headshotUrl}
+                  onChange={(event) => setDraft((current) => ({ ...current, headshotUrl: event.target.value }))}
+                  placeholder="https://cdn.example.com/headshot.jpg"
+                />
+              </label>
+
+              <label className="stack-tight">
+                <span>Custom profile URL</span>
+                <input
+                  className="input"
+                  type="url"
+                  value={draft.customProfileUrl}
+                  onChange={(event) =>
+                    setDraft((current) => ({ ...current, customProfileUrl: event.target.value }))
+                  }
+                  placeholder="https://profiles.example.com/your-name"
+                />
+              </label>
+            </div>
+
+            <label className="inline-form">
+              <input
+                type="checkbox"
+                checked={draft.isSearchable}
+                onChange={(event) => setDraft((current) => ({ ...current, isSearchable: event.target.checked }))}
+              />
+              <span>Allow profile in search results</span>
+            </label>
+
+            {draft.headshotUrl ? (
+              <div className="subcard">
+                <p className="eyebrow">Headshot Preview</p>
+                <img src={draft.headshotUrl} alt="Headshot preview" className="w-32 rounded-md border border-cream-300" />
+              </div>
+            ) : null}
 
             <div className="inline-form">
               <button type="submit" className="btn btn-primary" disabled={loading}>

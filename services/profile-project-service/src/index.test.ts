@@ -32,7 +32,11 @@ class MemoryRepository implements ProfileProjectRepository {
       displayName: "Writer One",
       bio: "",
       genres: ["Drama"],
-      representationStatus: "unrepresented"
+      demographics: [],
+      representationStatus: "unrepresented",
+      headshotUrl: "",
+      customProfileUrl: "",
+      isSearchable: true
     });
   }
 
@@ -276,6 +280,52 @@ test("profile-project-service returns profile when available", async (t) => {
   const response = await server.inject({ method: "GET", url: "/internal/profiles/writer_01" });
   assert.equal(response.statusCode, 200);
   assert.equal(response.json().profile.id, "writer_01");
+  assert.deepEqual(response.json().profile.demographics, []);
+  assert.equal(response.json().profile.headshotUrl, "");
+  assert.equal(response.json().profile.customProfileUrl, "");
+  assert.equal(response.json().profile.isSearchable, true);
+});
+
+test("profile-project-service round-trips rich profile fields", async (t) => {
+  const server = buildServer({
+    logger: false,
+    repository: new MemoryRepository(),
+    publisher: async () => undefined
+  });
+  t.after(async () => {
+    await server.close();
+  });
+
+  const update = await server.inject({
+    method: "PUT",
+    url: "/internal/profiles/writer_01",
+    headers: {
+      "x-auth-user-id": "writer_01"
+    },
+    payload: {
+      demographics: ["Latinx", "Disabled"],
+      headshotUrl: "https://cdn.example.com/writer_01.jpg",
+      customProfileUrl: "https://profiles.example.com/writer-one",
+      isSearchable: false
+    }
+  });
+
+  assert.equal(update.statusCode, 200);
+  assert.deepEqual(update.json().profile.demographics, ["Latinx", "Disabled"]);
+  assert.equal(update.json().profile.headshotUrl, "https://cdn.example.com/writer_01.jpg");
+  assert.equal(update.json().profile.customProfileUrl, "https://profiles.example.com/writer-one");
+  assert.equal(update.json().profile.isSearchable, false);
+
+  const reloaded = await server.inject({
+    method: "GET",
+    url: "/internal/profiles/writer_01"
+  });
+
+  assert.equal(reloaded.statusCode, 200);
+  assert.deepEqual(reloaded.json().profile.demographics, ["Latinx", "Disabled"]);
+  assert.equal(reloaded.json().profile.headshotUrl, "https://cdn.example.com/writer_01.jpg");
+  assert.equal(reloaded.json().profile.customProfileUrl, "https://profiles.example.com/writer-one");
+  assert.equal(reloaded.json().profile.isSearchable, false);
 });
 
 test("profile-project-service supports project CRUD", async (t) => {

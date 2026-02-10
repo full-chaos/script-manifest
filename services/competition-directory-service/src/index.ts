@@ -1,4 +1,4 @@
-import Fastify, { type FastifyInstance } from "fastify";
+import Fastify, { type FastifyInstance, type FastifyReply } from "fastify";
 import { randomUUID } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import { request } from "undici";
@@ -25,6 +25,9 @@ export function buildServer(options: CompetitionDirectoryOptions = {}): FastifyI
   const requestFn = options.requestFn ?? request;
   const searchIndexerBase = options.searchIndexerBase ?? "http://localhost:4003";
   const notificationServiceBase = options.notificationServiceBase ?? "http://localhost:4010";
+  const adminAllowlist = parseAllowlist(
+    process.env.COMPETITION_ADMIN_ALLOWLIST ?? "admin_01,user_admin_01"
+  );
 
   const seedCompetition = CompetitionSchema.parse({
     id: "comp_001",
@@ -94,21 +97,45 @@ export function buildServer(options: CompetitionDirectoryOptions = {}): FastifyI
       });
     }
 
-    const competition = parsedBody.data;
-    const existed = competitions.has(competition.id);
-    competitions.set(competition.id, competition);
+    return upsertCompetition(parsedBody.data, competitions, requestFn, searchIndexerBase, server, reply);
+  });
 
-    const indexing = await pushCompetitionToIndexer(requestFn, searchIndexerBase, competition);
-    if (!indexing.ok) {
-      server.log.warn({ competitionId: competition.id }, "competition saved but indexing failed");
+  server.post("/internal/admin/competitions", async (req, reply) => {
+    const adminUserId = readHeader(req.headers, "x-admin-user-id");
+    if (!adminUserId || !adminAllowlist.has(adminUserId)) {
+      return reply.status(403).send({ error: "forbidden" });
     }
 
-    return reply.status(existed ? 200 : 201).send({
-      competition,
-      upserted: true,
-      created: !existed,
-      indexed: indexing.ok
+    const parsedBody = CompetitionUpsertRequestSchema.safeParse(req.body);
+    if (!parsedBody.success) {
+      return reply.status(400).send({
+        error: "invalid_payload",
+        details: parsedBody.error.flatten()
+      });
+    }
+
+    return upsertCompetition(parsedBody.data, competitions, requestFn, searchIndexerBase, server, reply);
+  });
+
+  server.put("/internal/admin/competitions/:competitionId", async (req, reply) => {
+    const adminUserId = readHeader(req.headers, "x-admin-user-id");
+    if (!adminUserId || !adminAllowlist.has(adminUserId)) {
+      return reply.status(403).send({ error: "forbidden" });
+    }
+
+    const { competitionId } = req.params as { competitionId: string };
+    const parsedBody = CompetitionUpsertRequestSchema.safeParse({
+      ...(req.body as object),
+      id: competitionId
     });
+    if (!parsedBody.success) {
+      return reply.status(400).send({
+        error: "invalid_payload",
+        details: parsedBody.error.flatten()
+      });
+    }
+
+    return upsertCompetition(parsedBody.data, competitions, requestFn, searchIndexerBase, server, reply);
   });
 
   server.post("/internal/competitions/reindex", async (_req, reply) => {
@@ -238,4 +265,42 @@ async function readBody(upstream: Awaited<ReturnType<typeof request>>): Promise<
   } catch {
     return raw;
   }
+}
+
+async function upsertCompetition(
+  competition: Competition,
+  competitions: Map<string, Competition>,
+  requestFn: RequestFn,
+  searchIndexerBase: string,
+  server: FastifyInstance,
+  reply: FastifyReply
+) {
+  const existed = competitions.has(competition.id);
+  competitions.set(competition.id, competition);
+
+  const indexing = await pushCompetitionToIndexer(requestFn, searchIndexerBase, competition);
+  if (!indexing.ok) {
+    server.log.warn({ competitionId: competition.id }, "competition saved but indexing failed");
+  }
+
+  return reply.status(existed ? 200 : 201).send({
+    competition,
+    upserted: true,
+    created: !existed,
+    indexed: indexing.ok
+  });
+}
+
+function parseAllowlist(value: string): Set<string> {
+  return new Set(
+    value
+      .split(",")
+      .map((entry) => entry.trim())
+      .filter(Boolean)
+  );
+}
+
+function readHeader(headers: Record<string, unknown>, name: string): string | null {
+  const value = headers[name];
+  return typeof value === "string" && value.length > 0 ? value : null;
 }

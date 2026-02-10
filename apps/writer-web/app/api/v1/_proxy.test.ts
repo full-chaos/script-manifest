@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { proxyRequest } from "./_proxy";
 
 describe("proxyRequest", () => {
-  it("forwards query params and auth headers", async () => {
+  it("forwards query params, auth headers, and admin headers", async () => {
     const originalFetch = globalThis.fetch;
     const calls: Array<{ url: string; init?: RequestInit }> = [];
     process.env.API_GATEWAY_URL = "http://gateway";
@@ -20,7 +20,8 @@ describe("proxyRequest", () => {
         new Request("http://localhost/api/v1/projects?ownerUserId=user_1", {
           method: "GET",
           headers: {
-            authorization: "Bearer sess_1"
+            authorization: "Bearer sess_1",
+            "x-admin-user-id": "admin_01"
           }
         }),
         "/api/v1/projects"
@@ -32,6 +33,9 @@ describe("proxyRequest", () => {
       expect(
         (call?.init?.headers as Headers | undefined)?.get("authorization")
       ).toBe("Bearer sess_1");
+      expect(
+        (call?.init?.headers as Headers | undefined)?.get("x-admin-user-id")
+      ).toBe("admin_01");
     } finally {
       globalThis.fetch = originalFetch;
     }

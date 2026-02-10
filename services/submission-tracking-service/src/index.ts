@@ -2,6 +2,8 @@ import Fastify, { type FastifyInstance } from "fastify";
 import { randomUUID } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import {
+  PlacementFiltersSchema,
+  PlacementListItemSchema,
   PlacementCreateRequestSchema,
   PlacementSchema,
   PlacementVerificationUpdateRequestSchema,
@@ -10,6 +12,7 @@ import {
   SubmissionProjectReassignmentRequestSchema,
   SubmissionSchema,
   type Placement,
+  type PlacementListItem,
   type Submission
 } from "@script-manifest/contracts";
 
@@ -167,6 +170,95 @@ export function buildServer(options: SubmissionTrackingOptions = {}): FastifyIns
     return reply.status(201).send({ placement, submission: updatedSubmission });
   });
 
+  server.get("/internal/submissions/:submissionId/placements", async (req, reply) => {
+    const { submissionId } = req.params as { submissionId: string };
+    const submission = submissions.get(submissionId);
+    if (!submission) {
+      return reply.status(404).send({ error: "submission_not_found" });
+    }
+
+    const authUserId = getAuthUserId(req.headers);
+    if (authUserId && authUserId !== submission.writerId) {
+      return reply.status(403).send({ error: "forbidden" });
+    }
+
+    const items = Array.from(placements.values())
+      .filter((placement) => placement.submissionId === submissionId)
+      .map((placement) => toPlacementListItem(placement, submission));
+
+    return reply.send({ placements: items });
+  });
+
+  server.get("/internal/placements", async (req, reply) => {
+    const parsedQuery = PlacementFiltersSchema.safeParse(req.query);
+    if (!parsedQuery.success) {
+      return reply.status(400).send({
+        error: "invalid_query",
+        details: parsedQuery.error.flatten()
+      });
+    }
+
+    const authUserId = getAuthUserId(req.headers);
+    const filters = parsedQuery.data;
+    if (authUserId && filters.writerId && filters.writerId !== authUserId) {
+      return reply.status(403).send({ error: "forbidden" });
+    }
+
+    const filteredPlacements = Array.from(placements.values()).flatMap((placement) => {
+      const submission = submissions.get(placement.submissionId);
+      if (!submission) {
+        return [];
+      }
+
+      if (authUserId && submission.writerId !== authUserId) {
+        return [];
+      }
+
+      if (filters.submissionId && placement.submissionId !== filters.submissionId) {
+        return [];
+      }
+      if (filters.writerId && submission.writerId !== filters.writerId) {
+        return [];
+      }
+      if (filters.projectId && submission.projectId !== filters.projectId) {
+        return [];
+      }
+      if (filters.competitionId && submission.competitionId !== filters.competitionId) {
+        return [];
+      }
+      if (filters.status && placement.status !== filters.status) {
+        return [];
+      }
+      if (filters.verificationState && placement.verificationState !== filters.verificationState) {
+        return [];
+      }
+
+      return [toPlacementListItem(placement, submission)];
+    });
+
+    return reply.send({ placements: filteredPlacements });
+  });
+
+  server.get("/internal/placements/:placementId", async (req, reply) => {
+    const { placementId } = req.params as { placementId: string };
+    const placement = placements.get(placementId);
+    if (!placement) {
+      return reply.status(404).send({ error: "placement_not_found" });
+    }
+
+    const submission = submissions.get(placement.submissionId);
+    if (!submission) {
+      return reply.status(404).send({ error: "submission_not_found" });
+    }
+
+    const authUserId = getAuthUserId(req.headers);
+    if (authUserId && authUserId !== submission.writerId) {
+      return reply.status(403).send({ error: "forbidden" });
+    }
+
+    return reply.send({ placement: toPlacementListItem(placement, submission) });
+  });
+
   server.post("/internal/placements/:placementId/verify", async (req, reply) => {
     const { placementId } = req.params as { placementId: string };
     const placement = placements.get(placementId);
@@ -195,6 +287,15 @@ export function buildServer(options: SubmissionTrackingOptions = {}): FastifyIns
   });
 
   return server;
+}
+
+function toPlacementListItem(placement: Placement, submission: Submission): PlacementListItem {
+  return PlacementListItemSchema.parse({
+    ...placement,
+    writerId: submission.writerId,
+    projectId: submission.projectId,
+    competitionId: submission.competitionId
+  });
 }
 
 export async function startServer(): Promise<void> {

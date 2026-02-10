@@ -11,6 +11,10 @@ import type {
   ProjectDraftUpdateRequest,
   ProjectFilters,
   ProjectUpdateRequest,
+  ScriptAccessRequest,
+  ScriptAccessRequestCreateRequest,
+  ScriptAccessRequestFilters,
+  ScriptAccessRequestStatus,
   WriterProfile,
   WriterProfileUpdateRequest
 } from "@script-manifest/contracts";
@@ -23,8 +27,10 @@ class MemoryRepository implements ProfileProjectRepository {
   private projects = new Map<string, Project>();
   private coWriters = new Map<string, ProjectCoWriter[]>();
   private drafts = new Map<string, ProjectDraft[]>();
+  private accessRequests = new Map<string, ScriptAccessRequest>();
   private nextProject = 1;
   private nextDraft = 1;
+  private nextAccessRequest = 1;
 
   constructor() {
     this.profiles.set("writer_01", {
@@ -264,6 +270,86 @@ class MemoryRepository implements ProfileProjectRepository {
     }));
     this.drafts.set(projectId, next);
     return next.find((entry) => entry.id === draftId) ?? null;
+  }
+
+  async createScriptAccessRequest(
+    scriptId: string,
+    input: ScriptAccessRequestCreateRequest
+  ): Promise<ScriptAccessRequest | null> {
+    if (!this.users.has(input.requesterUserId) || !this.users.has(input.ownerUserId)) {
+      return null;
+    }
+
+    const now = new Date().toISOString();
+    const accessRequest: ScriptAccessRequest = {
+      id: `access_${this.nextAccessRequest}`,
+      scriptId,
+      requesterUserId: input.requesterUserId,
+      ownerUserId: input.ownerUserId,
+      status: "pending",
+      reason: input.reason ?? "",
+      decisionReason: null,
+      decidedByUserId: null,
+      requestedAt: now,
+      decidedAt: null,
+      createdAt: now,
+      updatedAt: now
+    };
+    this.nextAccessRequest += 1;
+    this.accessRequests.set(accessRequest.id, accessRequest);
+    return accessRequest;
+  }
+
+  async listScriptAccessRequests(
+    scriptId: string,
+    filters: ScriptAccessRequestFilters
+  ): Promise<ScriptAccessRequest[]> {
+    return Array.from(this.accessRequests.values())
+      .filter((entry) => {
+        if (entry.scriptId !== scriptId) {
+          return false;
+        }
+        if (filters.requesterUserId && entry.requesterUserId !== filters.requesterUserId) {
+          return false;
+        }
+        if (filters.ownerUserId && entry.ownerUserId !== filters.ownerUserId) {
+          return false;
+        }
+        if (filters.status && entry.status !== filters.status) {
+          return false;
+        }
+        return true;
+      })
+      .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+  }
+
+  async decideScriptAccessRequest(
+    scriptId: string,
+    requestId: string,
+    ownerUserId: string,
+    status: Exclude<ScriptAccessRequestStatus, "pending">,
+    decisionReason?: string
+  ): Promise<ScriptAccessRequest | null> {
+    const existing = this.accessRequests.get(requestId);
+    if (
+      !existing ||
+      existing.scriptId !== scriptId ||
+      existing.ownerUserId !== ownerUserId ||
+      existing.status !== "pending"
+    ) {
+      return null;
+    }
+
+    const next: ScriptAccessRequest = {
+      ...existing,
+      status,
+      decisionReason: decisionReason ?? null,
+      decidedByUserId: ownerUserId,
+      decidedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    this.accessRequests.set(requestId, next);
+    return next;
   }
 }
 
@@ -556,6 +642,9 @@ test("profile-project-service records access request and emits notification", as
   const response = await server.inject({
     method: "POST",
     url: "/internal/scripts/script_123/access-requests",
+    headers: {
+      "x-auth-user-id": "writer_02"
+    },
     payload: {
       requesterUserId: "writer_02",
       ownerUserId: "writer_01"
@@ -563,6 +652,105 @@ test("profile-project-service records access request and emits notification", as
   });
 
   assert.equal(response.statusCode, 202);
+  assert.equal(response.json().accessRequest.status, "pending");
   assert.equal(published.length, 1);
   assert.equal(published[0]?.eventType, "script_access_requested");
+});
+
+test("profile-project-service supports access request history and owner decisions", async (t) => {
+  const published: NotificationEventEnvelope[] = [];
+  const server = buildServer({
+    logger: false,
+    repository: new MemoryRepository(),
+    publisher: async (event) => {
+      published.push(event);
+    }
+  });
+  t.after(async () => {
+    await server.close();
+  });
+
+  const created = await server.inject({
+    method: "POST",
+    url: "/internal/scripts/script_abc/access-requests",
+    headers: {
+      "x-auth-user-id": "writer_02"
+    },
+    payload: {
+      requesterUserId: "writer_02",
+      ownerUserId: "writer_01",
+      reason: "Need notes"
+    }
+  });
+  assert.equal(created.statusCode, 202);
+  const accessRequestId = created.json().accessRequest.id as string;
+
+  const requesterList = await server.inject({
+    method: "GET",
+    url: "/internal/scripts/script_abc/access-requests",
+    headers: {
+      "x-auth-user-id": "writer_02"
+    }
+  });
+  assert.equal(requesterList.statusCode, 200);
+  assert.equal(requesterList.json().accessRequests.length, 1);
+
+  const approve = await server.inject({
+    method: "POST",
+    url: `/internal/scripts/script_abc/access-requests/${accessRequestId}/approve`,
+    headers: {
+      "x-auth-user-id": "writer_01"
+    },
+    payload: {
+      decisionReason: "Approved for review"
+    }
+  });
+  assert.equal(approve.statusCode, 200);
+  assert.equal(approve.json().accessRequest.status, "approved");
+  assert.equal(approve.json().accessRequest.decidedByUserId, "writer_01");
+  assert.ok(approve.json().accessRequest.decidedAt);
+
+  const second = await server.inject({
+    method: "POST",
+    url: "/internal/scripts/script_xyz/access-requests",
+    headers: {
+      "x-auth-user-id": "writer_03"
+    },
+    payload: {
+      requesterUserId: "writer_03",
+      ownerUserId: "writer_01"
+    }
+  });
+  assert.equal(second.statusCode, 202);
+  const secondRequestId = second.json().accessRequest.id as string;
+
+  const reject = await server.inject({
+    method: "POST",
+    url: `/internal/scripts/script_xyz/access-requests/${secondRequestId}/reject`,
+    headers: {
+      "x-auth-user-id": "writer_01"
+    },
+    payload: {
+      decisionReason: "Not at this time"
+    }
+  });
+  assert.equal(reject.statusCode, 200);
+  assert.equal(reject.json().accessRequest.status, "rejected");
+  assert.equal(reject.json().accessRequest.decisionReason, "Not at this time");
+
+  const ownerApprovedList = await server.inject({
+    method: "GET",
+    url: "/internal/scripts/script_abc/access-requests?status=approved",
+    headers: {
+      "x-auth-user-id": "writer_01"
+    }
+  });
+  assert.equal(ownerApprovedList.statusCode, 200);
+  assert.equal(ownerApprovedList.json().accessRequests.length, 1);
+  assert.equal(ownerApprovedList.json().accessRequests[0].status, "approved");
+
+  assert.equal(
+    published.some((event) => event.eventType === "script_access_approved"),
+    true
+  );
 });

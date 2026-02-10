@@ -19,6 +19,7 @@ export default function SignInPage() {
   const [session, setSession] = useState<AuthSessionResponse | null>(null);
   const [status, setStatus] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
+  const [oauthSubmitting, setOauthSubmitting] = useState(false);
 
   useEffect(() => {
     setSession(readStoredSession());
@@ -81,6 +82,53 @@ export default function SignInPage() {
       clearStoredSession();
       setSession(null);
       setStatus("Signed out.");
+    }
+  }
+
+  async function signInWithGithub() {
+    setStatus("");
+    setOauthSubmitting(true);
+
+    try {
+      const startResponse = await fetch("/api/v1/auth/oauth/github/start", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          loginHint: email.trim() || displayName.trim() || "writer"
+        })
+      });
+      const startBody = await startResponse.json();
+      if (!startResponse.ok) {
+        setStatus(startBody.error ? `Error: ${startBody.error}` : "Unable to start OAuth flow.");
+        return;
+      }
+
+      const authorizationUrl = new URL(startBody.authorizationUrl as string);
+      const state = authorizationUrl.searchParams.get("state");
+      const code = authorizationUrl.searchParams.get("code");
+      if (!state || !code) {
+        setStatus("OAuth start payload missing state/code.");
+        return;
+      }
+
+      const callbackResponse = await fetch(
+        `/api/v1/auth/oauth/github/callback?state=${encodeURIComponent(state)}&code=${encodeURIComponent(code)}`,
+        { method: "GET" }
+      );
+      const callbackBody = await callbackResponse.json();
+      if (!callbackResponse.ok) {
+        setStatus(callbackBody.error ? `Error: ${callbackBody.error}` : "OAuth callback failed.");
+        return;
+      }
+
+      writeStoredSession(callbackBody as AuthSessionResponse);
+      setSession(callbackBody as AuthSessionResponse);
+      setPassword("");
+      setStatus("Signed in with GitHub OAuth.");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "unknown_error");
+    } finally {
+      setOauthSubmitting(false);
     }
   }
 
@@ -170,6 +218,14 @@ export default function SignInPage() {
             <div className="inline-form">
               <button type="submit" className="btn btn-primary" disabled={submitting}>
                 {submitting ? "Submitting..." : modeLabel}
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => void signInWithGithub()}
+                disabled={oauthSubmitting}
+              >
+                {oauthSubmitting ? "Connecting..." : "Continue with GitHub"}
               </button>
             </div>
           </form>

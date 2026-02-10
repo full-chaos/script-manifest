@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import SignInPage from "./page";
@@ -12,6 +12,7 @@ function jsonResponse(payload: unknown, status = 200): Response {
 
 describe("SignInPage", () => {
   beforeEach(() => {
+    cleanup();
     window.localStorage.clear();
     vi.restoreAllMocks();
   });
@@ -68,5 +69,51 @@ describe("SignInPage", () => {
     await waitFor(() => {
       expect(screen.getByText("Error: invalid_credentials")).toBeInTheDocument();
     });
+  });
+
+  it("supports mocked GitHub OAuth flow", async () => {
+    const fetchMock = vi.fn<typeof fetch>(async (input) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url === "/api/v1/auth/oauth/github/start") {
+        return jsonResponse(
+          {
+            provider: "github",
+            state: "state_1234567890123456",
+            callbackUrl: "http://localhost:4005/internal/auth/oauth/github/callback",
+            authorizationUrl:
+              "http://localhost:4005/internal/auth/oauth/github/callback?state=state_1234567890123456&code=code_1234567890123456",
+            mockCode: "code_1234567890123456",
+            expiresAt: "2026-02-13T00:00:00.000Z"
+          },
+          201
+        );
+      }
+
+      if (url.startsWith("/api/v1/auth/oauth/github/callback?")) {
+        return jsonResponse({
+          token: "oauth_sess_1",
+          expiresAt: "2026-02-13T00:00:00.000Z",
+          user: {
+            id: "user_oauth",
+            email: "github+writer@oauth.local",
+            displayName: "Writer (github)"
+          }
+        });
+      }
+
+      throw new Error(`Unexpected request: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<SignInPage />);
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole("button", { name: "Continue with GitHub" }));
+    await screen.findByText(/Signed in as/);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/auth/oauth/github/start",
+      expect.objectContaining({ method: "POST" })
+    );
+    expect(window.localStorage.getItem("script_manifest_session")).toContain("oauth_sess_1");
   });
 });

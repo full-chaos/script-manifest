@@ -32,6 +32,7 @@ describe("ProjectsPage", () => {
     const projects: Array<Record<string, unknown>> = [];
     const coWriters: Array<Record<string, unknown>> = [];
     const drafts: Array<Record<string, unknown>> = [];
+    const accessRequests: Array<Record<string, unknown>> = [];
     let uploadedScriptId = "";
 
     const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
@@ -100,6 +101,10 @@ describe("ProjectsPage", () => {
 
       if (url === "/api/v1/projects/project_1/drafts" && method === "GET") {
         return jsonResponse({ drafts });
+      }
+
+      if (url.includes("/api/v1/scripts/") && url.includes("/access-requests") && method === "GET") {
+        return jsonResponse({ accessRequests });
       }
 
       if (url === "/api/v1/scripts/upload-session" && method === "POST") {
@@ -186,6 +191,40 @@ describe("ProjectsPage", () => {
         return jsonResponse({ draft });
       }
 
+      if (url.includes("/api/v1/scripts/") && url.endsWith("/access-requests") && method === "POST") {
+        const payload = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
+        const accessRequest = {
+          id: "access_1",
+          scriptId: uploadedScriptId || "script_1",
+          requesterUserId: payload.requesterUserId,
+          ownerUserId: payload.ownerUserId,
+          status: "pending",
+          reason: payload.reason ?? "",
+          decisionReason: null,
+          decidedByUserId: null,
+          requestedAt: "2026-02-06T00:00:00.000Z",
+          decidedAt: null,
+          createdAt: "2026-02-06T00:00:00.000Z",
+          updatedAt: "2026-02-06T00:00:00.000Z"
+        };
+        accessRequests.unshift(accessRequest);
+        return jsonResponse({ accepted: true, eventId: "evt_1", accessRequest }, 202);
+      }
+
+      if (url.includes("/api/v1/scripts/") && url.endsWith("/access-requests/access_1/approve") && method === "POST") {
+        if (accessRequests[0]) {
+          accessRequests[0] = {
+            ...accessRequests[0],
+            status: "approved",
+            decisionReason: "Looks good",
+            decidedByUserId: "writer_01",
+            decidedAt: "2026-02-06T01:00:00.000Z",
+            updatedAt: "2026-02-06T01:00:00.000Z"
+          };
+        }
+        return jsonResponse({ accessRequest: accessRequests[0] });
+      }
+
       throw new Error(`Unexpected request: ${method} ${url}`);
     });
 
@@ -249,6 +288,19 @@ describe("ProjectsPage", () => {
 
     await user.click(within(draftCard).getByRole("button", { name: "Archive draft" }));
     await screen.findByText("Draft archived.");
+
+    await user.click(screen.getByRole("button", { name: "New access request" }));
+    const accessDialog = await screen.findByRole("dialog", { name: "Create script access request" });
+    await user.type(within(accessDialog).getByLabelText("Requester user ID"), "writer_02");
+    await user.type(within(accessDialog).getByLabelText("Reason (optional)"), "Please share for notes");
+    await user.click(within(accessDialog).getByRole("button", { name: "Record request" }));
+
+    await screen.findByText("Access request recorded.");
+    expect(screen.getAllByText("writer_02").length).toBeGreaterThan(0);
+
+    await user.type(screen.getByPlaceholderText("Decision reason (optional)"), "Looks good");
+    await user.click(screen.getByRole("button", { name: "Approve" }));
+    await screen.findByText("Access request approved.");
 
     await user.click(screen.getByRole("button", { name: "Remove co-writer" }));
     await screen.findByText("Co-writer removed.");

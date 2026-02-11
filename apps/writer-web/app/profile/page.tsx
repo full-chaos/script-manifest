@@ -2,6 +2,8 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import type { WriterProfile, WriterProfileUpdateRequest } from "@script-manifest/contracts";
+import { SkeletonText } from "../components/skeleton";
+import { useToast } from "../components/toast";
 import { getAuthHeaders, readStoredSession } from "../lib/authSession";
 
 type EditableProfile = {
@@ -27,10 +29,13 @@ const initialDraft: EditableProfile = {
 };
 
 export default function ProfilePage() {
+  const toast = useToast();
   const [writerId, setWriterId] = useState("");
   const [profile, setProfile] = useState<WriterProfile | null>(null);
   const [draft, setDraft] = useState<EditableProfile>(initialDraft);
   const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [exporting, setExporting] = useState<"csv" | "zip" | null>(null);
   const [status, setStatus] = useState("");
 
   async function loadProfile(explicitWriterId?: string) {
@@ -50,7 +55,7 @@ export default function ProfilePage() {
       });
       const body = await response.json();
       if (!response.ok) {
-        setStatus(body.error ? `Error: ${body.error}` : "Profile load failed.");
+        toast.error(body.error ? `${body.error as string}` : "Profile load failed.");
         return;
       }
 
@@ -68,9 +73,10 @@ export default function ProfilePage() {
       });
       setStatus("Profile loaded.");
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "unknown_error");
+      toast.error(error instanceof Error ? error.message : "Failed to load profile.");
     } finally {
       setLoading(false);
+      setInitialLoading(false);
     }
   }
 
@@ -78,6 +84,7 @@ export default function ProfilePage() {
     const session = readStoredSession();
     if (!session) {
       setStatus("Sign in to load your profile.");
+      setInitialLoading(false);
       return;
     }
 
@@ -88,7 +95,7 @@ export default function ProfilePage() {
   async function saveProfile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!writerId.trim()) {
-      setStatus("Sign in to update your profile.");
+      toast.error("Sign in to update your profile.");
       return;
     }
 
@@ -120,7 +127,7 @@ export default function ProfilePage() {
       });
       const body = await response.json();
       if (!response.ok) {
-        setStatus(body.error ? `Error: ${body.error}` : "Profile save failed.");
+        toast.error(body.error ? `${body.error as string}` : "Profile save failed.");
         return;
       }
 
@@ -136,11 +143,46 @@ export default function ProfilePage() {
         customProfileUrl: updated.customProfileUrl,
         isSearchable: updated.isSearchable
       });
-      setStatus("Profile saved.");
+      toast.success("Profile saved.");
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "unknown_error");
+      toast.error(error instanceof Error ? error.message : "Failed to save profile.");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function downloadExport(format: "csv" | "zip") {
+    setExporting(format);
+    setStatus("");
+    try {
+      const response = await fetch(`/api/v1/export/${format}`, {
+        headers: getAuthHeaders()
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        toast.error(
+          body && typeof body === "object" && "error" in body
+            ? `${(body as { error: string }).error}`
+            : "Export failed."
+        );
+        return;
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = format === "csv"
+        ? "script-manifest-export.csv"
+        : "script-manifest-export.zip";
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+      toast.success(`${format.toUpperCase()} export downloaded.`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Export failed.");
+    } finally {
+      setExporting(null);
     }
   }
 
@@ -164,6 +206,15 @@ export default function ProfilePage() {
       {!writerId ? (
         <article className="empty-state">
           Sign in first to load and edit your profile.
+        </article>
+      ) : null}
+
+      {initialLoading && writerId ? (
+        <article className="panel">
+          <div className="stack">
+            <SkeletonText />
+            <SkeletonText className="mt-4" />
+          </div>
         </article>
       ) : null}
 
@@ -281,6 +332,31 @@ export default function ProfilePage() {
               </button>
             </div>
           </form>
+        </article>
+      ) : null}
+
+      {writerId ? (
+        <article className="panel">
+          <p className="eyebrow">Data Export</p>
+          <p className="text-ink-700">Download a copy of all your account data.</p>
+          <div className="inline-form">
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={exporting !== null}
+              onClick={() => void downloadExport("csv")}
+            >
+              {exporting === "csv" ? "Exporting..." : "Export CSV"}
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={exporting !== null}
+              onClick={() => void downloadExport("zip")}
+            >
+              {exporting === "zip" ? "Exporting..." : "Export All (ZIP)"}
+            </button>
+          </div>
         </article>
       ) : null}
 

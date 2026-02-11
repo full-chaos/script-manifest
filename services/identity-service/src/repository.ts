@@ -7,6 +7,7 @@ export type IdentityUser = {
   displayName: string;
   passwordHash: string;
   passwordSalt: string;
+  role: string;
 };
 
 export type IdentitySession = {
@@ -21,13 +22,27 @@ export type RegisterUserInput = {
   displayName: string;
 };
 
+export type OAuthStateRecord = {
+  codeVerifier: string;
+  provider: string;
+  redirectUri?: string;
+  mockEmail?: string;
+  mockDisplayName?: string;
+  mockCode?: string;
+  expiresAt: string;
+};
+
 export interface IdentityRepository {
   init(): Promise<void>;
+  healthCheck(): Promise<{ database: boolean }>;
   registerUser(input: RegisterUserInput): Promise<IdentityUser | null>;
   findUserByEmail(email: string): Promise<IdentityUser | null>;
   createSession(userId: string): Promise<IdentitySession>;
   findUserBySessionToken(token: string): Promise<{ user: IdentityUser; session: IdentitySession } | null>;
   deleteSession(token: string): Promise<void>;
+  saveOAuthState(state: string, record: OAuthStateRecord): Promise<void>;
+  getAndDeleteOAuthState(state: string): Promise<OAuthStateRecord | null>;
+  cleanExpiredOAuthState(): Promise<void>;
 }
 
 export function hashPassword(password: string, salt: string): string {
@@ -43,8 +58,35 @@ export function verifyPassword(password: string, hash: string, salt: string): bo
 }
 
 export class PgIdentityRepository implements IdentityRepository {
+  async healthCheck(): Promise<{ database: boolean }> {
+    try {
+      await getPool().query("SELECT 1");
+      return { database: true };
+    } catch {
+      return { database: false };
+    }
+  }
+
   async init(): Promise<void> {
     await ensureCoreTables();
+    const db = getPool();
+    await db.query(`
+      ALTER TABLE app_users
+      ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'writer';
+    `);
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS oauth_state (
+        state TEXT PRIMARY KEY,
+        code_verifier TEXT NOT NULL,
+        provider TEXT NOT NULL,
+        redirect_uri TEXT,
+        mock_email TEXT,
+        mock_display_name TEXT,
+        mock_code TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        expires_at TIMESTAMPTZ NOT NULL
+      );
+    `);
   }
 
   async registerUser(input: RegisterUserInput): Promise<IdentityUser | null> {
@@ -63,11 +105,12 @@ export class PgIdentityRepository implements IdentityRepository {
         display_name: string;
         password_hash: string;
         password_salt: string;
+        role: string;
       }>(
         `
           INSERT INTO app_users (id, email, display_name, password_hash, password_salt)
           VALUES ($1, $2, $3, $4, $5)
-          RETURNING id, email, display_name, password_hash, password_salt
+          RETURNING id, email, display_name, password_hash, password_salt, role
         `,
         [id, input.email.toLowerCase(), input.displayName, passwordHash, passwordSalt]
       );
@@ -94,7 +137,8 @@ export class PgIdentityRepository implements IdentityRepository {
         email: user.email,
         displayName: user.display_name,
         passwordHash: user.password_hash,
-        passwordSalt: user.password_salt
+        passwordSalt: user.password_salt,
+        role: user.role
       };
     } catch (error) {
       await client.query("ROLLBACK");
@@ -117,9 +161,10 @@ export class PgIdentityRepository implements IdentityRepository {
       display_name: string;
       password_hash: string;
       password_salt: string;
+      role: string;
     }>(
       `
-        SELECT id, email, display_name, password_hash, password_salt
+        SELECT id, email, display_name, password_hash, password_salt, role
         FROM app_users
         WHERE email = $1
       `,
@@ -136,7 +181,8 @@ export class PgIdentityRepository implements IdentityRepository {
       email: user.email,
       displayName: user.display_name,
       passwordHash: user.password_hash,
-      passwordSalt: user.password_salt
+      passwordSalt: user.password_salt,
+      role: user.role
     };
   }
 
@@ -174,6 +220,7 @@ export class PgIdentityRepository implements IdentityRepository {
       display_name: string;
       password_hash: string;
       password_salt: string;
+      role: string;
     }>(
       `
         SELECT
@@ -184,7 +231,8 @@ export class PgIdentityRepository implements IdentityRepository {
           u.email,
           u.display_name,
           u.password_hash,
-          u.password_salt
+          u.password_salt,
+          u.role
         FROM app_sessions s
         JOIN app_users u ON u.id = s.user_id
         WHERE s.token = $1
@@ -213,7 +261,8 @@ export class PgIdentityRepository implements IdentityRepository {
         email: row.email,
         displayName: row.display_name,
         passwordHash: row.password_hash,
-        passwordSalt: row.password_salt
+        passwordSalt: row.password_salt,
+        role: row.role
       }
     };
   }
@@ -221,6 +270,66 @@ export class PgIdentityRepository implements IdentityRepository {
   async deleteSession(token: string): Promise<void> {
     const db = getPool();
     await db.query(`DELETE FROM app_sessions WHERE token = $1`, [token]);
+  }
+
+  async saveOAuthState(state: string, record: OAuthStateRecord): Promise<void> {
+    const db = getPool();
+    await db.query(
+      `
+        INSERT INTO oauth_state (state, code_verifier, provider, redirect_uri, mock_email, mock_display_name, mock_code, expires_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `,
+      [
+        state,
+        record.codeVerifier,
+        record.provider,
+        record.redirectUri ?? null,
+        record.mockEmail ?? null,
+        record.mockDisplayName ?? null,
+        record.mockCode ?? null,
+        record.expiresAt
+      ]
+    );
+  }
+
+  async getAndDeleteOAuthState(state: string): Promise<OAuthStateRecord | null> {
+    const db = getPool();
+    const result = await db.query<{
+      code_verifier: string;
+      provider: string;
+      redirect_uri: string | null;
+      mock_email: string | null;
+      mock_display_name: string | null;
+      mock_code: string | null;
+      expires_at: string;
+    }>(
+      `
+        DELETE FROM oauth_state
+        WHERE state = $1
+        RETURNING code_verifier, provider, redirect_uri, mock_email, mock_display_name, mock_code, expires_at
+      `,
+      [state]
+    );
+
+    const row = result.rows[0];
+    if (!row) {
+      return null;
+    }
+
+    return {
+      codeVerifier: row.code_verifier,
+      provider: row.provider,
+      redirectUri: row.redirect_uri ?? undefined,
+      mockEmail: row.mock_email ?? undefined,
+      mockDisplayName: row.mock_display_name ?? undefined,
+      mockCode: row.mock_code ?? undefined,
+      expiresAt: typeof row.expires_at === "string" ? row.expires_at : new Date(row.expires_at as unknown as string).toISOString()
+    };
+  }
+
+  async cleanExpiredOAuthState(): Promise<void> {
+    const db = getPool();
+    await db.query(`DELETE FROM oauth_state WHERE expires_at < NOW()`);
   }
 }
 

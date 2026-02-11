@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ToastProvider } from "../components/toast";
 import ProfilePage from "./page";
 
 function jsonResponse(payload: unknown, status = 200): Response {
@@ -8,6 +9,10 @@ function jsonResponse(payload: unknown, status = 200): Response {
     status,
     headers: { "content-type": "application/json" }
   });
+}
+
+function renderWithProviders(ui: React.ReactElement) {
+  return render(<ToastProvider>{ui}</ToastProvider>);
 }
 
 describe("ProfilePage", () => {
@@ -63,7 +68,7 @@ describe("ProfilePage", () => {
       );
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<ProfilePage />);
+    renderWithProviders(<ProfilePage />);
     const user = userEvent.setup();
 
     await screen.findByDisplayValue("Writer One");
@@ -84,7 +89,7 @@ describe("ProfilePage", () => {
     await user.selectOptions(screen.getByLabelText("Representation status"), "seeking_rep");
     await user.click(screen.getByRole("button", { name: "Save profile" }));
 
-    await screen.findByText("Profile saved.");
+    await screen.findByDisplayValue("Writer Updated");
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
       "/api/v1/profiles/writer_01",

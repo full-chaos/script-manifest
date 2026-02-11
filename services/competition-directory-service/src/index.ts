@@ -21,7 +21,13 @@ export type CompetitionDirectoryOptions = {
 };
 
 export function buildServer(options: CompetitionDirectoryOptions = {}): FastifyInstance {
-  const server = Fastify({ logger: options.logger ?? true });
+  const server = Fastify({
+    logger: options.logger === false ? false : {
+      level: process.env.LOG_LEVEL ?? "info",
+    },
+    genReqId: (req) => (req.headers["x-request-id"] as string) ?? randomUUID(),
+    requestIdHeader: "x-request-id",
+  });
   const requestFn = options.requestFn ?? request;
   const searchIndexerBase = options.searchIndexerBase ?? "http://localhost:4003";
   const notificationServiceBase = options.notificationServiceBase ?? "http://localhost:4010";
@@ -41,10 +47,21 @@ export function buildServer(options: CompetitionDirectoryOptions = {}): FastifyI
 
   const competitions = new Map<string, Competition>([[seedCompetition.id, seedCompetition]]);
 
+  const startedAt = Date.now();
+
   server.get("/health", async () => ({
     service: "competition-directory-service",
     ok: true,
+    uptime: Math.floor((Date.now() - startedAt) / 1000),
     count: competitions.size
+  }));
+
+  server.get("/health/live", async () => ({ ok: true }));
+
+  server.get("/health/ready", async () => ({
+    service: "competition-directory-service",
+    ok: true,
+    uptime: Math.floor((Date.now() - startedAt) / 1000)
   }));
 
   server.get("/internal/competitions", async (req, reply) => {

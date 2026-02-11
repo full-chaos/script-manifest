@@ -177,7 +177,8 @@ export type AuthLoginRequest = z.infer<typeof AuthLoginRequestSchema>;
 export const AuthUserSchema = z.object({
   id: z.string().min(1),
   email: z.string().email(),
-  displayName: z.string().min(1)
+  displayName: z.string().min(1),
+  role: z.string().default("writer").optional()
 });
 
 export type AuthUser = z.infer<typeof AuthUserSchema>;
@@ -213,7 +214,8 @@ export const OAuthStartResponseSchema = z.object({
   state: z.string().min(16),
   callbackUrl: z.string().url(),
   authorizationUrl: z.string().url(),
-  mockCode: z.string().min(16),
+  mockCode: z.string().min(16).optional(),
+  codeChallenge: z.string().min(1).optional(),
   expiresAt: z.string().datetime({ offset: true })
 });
 
@@ -284,6 +286,10 @@ export type CompetitionFilters = z.infer<typeof CompetitionFiltersSchema>;
 
 export const CompetitionIndexDocumentSchema = CompetitionSchema;
 export const CompetitionIndexBulkRequestSchema = z.array(CompetitionIndexDocumentSchema);
+
+export const ScriptVisibilitySchema = z.enum(["private", "approved_only", "public"]);
+
+export type ScriptVisibility = z.infer<typeof ScriptVisibilitySchema>;
 
 export const ScriptUploadSessionRequestSchema = z.object({
   scriptId: z.string().min(1),

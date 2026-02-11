@@ -1,4 +1,5 @@
 import Fastify, { type FastifyInstance } from "fastify";
+import { randomUUID } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import {
   ScriptFileRegistrationSchema,
@@ -8,8 +9,15 @@ import {
   ScriptUploadSessionResponseSchema,
   ScriptViewRequestSchema,
   ScriptViewResponseSchema,
-  type ScriptFileRegistration
+  ScriptVisibilitySchema,
+  type ScriptFileRegistration,
+  type ScriptVisibility
 } from "@script-manifest/contracts";
+
+type ScriptRecord = ScriptFileRegistration & {
+  visibility: ScriptVisibility;
+  approvedViewers: Set<string>;
+};
 
 export type ScriptStorageServiceOptions = {
   logger?: boolean;
@@ -19,14 +27,20 @@ export type ScriptStorageServiceOptions = {
 };
 
 export function buildServer(options: ScriptStorageServiceOptions = {}): FastifyInstance {
-  const server = Fastify({ logger: options.logger ?? true });
+  const server = Fastify({
+    logger: options.logger === false ? false : {
+      level: process.env.LOG_LEVEL ?? "info",
+    },
+    genReqId: (req) => (req.headers["x-request-id"] as string) ?? randomUUID(),
+    requestIdHeader: "x-request-id",
+  });
   const storageBucket = options.storageBucket ?? "scripts";
   const uploadBaseUrl = options.uploadBaseUrl ?? "http://localhost:9000";
   const publicBaseUrl = options.publicBaseUrl ?? uploadBaseUrl;
 
-  const scripts = new Map<string, ScriptFileRegistration>();
+  const scripts = new Map<string, ScriptRecord>();
 
-  const demoScript = ScriptFileRegistrationSchema.parse({
+  const demoRegistration = ScriptFileRegistrationSchema.parse({
     scriptId: "script_demo_01",
     ownerUserId: "writer_01",
     objectKey: "writer_01/script_demo_01/latest.pdf",
@@ -35,9 +49,30 @@ export function buildServer(options: ScriptStorageServiceOptions = {}): FastifyI
     size: 240_000,
     registeredAt: new Date().toISOString()
   });
+  const demoScript: ScriptRecord = {
+    ...demoRegistration,
+    visibility: "private",
+    approvedViewers: new Set()
+  };
   scripts.set(demoScript.scriptId, demoScript);
 
-  server.get("/health", async () => ({ service: "script-storage-service", ok: true }));
+  server.get("/health", async (_req, reply) => {
+    const checks: Record<string, boolean> = {
+      storage: Boolean(storageBucket)
+    };
+    const ok = Object.values(checks).every(Boolean);
+    return reply.status(ok ? 200 : 503).send({ service: "script-storage-service", ok, checks });
+  });
+
+  server.get("/health/live", async () => ({ ok: true }));
+
+  server.get("/health/ready", async (_req, reply) => {
+    const checks: Record<string, boolean> = {
+      storage: Boolean(storageBucket)
+    };
+    const ok = Object.values(checks).every(Boolean);
+    return reply.status(ok ? 200 : 503).send({ service: "script-storage-service", ok, checks });
+  });
 
   server.post("/internal/scripts/upload-session", async (req, reply) => {
     const parseResult = ScriptUploadSessionRequestSchema.safeParse(req.body);
@@ -79,10 +114,15 @@ export function buildServer(options: ScriptStorageServiceOptions = {}): FastifyI
       });
     }
 
-    const script = ScriptFileRegistrationSchema.parse({
+    const registration = ScriptFileRegistrationSchema.parse({
       ...parseResult.data,
       registeredAt: new Date().toISOString()
     });
+    const script: ScriptRecord = {
+      ...registration,
+      visibility: "private",
+      approvedViewers: new Set()
+    };
     scripts.set(script.scriptId, script);
 
     const responsePayload = ScriptRegisterResponseSchema.parse({
@@ -112,8 +152,16 @@ export function buildServer(options: ScriptStorageServiceOptions = {}): FastifyI
       return reply.status(404).send({ error: "script_not_found" });
     }
 
-    const isOwner = viewerUserId === script.ownerUserId;
-    const canView = viewerUserId === undefined || isOwner;
+    const isOwner = viewerUserId !== undefined && viewerUserId === script.ownerUserId;
+    let canView: boolean;
+    if (script.visibility === "public") {
+      canView = true;
+    } else if (script.visibility === "approved_only") {
+      canView = isOwner || (viewerUserId !== undefined && script.approvedViewers.has(viewerUserId));
+    } else {
+      // "private" — only owner
+      canView = isOwner;
+    }
     const viewerPath = toUrlPath(storageBucket, script.objectKey);
     const viewerUrl = new URL(viewerPath, publicBaseUrl).toString();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
@@ -135,6 +183,32 @@ export function buildServer(options: ScriptStorageServiceOptions = {}): FastifyI
     });
 
     return reply.send(responsePayload);
+  });
+
+  server.patch("/internal/scripts/:scriptId/visibility", async (req, reply) => {
+    const { scriptId } = req.params as { scriptId: string };
+    const body = req.body as { visibility?: string; ownerUserId?: string };
+    const ownerUserId = body.ownerUserId ?? (req.headers["x-auth-user-id"] as string | undefined);
+
+    const script = scripts.get(scriptId);
+    if (!script) {
+      return reply.status(404).send({ error: "script_not_found" });
+    }
+
+    if (!ownerUserId || ownerUserId !== script.ownerUserId) {
+      return reply.status(403).send({ error: "forbidden" });
+    }
+
+    const parsed = ScriptVisibilitySchema.safeParse(body.visibility);
+    if (!parsed.success) {
+      return reply.status(400).send({
+        error: "invalid_visibility",
+        issues: parsed.error.issues
+      });
+    }
+
+    script.visibility = parsed.data;
+    return reply.send({ scriptId, visibility: script.visibility });
   });
 
   return server;

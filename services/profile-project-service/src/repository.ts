@@ -23,6 +23,7 @@ import type {
 
 export interface ProfileProjectRepository {
   init(): Promise<void>;
+  healthCheck(): Promise<{ database: boolean }>;
   userExists(userId: string): Promise<boolean>;
   getProfile(writerId: string): Promise<WriterProfile | null>;
   upsertProfile(writerId: string, update: WriterProfileUpdateRequest): Promise<WriterProfile | null>;
@@ -62,6 +63,15 @@ export interface ProfileProjectRepository {
 export class PgProfileProjectRepository implements ProfileProjectRepository {
   async init(): Promise<void> {
     await ensureCoreTables();
+  }
+
+  async healthCheck(): Promise<{ database: boolean }> {
+    try {
+      await getPool().query("SELECT 1");
+      return { database: true };
+    } catch {
+      return { database: false };
+    }
   }
 
   async userExists(userId: string): Promise<boolean> {

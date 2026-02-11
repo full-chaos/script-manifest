@@ -38,8 +38,15 @@ export async function ensureCoreTables(): Promise<void> {
       password_hash TEXT NOT NULL,
       password_salt TEXT NOT NULL,
       display_name TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'writer',
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
+  `);
+
+  // Backfill role column for databases created before admin roles existed.
+  await db.query(`
+    ALTER TABLE app_users
+    ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'writer';
   `);
 
   await db.query(`

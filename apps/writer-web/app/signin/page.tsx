@@ -21,9 +21,49 @@ export default function SignInPage() {
   const [submitting, setSubmitting] = useState(false);
   const [oauthSubmitting, setOauthSubmitting] = useState(false);
 
+  // On mount: restore session + handle GitHub OAuth callback redirect
   useEffect(() => {
     setSession(readStoredSession());
+
+    // Detect ?code=&state= query params from GitHub OAuth redirect
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get("code");
+    const state = params.get("state");
+    if (code && state) {
+      // Clear query params from URL to prevent replay
+      window.history.replaceState({}, "", window.location.pathname);
+      void completeOAuthFromRedirect(state, code);
+    }
   }, []);
+
+  async function completeOAuthFromRedirect(state: string, code: string) {
+    setOauthSubmitting(true);
+    setStatus("");
+
+    try {
+      const completeResponse = await fetch("/api/v1/auth/oauth/github/complete", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ state, code })
+      });
+      const completeBody = await completeResponse.json();
+      if (!completeResponse.ok) {
+        setStatus(
+          completeBody.error ? `Error: ${completeBody.error}` : "OAuth callback failed."
+        );
+        return;
+      }
+
+      writeStoredSession(completeBody as AuthSessionResponse);
+      setSession(completeBody as AuthSessionResponse);
+      setPassword("");
+      setStatus("Signed in with GitHub OAuth.");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "unknown_error");
+    } finally {
+      setOauthSubmitting(false);
+    }
+  }
 
   const modeLabel = useMemo(() => (mode === "register" ? "Create account" : "Sign in"), [mode]);
 
@@ -104,6 +144,14 @@ export default function SignInPage() {
       }
 
       const authorizationUrl = new URL(startBody.authorizationUrl as string);
+
+      // Real GitHub OAuth: redirect the browser to GitHub
+      if (authorizationUrl.hostname === "github.com") {
+        window.location.href = authorizationUrl.toString();
+        return;
+      }
+
+      // Mock flow: extract state/code from the mock authorization URL and complete inline
       const state = authorizationUrl.searchParams.get("state");
       const code = authorizationUrl.searchParams.get("code");
       if (!state || !code) {

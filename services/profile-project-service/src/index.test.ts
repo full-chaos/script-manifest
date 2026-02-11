@@ -48,6 +48,10 @@ class MemoryRepository implements ProfileProjectRepository {
 
   async init(): Promise<void> {}
 
+  async healthCheck(): Promise<{ database: boolean }> {
+    return { database: true };
+  }
+
   async userExists(userId: string): Promise<boolean> {
     return this.users.has(userId);
   }
@@ -402,9 +406,13 @@ test("profile-project-service round-trips rich profile fields", async (t) => {
   assert.equal(update.json().profile.customProfileUrl, "https://profiles.example.com/writer-one");
   assert.equal(update.json().profile.isSearchable, false);
 
+  // Owner can still see their own non-searchable profile
   const reloaded = await server.inject({
     method: "GET",
-    url: "/internal/profiles/writer_01"
+    url: "/internal/profiles/writer_01",
+    headers: {
+      "x-auth-user-id": "writer_01"
+    }
   });
 
   assert.equal(reloaded.statusCode, 200);
@@ -412,6 +420,23 @@ test("profile-project-service round-trips rich profile fields", async (t) => {
   assert.equal(reloaded.json().profile.headshotUrl, "https://cdn.example.com/writer_01.jpg");
   assert.equal(reloaded.json().profile.customProfileUrl, "https://profiles.example.com/writer-one");
   assert.equal(reloaded.json().profile.isSearchable, false);
+
+  // Non-owner gets 404 for non-searchable profile
+  const nonOwner = await server.inject({
+    method: "GET",
+    url: "/internal/profiles/writer_01",
+    headers: {
+      "x-auth-user-id": "writer_02"
+    }
+  });
+  assert.equal(nonOwner.statusCode, 404);
+
+  // Unauthenticated gets 404 for non-searchable profile
+  const unauthed = await server.inject({
+    method: "GET",
+    url: "/internal/profiles/writer_01"
+  });
+  assert.equal(unauthed.statusCode, 404);
 });
 
 test("profile-project-service supports project CRUD", async (t) => {

@@ -1,6 +1,7 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ToastProvider } from "../components/toast";
 import SubmissionsPage from "./page";
 
 function jsonResponse(payload: unknown, status = 200): Response {
@@ -8,6 +9,10 @@ function jsonResponse(payload: unknown, status = 200): Response {
     status,
     headers: { "content-type": "application/json" }
   });
+}
+
+function renderWithProviders(ui: React.ReactElement) {
+  return render(<ToastProvider>{ui}</ToastProvider>);
 }
 
 describe("SubmissionsPage", () => {
@@ -158,7 +163,7 @@ describe("SubmissionsPage", () => {
 
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<SubmissionsPage />);
+    renderWithProviders(<SubmissionsPage />);
     const user = userEvent.setup();
 
     await screen.findByText("Submission data loaded.");
@@ -167,15 +172,17 @@ describe("SubmissionsPage", () => {
     const dialog = await screen.findByRole("dialog", { name: "Create submission" });
     await user.click(within(dialog).getByRole("button", { name: "Create submission" }));
 
-    await screen.findByText("Submission recorded.");
-    expect(screen.getByText("submission_1")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText("submission_1")).toBeInTheDocument();
+    });
     expect(screen.getByText(/project project_1/i)).toBeInTheDocument();
 
     await user.selectOptions(screen.getByLabelText("Move target for submission_1"), "project_2");
     await user.click(screen.getByRole("button", { name: "Move submission" }));
 
-    await screen.findByText("Submission moved.");
-    expect(screen.getByText(/project project_2/i)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText(/project project_2/i)).toBeInTheDocument();
+    });
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/v1/submissions/submission_1/project",
       expect.objectContaining({ method: "PATCH" })
@@ -187,11 +194,13 @@ describe("SubmissionsPage", () => {
     await user.selectOptions(within(placementDialog).getByLabelText("Placement status"), "finalist");
     await user.click(within(placementDialog).getByRole("button", { name: "Create placement" }));
 
-    await screen.findByText("Placement recorded.");
-    expect(screen.getByText(/finalist \| pending/i)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText(/finalist \| pending/i)).toBeInTheDocument();
+    });
 
     await user.click(screen.getByRole("button", { name: "Mark verified" }));
-    await screen.findByText("Placement marked verified.");
-    expect(screen.getByText(/finalist \| verified/i)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText(/finalist \| verified/i)).toBeInTheDocument();
+    });
   });
 });

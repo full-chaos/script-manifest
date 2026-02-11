@@ -21,7 +21,13 @@ export type SubmissionTrackingOptions = {
 };
 
 export function buildServer(options: SubmissionTrackingOptions = {}): FastifyInstance {
-  const server = Fastify({ logger: options.logger ?? true });
+  const server = Fastify({
+    logger: options.logger === false ? false : {
+      level: process.env.LOG_LEVEL ?? "info",
+    },
+    genReqId: (req) => (req.headers["x-request-id"] as string) ?? randomUUID(),
+    requestIdHeader: "x-request-id",
+  });
   const submissions = new Map<string, Submission>();
   const placements = new Map<string, Placement>();
 
@@ -30,11 +36,22 @@ export function buildServer(options: SubmissionTrackingOptions = {}): FastifyIns
     return typeof userId === "string" && userId.length > 0 ? userId : null;
   };
 
+  const startedAt = Date.now();
+
   server.get("/health", async () => ({
     service: "submission-tracking-service",
     ok: true,
+    uptime: Math.floor((Date.now() - startedAt) / 1000),
     submissions: submissions.size,
     placements: placements.size
+  }));
+
+  server.get("/health/live", async () => ({ ok: true }));
+
+  server.get("/health/ready", async () => ({
+    service: "submission-tracking-service",
+    ok: true,
+    uptime: Math.floor((Date.now() - startedAt) / 1000)
   }));
 
   server.post("/internal/submissions", async (req, reply) => {

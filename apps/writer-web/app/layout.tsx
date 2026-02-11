@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Cormorant_Garamond, Manrope } from "next/font/google";
 import "./globals.css";
+import { Providers } from "./components/providers";
 import { SiteHeader } from "./components/siteHeader";
 
 const displayFont = Cormorant_Garamond({
@@ -40,12 +41,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         >
           Skip to content
         </a>
-        <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-4 px-4 py-4 md:px-6 md:py-6">
-          <SiteHeader />
-          <main id="main-content" className="pb-10">
-            {children}
-          </main>
-        </div>
+        <Providers>
+          <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-4 px-4 py-4 md:px-6 md:py-6">
+            <SiteHeader />
+            <main id="main-content" className="pb-10">
+              {children}
+            </main>
+          </div>
+        </Providers>
       </body>
     </html>
   );

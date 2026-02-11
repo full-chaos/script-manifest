@@ -12,6 +12,8 @@ import type {
   ScriptUploadSessionResponse
 } from "@script-manifest/contracts";
 import { Modal } from "../components/modal";
+import { SkeletonCard } from "../components/skeleton";
+import { useToast } from "../components/toast";
 import { getAuthHeaders, readStoredSession } from "../lib/authSession";
 
 type ProjectForm = {
@@ -50,6 +52,16 @@ const initialDraftForm: DraftForm = {
   setPrimary: true
 };
 
+type UploadStep = "idle" | "creating_session" | "uploading" | "registering" | "done";
+
+const uploadStepLabels: Record<UploadStep, string> = {
+  idle: "",
+  creating_session: "Step 1/3: Creating upload session...",
+  uploading: "Step 2/3: Uploading script file...",
+  registering: "Step 3/3: Registering script...",
+  done: "Upload complete."
+};
+
 function createScriptId(): string {
   const randomId = globalThis.crypto?.randomUUID?.();
   if (randomId) {
@@ -64,6 +76,7 @@ function getScriptContentType(file: File): string {
 }
 
 export default function ProjectsPage() {
+  const toast = useToast();
   const [ownerUserId, setOwnerUserId] = useState("");
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState("");
@@ -79,6 +92,7 @@ export default function ProjectsPage() {
   const [draftUploadFile, setDraftUploadFile] = useState<File | null>(null);
   const [scriptUploadLoading, setScriptUploadLoading] = useState(false);
   const [uploadedScriptId, setUploadedScriptId] = useState("");
+  const [uploadStep, setUploadStep] = useState<UploadStep>("idle");
 
   const [projectModalOpen, setProjectModalOpen] = useState(false);
   const [coWriterModalOpen, setCoWriterModalOpen] = useState(false);
@@ -86,6 +100,7 @@ export default function ProjectsPage() {
   const [accessRequestModalOpen, setAccessRequestModalOpen] = useState(false);
 
   const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [contextLoading, setContextLoading] = useState(false);
   const [status, setStatus] = useState("");
   const [requesterUserId, setRequesterUserId] = useState("");
@@ -98,6 +113,7 @@ export default function ProjectsPage() {
     const session = readStoredSession();
     if (!session) {
       setStatus("Sign in to load your projects.");
+      setInitialLoading(false);
       return;
     }
 
@@ -127,7 +143,7 @@ export default function ProjectsPage() {
       ]);
 
       if (!coWritersResponse.ok || !draftsResponse.ok) {
-        setStatus("Failed to load co-writers or drafts.");
+        toast.error("Failed to load co-writers or drafts.");
         return;
       }
 
@@ -140,7 +156,7 @@ export default function ProjectsPage() {
       setSelectedScriptId(nextScriptId);
       await loadAccessRequests(nextScriptId);
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "unknown_error");
+      toast.error(error instanceof Error ? error.message : "Failed to load project context.");
     } finally {
       setContextLoading(false);
     }
@@ -159,29 +175,28 @@ export default function ProjectsPage() {
       );
       const body = await response.json();
       if (!response.ok) {
-        setStatus(body.error ? `Error: ${body.error}` : "Unable to load access requests.");
+        toast.error(body.error ? `${body.error as string}` : "Unable to load access requests.");
         return;
       }
 
       setAccessRequests((body.accessRequests as ScriptAccessRequest[]) ?? []);
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "unknown_error");
+      toast.error(error instanceof Error ? error.message : "Failed to load access requests.");
     }
   }
 
   async function createAccessRequest(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selectedScriptId) {
-      setStatus("Select a script before creating an access request.");
+      toast.error("Select a script before creating an access request.");
       return;
     }
     if (!requesterUserId.trim()) {
-      setStatus("Requester user ID is required.");
+      toast.error("Requester user ID is required.");
       return;
     }
 
     setLoading(true);
-    setStatus("");
     try {
       const response = await fetch(
         `/api/v1/scripts/${encodeURIComponent(selectedScriptId)}/access-requests`,
@@ -197,7 +212,7 @@ export default function ProjectsPage() {
       );
       const body = await response.json();
       if (!response.ok) {
-        setStatus(body.error ? `Error: ${body.error}` : "Unable to create access request.");
+        toast.error(body.error ? `${body.error as string}` : "Unable to create access request.");
         return;
       }
 
@@ -205,9 +220,9 @@ export default function ProjectsPage() {
       setAccessRequestReason("");
       setAccessRequestModalOpen(false);
       await loadAccessRequests(selectedScriptId);
-      setStatus("Access request recorded.");
+      toast.success("Access request recorded.");
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "unknown_error");
+      toast.error(error instanceof Error ? error.message : "Failed to create access request.");
     } finally {
       setLoading(false);
     }
@@ -219,7 +234,6 @@ export default function ProjectsPage() {
     }
 
     setLoading(true);
-    setStatus("");
     try {
       const response = await fetch(
         `/api/v1/scripts/${encodeURIComponent(selectedScriptId)}/access-requests/${encodeURIComponent(requestId)}/${action}`,
@@ -233,15 +247,15 @@ export default function ProjectsPage() {
       );
       const body = await response.json();
       if (!response.ok) {
-        setStatus(body.error ? `Error: ${body.error}` : `Unable to ${action} access request.`);
+        toast.error(body.error ? `${body.error as string}` : `Unable to ${action} access request.`);
         return;
       }
 
       await loadAccessRequests(selectedScriptId);
       setDecisionReason("");
-      setStatus(`Access request ${action}d.`);
+      toast.success(`Access request ${action}d.`);
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "unknown_error");
+      toast.error(error instanceof Error ? error.message : `Failed to ${action} access request.`);
     } finally {
       setLoading(false);
     }
@@ -260,7 +274,6 @@ export default function ProjectsPage() {
     }
 
     setLoading(true);
-    setStatus("");
     try {
       const response = await fetch(
         `/api/v1/projects?ownerUserId=${encodeURIComponent(targetOwnerId)}`,
@@ -268,7 +281,7 @@ export default function ProjectsPage() {
       );
       const body = await response.json();
       if (!response.ok) {
-        setStatus(body.error ? `Error: ${body.error}` : "Unable to load projects.");
+        toast.error(body.error ? `${body.error as string}` : "Unable to load projects.");
         return;
       }
 
@@ -280,21 +293,21 @@ export default function ProjectsPage() {
       await loadProjectContext(nextSelected);
       setStatus(`Loaded ${rows.length as number} projects.`);
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "unknown_error");
+      toast.error(error instanceof Error ? error.message : "Failed to load projects.");
     } finally {
       setLoading(false);
+      setInitialLoading(false);
     }
   }
 
   async function createProject(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!ownerUserId.trim()) {
-      setStatus("Owner ID is required.");
+      toast.error("Owner ID is required.");
       return;
     }
 
     setLoading(true);
-    setStatus("");
 
     const payload: ProjectCreateRequest = {
       title: projectForm.title,
@@ -314,7 +327,7 @@ export default function ProjectsPage() {
       });
       const body = await response.json();
       if (!response.ok) {
-        setStatus(body.error ? `Error: ${body.error}` : "Unable to create project.");
+        toast.error(body.error ? `${body.error as string}` : "Unable to create project.");
         return;
       }
 
@@ -323,9 +336,9 @@ export default function ProjectsPage() {
       setProjectModalOpen(false);
       setProjects((current) => [created, ...current]);
       await selectProject(created.id);
-      setStatus("Project created.");
+      toast.success("Project created.");
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "unknown_error");
+      toast.error(error instanceof Error ? error.message : "Failed to create project.");
     } finally {
       setLoading(false);
     }
@@ -333,7 +346,6 @@ export default function ProjectsPage() {
 
   async function deleteProject(projectId: string) {
     setLoading(true);
-    setStatus("");
     try {
       const response = await fetch(`/api/v1/projects/${encodeURIComponent(projectId)}`, {
         method: "DELETE",
@@ -341,7 +353,7 @@ export default function ProjectsPage() {
       });
       if (!response.ok) {
         const body = await response.json();
-        setStatus(body.error ? `Error: ${body.error}` : "Delete failed.");
+        toast.error(body.error ? `${body.error as string}` : "Delete failed.");
         return;
       }
 
@@ -352,9 +364,9 @@ export default function ProjectsPage() {
         setSelectedProjectId(next);
         await loadProjectContext(next);
       }
-      setStatus("Project deleted.");
+      toast.success("Project deleted.");
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "unknown_error");
+      toast.error(error instanceof Error ? error.message : "Failed to delete project.");
     } finally {
       setLoading(false);
     }
@@ -363,12 +375,11 @@ export default function ProjectsPage() {
   async function addCoWriter(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selectedProjectId || !coWriterUserId.trim()) {
-      setStatus("Select a project and provide a co-writer user ID.");
+      toast.error("Select a project and provide a co-writer user ID.");
       return;
     }
 
     setLoading(true);
-    setStatus("");
     try {
       const response = await fetch(
         `/api/v1/projects/${encodeURIComponent(selectedProjectId)}/co-writers`,
@@ -383,7 +394,7 @@ export default function ProjectsPage() {
       );
       const body = await response.json();
       if (!response.ok) {
-        setStatus(body.error ? `Error: ${body.error}` : "Unable to add co-writer.");
+        toast.error(body.error ? `${body.error as string}` : "Unable to add co-writer.");
         return;
       }
 
@@ -391,9 +402,9 @@ export default function ProjectsPage() {
       setCoWriterCreditOrder(2);
       setCoWriterModalOpen(false);
       await loadProjectContext(selectedProjectId);
-      setStatus("Co-writer added.");
+      toast.success("Co-writer added.");
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "unknown_error");
+      toast.error(error instanceof Error ? error.message : "Failed to add co-writer.");
     } finally {
       setLoading(false);
     }
@@ -405,7 +416,6 @@ export default function ProjectsPage() {
     }
 
     setLoading(true);
-    setStatus("");
     try {
       const response = await fetch(
         `/api/v1/projects/${encodeURIComponent(selectedProjectId)}/co-writers/${encodeURIComponent(coWriterId)}`,
@@ -413,14 +423,14 @@ export default function ProjectsPage() {
       );
       if (!response.ok) {
         const body = await response.json();
-        setStatus(body.error ? `Error: ${body.error}` : "Unable to remove co-writer.");
+        toast.error(body.error ? `${body.error as string}` : "Unable to remove co-writer.");
         return;
       }
 
       await loadProjectContext(selectedProjectId);
-      setStatus("Co-writer removed.");
+      toast.success("Co-writer removed.");
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "unknown_error");
+      toast.error(error instanceof Error ? error.message : "Failed to remove co-writer.");
     } finally {
       setLoading(false);
     }
@@ -428,19 +438,19 @@ export default function ProjectsPage() {
 
   async function uploadAndRegisterScript() {
     if (!ownerUserId.trim()) {
-      setStatus("Sign in to upload scripts.");
+      toast.error("Sign in to upload scripts.");
       return;
     }
 
     if (!draftUploadFile) {
-      setStatus("Select a script file before uploading.");
+      toast.error("Select a script file before uploading.");
       return;
     }
 
     const scriptId = createScriptId();
     const contentType = getScriptContentType(draftUploadFile);
     setScriptUploadLoading(true);
-    setStatus("");
+    setUploadStep("creating_session");
 
     try {
       const uploadSessionResponse = await fetch("/api/v1/scripts/upload-session", {
@@ -459,14 +469,15 @@ export default function ProjectsPage() {
         | { error?: string };
 
       if (!uploadSessionResponse.ok) {
-        setStatus(
+        toast.error(
           "error" in uploadSessionBody && uploadSessionBody.error
-            ? `Error: ${uploadSessionBody.error}`
+            ? `${uploadSessionBody.error}`
             : "Unable to create script upload session."
         );
         return;
       }
 
+      setUploadStep("uploading");
       const uploadSession = uploadSessionBody as ScriptUploadSessionResponse;
       const formData = new FormData();
       for (const [key, value] of Object.entries(uploadSession.uploadFields)) {
@@ -480,10 +491,11 @@ export default function ProjectsPage() {
       });
       if (!uploadResponse.ok) {
         const detail = await uploadResponse.text();
-        setStatus(detail ? `Upload failed: ${detail}` : "Upload failed.");
+        toast.error(detail ? `Upload failed: ${detail}` : "Upload failed.");
         return;
       }
 
+      setUploadStep("registering");
       const registerResponse = await fetch("/api/v1/scripts/register", {
         method: "POST",
         headers: { "content-type": "application/json", ...getAuthHeaders() },
@@ -500,9 +512,9 @@ export default function ProjectsPage() {
         | ScriptRegisterResponse
         | { error?: string };
       if (!registerResponse.ok) {
-        setStatus(
+        toast.error(
           "error" in registerBody && registerBody.error
-            ? `Error: ${registerBody.error}`
+            ? `${registerBody.error}`
             : "Unable to register uploaded script."
         );
         return;
@@ -512,9 +524,10 @@ export default function ProjectsPage() {
       const nextScriptId = registerPayload.script.scriptId;
       setDraftForm((current) => ({ ...current, scriptId: nextScriptId }));
       setUploadedScriptId(nextScriptId);
-      setStatus(`Script uploaded and registered (${nextScriptId}).`);
+      setUploadStep("done");
+      toast.success(`Script uploaded and registered (${nextScriptId}).`);
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "unknown_error");
+      toast.error(error instanceof Error ? error.message : "Script upload failed.");
     } finally {
       setScriptUploadLoading(false);
     }
@@ -523,16 +536,15 @@ export default function ProjectsPage() {
   async function createDraft(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selectedProjectId || !ownerUserId) {
-      setStatus("Select a project and sign in first.");
+      toast.error("Select a project and sign in first.");
       return;
     }
     if (!draftForm.scriptId.trim()) {
-      setStatus("Upload/register a script or enter a script ID first.");
+      toast.error("Upload/register a script or enter a script ID first.");
       return;
     }
 
     setLoading(true);
-    setStatus("");
     try {
       const response = await fetch(`/api/v1/projects/${encodeURIComponent(selectedProjectId)}/drafts`, {
         method: "POST",
@@ -547,18 +559,19 @@ export default function ProjectsPage() {
       });
       const body = await response.json();
       if (!response.ok) {
-        setStatus(body.error ? `Error: ${body.error}` : "Unable to create draft.");
+        toast.error(body.error ? `${body.error as string}` : "Unable to create draft.");
         return;
       }
 
       setDraftForm(initialDraftForm);
       setDraftUploadFile(null);
       setUploadedScriptId("");
+      setUploadStep("idle");
       setDraftModalOpen(false);
       await loadProjectContext(selectedProjectId);
-      setStatus("Draft created.");
+      toast.success("Draft created.");
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "unknown_error");
+      toast.error(error instanceof Error ? error.message : "Failed to create draft.");
     } finally {
       setLoading(false);
     }
@@ -570,7 +583,6 @@ export default function ProjectsPage() {
     }
 
     setLoading(true);
-    setStatus("");
     try {
       const response = await fetch(
         `/api/v1/projects/${encodeURIComponent(selectedProjectId)}/drafts/${encodeURIComponent(draftId)}/primary`,
@@ -581,14 +593,14 @@ export default function ProjectsPage() {
       );
       const body = await response.json();
       if (!response.ok) {
-        setStatus(body.error ? `Error: ${body.error}` : "Unable to set primary draft.");
+        toast.error(body.error ? `${body.error as string}` : "Unable to set primary draft.");
         return;
       }
 
       await loadProjectContext(selectedProjectId);
-      setStatus("Primary draft updated.");
+      toast.success("Primary draft updated.");
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "unknown_error");
+      toast.error(error instanceof Error ? error.message : "Failed to set primary draft.");
     } finally {
       setLoading(false);
     }
@@ -600,7 +612,6 @@ export default function ProjectsPage() {
     }
 
     setLoading(true);
-    setStatus("");
     try {
       const response = await fetch(
         `/api/v1/projects/${encodeURIComponent(selectedProjectId)}/drafts/${encodeURIComponent(draftId)}`,
@@ -612,14 +623,14 @@ export default function ProjectsPage() {
       );
       const body = await response.json();
       if (!response.ok) {
-        setStatus(body.error ? `Error: ${body.error}` : "Unable to archive draft.");
+        toast.error(body.error ? `${body.error as string}` : "Unable to archive draft.");
         return;
       }
 
       await loadProjectContext(selectedProjectId);
-      setStatus("Draft archived.");
+      toast.success("Draft archived.");
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "unknown_error");
+      toast.error(error instanceof Error ? error.message : "Failed to archive draft.");
     } finally {
       setLoading(false);
     }
@@ -655,53 +666,62 @@ export default function ProjectsPage() {
           <span className="badge">{projects.length} total</span>
         </div>
 
-        {projects.length === 0 ? <p className="empty-state">No projects found.</p> : null}
+        {initialLoading && ownerUserId ? (
+          <div className="grid gap-3 md:grid-cols-2">
+            <SkeletonCard />
+            <SkeletonCard />
+          </div>
+        ) : projects.length === 0 ? (
+          <p className="empty-state">No projects found.</p>
+        ) : null}
 
-        <div className="grid gap-3 md:grid-cols-2">
-          {projects.map((project) => {
-            const active = project.id === selectedProjectId;
-            return (
-              <article
-                key={project.id}
-                className={
-                  active
-                    ? "subcard border-ember-500/60 bg-ember-500/10"
-                    : "subcard"
-                }
-              >
-                <div className="subcard-header">
-                  <strong className="text-lg text-ink-900">{project.title}</strong>
-                  <span className="badge">{project.format}</span>
-                </div>
-                <p className="mt-2 text-sm text-ink-700">{project.logline || "No logline provided."}</p>
-                <p className="muted mt-2">
-                  {project.genre} | {project.pageCount} pages | {project.isDiscoverable ? "Discoverable" : "Private"}
-                </p>
-                <div className="inline-form mt-3">
-                  <button
-                    type="button"
-                    className={active ? "btn btn-primary" : "btn btn-secondary"}
-                    onClick={() => void selectProject(project.id)}
-                    disabled={contextLoading}
-                  >
-                    {active ? "Selected" : "Select"}
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-danger"
-                    onClick={() => void deleteProject(project.id)}
-                    disabled={loading}
-                  >
-                    Delete
-                  </button>
-                </div>
-                <p className="muted mt-2">
-                  Viewer scaffold: <Link href="/projects/script_demo_01/viewer">open demo script viewer</Link>
-                </p>
-              </article>
-            );
-          })}
-        </div>
+        {!initialLoading ? (
+          <div className="grid gap-3 md:grid-cols-2">
+            {projects.map((project) => {
+              const active = project.id === selectedProjectId;
+              return (
+                <article
+                  key={project.id}
+                  className={
+                    active
+                      ? "subcard border-ember-500/60 bg-ember-500/10"
+                      : "subcard"
+                  }
+                >
+                  <div className="subcard-header">
+                    <strong className="text-lg text-ink-900">{project.title}</strong>
+                    <span className="badge">{project.format}</span>
+                  </div>
+                  <p className="mt-2 text-sm text-ink-700">{project.logline || "No logline provided."}</p>
+                  <p className="muted mt-2">
+                    {project.genre} | {project.pageCount} pages | {project.isDiscoverable ? "Discoverable" : "Private"}
+                  </p>
+                  <div className="inline-form mt-3">
+                    <button
+                      type="button"
+                      className={active ? "btn btn-primary" : "btn btn-secondary"}
+                      onClick={() => void selectProject(project.id)}
+                      disabled={contextLoading}
+                    >
+                      {active ? "Selected" : "Select"}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-danger"
+                      onClick={() => void deleteProject(project.id)}
+                      disabled={loading}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                  <p className="muted mt-2">
+                    Viewer scaffold: <Link href="/projects/script_demo_01/viewer">open demo script viewer</Link>
+                  </p>
+                </article>
+              );
+            })}
+          </div>
+        ) : null}
       </article>
 
       <article className="panel stack">
@@ -1047,6 +1067,25 @@ export default function ProjectsPage() {
             </button>
             {uploadedScriptId ? <span className="badge">Uploaded: {uploadedScriptId}</span> : null}
           </div>
+
+          {uploadStep !== "idle" && uploadStep !== "done" ? (
+            <div className="space-y-1">
+              <p className="text-sm font-semibold text-tide-700">{uploadStepLabels[uploadStep]}</p>
+              <div className="h-2 overflow-hidden rounded-full bg-cream-200">
+                <div
+                  className="h-full rounded-full bg-tide-500 transition-all duration-500"
+                  style={{
+                    width:
+                      uploadStep === "creating_session"
+                        ? "33%"
+                        : uploadStep === "uploading"
+                          ? "66%"
+                          : "100%"
+                  }}
+                />
+              </div>
+            </div>
+          ) : null}
 
           <div className="grid-two">
             <label className="stack-tight">

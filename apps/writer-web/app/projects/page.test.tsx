@@ -1,6 +1,7 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ToastProvider } from "../components/toast";
 import ProjectsPage from "./page";
 
 function jsonResponse(payload: unknown, status = 200): Response {
@@ -8,6 +9,10 @@ function jsonResponse(payload: unknown, status = 200): Response {
     status,
     headers: { "content-type": "application/json" }
   });
+}
+
+function renderWithProviders(ui: React.ReactElement) {
+  return render(<ToastProvider>{ui}</ToastProvider>);
 }
 
 describe("ProjectsPage", () => {
@@ -230,7 +235,7 @@ describe("ProjectsPage", () => {
 
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<ProjectsPage />);
+    renderWithProviders(<ProjectsPage />);
     const user = userEvent.setup();
 
     await screen.findByText("Loaded 0 projects.");
@@ -242,16 +247,18 @@ describe("ProjectsPage", () => {
     await user.type(within(projectDialog).getByLabelText("Logline"), "A writer keeps shipping");
     await user.click(within(projectDialog).getByRole("button", { name: "Create project" }));
 
-    await screen.findByText("Project created.");
-    expect(screen.getAllByText("My Script").length).toBeGreaterThan(0);
+    await waitFor(() => {
+      expect(screen.getAllByText("My Script").length).toBeGreaterThan(0);
+    });
 
     await user.click(screen.getByRole("button", { name: "Add co-writer" }));
     const coWriterDialog = await screen.findByRole("dialog", { name: "Add co-writer" });
     await user.type(within(coWriterDialog).getByLabelText("Co-writer user ID"), "writer_02");
     await user.click(within(coWriterDialog).getByRole("button", { name: "Add co-writer" }));
 
-    await screen.findByText("Co-writer added.");
-    expect(screen.getByText("writer_02")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText("writer_02")).toBeInTheDocument();
+    });
 
     await user.click(screen.getByRole("button", { name: "Create draft" }));
     const draftDialog = await screen.findByRole("dialog", { name: "Create draft" });
@@ -264,9 +271,10 @@ describe("ProjectsPage", () => {
     await user.type(within(draftDialog).getByLabelText("Version label"), "v1");
     await user.click(within(draftDialog).getByRole("button", { name: "Create draft" }));
 
-    await screen.findByText("Draft created.");
-    expect(uploadedScriptId).toBeTruthy();
-    expect(screen.getByText(`v1 (${uploadedScriptId})`)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(uploadedScriptId).toBeTruthy();
+    });
+    await screen.findByText(`v1 (${uploadedScriptId})`);
 
     await user.click(screen.getByRole("button", { name: "Create draft" }));
     const draftDialog2 = await screen.findByRole("dialog", { name: "Create draft" });
@@ -284,10 +292,20 @@ describe("ProjectsPage", () => {
     }
 
     await user.click(within(draftCard).getByRole("button", { name: "Set primary" }));
-    await screen.findByText("Primary draft updated.");
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/v1/projects/project_1/drafts/draft_2/primary",
+        expect.objectContaining({ method: "POST" })
+      );
+    });
 
     await user.click(within(draftCard).getByRole("button", { name: "Archive draft" }));
-    await screen.findByText("Draft archived.");
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/v1/projects/project_1/drafts/draft_2",
+        expect.objectContaining({ method: "PATCH" })
+      );
+    });
 
     await user.click(screen.getByRole("button", { name: "New access request" }));
     const accessDialog = await screen.findByRole("dialog", { name: "Create script access request" });
@@ -295,15 +313,26 @@ describe("ProjectsPage", () => {
     await user.type(within(accessDialog).getByLabelText("Reason (optional)"), "Please share for notes");
     await user.click(within(accessDialog).getByRole("button", { name: "Record request" }));
 
-    await screen.findByText("Access request recorded.");
-    expect(screen.getAllByText("writer_02").length).toBeGreaterThan(0);
+    await waitFor(() => {
+      expect(screen.getAllByText("writer_02").length).toBeGreaterThan(0);
+    });
 
     await user.type(screen.getByPlaceholderText("Decision reason (optional)"), "Looks good");
     await user.click(screen.getByRole("button", { name: "Approve" }));
-    await screen.findByText("Access request approved.");
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining("/access-requests/access_1/approve"),
+        expect.objectContaining({ method: "POST" })
+      );
+    });
 
     await user.click(screen.getByRole("button", { name: "Remove co-writer" }));
-    await screen.findByText("Co-writer removed.");
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/v1/projects/project_1/co-writers/writer_02",
+        expect.objectContaining({ method: "DELETE" })
+      );
+    });
 
     await user.click(screen.getByRole("button", { name: "Delete" }));
     await waitFor(() => {

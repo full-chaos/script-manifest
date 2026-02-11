@@ -1,4 +1,5 @@
 import Fastify, { type FastifyInstance } from "fastify";
+import { randomUUID } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import { request } from "undici";
 import {
@@ -17,16 +18,45 @@ export type SearchIndexerOptions = {
 };
 
 export function buildServer(options: SearchIndexerOptions = {}): FastifyInstance {
-  const server = Fastify({ logger: options.logger ?? true });
+  const server = Fastify({
+    logger: options.logger === false ? false : {
+      level: process.env.LOG_LEVEL ?? "info",
+    },
+    genReqId: (req) => (req.headers["x-request-id"] as string) ?? randomUUID(),
+    requestIdHeader: "x-request-id",
+  });
   const requestFn = options.requestFn ?? request;
   const openSearchBase = options.openSearchBase ?? "http://localhost:9200";
   const openSearchIndex = options.openSearchIndex ?? "competitions_v1";
 
-  server.get("/health", async () => ({
-    service: "search-indexer-service",
-    ok: true,
-    index: openSearchIndex
-  }));
+  server.get("/health", async (_req, reply) => {
+    const checks: Record<string, boolean> = {};
+    try {
+      const res = await requestFn(`${openSearchBase}/_cluster/health`, { method: "GET" });
+      // Drain response body to prevent resource leak
+      await res.body.text();
+      checks.opensearch = res.statusCode === 200;
+    } catch {
+      checks.opensearch = false;
+    }
+    const ok = Object.values(checks).every(Boolean);
+    return reply.status(ok ? 200 : 503).send({ service: "search-indexer-service", ok, checks, index: openSearchIndex });
+  });
+
+  server.get("/health/live", async () => ({ ok: true }));
+
+  server.get("/health/ready", async (_req, reply) => {
+    const checks: Record<string, boolean> = {};
+    try {
+      const res = await requestFn(`${openSearchBase}/_cluster/health`, { method: "GET" });
+      await res.body.text();
+      checks.opensearch = res.statusCode === 200;
+    } catch {
+      checks.opensearch = false;
+    }
+    const ok = Object.values(checks).every(Boolean);
+    return reply.status(ok ? 200 : 503).send({ service: "search-indexer-service", ok, checks, index: openSearchIndex });
+  });
 
   server.post("/internal/index/competition", async (req, reply) => {
     const parsedBody = CompetitionIndexDocumentSchema.safeParse(req.body);
@@ -104,7 +134,15 @@ export function buildServer(options: SearchIndexerOptions = {}): FastifyInstance
   return server;
 }
 
+function warnMissingEnv(recommended: string[]): void {
+  const missing = recommended.filter((key) => !process.env[key]);
+  if (missing.length > 0) {
+    console.warn(`[search-indexer-service] Missing recommended env vars: ${missing.join(", ")}`);
+  }
+}
+
 export async function startServer(): Promise<void> {
+  warnMissingEnv(["OPENSEARCH_URL"]);
   const port = Number(process.env.PORT ?? 4003);
   const server = buildServer({
     openSearchBase: process.env.OPENSEARCH_URL,

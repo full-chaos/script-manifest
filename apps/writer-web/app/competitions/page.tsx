@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import type { Competition } from "@script-manifest/contracts";
 import { Modal } from "../components/modal";
+import { SkeletonCard } from "../components/skeleton";
+import { useToast } from "../components/toast";
 import { getAuthHeaders, readStoredSession } from "../lib/authSession";
 
 type Filters = {
@@ -40,9 +42,11 @@ function describeDeadlineDistance(deadline: string): string {
 }
 
 export default function CompetitionsPage() {
+  const toast = useToast();
   const [filters, setFilters] = useState<Filters>(initialFilters);
   const [results, setResults] = useState<Competition[]>([]);
   const [loading, setLoading] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
   const [status, setStatus] = useState("");
   const [signedInUserId, setSignedInUserId] = useState("");
   const [reminderModalOpen, setReminderModalOpen] = useState(false);
@@ -86,9 +90,10 @@ export default function CompetitionsPage() {
 
       const competitions = body.competitions ?? [];
       setResults(competitions);
+      setHasSearched(true);
       setStatus(`Found ${competitions.length as number} competitions.`);
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "unknown_error");
+      toast.error(error instanceof Error ? error.message : "Competition search failed.");
     } finally {
       setLoading(false);
     }
@@ -158,10 +163,10 @@ export default function CompetitionsPage() {
         return;
       }
 
-      setStatus(`Reminder scheduled for ${selectedCompetition.title}.`);
+      toast.success(`Reminder scheduled for ${selectedCompetition.title}.`);
       closeReminderModal();
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "unknown_error");
+      toast.error(error instanceof Error ? error.message : "Reminder request failed.");
     } finally {
       setSendingReminder(false);
     }
@@ -271,7 +276,17 @@ export default function CompetitionsPage() {
           <h2 className="section-title">Results</h2>
           <span className="badge">{results.length} matches</span>
         </div>
-        {results.length === 0 ? <p className="empty-state">No results yet.</p> : null}
+        {loading && results.length === 0 ? (
+          <div className="stack">
+            <SkeletonCard />
+            <SkeletonCard />
+            <SkeletonCard />
+          </div>
+        ) : !loading && results.length === 0 && !hasSearched ? (
+          <p className="empty-state">No results yet.</p>
+        ) : !loading && results.length === 0 ? (
+          <p className="empty-state">No competitions matched your search.</p>
+        ) : null}
         {results.map((competition) => (
           <article key={competition.id} className="subcard">
             <div className="subcard-header">

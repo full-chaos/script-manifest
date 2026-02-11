@@ -52,7 +52,8 @@ describe("SiteHeader", () => {
         user: {
           id: "user_admin_01",
           email: "admin@example.com",
-          displayName: "Admin User"
+          displayName: "Admin User",
+          role: "admin"
         }
       })
     );

@@ -1,4 +1,5 @@
 import Fastify, { type FastifyInstance } from "fastify";
+import { randomUUID } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import {
   NotificationEventEnvelope,
@@ -10,10 +11,30 @@ export type NotificationServiceOptions = {
 };
 
 export function buildServer(options: NotificationServiceOptions = {}): FastifyInstance {
-  const server = Fastify({ logger: options.logger ?? true });
+  const server = Fastify({
+    logger: options.logger === false ? false : {
+      level: process.env.LOG_LEVEL ?? "info",
+    },
+    genReqId: (req) => (req.headers["x-request-id"] as string) ?? randomUUID(),
+    requestIdHeader: "x-request-id",
+  });
   const eventLog: NotificationEventEnvelope[] = [];
 
-  server.get("/health", async () => ({ service: "notification-service", ok: true }));
+  const startedAt = Date.now();
+
+  server.get("/health", async () => ({
+    service: "notification-service",
+    ok: true,
+    uptime: Math.floor((Date.now() - startedAt) / 1000)
+  }));
+
+  server.get("/health/live", async () => ({ ok: true }));
+
+  server.get("/health/ready", async () => ({
+    service: "notification-service",
+    ok: true,
+    uptime: Math.floor((Date.now() - startedAt) / 1000)
+  }));
 
   server.post("/internal/events", async (req, reply) => {
     const parseResult = NotificationEventEnvelopeSchema.safeParse(req.body);

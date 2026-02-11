@@ -1,6 +1,7 @@
 import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ToastProvider } from "../components/toast";
 import CompetitionsPage from "./page";
 
 function jsonResponse(payload: unknown, status = 200): Response {
@@ -8,6 +9,10 @@ function jsonResponse(payload: unknown, status = 200): Response {
     status,
     headers: { "content-type": "application/json" }
   });
+}
+
+function renderWithProviders(ui: React.ReactElement) {
+  return render(<ToastProvider>{ui}</ToastProvider>);
 }
 
 describe("CompetitionsPage", () => {
@@ -72,7 +77,7 @@ describe("CompetitionsPage", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<CompetitionsPage />);
+    renderWithProviders(<CompetitionsPage />);
     const user = userEvent.setup();
 
     await user.type(screen.getByLabelText("Keyword"), "Screenplay");
@@ -122,7 +127,7 @@ describe("CompetitionsPage", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<CompetitionsPage />);
+    renderWithProviders(<CompetitionsPage />);
     const user = userEvent.setup();
 
     await screen.findByText("Found 1 competitions.");

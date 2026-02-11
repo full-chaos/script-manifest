@@ -4,6 +4,7 @@ import type {
   IdentityRepository,
   IdentitySession,
   IdentityUser,
+  OAuthStateRecord,
   RegisterUserInput
 } from "./repository.js";
 import { buildServer } from "./index.js";
@@ -13,8 +14,13 @@ class MemoryRepo implements IdentityRepository {
   private users = new Map<string, IdentityUser>();
   private usersByEmail = new Map<string, string>();
   private sessions = new Map<string, IdentitySession>();
+  private oauthStates = new Map<string, OAuthStateRecord>();
 
   async init(): Promise<void> {}
+
+  async healthCheck(): Promise<{ database: boolean }> {
+    return { database: true };
+  }
 
   async registerUser(input: RegisterUserInput): Promise<IdentityUser | null> {
     const email = input.email.toLowerCase();
@@ -29,7 +35,8 @@ class MemoryRepo implements IdentityRepository {
       email,
       displayName: input.displayName,
       passwordSalt,
-      passwordHash: hashPassword(input.password, passwordSalt)
+      passwordHash: hashPassword(input.password, passwordSalt),
+      role: "writer"
     };
     this.users.set(id, user);
     this.usersByEmail.set(email, id);
@@ -70,6 +77,28 @@ class MemoryRepo implements IdentityRepository {
 
   async deleteSession(token: string): Promise<void> {
     this.sessions.delete(token);
+  }
+
+  async saveOAuthState(state: string, record: OAuthStateRecord): Promise<void> {
+    this.oauthStates.set(state, record);
+  }
+
+  async getAndDeleteOAuthState(state: string): Promise<OAuthStateRecord | null> {
+    const record = this.oauthStates.get(state);
+    if (!record) {
+      return null;
+    }
+    this.oauthStates.delete(state);
+    return record;
+  }
+
+  async cleanExpiredOAuthState(): Promise<void> {
+    const now = new Date().toISOString();
+    for (const [state, record] of this.oauthStates) {
+      if (record.expiresAt < now) {
+        this.oauthStates.delete(state);
+      }
+    }
   }
 }
 
@@ -216,6 +245,7 @@ test("identity oauth start/complete issues session and enforces one-time state",
   assert.equal(startPayload.provider, "github");
   assert.match(startPayload.authorizationUrl as string, /state=/);
   assert.match(startPayload.authorizationUrl as string, /code=/);
+  assert.ok(startPayload.codeChallenge, "response should contain codeChallenge");
 
   const complete = await server.inject({
     method: "POST",

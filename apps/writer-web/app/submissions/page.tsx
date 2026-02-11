@@ -10,6 +10,8 @@ import type {
   SubmissionStatus
 } from "@script-manifest/contracts";
 import { Modal } from "../components/modal";
+import { SkeletonCard } from "../components/skeleton";
+import { useToast } from "../components/toast";
 import { getAuthHeaders, readStoredSession } from "../lib/authSession";
 
 const statuses: SubmissionStatus[] = [
@@ -21,6 +23,7 @@ const statuses: SubmissionStatus[] = [
 ];
 
 export default function SubmissionsPage() {
+  const toast = useToast();
   const [writerId, setWriterId] = useState("");
   const [projectId, setProjectId] = useState("");
   const [competitionId, setCompetitionId] = useState("");
@@ -32,6 +35,7 @@ export default function SubmissionsPage() {
   const [reassignTargets, setReassignTargets] = useState<Record<string, string>>({});
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [placementModalOpen, setPlacementModalOpen] = useState(false);
   const [targetSubmissionId, setTargetSubmissionId] = useState("");
@@ -41,6 +45,7 @@ export default function SubmissionsPage() {
     const session = readStoredSession();
     if (!session) {
       setMessage("Sign in to load submissions.");
+      setInitialLoading(false);
       return;
     }
 
@@ -76,7 +81,7 @@ export default function SubmissionsPage() {
       const placementsBody = await placementsResponse.json();
 
       if (!projectResponse.ok || !competitionResponse.ok || !submissionResponse.ok || !placementsResponse.ok) {
-        setMessage("Failed to load one or more submission dependencies.");
+        toast.error("Failed to load one or more submission dependencies.");
         return;
       }
 
@@ -94,16 +99,17 @@ export default function SubmissionsPage() {
       setCompetitionId((current) => current || nextCompetitions[0]?.id || "");
       setMessage("Submission data loaded.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "unknown_error");
+      toast.error(error instanceof Error ? error.message : "Failed to load submissions.");
     } finally {
       setLoading(false);
+      setInitialLoading(false);
     }
   }
 
   async function createSubmission(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!writerId || !projectId || !competitionId) {
-      setMessage("Writer, project, and competition are required.");
+      toast.error("Writer, project, and competition are required.");
       return;
     }
 
@@ -121,7 +127,7 @@ export default function SubmissionsPage() {
       });
       const body = await response.json();
       if (!response.ok) {
-        setMessage(body.error ? `Error: ${body.error}` : "Submission creation failed.");
+        toast.error(body.error ? `${body.error as string}` : "Submission creation failed.");
         return;
       }
 
@@ -132,9 +138,9 @@ export default function SubmissionsPage() {
         [created.id]: created.projectId
       }));
       setCreateModalOpen(false);
-      setMessage("Submission recorded.");
+      toast.success("Submission recorded.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "unknown_error");
+      toast.error(error instanceof Error ? error.message : "Failed to create submission.");
     } finally {
       setLoading(false);
     }
@@ -143,7 +149,7 @@ export default function SubmissionsPage() {
   async function moveSubmission(submissionId: string) {
     const targetProjectId = reassignTargets[submissionId];
     if (!targetProjectId) {
-      setMessage("Select a target project before moving.");
+      toast.error("Select a target project before moving.");
       return;
     }
 
@@ -157,7 +163,7 @@ export default function SubmissionsPage() {
       });
       const body = await response.json();
       if (!response.ok) {
-        setMessage(body.error ? `Error: ${body.error}` : "Submission move failed.");
+        toast.error(body.error ? `${body.error as string}` : "Submission move failed.");
         return;
       }
 
@@ -165,9 +171,9 @@ export default function SubmissionsPage() {
       setSubmissions((current) =>
         current.map((entry) => (entry.id === updated.id ? updated : entry))
       );
-      setMessage("Submission moved.");
+      toast.success("Submission moved.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "unknown_error");
+      toast.error(error instanceof Error ? error.message : "Failed to move submission.");
     } finally {
       setLoading(false);
     }
@@ -176,7 +182,7 @@ export default function SubmissionsPage() {
   async function createPlacement(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!targetSubmissionId) {
-      setMessage("Choose a submission first.");
+      toast.error("Choose a submission first.");
       return;
     }
 
@@ -193,7 +199,7 @@ export default function SubmissionsPage() {
       );
       const body = await response.json();
       if (!response.ok) {
-        setMessage(body.error ? `Error: ${body.error}` : "Placement creation failed.");
+        toast.error(body.error ? `${body.error as string}` : "Placement creation failed.");
         return;
       }
 
@@ -207,9 +213,9 @@ export default function SubmissionsPage() {
 
       setPlacementModalOpen(false);
       setTargetSubmissionId("");
-      setMessage("Placement recorded.");
+      toast.success("Placement recorded.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "unknown_error");
+      toast.error(error instanceof Error ? error.message : "Failed to create placement.");
     } finally {
       setLoading(false);
     }
@@ -226,13 +232,13 @@ export default function SubmissionsPage() {
       });
       const body = await response.json();
       if (!response.ok) {
-        setMessage(body.error ? `Error: ${body.error}` : "Placement verification update failed.");
+        toast.error(body.error ? `${body.error as string}` : "Placement verification update failed.");
         return;
       }
       await loadData();
-      setMessage(`Placement marked ${verificationState}.`);
+      toast.success(`Placement marked ${verificationState}.`);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "unknown_error");
+      toast.error(error instanceof Error ? error.message : "Failed to verify placement.");
     } finally {
       setLoading(false);
     }
@@ -280,81 +286,92 @@ export default function SubmissionsPage() {
           <h2 className="section-title">Tracked Submissions</h2>
           <span className="badge">{submissions.length} total</span>
         </div>
-        {submissions.length === 0 ? <p className="empty-state">No submissions recorded.</p> : null}
-        {submissions.map((submission) => (
-          <article key={submission.id} className="subcard">
-            <div className="subcard-header">
-              <strong>{submission.id}</strong>
-              <span className="badge">{submission.status}</span>
-            </div>
-            <p className="muted mt-2">
-              project {submission.projectId} | competition {submission.competitionId}
-            </p>
-            <div className="inline-form mt-3">
-              <select
-                className="input md:w-72"
-                aria-label={`Move target for ${submission.id}`}
-                value={reassignTargets[submission.id] ?? submission.projectId}
-                onChange={(event) =>
-                  setReassignTargets((current) => ({
-                    ...current,
-                    [submission.id]: event.target.value
-                  }))
-                }
-              >
-                {projects.map((project) => (
-                  <option key={project.id} value={project.id}>
-                    {project.title}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={() => void moveSubmission(submission.id)}
-                disabled={loading}
-              >
-                Move submission
-              </button>
-            </div>
-            <div className="stack mt-3">
-              <p className="eyebrow">Placements</p>
-              {placements.filter((placement) => placement.submissionId === submission.id).length === 0 ? (
-                <p className="muted">No placements recorded.</p>
-              ) : null}
-              {placements
-                .filter((placement) => placement.submissionId === submission.id)
-                .map((placement) => (
-                  <article key={placement.id} className="rounded-xl border border-zinc-300/60 bg-white p-3">
-                    <div className="subcard-header">
-                      <strong>{placement.id}</strong>
-                      <span className="badge">
-                        {placement.status} | {placement.verificationState}
-                      </span>
-                    </div>
-                    <div className="inline-form mt-2">
-                      <button
-                        type="button"
-                        className="btn btn-secondary"
-                        onClick={() => void verifyPlacement(placement.id, "verified")}
-                        disabled={loading || placement.verificationState === "verified"}
-                      >
-                        Mark verified
-                      </button>
-                      <button
-                        type="button"
-                        className="btn btn-danger"
-                        onClick={() => void verifyPlacement(placement.id, "rejected")}
-                        disabled={loading || placement.verificationState === "rejected"}
-                      >
-                        Mark rejected
-                      </button>
-                    </div>
-                  </article>
-                ))}
-            </div>
-          </article>
-        ))}
+
+        {initialLoading && writerId ? (
+          <div className="stack">
+            <SkeletonCard />
+            <SkeletonCard />
+          </div>
+        ) : submissions.length === 0 ? (
+          <p className="empty-state">No submissions recorded.</p>
+        ) : null}
+
+        {!initialLoading
+          ? submissions.map((submission) => (
+              <article key={submission.id} className="subcard">
+                <div className="subcard-header">
+                  <strong>{submission.id}</strong>
+                  <span className="badge">{submission.status}</span>
+                </div>
+                <p className="muted mt-2">
+                  project {submission.projectId} | competition {submission.competitionId}
+                </p>
+                <div className="inline-form mt-3">
+                  <select
+                    className="input md:w-72"
+                    aria-label={`Move target for ${submission.id}`}
+                    value={reassignTargets[submission.id] ?? submission.projectId}
+                    onChange={(event) =>
+                      setReassignTargets((current) => ({
+                        ...current,
+                        [submission.id]: event.target.value
+                      }))
+                    }
+                  >
+                    {projects.map((project) => (
+                      <option key={project.id} value={project.id}>
+                        {project.title}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => void moveSubmission(submission.id)}
+                    disabled={loading}
+                  >
+                    Move submission
+                  </button>
+                </div>
+                <div className="stack mt-3">
+                  <p className="eyebrow">Placements</p>
+                  {placements.filter((placement) => placement.submissionId === submission.id).length === 0 ? (
+                    <p className="muted">No placements recorded.</p>
+                  ) : null}
+                  {placements
+                    .filter((placement) => placement.submissionId === submission.id)
+                    .map((placement) => (
+                      <article key={placement.id} className="rounded-xl border border-zinc-300/60 bg-white p-3">
+                        <div className="subcard-header">
+                          <strong>{placement.id}</strong>
+                          <span className="badge">
+                            {placement.status} | {placement.verificationState}
+                          </span>
+                        </div>
+                        <div className="inline-form mt-2">
+                          <button
+                            type="button"
+                            className="btn btn-secondary"
+                            onClick={() => void verifyPlacement(placement.id, "verified")}
+                            disabled={loading || placement.verificationState === "verified"}
+                          >
+                            Mark verified
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-danger"
+                            onClick={() => void verifyPlacement(placement.id, "rejected")}
+                            disabled={loading || placement.verificationState === "rejected"}
+                          >
+                            Mark rejected
+                          </button>
+                        </div>
+                      </article>
+                    ))}
+                </div>
+              </article>
+            ))
+          : null}
       </article>
 
       <Modal

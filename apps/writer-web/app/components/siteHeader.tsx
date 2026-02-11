@@ -65,7 +65,7 @@ export function SiteHeader() {
         if (!link.adminOnly) {
           return true;
         }
-        return Boolean(user?.id?.toLowerCase().includes("admin"));
+        return user?.role === "admin";
       }),
     [user]
   );

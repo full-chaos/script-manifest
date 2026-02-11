@@ -28,7 +28,13 @@ export type ProfileProjectServiceOptions = {
 };
 
 export function buildServer(options: ProfileProjectServiceOptions = {}): FastifyInstance {
-  const server = Fastify({ logger: options.logger ?? true });
+  const server = Fastify({
+    logger: options.logger === false ? false : {
+      level: process.env.LOG_LEVEL ?? "info",
+    },
+    genReqId: (req) => (req.headers["x-request-id"] as string) ?? randomUUID(),
+    requestIdHeader: "x-request-id",
+  });
   const publisher = options.publisher ?? publishNotificationEvent;
   const repository = options.repository ?? new PgProfileProjectRepository();
 
@@ -42,12 +48,42 @@ export function buildServer(options: ProfileProjectServiceOptions = {}): Fastify
     await repository.init();
   });
 
-  server.get("/health", async () => ({ service: "profile-project-service", ok: true }));
+  server.get("/health", async (_req, reply) => {
+    const checks: Record<string, boolean> = {};
+    try {
+      const result = await repository.healthCheck();
+      checks.database = result.database;
+    } catch {
+      checks.database = false;
+    }
+    const ok = Object.values(checks).every(Boolean);
+    return reply.status(ok ? 200 : 503).send({ service: "profile-project-service", ok, checks });
+  });
+
+  server.get("/health/live", async () => ({ ok: true }));
+
+  server.get("/health/ready", async (_req, reply) => {
+    const checks: Record<string, boolean> = {};
+    try {
+      const result = await repository.healthCheck();
+      checks.database = result.database;
+    } catch {
+      checks.database = false;
+    }
+    const ok = Object.values(checks).every(Boolean);
+    return reply.status(ok ? 200 : 503).send({ service: "profile-project-service", ok, checks });
+  });
 
   server.get("/internal/profiles/:writerId", async (req, reply) => {
     const { writerId } = req.params as { writerId: string };
+    const authUserId = getAuthUserId(req.headers);
     const profile = await repository.getProfile(writerId);
     if (!profile) {
+      return reply.status(404).send({ error: "profile_not_found" });
+    }
+
+    // Enforce searchability: non-searchable profiles are hidden from non-owners
+    if (!profile.isSearchable && authUserId !== writerId) {
       return reply.status(404).send({ error: "profile_not_found" });
     }
 
@@ -492,7 +528,15 @@ export function buildServer(options: ProfileProjectServiceOptions = {}): Fastify
   return server;
 }
 
+function warnMissingEnv(recommended: string[]): void {
+  const missing = recommended.filter((key) => !process.env[key]);
+  if (missing.length > 0) {
+    console.warn(`[profile-project-service] Missing recommended env vars: ${missing.join(", ")}`);
+  }
+}
+
 export async function startServer(): Promise<void> {
+  warnMissingEnv(["DATABASE_URL"]);
   const port = Number(process.env.PORT ?? 4001);
   const server = buildServer();
   await server.listen({ port, host: "0.0.0.0" });

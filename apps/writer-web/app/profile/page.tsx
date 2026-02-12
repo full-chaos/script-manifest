@@ -196,7 +196,7 @@ export default function ProfilePage() {
           This profile underpins discovery and ranking surfaces.
         </p>
         <div className="inline-form">
-          <span className="badge">Writer ID: {writerId || "Not signed in"}</span>
+          <span className="badge">{writerId ? `ID: ${writerId}` : "Not signed in"}</span>
           <button type="button" className="btn btn-secondary" onClick={() => void loadProfile()} disabled={loading || !writerId}>
             {loading ? "Refreshing..." : "Refresh profile"}
           </button>

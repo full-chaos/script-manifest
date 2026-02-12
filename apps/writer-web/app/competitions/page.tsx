@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import type { Competition } from "@script-manifest/contracts";
 import { Modal } from "../components/modal";
+import { EmptyState } from "../components/emptyState";
 import { SkeletonCard } from "../components/skeleton";
 import { useToast } from "../components/toast";
 import { getAuthHeaders, readStoredSession } from "../lib/authSession";
@@ -182,7 +183,7 @@ export default function CompetitionsPage() {
           cross-referencing dozens of websites.
         </p>
         <div className="mt-4 inline-form">
-          <span className="badge">Reminder default: {signedInUserId || "Sign in to auto-fill"}</span>
+          <span className="badge">{signedInUserId ? "Reminders enabled" : "Sign in for reminders"}</span>
         </div>
       </article>
 
@@ -254,7 +255,11 @@ export default function CompetitionsPage() {
           <span className="badge">{upcomingDeadlines.length} upcoming</span>
         </div>
         {upcomingDeadlines.length === 0 ? (
-          <p className="empty-state">Search competitions to populate the deadline calendar.</p>
+          <EmptyState
+            icon="📅"
+            title="No upcoming deadlines"
+            description="Search for competitions above to see their deadlines here."
+          />
         ) : null}
         <ol className="stack" aria-label="Upcoming deadline calendar">
           {upcomingDeadlines.map((competition) => (
@@ -283,9 +288,17 @@ export default function CompetitionsPage() {
             <SkeletonCard />
           </div>
         ) : !loading && results.length === 0 && !hasSearched ? (
-          <p className="empty-state">No results yet.</p>
+          <EmptyState
+            icon="🔍"
+            title="Start exploring competitions"
+            description="Use the search filters above to find screenwriting competitions, fellowships, and labs."
+          />
         ) : !loading && results.length === 0 ? (
-          <p className="empty-state">No competitions matched your search.</p>
+          <EmptyState
+            icon="🔍"
+            title="No matches found"
+            description="Try adjusting your filters or broadening your search terms."
+          />
         ) : null}
         {results.map((competition) => (
           <article key={competition.id} className="subcard">

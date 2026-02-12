@@ -240,7 +240,8 @@ describe("ProjectsPage", () => {
 
     await screen.findByText("Loaded 0 projects.");
 
-    await user.click(screen.getByRole("button", { name: "Create project" }));
+    // Hero and EmptyState both show "Create project" — click the first one
+    await user.click(screen.getAllByRole("button", { name: "Create project" })[0]!);
     const projectDialog = await screen.findByRole("dialog", { name: "Create project" });
 
     await user.type(within(projectDialog).getByLabelText("Title"), "My Script");

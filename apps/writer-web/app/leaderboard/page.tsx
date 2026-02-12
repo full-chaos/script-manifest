@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
+import type { Route } from "next";
 import type { LeaderboardEntry } from "@script-manifest/contracts";
+import { EmptyState } from "../components/emptyState";
 
 type LeaderboardResponse = {
   leaderboard: LeaderboardEntry[];
@@ -65,10 +67,10 @@ export default function LeaderboardPage() {
     <section className="space-y-4">
       <article className="hero-card">
         <p className="eyebrow">Leaderboard</p>
-        <h1 className="text-4xl text-ink-900">Spotlight list (Phase 1 lightweight model)</h1>
+        <h1 className="text-4xl text-ink-900">Writer Spotlight</h1>
         <p className="max-w-3xl text-ink-700">
-          Rankings are currently calculated from submission and placement outcomes, with transparent
-          scoring weights and filter support.
+          Rankings reflect submission activity and placement outcomes, with transparent scoring weights
+          and filter support.
         </p>
       </article>
 
@@ -118,7 +120,15 @@ export default function LeaderboardPage() {
         <div className="subcard-header">
           <h2 className="section-title">Writers</h2>
         </div>
-        {rows.length === 0 ? <p className="empty-state">No leaderboard rows yet.</p> : null}
+        {rows.length === 0 ? (
+          <EmptyState
+            icon="✨"
+            title="The spotlight is waiting"
+            description="Writers appear here as they submit to competitions and record placements. Be the first to climb the ranks."
+            actionLabel="Browse competitions"
+            actionHref={"/competitions" as Route}
+          />
+        ) : null}
         {rows.map((entry, index) => (
           <article key={`${entry.writerId}-${index}`} className="subcard">
             <div className="subcard-header">

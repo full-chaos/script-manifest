@@ -37,11 +37,13 @@ describe("SignInPage", () => {
     render(<SignInPage />);
     const user = userEvent.setup();
 
-    await user.click(screen.getByRole("button", { name: "Register" }));
+    await user.click(screen.getByRole("button", { name: "Create account" }));
     await user.type(screen.getByLabelText("Display name"), "Writer One");
     await user.type(screen.getByLabelText("Email"), "writer@example.com");
     await user.type(screen.getByLabelText("Password"), "password123");
-    await user.click(screen.getByRole("button", { name: "Create account" }));
+    // Both the toggle and submit say "Create account" — target the submit button
+    const createButtons = screen.getAllByRole("button", { name: "Create account" });
+    await user.click(createButtons.find(b => (b as HTMLButtonElement).type === "submit")!);
 
     await screen.findByText(/Signed in as/);
     expect(fetchMock).toHaveBeenCalledWith(
@@ -64,7 +66,9 @@ describe("SignInPage", () => {
 
     await user.type(screen.getByLabelText("Email"), "writer@example.com");
     await user.type(screen.getByLabelText("Password"), "wrong-password");
-    await user.click(screen.getByRole("button", { name: "Sign in" }));
+    // Both the toggle and submit say "Sign in" — target the submit button
+    const signInButtons = screen.getAllByRole("button", { name: "Sign in" });
+    await user.click(signInButtons.find(b => (b as HTMLButtonElement).type === "submit")!);
 
     await waitFor(() => {
       expect(screen.getByText("Error: invalid_credentials")).toBeInTheDocument();

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
+import type { Route } from "next";
 import type {
   Competition,
   PlacementListItem,
@@ -9,6 +10,7 @@ import type {
   Submission,
   SubmissionStatus
 } from "@script-manifest/contracts";
+import { EmptyState } from "../components/emptyState";
 import { Modal } from "../components/modal";
 import { SkeletonCard } from "../components/skeleton";
 import { useToast } from "../components/toast";
@@ -250,11 +252,11 @@ export default function SubmissionsPage() {
         <p className="eyebrow">Submission Hub</p>
         <h1 className="text-4xl text-ink-900">Track every competition outcome</h1>
         <p className="max-w-3xl text-ink-700">
-          Keep all manual submission records and reassignments in one dashboard, with your signed-in
-          profile loaded automatically.
+          Track every submission, record placements, and move entries between projects — all from
+          one dashboard.
         </p>
         <div className="inline-form">
-          <span className="badge">Writer: {writerId || "Not signed in"}</span>
+          <span className="badge">{writerId ? `ID: ${writerId}` : "Not signed in"}</span>
           <button type="button" className="btn btn-secondary" onClick={() => void loadData()} disabled={loading || !writerId}>
             {loading ? "Refreshing..." : "Refresh submissions"}
           </button>
@@ -278,7 +280,13 @@ export default function SubmissionsPage() {
       </article>
 
       {!writerId ? (
-        <article className="empty-state">Sign in first to load and track submissions.</article>
+        <EmptyState
+          icon="🔐"
+          title="Sign in to track submissions"
+          description="Create an account or sign in to record competition submissions and placements."
+          actionLabel="Sign in"
+          actionHref={"/signin" as Route}
+        />
       ) : null}
 
       <article className="panel stack">
@@ -293,7 +301,11 @@ export default function SubmissionsPage() {
             <SkeletonCard />
           </div>
         ) : submissions.length === 0 ? (
-          <p className="empty-state">No submissions recorded.</p>
+          <EmptyState
+            icon="📬"
+            title="No submissions yet"
+            description="Hit 'Create submission' above to record your first competition entry."
+          />
         ) : null}
 
         {!initialLoading

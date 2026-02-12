@@ -121,7 +121,7 @@ export function SiteHeader() {
               </span>
             ) : (
               <span className="rounded-full border border-ink-500/20 bg-cream-100 px-3 py-1 text-xs text-ink-500">
-                Public mode
+                Guest
               </span>
             )}
             <Link href="/signin" className="btn btn-primary no-underline">

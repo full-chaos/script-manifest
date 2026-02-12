@@ -237,19 +237,19 @@ test("identity oauth start/complete issues session and enforces one-time state",
 
   const start = await server.inject({
     method: "POST",
-    url: "/internal/auth/oauth/github/start",
+    url: "/internal/auth/oauth/google/start",
     payload: { loginHint: "Writer Two" }
   });
   assert.equal(start.statusCode, 201);
   const startPayload = start.json();
-  assert.equal(startPayload.provider, "github");
+  assert.equal(startPayload.provider, "google");
   assert.match(startPayload.authorizationUrl as string, /state=/);
   assert.match(startPayload.authorizationUrl as string, /code=/);
   assert.ok(startPayload.codeChallenge, "response should contain codeChallenge");
 
   const complete = await server.inject({
     method: "POST",
-    url: "/internal/auth/oauth/github/complete",
+    url: "/internal/auth/oauth/google/complete",
     payload: {
       state: startPayload.state,
       code: startPayload.mockCode
@@ -257,11 +257,11 @@ test("identity oauth start/complete issues session and enforces one-time state",
   });
   assert.equal(complete.statusCode, 200);
   assert.ok(complete.json().token);
-  assert.match(complete.json().user.email as string, /^github\+writer-two@oauth\.local$/);
+  assert.match(complete.json().user.email as string, /^google\+writer-two@oauth\.local$/);
 
   const replay = await server.inject({
     method: "POST",
-    url: "/internal/auth/oauth/github/complete",
+    url: "/internal/auth/oauth/google/complete",
     payload: {
       state: startPayload.state,
       code: startPayload.mockCode
@@ -279,14 +279,14 @@ test("identity oauth callback validates code", async (t) => {
 
   const start = await server.inject({
     method: "POST",
-    url: "/internal/auth/oauth/github/start"
+    url: "/internal/auth/oauth/google/start"
   });
   assert.equal(start.statusCode, 201);
   const startPayload = start.json();
 
   const callback = await server.inject({
     method: "GET",
-    url: `/internal/auth/oauth/github/callback?state=${encodeURIComponent(startPayload.state as string)}&code=${"1".repeat(32)}`
+    url: `/internal/auth/oauth/google/callback?state=${encodeURIComponent(startPayload.state as string)}&code=${"1".repeat(32)}`
   });
   assert.equal(callback.statusCode, 400);
   assert.equal(callback.json().error, "invalid_oauth_code");

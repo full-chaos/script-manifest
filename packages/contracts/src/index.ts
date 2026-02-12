@@ -198,7 +198,7 @@ export const AuthMeResponseSchema = z.object({
 
 export type AuthMeResponse = z.infer<typeof AuthMeResponseSchema>;
 
-export const OAuthProviderSchema = z.enum(["github"]);
+export const OAuthProviderSchema = z.enum(["google"]);
 
 export type OAuthProvider = z.infer<typeof OAuthProviderSchema>;
 

@@ -21,11 +21,11 @@ export default function SignInPage() {
   const [submitting, setSubmitting] = useState(false);
   const [oauthSubmitting, setOauthSubmitting] = useState(false);
 
-  // On mount: restore session + handle GitHub OAuth callback redirect
+  // On mount: restore session + handle Google OAuth callback redirect
   useEffect(() => {
     setSession(readStoredSession());
 
-    // Detect ?code=&state= query params from GitHub OAuth redirect
+    // Detect ?code=&state= query params from Google OAuth redirect
     const params = new URLSearchParams(window.location.search);
     const code = params.get("code");
     const state = params.get("state");
@@ -41,7 +41,7 @@ export default function SignInPage() {
     setStatus("");
 
     try {
-      const completeResponse = await fetch("/api/v1/auth/oauth/github/complete", {
+      const completeResponse = await fetch("/api/v1/auth/oauth/google/complete", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ state, code })
@@ -57,7 +57,7 @@ export default function SignInPage() {
       writeStoredSession(completeBody as AuthSessionResponse);
       setSession(completeBody as AuthSessionResponse);
       setPassword("");
-      setStatus("Signed in with GitHub OAuth.");
+      setStatus("Signed in with Google.");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "unknown_error");
     } finally {
@@ -125,12 +125,12 @@ export default function SignInPage() {
     }
   }
 
-  async function signInWithGithub() {
+  async function signInWithGoogle() {
     setStatus("");
     setOauthSubmitting(true);
 
     try {
-      const startResponse = await fetch("/api/v1/auth/oauth/github/start", {
+      const startResponse = await fetch("/api/v1/auth/oauth/google/start", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -145,8 +145,8 @@ export default function SignInPage() {
 
       const authorizationUrl = new URL(startBody.authorizationUrl as string);
 
-      // Real GitHub OAuth: redirect the browser to GitHub
-      if (authorizationUrl.hostname === "github.com") {
+      // Real Google OAuth: redirect the browser to Google
+      if (authorizationUrl.hostname === "accounts.google.com") {
         window.location.href = authorizationUrl.toString();
         return;
       }
@@ -160,7 +160,7 @@ export default function SignInPage() {
       }
 
       const callbackResponse = await fetch(
-        `/api/v1/auth/oauth/github/callback?state=${encodeURIComponent(state)}&code=${encodeURIComponent(code)}`,
+        `/api/v1/auth/oauth/google/callback?state=${encodeURIComponent(state)}&code=${encodeURIComponent(code)}`,
         { method: "GET" }
       );
       const callbackBody = await callbackResponse.json();
@@ -172,7 +172,7 @@ export default function SignInPage() {
       writeStoredSession(callbackBody as AuthSessionResponse);
       setSession(callbackBody as AuthSessionResponse);
       setPassword("");
-      setStatus("Signed in with GitHub OAuth.");
+      setStatus("Signed in with Google.");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "unknown_error");
     } finally {
@@ -269,10 +269,10 @@ export default function SignInPage() {
             <button
               type="button"
               className="btn btn-secondary w-full justify-center"
-              onClick={() => void signInWithGithub()}
+              onClick={() => void signInWithGoogle()}
               disabled={oauthSubmitting}
             >
-              {oauthSubmitting ? "Connecting..." : "Continue with GitHub"}
+              {oauthSubmitting ? "Connecting..." : "Continue with Google"}
             </button>
 
             <div className="flex items-center gap-3">

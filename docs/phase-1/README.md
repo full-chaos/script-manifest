@@ -326,7 +326,8 @@ Gateway endpoints (`:4000`):
 - `GET /api/v1/auth/oauth/:provider/callback`
 
 Writer web updates:
-- `/signin` includes `Continue with GitHub` and completes the local OAuth scaffold flow.
+- `/signin` includes `Continue with Google` with real Google OAuth and a local mock scaffold.
+- Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` for production; falls back to mock flow when unset.
 
 User guide:
 - `/Users/chris/projects/script-manifest/docs/phase-1/oauth-signin-user-manual.md`

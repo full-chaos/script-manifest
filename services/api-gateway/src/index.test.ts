@@ -609,101 +609,20 @@ test("api-gateway competition admin curation requires allowlisted admin", async 
   assert.equal(adminHeaders[0], "admin_writer");
 });
 
-test("api-gateway leaderboard aggregates with format filter", async (t) => {
+test("api-gateway leaderboard proxies to ranking-service", async (t) => {
   const urls: string[] = [];
   const server = buildServer({
     logger: false,
     requestFn: (async (url) => {
-      const urlStr = String(url);
-      urls.push(urlStr);
-
-      if (urlStr.startsWith("http://profile-svc/internal/projects?")) {
-        return jsonResponse({
-          projects: [{ id: "project_feature_1" }]
-        });
-      }
-
-      if (urlStr === "http://submission-svc/internal/submissions") {
-        return jsonResponse({
-          submissions: [
-            {
-              id: "sub_1",
-              writerId: "writer_01",
-              projectId: "project_feature_1",
-              competitionId: "comp_1",
-              status: "pending",
-              createdAt: "2026-01-01T00:00:00.000Z",
-              updatedAt: "2026-01-01T00:00:00.000Z"
-            },
-            {
-              id: "sub_2",
-              writerId: "writer_01",
-              projectId: "project_feature_1",
-              competitionId: "comp_2",
-              status: "semifinalist",
-              createdAt: "2026-01-02T00:00:00.000Z",
-              updatedAt: "2026-01-02T00:00:00.000Z"
-            },
-            {
-              id: "sub_3",
-              writerId: "writer_02",
-              projectId: "project_tv_1",
-              competitionId: "comp_3",
-              status: "winner",
-              createdAt: "2026-01-03T00:00:00.000Z",
-              updatedAt: "2026-01-03T00:00:00.000Z"
-            }
-          ]
-        });
-      }
-
-      if (urlStr === "http://submission-svc/internal/placements") {
-        return jsonResponse({
-          placements: [
-            {
-              id: "place_1",
-              submissionId: "sub_2",
-              status: "semifinalist",
-              verificationState: "verified",
-              createdAt: "2026-01-02T00:00:00.000Z",
-              updatedAt: "2026-01-02T00:00:00.000Z",
-              verifiedAt: "2026-01-02T00:00:00.000Z",
-              writerId: "writer_01",
-              projectId: "project_feature_1",
-              competitionId: "comp_2"
-            },
-            {
-              id: "place_2",
-              submissionId: "sub_1",
-              status: "quarterfinalist",
-              verificationState: "pending",
-              createdAt: "2026-01-01T00:00:00.000Z",
-              updatedAt: "2026-01-01T00:00:00.000Z",
-              verifiedAt: null,
-              writerId: "writer_01",
-              projectId: "project_feature_1",
-              competitionId: "comp_1"
-            },
-            {
-              id: "place_3",
-              submissionId: "sub_3",
-              status: "winner",
-              verificationState: "verified",
-              createdAt: "2026-01-03T00:00:00.000Z",
-              updatedAt: "2026-01-03T00:00:00.000Z",
-              verifiedAt: "2026-01-03T00:00:00.000Z",
-              writerId: "writer_02",
-              projectId: "project_tv_1",
-              competitionId: "comp_3"
-            }
-          ]
-        });
-      }
-
-      return jsonResponse({ error: "unexpected_url", url: urlStr }, 404);
+      urls.push(String(url));
+      return jsonResponse({
+        leaderboard: [
+          { writerId: "writer_01", rank: 1, totalScore: 25.5, submissionCount: 3, placementCount: 2, tier: "top_1", badges: ["Finalist - Austin 2025"], scoreChange30d: 5, lastUpdatedAt: "2026-01-01T00:00:00.000Z" }
+        ],
+        total: 1
+      });
     }) as typeof request,
-    profileServiceBase: "http://profile-svc",
-    submissionTrackingBase: "http://submission-svc"
+    rankingServiceBase: "http://ranking-svc"
   });
   t.after(async () => {
     await server.close();
@@ -711,15 +630,43 @@ test("api-gateway leaderboard aggregates with format filter", async (t) => {
 
   const response = await server.inject({
     method: "GET",
-    url: "/api/v1/leaderboard?format=feature&limit=10"
+    url: "/api/v1/leaderboard?format=feature&tier=top_1&limit=10"
   });
 
   assert.equal(response.statusCode, 200);
-  assert.equal(response.json().leaderboard.length, 1);
+  assert.match(urls[0] ?? "", /http:\/\/ranking-svc\/internal\/leaderboard\?/);
   assert.equal(response.json().leaderboard[0].writerId, "writer_01");
-  assert.equal(response.json().leaderboard[0].totalScore, 9);
-  assert.equal(
-    urls.some((url) => url.startsWith("http://profile-svc/internal/projects?format=feature")),
-    true
-  );
+});
+
+test("api-gateway admin prestige upsert requires allowlisted admin", async (t) => {
+  const urls: string[] = [];
+  const server = buildServer({
+    logger: false,
+    competitionAdminAllowlist: ["admin_writer"],
+    requestFn: (async (url) => {
+      const urlStr = String(url);
+      urls.push(urlStr);
+      return jsonResponse({ prestige: { competitionId: "comp_1", tier: "elite", multiplier: 2.0, updatedAt: "2026-01-01T00:00:00.000Z" } });
+    }) as typeof request,
+    rankingServiceBase: "http://ranking-svc"
+  });
+  t.after(async () => {
+    await server.close();
+  });
+
+  const forbidden = await server.inject({
+    method: "PUT",
+    url: "/api/v1/admin/rankings/prestige/comp_1",
+    payload: { tier: "elite", multiplier: 2.0 }
+  });
+  assert.equal(forbidden.statusCode, 403);
+
+  const allowed = await server.inject({
+    method: "PUT",
+    url: "/api/v1/admin/rankings/prestige/comp_1",
+    headers: { "x-admin-user-id": "admin_writer" },
+    payload: { tier: "elite", multiplier: 2.0 }
+  });
+  assert.equal(allowed.statusCode, 200);
+  assert.equal(urls[0], "http://ranking-svc/internal/prestige/comp_1");
 });

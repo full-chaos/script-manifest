@@ -315,6 +315,39 @@ services:
       retries: 5
       start_period: 20s
 
+  ranking-service:
+    <<: *node-dev
+    container_name: manifest-ranking-service
+    working_dir: /workspace
+    volumes:
+      - .:/workspace
+    environment:
+      PORT: "4007"
+      DATABASE_URL: "postgresql://manifest:manifest@postgres:5432/manifest"
+      NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
+      SUBMISSION_TRACKING_SERVICE_URL: "http://submission-tracking-service:4004"
+      COMPETITION_DIRECTORY_SERVICE_URL: "http://competition-directory-service:4002"
+      PROFILE_SERVICE_URL: "http://profile-project-service:4001"
+    command: >
+      sh -lc "flock /workspace/.pnpm-install.lock -c 'pnpm install --frozen-lockfile=false' && pnpm --filter @script-manifest/ranking-service dev"
+    ports:
+      - "4007:4007"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      notification-service:
+        condition: service_started
+      submission-tracking-service:
+        condition: service_healthy
+      competition-directory-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:4007/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
   api-gateway:
     <<: *node-dev
     container_name: manifest-api-gateway
@@ -329,6 +362,7 @@ services:
       SUBMISSION_TRACKING_SERVICE_URL: "http://submission-tracking-service:4004"
       SCRIPT_STORAGE_SERVICE_URL: "http://script-storage-service:4011"
       FEEDBACK_EXCHANGE_SERVICE_URL: "http://feedback-exchange-service:4006"
+      RANKING_SERVICE_URL: "http://ranking-service:4007"
     command: >
       sh -lc "flock /workspace/.pnpm-install.lock -c 'pnpm install --frozen-lockfile=false' && pnpm --filter @script-manifest/api-gateway dev"
     ports:
@@ -343,6 +377,8 @@ services:
       submission-tracking-service:
         condition: service_healthy
       feedback-exchange-service:
+        condition: service_healthy
+      ranking-service:
         condition: service_healthy
     healthcheck:
       test:

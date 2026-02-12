@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import type { AuthUser } from "@script-manifest/contracts";
 import { SESSION_CHANGED_EVENT, readStoredSession } from "./lib/authSession";
 import { UserPen, FolderOpen, Trophy, TrendingUp, Send, type LucideIcon } from "lucide-react";
+import { HeroIllustration, TrustIllustration } from "./components/illustrations";
 
 type Surface = {
   title: string;
@@ -74,23 +75,26 @@ export default function HomePage() {
   if (!user) {
     return (
       <section className="space-y-4">
-        <article className="hero-card animate-in">
-          <p className="eyebrow">Writer Hub</p>
-          <h1 className="max-w-4xl font-display text-3xl font-semibold leading-tight text-ink-900 sm:text-4xl md:text-5xl lg:text-6xl">
-            Build your screenwriting portfolio without losing your history again.
-          </h1>
-          <p className="max-w-3xl text-base text-ink-700 md:text-lg">
-            Script Manifest gives writers a durable home for profiles, projects, submissions, and
-            discovery workflows. Your work stays portable and under your control.
-          </p>
-          <div className="inline-form">
-            <Link href="/signin" className="btn btn-primary no-underline">
-              Create account
-            </Link>
-            <Link href="/competitions" className="btn btn-secondary no-underline">
-              Browse competitions
-            </Link>
+        <article className="hero-card animate-in relative overflow-hidden">
+          <div className="relative z-10">
+            <p className="eyebrow">Writer Hub</p>
+            <h1 className="max-w-4xl font-display text-3xl font-semibold leading-tight text-ink-900 sm:text-4xl md:text-5xl lg:text-6xl">
+              Build your screenwriting portfolio without losing your history again.
+            </h1>
+            <p className="max-w-3xl text-base text-ink-700 md:text-lg">
+              Script Manifest gives writers a durable home for profiles, projects, submissions, and
+              discovery workflows. Your work stays portable and under your control.
+            </p>
+            <div className="inline-form">
+              <Link href="/signin" className="btn btn-primary no-underline">
+                Create account
+              </Link>
+              <Link href="/competitions" className="btn btn-secondary no-underline">
+                Browse competitions
+              </Link>
+            </div>
           </div>
+          <HeroIllustration className="pointer-events-none absolute -right-4 -bottom-4 hidden w-56 text-ink-900 opacity-60 md:block" />
         </article>
 
         <section aria-label="Platform capabilities" className="grid gap-3 md:grid-cols-2 xl:grid-cols-4 animate-stagger">
@@ -107,16 +111,21 @@ export default function HomePage() {
         </section>
 
         <article className="panel animate-in animate-in-delay-1">
-          <p className="eyebrow">Trust Contract</p>
-          <h2 className="section-title">Writers should not lose years of work overnight.</h2>
-          <ul className="mt-3 space-y-2 text-sm text-ink-700">
-            {trustPrinciples.map((principle) => (
-              <li key={principle} className="flex items-start gap-2">
-                <span className="mt-1 h-1.5 w-1.5 rounded-full bg-ember-500" aria-hidden />
-                <span>{principle}</span>
-              </li>
-            ))}
-          </ul>
+          <div className="flex items-start gap-5">
+            <TrustIllustration className="hidden w-16 shrink-0 text-ink-900 sm:block" />
+            <div>
+              <p className="eyebrow">Trust Contract</p>
+              <h2 className="section-title">Writers should not lose years of work overnight.</h2>
+              <ul className="mt-3 space-y-2 text-sm text-ink-700">
+                {trustPrinciples.map((principle) => (
+                  <li key={principle} className="flex items-start gap-2">
+                    <span className="mt-1 h-1.5 w-1.5 rounded-full bg-ember-500" aria-hidden />
+                    <span>{principle}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
         </article>
       </section>
     );

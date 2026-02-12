@@ -383,28 +383,28 @@ test("api-gateway proxies oauth scaffold endpoints", async (t) => {
 
   const start = await server.inject({
     method: "POST",
-    url: "/api/v1/auth/oauth/github/start",
+    url: "/api/v1/auth/oauth/google/start",
     payload: { redirectUri: "http://localhost:3000/auth/callback" }
   });
   assert.equal(start.statusCode, 201);
-  assert.equal(urls[0], "http://identity-svc/internal/auth/oauth/github/start");
+  assert.equal(urls[0], "http://identity-svc/internal/auth/oauth/google/start");
   assert.equal(methods[0], "POST");
 
   const complete = await server.inject({
     method: "POST",
-    url: "/api/v1/auth/oauth/github/complete",
+    url: "/api/v1/auth/oauth/google/complete",
     payload: { state: "a".repeat(32), code: "b".repeat(32) }
   });
   assert.equal(complete.statusCode, 201);
-  assert.equal(urls[1], "http://identity-svc/internal/auth/oauth/github/complete");
+  assert.equal(urls[1], "http://identity-svc/internal/auth/oauth/google/complete");
   assert.equal(methods[1], "POST");
 
   const callback = await server.inject({
     method: "GET",
-    url: "/api/v1/auth/oauth/github/callback?state=s123&code=c123"
+    url: "/api/v1/auth/oauth/google/callback?state=s123&code=c123"
   });
   assert.equal(callback.statusCode, 201);
-  assert.equal(urls[2], "http://identity-svc/internal/auth/oauth/github/callback?state=s123&code=c123");
+  assert.equal(urls[2], "http://identity-svc/internal/auth/oauth/google/callback?state=s123&code=c123");
   assert.equal(methods[2], "GET");
 });
 

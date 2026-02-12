@@ -1,8 +1,10 @@
 import Link from "next/link";
 import type { Route } from "next";
+import type { ReactNode } from "react";
 
 type EmptyStateProps = {
   icon?: string;
+  illustration?: ReactNode;
   title: string;
   description?: string;
   actionLabel?: string;
@@ -10,10 +12,10 @@ type EmptyStateProps = {
   onAction?: () => void;
 };
 
-export function EmptyState({ icon, title, description, actionLabel, actionHref, onAction }: EmptyStateProps) {
+export function EmptyState({ icon, illustration, title, description, actionLabel, actionHref, onAction }: EmptyStateProps) {
   return (
     <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-ink-500/20 bg-white/60 px-6 py-10 text-center">
-      {icon ? <span className="text-4xl" role="img" aria-hidden="true">{icon}</span> : null}
+      {illustration ? illustration : icon ? <span className="text-4xl" role="img" aria-hidden="true">{icon}</span> : null}
       <p className="text-sm font-semibold text-ink-700">{title}</p>
       {description ? <p className="max-w-sm text-sm text-ink-500">{description}</p> : null}
       {actionLabel && actionHref ? (

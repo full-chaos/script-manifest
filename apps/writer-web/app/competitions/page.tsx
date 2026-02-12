@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import type { Competition } from "@script-manifest/contracts";
 import { Modal } from "../components/modal";
 import { EmptyState } from "../components/emptyState";
+import { EmptyIllustration } from "../components/illustrations";
 import { SkeletonCard } from "../components/skeleton";
 import { useToast } from "../components/toast";
 import { getAuthHeaders, readStoredSession } from "../lib/authSession";
@@ -22,24 +23,48 @@ const initialFilters: Filters = {
   maxFeeUsd: ""
 };
 
-function describeDeadlineDistance(deadline: string): string {
+type DeadlineInfo = {
+  label: string;
+  urgency: "closed" | "urgent" | "approaching" | "comfortable";
+};
+
+function describeDeadline(deadline: string): DeadlineInfo {
   const deltaMs = new Date(deadline).getTime() - Date.now();
   const dayMs = 24 * 60 * 60 * 1000;
 
   if (deltaMs < 0) {
-    return "Closed";
+    return { label: "Closed", urgency: "closed" };
   }
 
   const daysRemaining = Math.ceil(deltaMs / dayMs);
   if (daysRemaining === 0) {
-    return "Due today";
+    return { label: "Due today", urgency: "urgent" };
   }
 
   if (daysRemaining === 1) {
-    return "Due in 1 day";
+    return { label: "Due in 1 day", urgency: "urgent" };
   }
 
-  return `Due in ${daysRemaining as number} days`;
+  if (daysRemaining <= 7) {
+    return { label: `${daysRemaining as number} days left`, urgency: "urgent" };
+  }
+
+  if (daysRemaining <= 30) {
+    return { label: `${daysRemaining as number} days left`, urgency: "approaching" };
+  }
+
+  return { label: `${daysRemaining as number} days left`, urgency: "comfortable" };
+}
+
+const urgencyColors: Record<DeadlineInfo["urgency"], string> = {
+  closed: "border-ink-500/20 bg-ink-500/10 text-ink-500",
+  urgent: "border-red-300 bg-red-50 text-red-700",
+  approaching: "border-amber-300 bg-amber-50 text-amber-700",
+  comfortable: "border-tide-500/30 bg-tide-500/10 text-tide-700"
+};
+
+function competitionInitial(title: string): string {
+  return title.charAt(0).toUpperCase();
 }
 
 export default function CompetitionsPage() {
@@ -256,23 +281,33 @@ export default function CompetitionsPage() {
         </div>
         {upcomingDeadlines.length === 0 ? (
           <EmptyState
-            icon="📅"
+            illustration={<EmptyIllustration variant="calendar" className="h-14 w-14 text-ink-900" />}
             title="No upcoming deadlines"
             description="Search for competitions above to see their deadlines here."
           />
         ) : null}
         <ol className="stack" aria-label="Upcoming deadline calendar">
-          {upcomingDeadlines.map((competition) => (
-            <li key={`calendar-${competition.id}`} className="subcard">
-              <div className="subcard-header">
-                <h3 className="text-lg text-ink-900">{competition.title}</h3>
-                <span className="badge">{competition.format}</span>
-              </div>
-              <p className="muted mt-2">
-                {new Date(competition.deadline).toLocaleDateString()} | {describeDeadlineDistance(competition.deadline)}
-              </p>
-            </li>
-          ))}
+          {upcomingDeadlines.map((competition) => {
+            const dl = describeDeadline(competition.deadline);
+            return (
+              <li key={`calendar-${competition.id}`} className="subcard">
+                <div className="subcard-header">
+                  <div className="flex items-center gap-3">
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-ember-500/10 text-sm font-bold text-ember-700">
+                      {competitionInitial(competition.title)}
+                    </span>
+                    <h3 className="text-lg text-ink-900">{competition.title}</h3>
+                  </div>
+                  <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${urgencyColors[dl.urgency]}`}>
+                    {dl.label}
+                  </span>
+                </div>
+                <p className="muted mt-2 ml-12">
+                  {new Date(competition.deadline).toLocaleDateString()} · {competition.format}
+                </p>
+              </li>
+            );
+          })}
         </ol>
       </article>
 
@@ -289,38 +324,61 @@ export default function CompetitionsPage() {
           </div>
         ) : !loading && results.length === 0 && !hasSearched ? (
           <EmptyState
-            icon="🔍"
+            illustration={<EmptyIllustration variant="search" className="h-14 w-14 text-ink-900" />}
             title="Start exploring competitions"
             description="Use the search filters above to find screenwriting competitions, fellowships, and labs."
           />
         ) : !loading && results.length === 0 ? (
           <EmptyState
-            icon="🔍"
+            illustration={<EmptyIllustration variant="search" className="h-14 w-14 text-ink-900" />}
             title="No matches found"
             description="Try adjusting your filters or broadening your search terms."
           />
         ) : null}
-        {results.map((competition) => (
-          <article key={competition.id} className="subcard">
-            <div className="subcard-header">
-              <strong className="text-lg text-ink-900">{competition.title}</strong>
-              <span className="badge">{competition.format}</span>
-            </div>
-            <p className="mt-2 text-sm text-ink-700">{competition.description}</p>
-            <p className="muted mt-2">
-              {competition.genre} | ${competition.feeUsd} | deadline {new Date(competition.deadline).toLocaleDateString()}
-            </p>
-            <div className="mt-3 inline-form">
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={() => openReminderModal(competition)}
-              >
-                Set reminder
-              </button>
-            </div>
-          </article>
-        ))}
+        {results.map((competition) => {
+          const dl = describeDeadline(competition.deadline);
+          return (
+            <article key={competition.id} className="subcard">
+              <div className="flex gap-4">
+                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-ember-500/10 text-lg font-bold text-ember-700">
+                  {competitionInitial(competition.title)}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="subcard-header">
+                    <strong className="text-lg text-ink-900">{competition.title}</strong>
+                    <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${urgencyColors[dl.urgency]}`}>
+                      {dl.label}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-sm text-ink-700 line-clamp-2">{competition.description}</p>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <span className="badge">{competition.format}</span>
+                    <span className="badge">{competition.genre}</span>
+                    {competition.feeUsd === 0 ? (
+                      <span className="inline-flex items-center rounded-full border border-tide-500/30 bg-tide-500/10 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-tide-700">
+                        Free
+                      </span>
+                    ) : (
+                      <span className="badge">${competition.feeUsd}</span>
+                    )}
+                    <span className="text-xs text-ink-500">
+                      Deadline {new Date(competition.deadline).toLocaleDateString()}
+                    </span>
+                  </div>
+                  <div className="mt-3 inline-form">
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={() => openReminderModal(competition)}
+                    >
+                      Set reminder
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </article>
+          );
+        })}
       </article>
 
       <Modal

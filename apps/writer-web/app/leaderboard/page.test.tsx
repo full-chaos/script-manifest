@@ -45,7 +45,9 @@ describe("LeaderboardPage", () => {
     await user.type(screen.getByLabelText("Genre filter"), "drama");
     await user.click(screen.getByRole("button", { name: "Refresh leaderboard" }));
 
-    await screen.findByText("1. writer_01");
-    expect(screen.getByText("Score 9")).toBeInTheDocument();
+    await screen.findByText("writer_01");
+    expect(screen.getByText("9")).toBeInTheDocument();
+    expect(screen.getByText("3 submitted")).toBeInTheDocument();
+    expect(screen.getByText("2 placed")).toBeInTheDocument();
   });
 });

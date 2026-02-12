@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import type { Route } from "next";
 import type { LeaderboardEntry } from "@script-manifest/contracts";
 import { EmptyState } from "../components/emptyState";
+import { EmptyIllustration } from "../components/illustrations";
 
 type LeaderboardResponse = {
   leaderboard: LeaderboardEntry[];
@@ -20,12 +21,47 @@ const initialFilters: Filters = {
   genre: ""
 };
 
+const avatarGradients = [
+  "from-ember-500 to-ember-700",
+  "from-tide-500 to-tide-700",
+  "from-sky-500 to-sky-700",
+  "from-violet-500 to-violet-700",
+  "from-amber-500 to-amber-700"
+];
+
+function avatarGradient(id: string): string {
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) {
+    hash = (hash * 31 + id.charCodeAt(i)) | 0;
+  }
+  return avatarGradients[Math.abs(hash) % avatarGradients.length]!;
+}
+
+function writerInitials(id: string): string {
+  const clean = id.replace(/^writer_/, "").replace(/[_-]/g, " ").trim();
+  const parts = clean.split(/\s+/);
+  if (parts.length >= 2) {
+    return (parts[0]![0]! + parts[1]![0]!).toUpperCase();
+  }
+  return clean.slice(0, 2).toUpperCase();
+}
+
+function scorePercent(score: number, maxScore: number): number {
+  if (maxScore <= 0) return 0;
+  return Math.min(100, Math.round((score / maxScore) * 100));
+}
+
 export default function LeaderboardPage() {
   const [filters, setFilters] = useState<Filters>(initialFilters);
   const [rows, setRows] = useState<LeaderboardEntry[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState("");
+
+  const maxScore = useMemo(() => {
+    if (rows.length === 0) return 1;
+    return Math.max(...rows.map((r) => r.totalScore), 1);
+  }, [rows]);
 
   async function loadLeaderboard(event?: FormEvent<HTMLFormElement>) {
     event?.preventDefault();
@@ -122,25 +158,57 @@ export default function LeaderboardPage() {
         </div>
         {rows.length === 0 ? (
           <EmptyState
-            icon="✨"
+            illustration={<EmptyIllustration variant="sparkle" className="h-16 w-16 text-ink-900" />}
             title="The spotlight is waiting"
             description="Writers appear here as they submit to competitions and record placements. Be the first to climb the ranks."
             actionLabel="Browse competitions"
             actionHref={"/competitions" as Route}
           />
         ) : null}
-        {rows.map((entry, index) => (
-          <article key={`${entry.writerId}-${index}`} className="subcard">
-            <div className="subcard-header">
-              <strong>{index + 1}. {entry.writerId}</strong>
-              <span className="badge">Score {entry.totalScore}</span>
-            </div>
-            <p className="muted mt-2">
-              {entry.submissionCount} submissions | {entry.placementCount} placements
-            </p>
-            <p className="muted">Updated {entry.lastUpdatedAt ? new Date(entry.lastUpdatedAt).toLocaleString() : "n/a"}</p>
-          </article>
-        ))}
+        {rows.length > 0 ? (
+          <div className="grid gap-3 md:grid-cols-2">
+            {rows.map((entry, index) => {
+              const rank = index + 1;
+              const pct = scorePercent(entry.totalScore, maxScore);
+              return (
+                <article key={`${entry.writerId}-${index}`} className="subcard flex gap-4">
+                  {/* Rank + Avatar */}
+                  <div className="flex flex-col items-center gap-1.5">
+                    <span className={`text-sm font-bold ${rank <= 3 ? "text-ember-700" : "text-ink-500"}`}>
+                      {rank <= 3 ? ["🥇", "🥈", "🥉"][rank - 1] : `#${rank}`}
+                    </span>
+                    <span className={`flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br text-sm font-bold text-white ${avatarGradient(entry.writerId)}`}>
+                      {writerInitials(entry.writerId)}
+                    </span>
+                  </div>
+
+                  {/* Content */}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-semibold text-ink-900">{entry.writerId}</p>
+                    <div className="mt-1.5 flex items-center gap-2">
+                      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-ink-500/10">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-ember-500 to-ember-700 transition-all"
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                      <span className="shrink-0 text-xs font-semibold text-ember-700">{entry.totalScore}</span>
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      <span className="stat-chip">{entry.submissionCount} submitted</span>
+                      <span className="stat-chip">{entry.placementCount} placed</span>
+                    </div>
+                    {entry.lastUpdatedAt ? (
+                      <p className="muted mt-1 text-xs">
+                        Updated {new Date(entry.lastUpdatedAt).toLocaleDateString()}
+                      </p>
+                    ) : null}
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        ) : null}
       </article>
 
       {status ? <p className={status.startsWith("Error:") ? "status-error" : "status-note"}>{status}</p> : null}

@@ -8,6 +8,7 @@ import {
   readStoredSession,
   writeStoredSession
 } from "../lib/authSession";
+import { SignInIllustration } from "../components/illustrations";
 
 type AuthMode = "register" | "login";
 
@@ -182,12 +183,15 @@ export default function SignInPage() {
 
   return (
     <section className="space-y-4">
-      <article className="hero-card animate-in">
-        <p className="eyebrow">Account</p>
-        <h1 className="text-4xl text-ink-900">Sign in to your writer hub</h1>
-        <p className="max-w-3xl text-ink-700">
-          Access your profile, manage projects, and track competition submissions — all in one place.
-        </p>
+      <article className="hero-card animate-in relative overflow-hidden">
+        <div className="relative z-10">
+          <p className="eyebrow">Account</p>
+          <h1 className="text-4xl text-ink-900">Sign in to your writer hub</h1>
+          <p className="max-w-3xl text-ink-700">
+            Access your profile, manage projects, and track competition submissions — all in one place.
+          </p>
+        </div>
+        <SignInIllustration className="pointer-events-none absolute -right-2 -bottom-2 hidden w-48 text-ink-900 opacity-50 md:block" />
       </article>
 
       <article className="panel stack mx-auto max-w-md">

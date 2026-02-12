@@ -11,6 +11,7 @@ import type {
   SubmissionStatus
 } from "@script-manifest/contracts";
 import { EmptyState } from "../components/emptyState";
+import { EmptyIllustration } from "../components/illustrations";
 import { Modal } from "../components/modal";
 import { SkeletonCard } from "../components/skeleton";
 import { useToast } from "../components/toast";
@@ -281,7 +282,7 @@ export default function SubmissionsPage() {
 
       {!writerId ? (
         <EmptyState
-          icon="🔐"
+          illustration={<EmptyIllustration variant="inbox" className="h-14 w-14 text-ink-900" />}
           title="Sign in to track submissions"
           description="Create an account or sign in to record competition submissions and placements."
           actionLabel="Sign in"
@@ -302,7 +303,7 @@ export default function SubmissionsPage() {
           </div>
         ) : submissions.length === 0 ? (
           <EmptyState
-            icon="📬"
+            illustration={<EmptyIllustration variant="inbox" className="h-14 w-14 text-ink-900" />}
             title="No submissions yet"
             description="Hit 'Create submission' above to record your first competition entry."
           />

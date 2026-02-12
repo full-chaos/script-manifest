@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import type { AuthUser } from "@script-manifest/contracts";
 import { SESSION_CHANGED_EVENT, readStoredSession } from "../lib/authSession";
+import { Menu, X } from "lucide-react";
 
 type NavLink = {
   href: Route;
@@ -70,6 +71,11 @@ export function SiteHeader() {
     [user]
   );
 
+  const currentLabel = useMemo(() => {
+    const match = navLinks.find((link) => isActive(pathname, link.href));
+    return match?.label ?? null;
+  }, [pathname]);
+
   return (
     <header className="panel sticky top-3 z-40 border-ink-500/15 bg-white/90">
       <div className="flex items-center justify-between gap-4">
@@ -80,17 +86,27 @@ export function SiteHeader() {
           <p className="text-xs font-medium uppercase tracking-[0.16em] text-ink-500">Writer Hub</p>
         </div>
 
-        <button
-          type="button"
-          className="btn btn-secondary md:hidden"
-          aria-expanded={mobileOpen}
-          aria-controls="mobile-primary-nav"
-          onClick={() => setMobileOpen((current) => !current)}
-        >
-          Menu
-        </button>
+        <div className="flex items-center gap-2 lg:hidden">
+          {!mobileOpen && currentLabel ? (
+            <span className="text-xs font-medium text-ink-500">{currentLabel}</span>
+          ) : null}
+          <button
+            type="button"
+            className="btn btn-secondary p-2"
+            aria-expanded={mobileOpen}
+            aria-controls="mobile-primary-nav"
+            aria-label={mobileOpen ? "Close menu" : "Open menu"}
+            onClick={() => setMobileOpen((current) => !current)}
+          >
+            {mobileOpen ? (
+              <X className="h-5 w-5" aria-hidden="true" />
+            ) : (
+              <Menu className="h-5 w-5" aria-hidden="true" />
+            )}
+          </button>
+        </div>
 
-        <div className="hidden items-center gap-4 md:flex">
+        <div className="hidden items-center gap-3 lg:flex">
           <nav aria-label="Primary">
             <ul className="flex items-center gap-2">
               {visibleLinks.map((link) => {
@@ -102,8 +118,8 @@ export function SiteHeader() {
                       aria-current={active ? "page" : undefined}
                       className={
                         active
-                          ? "rounded-md border border-ember-500/40 bg-ember-500/10 px-3 py-1.5 text-sm font-semibold text-ember-700 no-underline"
-                          : "rounded-md border border-transparent px-3 py-1.5 text-sm font-medium text-ink-700 no-underline hover:border-ink-500/20 hover:bg-cream-100"
+                          ? "rounded-md border border-ember-500/40 bg-ember-500/10 px-2.5 py-1 text-xs font-semibold text-ember-700 no-underline"
+                          : "rounded-md border border-transparent px-2.5 py-1 text-xs font-medium text-ink-700 no-underline hover:border-ink-500/20 hover:bg-cream-100"
                       }
                     >
                       {link.label}
@@ -116,11 +132,11 @@ export function SiteHeader() {
 
           <div className="flex items-center gap-2 border-l border-ink-500/15 pl-4">
             {user ? (
-              <span className="rounded-full border border-ink-500/20 bg-cream-100 px-3 py-1 text-xs text-ink-700">
-                Signed in: {user.displayName}
+              <span className="rounded-full border border-ink-500/20 bg-cream-100 px-2.5 py-0.5 text-xs text-ink-700">
+                {user.displayName}
               </span>
             ) : (
-              <span className="rounded-full border border-ink-500/20 bg-cream-100 px-3 py-1 text-xs text-ink-500">
+              <span className="rounded-full border border-ink-500/20 bg-cream-100 px-2.5 py-0.5 text-xs text-ink-500">
                 Guest
               </span>
             )}
@@ -132,7 +148,7 @@ export function SiteHeader() {
       </div>
 
       {mobileOpen ? (
-        <div id="mobile-primary-nav" className="mt-4 space-y-3 border-t border-ink-500/15 pt-4 md:hidden">
+        <div id="mobile-primary-nav" className="mt-4 space-y-3 border-t border-ink-500/15 pt-4 lg:hidden">
           <nav aria-label="Primary Mobile">
             <ul className="space-y-2">
               {visibleLinks.map((link) => {

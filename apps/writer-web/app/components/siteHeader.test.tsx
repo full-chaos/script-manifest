@@ -37,7 +37,7 @@ describe("SiteHeader", () => {
 
     render(<SiteHeader />);
 
-    expect(await screen.findByText("Signed in: Writer One")).toBeInTheDocument();
+    expect(await screen.findByText("Writer One")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Projects" })).toHaveAttribute("href", "/projects");
     expect(screen.getByRole("link", { name: "Account" })).toHaveAttribute("href", "/signin");
     expect(screen.queryByRole("link", { name: "Admin" })).not.toBeInTheDocument();
@@ -60,7 +60,7 @@ describe("SiteHeader", () => {
 
     render(<SiteHeader />);
 
-    expect(await screen.findByText("Signed in: Admin User")).toBeInTheDocument();
+    expect(await screen.findByText("Admin User")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Admin" })).toHaveAttribute("href", "/admin/competitions");
   });
 });

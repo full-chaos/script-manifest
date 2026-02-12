@@ -248,8 +248,8 @@ export default function SubmissionsPage() {
 
   return (
     <section className="space-y-4">
-      <article className="hero-card">
-        <p className="eyebrow">Submission Hub</p>
+      <article className="hero-card hero-card--violet animate-in">
+        <p className="eyebrow eyebrow--violet">Submission Hub</p>
         <h1 className="text-4xl text-ink-900">Track every competition outcome</h1>
         <p className="max-w-3xl text-ink-700">
           Track every submission, record placements, and move entries between projects — all from

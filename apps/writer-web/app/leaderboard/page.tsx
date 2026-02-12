@@ -65,8 +65,8 @@ export default function LeaderboardPage() {
 
   return (
     <section className="space-y-4">
-      <article className="hero-card">
-        <p className="eyebrow">Leaderboard</p>
+      <article className="hero-card hero-card--tide animate-in">
+        <p className="eyebrow eyebrow--tide">Leaderboard</p>
         <h1 className="text-4xl text-ink-900">Writer Spotlight</h1>
         <p className="max-w-3xl text-ink-700">
           Rankings reflect submission activity and placement outcomes, with transparent scoring weights
@@ -74,7 +74,7 @@ export default function LeaderboardPage() {
         </p>
       </article>
 
-      <article className="panel stack">
+      <article className="panel stack animate-in animate-in-delay-1">
         <form className="stack" onSubmit={loadLeaderboard}>
           <div className="grid-two">
             <label className="stack-tight">

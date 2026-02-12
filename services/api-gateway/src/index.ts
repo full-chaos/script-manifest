@@ -13,6 +13,7 @@ import { registerSubmissionRoutes } from "./routes/submissions.js";
 import { registerScriptRoutes } from "./routes/scripts.js";
 import { registerLeaderboardRoutes } from "./routes/leaderboard.js";
 import { registerExportRoutes } from "./routes/export.js";
+import { registerFeedbackRoutes } from "./routes/feedback.js";
 import { registerHealthRoutes } from "./routes/health.js";
 
 export type ApiGatewayOptions = {
@@ -23,6 +24,7 @@ export type ApiGatewayOptions = {
   competitionDirectoryBase?: string;
   submissionTrackingBase?: string;
   scriptStorageBase?: string;
+  feedbackExchangeBase?: string;
   competitionAdminAllowlist?: string[];
 };
 
@@ -45,6 +47,7 @@ export function buildServer(options: ApiGatewayOptions = {}): FastifyInstance {
     competitionDirectoryBase: options.competitionDirectoryBase ?? "http://localhost:4002",
     submissionTrackingBase: options.submissionTrackingBase ?? "http://localhost:4004",
     scriptStorageBase: options.scriptStorageBase ?? "http://localhost:4011",
+    feedbackExchangeBase: options.feedbackExchangeBase ?? "http://localhost:4006",
     competitionAdminAllowlist: new Set(
       options.competitionAdminAllowlist ??
         parseAllowlist(process.env.COMPETITION_ADMIN_ALLOWLIST ?? "admin_01,user_admin_01")
@@ -61,6 +64,7 @@ export function buildServer(options: ApiGatewayOptions = {}): FastifyInstance {
   registerScriptRoutes(server, ctx);
   registerLeaderboardRoutes(server, ctx);
   registerExportRoutes(server, ctx);
+  registerFeedbackRoutes(server, ctx);
 
   return server;
 }
@@ -75,6 +79,7 @@ export async function startServer(): Promise<void> {
     competitionDirectoryBase: process.env.COMPETITION_DIRECTORY_SERVICE_URL,
     submissionTrackingBase: process.env.SUBMISSION_TRACKING_SERVICE_URL,
     scriptStorageBase: process.env.SCRIPT_STORAGE_SERVICE_URL,
+    feedbackExchangeBase: process.env.FEEDBACK_EXCHANGE_SERVICE_URL,
     competitionAdminAllowlist: parseAllowlist(process.env.COMPETITION_ADMIN_ALLOWLIST ?? "")
   });
 

@@ -188,8 +188,8 @@ export default function ProfilePage() {
 
   return (
     <section className="space-y-4">
-      <article className="hero-card">
-        <p className="eyebrow">Writer Profile</p>
+      <article className="hero-card hero-card--amber animate-in">
+        <p className="eyebrow eyebrow--amber">Writer Profile</p>
         <h1 className="text-4xl text-ink-900">Your public writer resume</h1>
         <p className="max-w-2xl text-ink-700">
           Keep your bio, genres, demographics, profile links, and search visibility current.

@@ -182,7 +182,7 @@ export default function SignInPage() {
 
   return (
     <section className="space-y-4">
-      <article className="hero-card">
+      <article className="hero-card animate-in">
         <p className="eyebrow">Account</p>
         <h1 className="text-4xl text-ink-900">Sign in to your writer hub</h1>
         <p className="max-w-3xl text-ink-700">

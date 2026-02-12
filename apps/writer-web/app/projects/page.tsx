@@ -640,8 +640,8 @@ export default function ProjectsPage() {
 
   return (
     <section className="space-y-4">
-      <article className="hero-card">
-        <p className="eyebrow">Project Workspace</p>
+      <article className="hero-card hero-card--sky animate-in">
+        <p className="eyebrow eyebrow--sky">Project Workspace</p>
         <h1 className="text-4xl text-ink-900">Your script workspace</h1>
         <p className="max-w-3xl text-ink-700">
           Manage projects, co-writers, and draft versions in one place. Upload scripts, track

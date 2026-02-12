@@ -175,7 +175,7 @@ export default function CompetitionsPage() {
 
   return (
     <section className="space-y-4">
-      <article className="hero-card">
+      <article className="hero-card animate-in">
         <p className="eyebrow">Competition Directory</p>
         <h1 className="text-4xl text-ink-900">A vetted directory, not a random spreadsheet</h1>
         <p className="max-w-3xl text-ink-700">
@@ -187,7 +187,7 @@ export default function CompetitionsPage() {
         </div>
       </article>
 
-      <article className="panel stack">
+      <article className="panel stack animate-in animate-in-delay-1">
         <form className="stack" onSubmit={search}>
           <label className="stack-tight">
             <span>Keyword</span>

@@ -74,7 +74,7 @@ export default function HomePage() {
   if (!user) {
     return (
       <section className="space-y-4">
-        <article className="hero-card">
+        <article className="hero-card animate-in">
           <p className="eyebrow">Writer Hub</p>
           <h1 className="max-w-4xl font-display text-3xl font-semibold leading-tight text-ink-900 sm:text-4xl md:text-5xl lg:text-6xl">
             Build your screenwriting portfolio without losing your history again.
@@ -93,7 +93,7 @@ export default function HomePage() {
           </div>
         </article>
 
-        <section aria-label="Platform capabilities" className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <section aria-label="Platform capabilities" className="grid gap-3 md:grid-cols-2 xl:grid-cols-4 animate-stagger">
           {writerSurfaces.map((surface) => (
             <article key={surface.title} className="feature-card">
               <surface.icon className="h-7 w-7 text-ember-500" aria-hidden="true" />
@@ -106,7 +106,7 @@ export default function HomePage() {
           ))}
         </section>
 
-        <article className="panel">
+        <article className="panel animate-in animate-in-delay-1">
           <p className="eyebrow">Trust Contract</p>
           <h2 className="section-title">Writers should not lose years of work overnight.</h2>
           <ul className="mt-3 space-y-2 text-sm text-ink-700">
@@ -124,13 +124,13 @@ export default function HomePage() {
 
   return (
     <section className="space-y-4">
-      <article className="hero-card">
+      <article className="hero-card animate-in">
         <p className="eyebrow">Welcome back</p>
         <h2 className="font-display text-4xl font-semibold text-ink-900">{user.displayName}</h2>
         <p className="text-ink-700">Jump directly into your active writer workflow.</p>
       </article>
 
-      <section aria-label="Quick actions" className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <section aria-label="Quick actions" className="grid gap-3 md:grid-cols-2 xl:grid-cols-4 animate-stagger">
         {writerSurfaces.map((surface) => (
           <article key={surface.title} className="feature-card">
             <surface.icon className="h-7 w-7 text-ember-500" aria-hidden="true" />

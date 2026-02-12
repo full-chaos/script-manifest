@@ -72,9 +72,9 @@ export function SiteHeader() {
   );
 
   const currentLabel = useMemo(() => {
-    const match = navLinks.find((link) => isActive(pathname, link.href));
+    const match = visibleLinks.find((link) => isActive(pathname, link.href));
     return match?.label ?? null;
-  }, [pathname]);
+  }, [pathname, visibleLinks]);
 
   return (
     <header className="panel sticky top-3 z-40 border-ink-500/15 bg-white/90">
@@ -92,7 +92,7 @@ export function SiteHeader() {
           ) : null}
           <button
             type="button"
-            className="btn btn-secondary p-2"
+            className="btn-secondary !p-2"
             aria-expanded={mobileOpen}
             aria-controls="mobile-primary-nav"
             aria-label={mobileOpen ? "Close menu" : "Open menu"}

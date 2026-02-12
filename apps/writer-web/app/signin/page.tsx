@@ -183,16 +183,14 @@ export default function SignInPage() {
   return (
     <section className="space-y-4">
       <article className="hero-card">
-        <p className="eyebrow">Authentication</p>
-        <h1 className="text-4xl text-ink-900">Secure writer identity</h1>
+        <p className="eyebrow">Account</p>
+        <h1 className="text-4xl text-ink-900">Sign in to your writer hub</h1>
         <p className="max-w-3xl text-ink-700">
-          Use email credentials for local Phase 1 testing. Session state powers profile, projects,
-          and submissions autoload behavior.
+          Access your profile, manage projects, and track competition submissions — all in one place.
         </p>
       </article>
 
-      <article className="panel stack max-w-2xl">
-        <h2 className="section-title">Sign In</h2>
+      <article className="panel stack mx-auto max-w-md">
 
         {session ? (
           <div className="stack">
@@ -208,25 +206,30 @@ export default function SignInPage() {
           </div>
         ) : (
           <form className="stack" onSubmit={submit}>
-            <label className="stack-tight">
-              <span>{modeLabel}</span>
-              <div className="segmented">
-                <button
-                  type="button"
-                  className={mode === "login" ? "btn btn-primary" : "btn btn-secondary"}
-                  onClick={() => setMode("login")}
-                >
-                  Login
-                </button>
-                <button
-                  type="button"
-                  className={mode === "register" ? "btn btn-primary" : "btn btn-secondary"}
-                  onClick={() => setMode("register")}
-                >
-                  Register
-                </button>
-              </div>
-            </label>
+            <div className="flex overflow-hidden rounded-lg border border-ink-500/20">
+              <button
+                type="button"
+                className={
+                  mode === "login"
+                    ? "flex-1 px-4 py-2 text-sm font-semibold bg-ember-500 text-white transition-colors"
+                    : "flex-1 px-4 py-2 text-sm font-semibold bg-white text-ink-700 hover:bg-cream-100 transition-colors"
+                }
+                onClick={() => setMode("login")}
+              >
+                Sign in
+              </button>
+              <button
+                type="button"
+                className={
+                  mode === "register"
+                    ? "flex-1 px-4 py-2 text-sm font-semibold bg-ember-500 text-white transition-colors"
+                    : "flex-1 px-4 py-2 text-sm font-semibold bg-white text-ink-700 hover:bg-cream-100 transition-colors"
+                }
+                onClick={() => setMode("register")}
+              >
+                Create account
+              </button>
+            </div>
 
             {mode === "register" ? (
               <label className="stack-tight">
@@ -263,19 +266,24 @@ export default function SignInPage() {
               />
             </label>
 
-            <div className="inline-form">
-              <button type="submit" className="btn btn-primary" disabled={submitting}>
-                {submitting ? "Submitting..." : modeLabel}
-              </button>
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={() => void signInWithGithub()}
-                disabled={oauthSubmitting}
-              >
-                {oauthSubmitting ? "Connecting..." : "Continue with GitHub"}
-              </button>
+            <button
+              type="button"
+              className="btn btn-secondary w-full justify-center"
+              onClick={() => void signInWithGithub()}
+              disabled={oauthSubmitting}
+            >
+              {oauthSubmitting ? "Connecting..." : "Continue with GitHub"}
+            </button>
+
+            <div className="flex items-center gap-3">
+              <div className="h-px flex-1 bg-ink-500/15" />
+              <span className="text-xs text-ink-500">or continue with email</span>
+              <div className="h-px flex-1 bg-ink-500/15" />
             </div>
+
+            <button type="submit" className="btn btn-primary w-full justify-center" disabled={submitting}>
+              {submitting ? "Submitting..." : modeLabel}
+            </button>
           </form>
         )}
       </article>

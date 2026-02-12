@@ -50,7 +50,7 @@
   }
 
   .feature-card {
-    @apply flex min-h-44 flex-col gap-2 rounded-xl border border-ink-500/15 bg-white/85 p-4 shadow-sm;
+    @apply flex min-h-44 flex-col gap-2 rounded-xl border border-ink-500/15 bg-white/85 p-4 shadow-sm transition-shadow;
   }
 
   .stack {

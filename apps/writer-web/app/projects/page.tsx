@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import type { Route } from "next";
 import { useEffect, useState, type FormEvent } from "react";
 import type {
   Project,
@@ -11,6 +12,7 @@ import type {
   ScriptRegisterResponse,
   ScriptUploadSessionResponse
 } from "@script-manifest/contracts";
+import { EmptyState } from "../components/emptyState";
 import { Modal } from "../components/modal";
 import { SkeletonCard } from "../components/skeleton";
 import { useToast } from "../components/toast";
@@ -640,13 +642,13 @@ export default function ProjectsPage() {
     <section className="space-y-4">
       <article className="hero-card">
         <p className="eyebrow">Project Workspace</p>
-        <h1 className="text-4xl text-ink-900">Co-writer + draft lifecycle</h1>
+        <h1 className="text-4xl text-ink-900">Your script workspace</h1>
         <p className="max-w-3xl text-ink-700">
-          Projects, co-writers, and draft versions are managed in one place with clean lifecycle
-          transitions for active and archived versions.
+          Manage projects, co-writers, and draft versions in one place. Upload scripts, track
+          lifecycle transitions, and control access — all from a single dashboard.
         </p>
         <div className="inline-form">
-          <span className="badge">Owner: {ownerUserId || "Not signed in"}</span>
+          <span className="badge">{ownerUserId ? `ID: ${ownerUserId}` : "Not signed in"}</span>
           <button type="button" className="btn btn-secondary" onClick={() => void loadProjects()} disabled={loading || !ownerUserId}>
             {loading ? "Refreshing..." : "Refresh projects"}
           </button>
@@ -657,7 +659,13 @@ export default function ProjectsPage() {
       </article>
 
       {!ownerUserId ? (
-        <article className="empty-state">Sign in first to manage projects and drafts.</article>
+        <EmptyState
+          icon="🔐"
+          title="Sign in to manage projects"
+          description="Create an account or sign in to start building your script portfolio."
+          actionLabel="Sign in"
+          actionHref={"/signin" as Route}
+        />
       ) : null}
 
       <article className="panel stack">
@@ -672,7 +680,13 @@ export default function ProjectsPage() {
             <SkeletonCard />
           </div>
         ) : projects.length === 0 ? (
-          <p className="empty-state">No projects found.</p>
+          <EmptyState
+            icon="📁"
+            title="No projects yet"
+            description="Create your first project to start managing scripts, drafts, and co-writers."
+            onAction={() => setProjectModalOpen(true)}
+            actionLabel="Create project"
+          />
         ) : null}
 
         {!initialLoading ? (
@@ -731,7 +745,11 @@ export default function ProjectsPage() {
         </div>
 
         {!selectedProject ? (
-          <p className="empty-state">Select a project to manage co-writers and drafts.</p>
+          <EmptyState
+            icon="👆"
+            title="Select a project"
+            description="Choose a project above to manage its co-writers, drafts, and access requests."
+          />
         ) : (
           <div className="stack">
             <section className="grid gap-3 md:grid-cols-2">
@@ -852,8 +870,20 @@ export default function ProjectsPage() {
                   Refresh access log
                 </button>
               </div>
-              {!selectedScriptId ? <p className="empty-state">Pick a draft and click Track access to load audit entries.</p> : null}
-              {selectedScriptId && accessRequests.length === 0 ? <p className="empty-state">No access requests for this script yet.</p> : null}
+              {!selectedScriptId ? (
+                <EmptyState
+                  icon="🔒"
+                  title="Select a draft"
+                  description="Pick a draft and click 'Track access' to load audit entries."
+                />
+              ) : null}
+              {selectedScriptId && accessRequests.length === 0 ? (
+                <EmptyState
+                  icon="📋"
+                  title="No access requests"
+                  description="No one has requested access to this script yet."
+                />
+              ) : null}
               {accessRequests.map((entry) => (
                 <article key={entry.id} className="rounded-xl border border-zinc-300/60 bg-white p-3">
                   <div className="subcard-header">

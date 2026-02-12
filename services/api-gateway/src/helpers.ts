@@ -10,6 +10,7 @@ export type GatewayContext = {
   competitionDirectoryBase: string;
   submissionTrackingBase: string;
   scriptStorageBase: string;
+  feedbackExchangeBase: string;
   competitionAdminAllowlist: Set<string>;
 };
 

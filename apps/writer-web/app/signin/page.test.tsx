@@ -75,17 +75,17 @@ describe("SignInPage", () => {
     });
   });
 
-  it("supports mocked GitHub OAuth flow", async () => {
+  it("supports mocked Google OAuth flow", async () => {
     const fetchMock = vi.fn<typeof fetch>(async (input) => {
       const url = typeof input === "string" ? input : input.toString();
-      if (url === "/api/v1/auth/oauth/github/start") {
+      if (url === "/api/v1/auth/oauth/google/start") {
         return jsonResponse(
           {
-            provider: "github",
+            provider: "google",
             state: "state_1234567890123456",
-            callbackUrl: "http://localhost:4005/internal/auth/oauth/github/callback",
+            callbackUrl: "http://localhost:4005/internal/auth/oauth/google/callback",
             authorizationUrl:
-              "http://localhost:4005/internal/auth/oauth/github/callback?state=state_1234567890123456&code=code_1234567890123456",
+              "http://localhost:4005/internal/auth/oauth/google/callback?state=state_1234567890123456&code=code_1234567890123456",
             mockCode: "code_1234567890123456",
             expiresAt: "2026-02-13T00:00:00.000Z"
           },
@@ -93,14 +93,14 @@ describe("SignInPage", () => {
         );
       }
 
-      if (url.startsWith("/api/v1/auth/oauth/github/callback?")) {
+      if (url.startsWith("/api/v1/auth/oauth/google/callback?")) {
         return jsonResponse({
           token: "oauth_sess_1",
           expiresAt: "2026-02-13T00:00:00.000Z",
           user: {
             id: "user_oauth",
-            email: "github+writer@oauth.local",
-            displayName: "Writer (github)"
+            email: "google+writer@oauth.local",
+            displayName: "Writer (google)"
           }
         });
       }
@@ -112,10 +112,10 @@ describe("SignInPage", () => {
     render(<SignInPage />);
     const user = userEvent.setup();
 
-    await user.click(screen.getByRole("button", { name: "Continue with GitHub" }));
+    await user.click(screen.getByRole("button", { name: "Continue with Google" }));
     await screen.findByText(/Signed in as/);
     expect(fetchMock).toHaveBeenCalledWith(
-      "/api/v1/auth/oauth/github/start",
+      "/api/v1/auth/oauth/google/start",
       expect.objectContaining({ method: "POST" })
     );
     expect(window.localStorage.getItem("script_manifest_session")).toContain("oauth_sess_1");

@@ -160,8 +160,8 @@ services:
     environment:
       PORT: "4005"
       DATABASE_URL: "postgresql://manifest:manifest@postgres:5432/manifest"
-      GITHUB_CLIENT_ID: ""
-      GITHUB_CLIENT_SECRET: ""
+      GOOGLE_CLIENT_ID: ""
+      GOOGLE_CLIENT_SECRET: ""
     command: >
       sh -lc "flock /workspace/.pnpm-install.lock -c 'pnpm install --frozen-lockfile=false' && pnpm --filter @script-manifest/identity-service dev"
     ports:

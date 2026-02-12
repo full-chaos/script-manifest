@@ -40,9 +40,9 @@ export function buildServer(options: IdentityServiceOptions = {}): FastifyInstan
   const oauthIssuerBase =
     process.env.IDENTITY_SERVICE_PUBLIC_URL ?? `http://localhost:${process.env.PORT ?? "4005"}`;
 
-  const githubClientId = process.env.GITHUB_CLIENT_ID ?? "";
-  const githubClientSecret = process.env.GITHUB_CLIENT_SECRET ?? "";
-  const useRealGitHub = Boolean(githubClientId && githubClientSecret);
+  const googleClientId = process.env.GOOGLE_CLIENT_ID ?? "";
+  const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET ?? "";
+  const useRealGoogle = Boolean(googleClientId && googleClientSecret);
 
   server.addHook("onReady", async () => {
     await repository.init();
@@ -157,8 +157,8 @@ export function buildServer(options: IdentityServiceOptions = {}): FastifyInstan
     const { codeVerifier, codeChallenge } = generatePKCE();
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
 
-    if (useRealGitHub && provider === "github") {
-      // Real GitHub OAuth flow
+    if (useRealGoogle && provider === "google") {
+      // Real Google OAuth flow
       const callbackUrl = new URL(`/internal/auth/oauth/${provider}/callback`, oauthIssuerBase);
 
       await repository.saveOAuthState(state, {
@@ -168,15 +168,15 @@ export function buildServer(options: IdentityServiceOptions = {}): FastifyInstan
         expiresAt
       });
 
-      const authorizationUrl = new URL("https://github.com/login/oauth/authorize");
-      authorizationUrl.searchParams.set("client_id", githubClientId);
+      const authorizationUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
+      authorizationUrl.searchParams.set("client_id", googleClientId);
+      authorizationUrl.searchParams.set("redirect_uri", callbackUrl.toString());
+      authorizationUrl.searchParams.set("response_type", "code");
+      authorizationUrl.searchParams.set("scope", "openid email profile");
       authorizationUrl.searchParams.set("state", state);
       authorizationUrl.searchParams.set("code_challenge", codeChallenge);
       authorizationUrl.searchParams.set("code_challenge_method", "S256");
-      authorizationUrl.searchParams.set("scope", "user:email");
-      if (parsedBody.data.redirectUri) {
-        authorizationUrl.searchParams.set("redirect_uri", parsedBody.data.redirectUri);
-      }
+      authorizationUrl.searchParams.set("access_type", "offline");
 
       const payload = OAuthStartResponseSchema.parse({
         provider,
@@ -239,7 +239,8 @@ export function buildServer(options: IdentityServiceOptions = {}): FastifyInstan
       });
     }
 
-    const result = await completeOAuthSession(repository, provider, parsedBody.data, useRealGitHub, githubClientId, githubClientSecret);
+    const completeCallbackUrl = new URL(`/internal/auth/oauth/${provider}/callback`, oauthIssuerBase).toString();
+    const result = await completeOAuthSession(repository, provider, parsedBody.data, useRealGoogle, googleClientId, googleClientSecret, completeCallbackUrl);
     if ("error" in result) {
       return reply.status(result.statusCode).send({ error: result.error });
     }
@@ -261,7 +262,8 @@ export function buildServer(options: IdentityServiceOptions = {}): FastifyInstan
       });
     }
 
-    const result = await completeOAuthSession(repository, provider, parsedQuery.data, useRealGitHub, githubClientId, githubClientSecret);
+    const getCallbackUrl = new URL(`/internal/auth/oauth/${provider}/callback`, oauthIssuerBase).toString();
+    const result = await completeOAuthSession(repository, provider, parsedQuery.data, useRealGoogle, googleClientId, googleClientSecret, getCallbackUrl);
     if ("error" in result) {
       return reply.status(result.statusCode).send({ error: result.error });
     }
@@ -375,14 +377,16 @@ function parseProvider(params: unknown): OAuthProvider | null {
   return parsedProvider.data;
 }
 
-// Exchange a GitHub authorization code for user info via the real GitHub API
-async function exchangeGitHubCode(
+// Exchange a Google authorization code for user info via the Google OAuth2 API
+async function exchangeGoogleCode(
   code: string,
   clientId: string,
-  clientSecret: string
+  clientSecret: string,
+  redirectUri: string,
+  codeVerifier: string
 ): Promise<{ email: string; displayName: string } | { error: string }> {
   // Exchange code for access token
-  const tokenResponse = await request("https://github.com/login/oauth/access_token", {
+  const tokenResponse = await request("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -391,7 +395,10 @@ async function exchangeGitHubCode(
     body: JSON.stringify({
       client_id: clientId,
       client_secret: clientSecret,
-      code
+      code,
+      redirect_uri: redirectUri,
+      grant_type: "authorization_code",
+      code_verifier: codeVerifier
     })
   });
 
@@ -402,63 +409,45 @@ async function exchangeGitHubCode(
   };
 
   if (!tokenBody.access_token) {
-    return { error: tokenBody.error_description ?? tokenBody.error ?? "github_token_exchange_failed" };
+    return { error: tokenBody.error_description ?? tokenBody.error ?? "google_token_exchange_failed" };
   }
 
   const accessToken = tokenBody.access_token;
 
-  // Fetch user profile
-  const userResponse = await request("https://api.github.com/user", {
+  // Fetch user profile from Google
+  const userResponse = await request("https://www.googleapis.com/oauth2/v2/userinfo", {
     method: "GET",
     headers: {
       authorization: `Bearer ${accessToken}`,
-      accept: "application/json",
-      "user-agent": "script-manifest-identity-service"
+      accept: "application/json"
     }
   });
 
   const userBody = await userResponse.body.json() as {
-    login?: string;
-    name?: string;
     email?: string;
+    verified_email?: boolean;
+    name?: string;
+    given_name?: string;
+    family_name?: string;
   };
 
-  // Fetch verified emails
-  const emailsResponse = await request("https://api.github.com/user/emails", {
-    method: "GET",
-    headers: {
-      authorization: `Bearer ${accessToken}`,
-      accept: "application/json",
-      "user-agent": "script-manifest-identity-service"
-    }
-  });
-
-  const emailsBody = await emailsResponse.body.json() as Array<{
-    email: string;
-    primary: boolean;
-    verified: boolean;
-  }>;
-
-  // Find the primary verified email
-  const primaryEmail = emailsBody.find((e) => e.primary && e.verified)?.email
-    ?? emailsBody.find((e) => e.verified)?.email;
-
-  if (!primaryEmail) {
-    return { error: "github_no_verified_email" };
+  if (!userBody.email || !userBody.verified_email) {
+    return { error: "google_no_verified_email" };
   }
 
-  const displayName = userBody.name || userBody.login || primaryEmail.split("@")[0] || "GitHub User";
+  const displayName = userBody.name || userBody.email.split("@")[0] || "Google User";
 
-  return { email: primaryEmail, displayName };
+  return { email: userBody.email, displayName };
 }
 
 async function completeOAuthSession(
   repository: IdentityRepository,
   provider: OAuthProvider,
   input: { state: string; code: string },
-  useRealGitHub: boolean,
-  githubClientId: string,
-  githubClientSecret: string
+  useRealGoogle: boolean,
+  googleClientId: string,
+  googleClientSecret: string,
+  callbackUrl: string
 ): Promise<
   | { payload: ReturnType<typeof AuthSessionResponseSchema.parse> }
   | { error: string; statusCode: number }
@@ -479,14 +468,14 @@ async function completeOAuthSession(
   let email: string;
   let displayName: string;
 
-  if (useRealGitHub && provider === "github") {
-    // Real GitHub: exchange authorization code for user info
-    const ghResult = await exchangeGitHubCode(input.code, githubClientId, githubClientSecret);
-    if ("error" in ghResult) {
-      return { error: ghResult.error, statusCode: 400 };
+  if (useRealGoogle && provider === "google") {
+    // Real Google: exchange authorization code for user info
+    const googleResult = await exchangeGoogleCode(input.code, googleClientId, googleClientSecret, callbackUrl, stored.codeVerifier);
+    if ("error" in googleResult) {
+      return { error: googleResult.error, statusCode: 400 };
     }
-    email = ghResult.email;
-    displayName = ghResult.displayName;
+    email = googleResult.email;
+    displayName = googleResult.displayName;
   } else {
     // Mock flow: validate mock code
     if (!stored.mockCode || stored.mockCode !== input.code) {

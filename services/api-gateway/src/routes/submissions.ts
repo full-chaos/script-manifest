@@ -83,7 +83,7 @@ export function registerSubmissionRoutes(server: FastifyInstance, ctx: GatewayCo
   server.post("/api/v1/submissions/:submissionId/placements", async (req, reply) => {
     const { submissionId } = req.params as { submissionId: string };
     const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
-    return proxyJsonRequest(
+    const result = await proxyJsonRequest(
       reply,
       ctx.requestFn,
       `${ctx.submissionTrackingBase}/internal/submissions/${encodeURIComponent(submissionId)}/placements`,
@@ -93,6 +93,16 @@ export function registerSubmissionRoutes(server: FastifyInstance, ctx: GatewayCo
         body: JSON.stringify(req.body ?? {})
       }
     );
+
+    if (reply.statusCode < 400 && userId) {
+      ctx.requestFn(`${ctx.rankingServiceBase}/internal/recompute/incremental`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ writerId: userId })
+      }).catch(() => {});
+    }
+
+    return result;
   });
 
   server.get("/api/v1/placements/:placementId", async (req, reply) => {
@@ -112,7 +122,7 @@ export function registerSubmissionRoutes(server: FastifyInstance, ctx: GatewayCo
   server.post("/api/v1/placements/:placementId/verify", async (req, reply) => {
     const { placementId } = req.params as { placementId: string };
     const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
-    return proxyJsonRequest(
+    const result = await proxyJsonRequest(
       reply,
       ctx.requestFn,
       `${ctx.submissionTrackingBase}/internal/placements/${encodeURIComponent(placementId)}/verify`,
@@ -122,5 +132,15 @@ export function registerSubmissionRoutes(server: FastifyInstance, ctx: GatewayCo
         body: JSON.stringify(req.body ?? {})
       }
     );
+
+    if (reply.statusCode < 400 && userId) {
+      ctx.requestFn(`${ctx.rankingServiceBase}/internal/recompute/incremental`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ writerId: userId })
+      }).catch(() => {});
+    }
+
+    return result;
   });
 }

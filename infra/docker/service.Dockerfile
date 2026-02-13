@@ -1,5 +1,5 @@
 # ── Stage 1: Prune monorepo ──────────────────────────────────────────
-FROM node:22-bookworm-slim AS pruner
+FROM node:25-trixie-slim AS pruner
 RUN npm install -g turbo@2
 WORKDIR /app
 COPY . .
@@ -7,7 +7,7 @@ ARG SERVICE_NAME
 RUN turbo prune @script-manifest/${SERVICE_NAME} --docker
 
 # ── Stage 2: Install deps & build ────────────────────────────────────
-FROM node:22-bookworm-slim AS builder
+FROM node:25-trixie-slim AS builder
 RUN npm install -g pnpm@9.12.3
 WORKDIR /app
 
@@ -21,7 +21,7 @@ ARG SERVICE_NAME
 RUN pnpm build --filter=@script-manifest/${SERVICE_NAME}...
 
 # ── Stage 3: Production runtime ──────────────────────────────────────
-FROM node:22-bookworm-slim AS runner
+FROM node:25-trixie-slim AS runner
 RUN apt-get update && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
 RUN npm install -g pnpm@9.12.3

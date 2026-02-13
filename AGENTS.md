@@ -116,11 +116,13 @@ bd update "$SUBTASK_ID" --external-ref "gh-$SUBTASK_ISSUE_NUMBER"
 - Always create and structure work in Beads first (`feature -> task -> subtask`).
 - Mirror work that needs team visibility into GitHub Issues.
 - Add every mirrored issue to `full-chaos` Project `#2`.
-- After Phase 0, create a new feature branch before implementation starts.
+- **NEVER commit or push directly to `main`.** ALL changes go through feature branches + PRs.
+  - This applies to every change, no matter how small — config files, one-liners, CI tweaks, everything.
   - Branch format: `codex/phase-<n>-<short-feature-slug>` (example: `codex/phase-1-writer-profiles`).
   - Create from latest default branch: `git fetch origin && git checkout main && git pull --ff-only`.
   - Create branch: `git checkout -b codex/phase-<n>-<short-feature-slug>`.
   - Keep all commits for that feature on its dedicated branch until merged.
+  - Open a PR for review before merging.
 - Keep status aligned in both systems when work starts/completes.
 - Keep Beads IDs and GitHub issue numbers cross-linked (`external-ref` + issue body).
 

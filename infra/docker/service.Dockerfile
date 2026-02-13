@@ -15,8 +15,9 @@ WORKDIR /app
 COPY --from=pruner /app/out/json/ .
 RUN pnpm install --frozen-lockfile
 
-# Copy full source and build
+# Copy full source and root configs not included by turbo prune
 COPY --from=pruner /app/out/full/ .
+COPY --from=pruner /app/tsconfig.base.json ./tsconfig.base.json
 ARG SERVICE_NAME
 RUN pnpm build --filter=@script-manifest/${SERVICE_NAME}...
 

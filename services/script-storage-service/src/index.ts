@@ -61,7 +61,8 @@ export function buildServer(options: ScriptStorageServiceOptions = {}): FastifyI
   if (s3Client) {
     bucketReady = ensureBucket(s3Client, storageBucket).catch((error) => {
       server.log.error({ error, storageBucket }, "failed to initialize bucket");
-      throw error;
+      // Return a rejected promise that will be checked in upload-session route
+      return Promise.reject(error);
     });
   }
 

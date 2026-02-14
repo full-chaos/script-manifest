@@ -155,7 +155,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   // Validate file size to prevent resource exhaustion
   if (file.size > MAX_UPLOAD_SIZE_BYTES) {
     return NextResponse.json(
-      { error: "file_too_large", detail: `maximum_size_${MAX_UPLOAD_SIZE_BYTES}_bytes` },
+      { error: "file_too_large", detail: "max_50mb" },
       { status: 413 }
     );
   }

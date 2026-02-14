@@ -17,6 +17,7 @@ import { Modal } from "../components/modal";
 import { SkeletonCard } from "../components/skeleton";
 import { useToast } from "../components/toast";
 import { getAuthHeaders, readStoredSession } from "../lib/authSession";
+import { uploadScriptViaProxy } from "../lib/scriptUpload";
 
 type ProjectForm = {
   title: string;
@@ -481,15 +482,10 @@ export default function ProjectsPage() {
 
       setUploadStep("uploading");
       const uploadSession = uploadSessionBody as ScriptUploadSessionResponse;
-      const formData = new FormData();
-      for (const [key, value] of Object.entries(uploadSession.uploadFields)) {
-        formData.append(key, value);
-      }
-      formData.append("file", draftUploadFile);
-
-      const uploadResponse = await fetch(uploadSession.uploadUrl, {
-        method: "POST",
-        body: formData
+      const uploadResponse = await uploadScriptViaProxy({
+        session: uploadSession,
+        file: draftUploadFile,
+        headers: getAuthHeaders()
       });
       if (!uploadResponse.ok) {
         const detail = await uploadResponse.text();

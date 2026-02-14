@@ -16,6 +16,7 @@ import { EmptyIllustration } from "../components/illustrations";
 import { SkeletonCard } from "../components/skeleton";
 import { useToast } from "../components/toast";
 import { getAuthHeaders, readStoredSession } from "../lib/authSession";
+import { uploadScriptViaProxy } from "../lib/scriptUpload";
 
 function createScriptId(): string {
   const randomId = globalThis.crypto?.randomUUID?.();
@@ -304,13 +305,11 @@ export default function FeedbackPage() {
     // Step 2: Upload file to storage
     setUploadStep("uploading");
     const session = sessionBody as ScriptUploadSessionResponse;
-    const formData = new FormData();
-    for (const [key, value] of Object.entries(session.uploadFields)) {
-      formData.append(key, value);
-    }
-    formData.append("file", uploadFile);
-
-    const uploadRes = await fetch(session.uploadUrl, { method: "POST", body: formData });
+    const uploadRes = await uploadScriptViaProxy({
+      session,
+      file: uploadFile,
+      headers: getAuthHeaders()
+    });
     if (!uploadRes.ok) {
       toast.error("File upload failed.");
       return null;

@@ -131,7 +131,7 @@ describe("ProjectsPage", () => {
         );
       }
 
-      if (url === "http://upload-svc/scripts" && method === "POST") {
+      if (url === "/api/v1/scripts/upload" && method === "POST") {
         return new Response(null, { status: 204 });
       }
 

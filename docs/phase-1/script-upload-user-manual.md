@@ -31,10 +31,11 @@ The upload flow from writer-web goes through these endpoints:
 1. `POST /api/v1/scripts/upload-session` (writer-web route)
 2. `POST /api/v1/scripts/upload-session` (api-gateway route)
 3. `POST /internal/scripts/upload-session` (script-storage-service)
-4. `POST <uploadUrl>` (browser uploads to MinIO using presigned form fields)
-5. `POST /api/v1/scripts/register` (writer-web route)
-6. `POST /api/v1/scripts/register` (api-gateway route)
-7. `POST /internal/scripts/register` (script-storage-service)
+4. `POST /api/v1/scripts/upload` (writer-web route, server-side upload proxy)
+5. `POST <uploadUrl>` (writer-web server uploads to MinIO using presigned form fields)
+6. `POST /api/v1/scripts/register` (writer-web route)
+7. `POST /api/v1/scripts/register` (api-gateway route)
+8. `POST /internal/scripts/register` (script-storage-service)
 
 ## Troubleshooting
 

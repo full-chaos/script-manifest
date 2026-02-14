@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 
+const apiGatewayBase = process.env.API_GATEWAY_URL ?? "http://localhost:4000";
 const scriptStorageServiceBase =
   process.env.SCRIPT_STORAGE_SERVICE_URL ?? "http://localhost:4011";
 const defaultViewerUserId = process.env.WRITER_DEMO_USER_ID ?? "writer_01";
@@ -13,6 +14,44 @@ export async function GET(
 ) {
   const { scriptId } = await context.params;
   const url = new URL(request.url);
+  const authorization = request.headers.get("authorization");
+
+  // If the caller provides auth, use the gateway's authenticated endpoint
+  // which resolves the user from the token and checks access properly
+  if (authorization) {
+    const gatewayUrl = new URL(
+      `/api/v1/scripts/${encodeURIComponent(scriptId)}/view`,
+      apiGatewayBase
+    );
+    try {
+      const upstream = await fetch(gatewayUrl, {
+        headers: { authorization },
+        cache: "no-store"
+      });
+      const body = await upstream.json();
+      if (!upstream.ok) {
+        return NextResponse.json(body, { status: upstream.status });
+      }
+      const parseResult = ScriptViewResponseSchema.safeParse(body);
+      if (!parseResult.success) {
+        return NextResponse.json(
+          { error: "invalid_script_view_response", issues: parseResult.error.issues },
+          { status: 502 }
+        );
+      }
+      return NextResponse.json(parseResult.data);
+    } catch (error) {
+      return NextResponse.json(
+        {
+          error: "api_gateway_unavailable",
+          detail: error instanceof Error ? error.message : "unknown_error"
+        },
+        { status: 502 }
+      );
+    }
+  }
+
+  // Fallback: direct to script-storage with query param (demo/unauthenticated)
   const viewerUserId = url.searchParams.get("viewerUserId") ?? defaultViewerUserId;
   const upstreamUrl = new URL(
     `/internal/scripts/${encodeURIComponent(scriptId)}/view`,

@@ -4,6 +4,7 @@ import type { ScriptViewResponse } from "@script-manifest/contracts";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
+import { getAuthHeaders } from "../../../lib/authSession";
 
 type ViewState = {
   loading: boolean;
@@ -33,7 +34,8 @@ export default function ScriptViewerPage() {
       try {
         setViewState(initialState);
         const response = await fetch(`/api/scripts/${encodeURIComponent(scriptId)}/viewer`, {
-          signal: controller.signal
+          signal: controller.signal,
+          headers: getAuthHeaders()
         });
         const body = (await response.json()) as {
           error?: string;

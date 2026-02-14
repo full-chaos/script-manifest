@@ -200,6 +200,10 @@ class MemoryFeedbackExchangeRepository implements FeedbackExchangeRepository {
     return null;
   }
 
+  async listReviewsByReviewer(reviewerUserId: string): Promise<FeedbackReview[]> {
+    return Array.from(this.reviews.values()).filter((r) => r.reviewerUserId === reviewerUserId);
+  }
+
   async submitReview(reviewId: string, input: FeedbackReviewSubmitRequest): Promise<FeedbackReview | null> {
     const review = this.reviews.get(reviewId);
     if (!review || review.status !== "in_progress") return null;
@@ -873,6 +877,52 @@ test("resolve dispute for filer strikes reviewer and refunds", async (t) => {
     url: "/internal/tokens/writer_01/balance"
   });
   assert.equal(balRes.json().balance, 3);
+});
+
+// ── Reviews list ──────────────────────────────────────────────────────
+
+test("list reviews by reviewer", async (t) => {
+  const { server } = createServer();
+  t.after(() => server.close());
+
+  // Setup: writer_01 creates listing, writer_02 claims it
+  await server.inject({ method: "POST", url: "/internal/tokens/grant-signup", headers: { "x-auth-user-id": "writer_01" } });
+  await server.inject({ method: "POST", url: "/internal/tokens/grant-signup", headers: { "x-auth-user-id": "writer_02" } });
+
+  const listRes = await server.inject({
+    method: "POST",
+    url: "/internal/listings",
+    headers: { "x-auth-user-id": "writer_01", "content-type": "application/json" },
+    payload: { projectId: "p1", scriptId: "s1", title: "Test", genre: "drama", format: "feature" }
+  });
+  const listingId = listRes.json().listing.id;
+
+  await server.inject({
+    method: "POST",
+    url: `/internal/listings/${listingId}/claim`,
+    headers: { "x-auth-user-id": "writer_02" }
+  });
+
+  const res = await server.inject({
+    method: "GET",
+    url: "/internal/reviews?reviewerUserId=writer_02",
+    headers: { "x-auth-user-id": "writer_02" }
+  });
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.json().reviews.length, 1);
+  assert.equal(res.json().reviews[0].reviewerUserId, "writer_02");
+});
+
+test("list reviews requires matching auth", async (t) => {
+  const { server } = createServer();
+  t.after(() => server.close());
+
+  const res = await server.inject({
+    method: "GET",
+    url: "/internal/reviews?reviewerUserId=writer_02",
+    headers: { "x-auth-user-id": "writer_01" }
+  });
+  assert.equal(res.statusCode, 403);
 });
 
 // ── Health ────────────────────────────────────────────────────────────

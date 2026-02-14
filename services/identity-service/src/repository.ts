@@ -254,7 +254,7 @@ export class PgIdentityRepository implements IdentityRepository {
       session: {
         token: row.token,
         userId: row.user_id,
-        expiresAt: row.expires_at
+        expiresAt: (row.expires_at as unknown) instanceof Date ? (row.expires_at as unknown as Date).toISOString() : String(row.expires_at)
       },
       user: {
         id: row.id,

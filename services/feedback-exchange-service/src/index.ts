@@ -234,6 +234,22 @@ export function buildServer(options: FeedbackExchangeServiceOptions = {}): Fasti
 
   // ── Reviews ────────────────────────────────────────────────────────
 
+  server.get("/internal/reviews", async (req, reply) => {
+    const { reviewerUserId } = req.query as { reviewerUserId?: string };
+    const authUserId = getAuthUserId(req.headers);
+
+    if (!reviewerUserId) {
+      return reply.status(400).send({ error: "missing_reviewer_user_id" });
+    }
+
+    if (!authUserId || authUserId !== reviewerUserId) {
+      return reply.status(403).send({ error: "forbidden" });
+    }
+
+    const reviews = await repository.listReviewsByReviewer(reviewerUserId);
+    return reply.send({ reviews });
+  });
+
   server.get("/internal/reviews/:reviewId", async (req, reply) => {
     const { reviewId } = req.params as { reviewId: string };
     const review = await repository.getReview(reviewId);

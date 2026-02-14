@@ -1,13 +1,42 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import type { FeedbackListing, FeedbackReview, TokenBalanceResponse } from "@script-manifest/contracts";
+import type {
+  FeedbackListing,
+  FeedbackReview,
+  Project,
+  ProjectDraft,
+  ScriptRegisterResponse,
+  ScriptUploadSessionResponse,
+  TokenBalanceResponse
+} from "@script-manifest/contracts";
 import { Modal } from "../components/modal";
 import { EmptyState } from "../components/emptyState";
 import { EmptyIllustration } from "../components/illustrations";
 import { SkeletonCard } from "../components/skeleton";
 import { useToast } from "../components/toast";
 import { getAuthHeaders, readStoredSession } from "../lib/authSession";
+
+function createScriptId(): string {
+  const randomId = globalThis.crypto?.randomUUID?.();
+  if (randomId) return `script_${randomId}`;
+  return `script_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function getScriptContentType(file: File): string {
+  return file.type || "application/octet-stream";
+}
+
+type UploadStep = "idle" | "creating_session" | "uploading" | "registering" | "creating_project" | "done";
+
+const uploadStepLabels: Record<UploadStep, string> = {
+  idle: "",
+  creating_session: "Preparing upload...",
+  uploading: "Uploading file...",
+  registering: "Registering script...",
+  creating_project: "Creating project & listing...",
+  done: "Done!"
+};
 
 type Tab = "available" | "my-listings" | "my-reviews";
 
@@ -58,6 +87,18 @@ export default function FeedbackPage() {
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>("available");
 
+  // Project/draft picker
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [drafts, setDrafts] = useState<ProjectDraft[]>([]);
+  const [selectedProjectId, setSelectedProjectId] = useState("");
+
+  // My reviews
+  const [myReviews, setMyReviews] = useState<FeedbackReview[]>([]);
+
+  // Inline upload
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadStep, setUploadStep] = useState<UploadStep>("idle");
+
   // Create listing form
   const [createOpen, setCreateOpen] = useState(false);
   const [createForm, setCreateForm] = useState({
@@ -105,6 +146,8 @@ export default function FeedbackPage() {
     if (signedInUserId) {
       void loadBalance();
       void grantSignupTokens();
+      void loadProjects();
+      void loadMyReviews();
     }
     void loadListings();
   }, [signedInUserId]);
@@ -157,16 +200,206 @@ export default function FeedbackPage() {
     }
   }
 
+  async function loadProjects() {
+    try {
+      const response = await fetch(
+        `/api/v1/projects?ownerUserId=${encodeURIComponent(signedInUserId)}`,
+        { headers: getAuthHeaders() }
+      );
+      if (response.ok) {
+        const body = (await response.json()) as { projects?: Project[] };
+        setProjects(body.projects ?? []);
+      }
+    } catch {
+      // Non-critical — user can still type IDs manually
+    }
+  }
+
+  async function loadDrafts(projectId: string) {
+    setDrafts([]);
+    if (!projectId) return;
+    try {
+      const response = await fetch(
+        `/api/v1/projects/${encodeURIComponent(projectId)}/drafts`,
+        { headers: getAuthHeaders() }
+      );
+      if (response.ok) {
+        const body = (await response.json()) as { drafts?: ProjectDraft[] };
+        setDrafts(body.drafts ?? []);
+      }
+    } catch {
+      // Non-critical
+    }
+  }
+
+  async function loadMyReviews() {
+    try {
+      const response = await fetch(
+        `/api/v1/feedback/reviews?reviewerUserId=${encodeURIComponent(signedInUserId)}`,
+        { headers: getAuthHeaders() }
+      );
+      if (response.ok) {
+        const body = (await response.json()) as { reviews?: FeedbackReview[] };
+        setMyReviews(body.reviews ?? []);
+      }
+    } catch {
+      // Non-critical
+    }
+  }
+
+  function handleProjectSelect(projectId: string) {
+    setSelectedProjectId(projectId);
+    const project = projects.find((p) => p.id === projectId);
+    if (project) {
+      setCreateForm((f) => ({
+        ...f,
+        projectId,
+        genre: project.genre,
+        format: project.format,
+        title: project.title
+      }));
+      void loadDrafts(projectId);
+    } else {
+      setCreateForm((f) => ({ ...f, projectId, scriptId: "", pageCount: "" }));
+      setDrafts([]);
+    }
+  }
+
+  function handleDraftSelect(draftId: string) {
+    const draft = drafts.find((d) => d.id === draftId);
+    if (draft) {
+      setCreateForm((f) => ({
+        ...f,
+        scriptId: draft.scriptId,
+        pageCount: String(draft.pageCount || "")
+      }));
+    }
+  }
+
+  async function uploadScriptAndCreateProject(): Promise<{ projectId: string; scriptId: string } | null> {
+    if (!uploadFile) return null;
+
+    const scriptId = createScriptId();
+    const contentType = getScriptContentType(uploadFile);
+
+    // Step 1: Create upload session
+    setUploadStep("creating_session");
+    const sessionRes = await fetch("/api/v1/scripts/upload-session", {
+      method: "POST",
+      headers: { "content-type": "application/json", ...getAuthHeaders() },
+      body: JSON.stringify({
+        scriptId,
+        ownerUserId: signedInUserId,
+        filename: uploadFile.name,
+        contentType,
+        size: uploadFile.size
+      })
+    });
+    const sessionBody = (await sessionRes.json()) as ScriptUploadSessionResponse | { error?: string };
+    if (!sessionRes.ok) {
+      toast.error("error" in sessionBody && sessionBody.error ? sessionBody.error : "Failed to create upload session.");
+      return null;
+    }
+
+    // Step 2: Upload file to storage
+    setUploadStep("uploading");
+    const session = sessionBody as ScriptUploadSessionResponse;
+    const formData = new FormData();
+    for (const [key, value] of Object.entries(session.uploadFields)) {
+      formData.append(key, value);
+    }
+    formData.append("file", uploadFile);
+
+    const uploadRes = await fetch(session.uploadUrl, { method: "POST", body: formData });
+    if (!uploadRes.ok) {
+      toast.error("File upload failed.");
+      return null;
+    }
+
+    // Step 3: Register script metadata
+    setUploadStep("registering");
+    const registerRes = await fetch("/api/v1/scripts/register", {
+      method: "POST",
+      headers: { "content-type": "application/json", ...getAuthHeaders() },
+      body: JSON.stringify({
+        scriptId,
+        ownerUserId: signedInUserId,
+        objectKey: session.objectKey,
+        filename: uploadFile.name,
+        contentType,
+        size: uploadFile.size
+      })
+    });
+    const registerBody = (await registerRes.json()) as ScriptRegisterResponse | { error?: string };
+    if (!registerRes.ok) {
+      toast.error("error" in registerBody && registerBody.error ? registerBody.error : "Failed to register script.");
+      return null;
+    }
+    const registeredScriptId = (registerBody as ScriptRegisterResponse).script.scriptId;
+
+    // Step 4: Create project
+    setUploadStep("creating_project");
+    const projRes = await fetch("/api/v1/projects", {
+      method: "POST",
+      headers: { "content-type": "application/json", ...getAuthHeaders() },
+      body: JSON.stringify({
+        title: createForm.title || uploadFile.name.replace(/\.[^.]+$/, ""),
+        genre: createForm.genre || "unspecified",
+        format: createForm.format || "feature",
+        pageCount: Number(createForm.pageCount) || 0
+      })
+    });
+    const projBody = (await projRes.json()) as { project?: Project; error?: string };
+    if (!projRes.ok) {
+      toast.error(projBody.error ?? "Failed to create project.");
+      return null;
+    }
+    const projectId = projBody.project!.id;
+
+    // Step 5: Create draft linking script to project
+    await fetch(`/api/v1/projects/${encodeURIComponent(projectId)}/drafts`, {
+      method: "POST",
+      headers: { "content-type": "application/json", ...getAuthHeaders() },
+      body: JSON.stringify({
+        scriptId: registeredScriptId,
+        versionLabel: "v1",
+        pageCount: Number(createForm.pageCount) || 0,
+        setPrimary: true
+      })
+    });
+
+    setUploadStep("done");
+    return { projectId, scriptId: registeredScriptId };
+  }
+
   async function handleCreateListing(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setCreating(true);
     try {
+      let projectId = createForm.projectId;
+      let scriptId = createForm.scriptId;
+
+      // If inline upload is active, do the full upload → project → draft flow
+      if (uploadFile && !projectId) {
+        const result = await uploadScriptAndCreateProject();
+        if (!result) {
+          return; // Error already shown by upload function
+        }
+        projectId = result.projectId;
+        scriptId = result.scriptId;
+      }
+
+      if (!projectId || !scriptId) {
+        toast.error("Select a project and draft, or upload a manuscript file.");
+        return;
+      }
+
       const response = await fetch("/api/v1/feedback/listings", {
         method: "POST",
         headers: { "content-type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify({
-          projectId: createForm.projectId,
-          scriptId: createForm.scriptId,
+          projectId,
+          scriptId,
           title: createForm.title,
           description: createForm.description,
           genre: createForm.genre,
@@ -182,11 +415,14 @@ export default function FeedbackPage() {
       toast.success("Listing created! Your script is now available for feedback.");
       setCreateOpen(false);
       setCreateForm({ projectId: "", scriptId: "", title: "", description: "", genre: "", format: "", pageCount: "" });
-      await Promise.all([loadListings(), loadBalance()]);
+      setUploadFile(null);
+      setUploadStep("idle");
+      await Promise.all([loadListings(), loadBalance(), loadProjects()]);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to create listing.");
     } finally {
       setCreating(false);
+      setUploadStep("idle");
     }
   }
 
@@ -340,38 +576,96 @@ export default function FeedbackPage() {
           </div>
           {createOpen ? (
             <form className="stack" onSubmit={handleCreateListing}>
-              <div className="grid-three">
-                <label className="stack-tight">
-                  <span>Project ID</span>
-                  <input
-                    className="input"
-                    value={createForm.projectId}
-                    onChange={(e) => setCreateForm((f) => ({ ...f, projectId: e.target.value }))}
-                    placeholder="project_..."
-                    required
-                  />
-                </label>
-                <label className="stack-tight">
-                  <span>Script ID</span>
-                  <input
-                    className="input"
-                    value={createForm.scriptId}
-                    onChange={(e) => setCreateForm((f) => ({ ...f, scriptId: e.target.value }))}
-                    placeholder="script_..."
-                    required
-                  />
-                </label>
-                <label className="stack-tight">
-                  <span>Page count</span>
-                  <input
-                    className="input"
-                    type="number"
-                    min={0}
-                    value={createForm.pageCount}
-                    onChange={(e) => setCreateForm((f) => ({ ...f, pageCount: e.target.value }))}
-                  />
-                </label>
-              </div>
+              {projects.length > 0 ? (
+                <div className="grid-three">
+                  <label className="stack-tight">
+                    <span>Project</span>
+                    <select
+                      className="input"
+                      value={selectedProjectId}
+                      onChange={(e) => handleProjectSelect(e.target.value)}
+                    >
+                      <option value="">Select a project...</option>
+                      {projects.map((p) => (
+                        <option key={p.id} value={p.id}>{p.title}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="stack-tight">
+                    <span>Draft</span>
+                    {drafts.length > 0 ? (
+                      <select
+                        className="input"
+                        onChange={(e) => handleDraftSelect(e.target.value)}
+                      >
+                        <option value="">Select a draft...</option>
+                        {drafts.map((d) => (
+                          <option key={d.id} value={d.id}>{d.versionLabel} ({d.pageCount} pp)</option>
+                        ))}
+                      </select>
+                    ) : selectedProjectId ? (
+                      <span className="text-xs text-ink-500 py-2">No drafts — upload one on the Projects page</span>
+                    ) : (
+                      <span className="text-xs text-ink-500 py-2">Select a project first</span>
+                    )}
+                  </label>
+                  <label className="stack-tight">
+                    <span>Page count</span>
+                    <input
+                      className="input"
+                      type="number"
+                      min={0}
+                      value={createForm.pageCount}
+                      onChange={(e) => setCreateForm((f) => ({ ...f, pageCount: e.target.value }))}
+                    />
+                  </label>
+                </div>
+              ) : null}
+
+              {projects.length > 0 && !selectedProjectId ? (
+                <div className="rounded-lg border border-dashed border-ink-500/20 p-4">
+                  <p className="text-sm text-ink-700">
+                    Or upload a new manuscript:
+                  </p>
+                </div>
+              ) : null}
+
+              {projects.length === 0 || (projects.length > 0 && !selectedProjectId) ? (
+                <div className="rounded-lg border border-dashed border-ink-500/20 bg-cream-50 p-4 stack-tight">
+                  <label className="stack-tight">
+                    <span className="text-sm font-medium text-ink-900">
+                      {projects.length === 0 ? "Upload your manuscript" : "Upload a new manuscript"}
+                    </span>
+                    <input
+                      type="file"
+                      accept=".pdf,.txt,.fdx,.doc,.docx"
+                      className="input text-sm"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] ?? null;
+                        setUploadFile(file);
+                      }}
+                    />
+                  </label>
+                  {uploadFile ? (
+                    <p className="text-xs text-tide-700">
+                      {uploadFile.name} ({(uploadFile.size / 1024).toFixed(0)} KB) — will be uploaded when you submit
+                    </p>
+                  ) : null}
+                  {uploadStep !== "idle" && uploadStep !== "done" ? (
+                    <p className="text-xs text-amber-700 font-medium">{uploadStepLabels[uploadStep]}</p>
+                  ) : null}
+                  <label className="stack-tight">
+                    <span className="text-xs text-ink-500">Page count</span>
+                    <input
+                      className="input"
+                      type="number"
+                      min={0}
+                      value={createForm.pageCount}
+                      onChange={(e) => setCreateForm((f) => ({ ...f, pageCount: e.target.value }))}
+                    />
+                  </label>
+                </div>
+              ) : null}
               <label className="stack-tight">
                 <span>Title</span>
                 <input
@@ -555,12 +849,70 @@ export default function FeedbackPage() {
               ))}
             </div>
           )
-        ) : (
+        ) : !signedInUserId ? (
           <EmptyState
             illustration={<EmptyIllustration variant="search" className="h-14 w-14 text-ink-900" />}
-            title="Review tracking coming soon"
-            description="Claimed reviews and submission history will appear here."
+            title="Sign in to see your reviews"
+            description="Reviews you claim will appear here."
           />
+        ) : myReviews.length === 0 ? (
+          <EmptyState
+            illustration={<EmptyIllustration variant="search" className="h-14 w-14 text-ink-900" />}
+            title="No reviews yet"
+            description="Claim a listing above to start reviewing scripts."
+          />
+        ) : (
+          <div className="stack">
+            {myReviews.map((review) => {
+              const listing = [...listings, ...myListings].find((l) => l.id === review.listingId);
+              const dl = listing?.reviewDeadline ? describeDeadline(listing.reviewDeadline) : null;
+              return (
+                <article key={review.id} className="subcard">
+                  <div className="flex gap-4">
+                    <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-tide-500/10 text-lg font-bold text-tide-700">
+                      R
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="subcard-header">
+                        <strong className="text-ink-900">{listing?.title ?? review.listingId}</strong>
+                        <div className="flex items-center gap-2">
+                          {dl ? (
+                            <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${urgencyColors[dl.urgency]}`}>
+                              {dl.label}
+                            </span>
+                          ) : null}
+                          <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.1em] ${statusColors[review.status] ?? statusColors.open}`}>
+                            {review.status === "in_progress" ? "In Progress" : review.status}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="mt-3 inline-form">
+                        {listing?.scriptId ? (
+                          <a
+                            href={`/projects/${encodeURIComponent(listing.scriptId)}/viewer`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="btn btn-secondary"
+                          >
+                            View Script
+                          </a>
+                        ) : null}
+                        {review.status === "in_progress" ? (
+                          <button
+                            type="button"
+                            className="btn btn-primary"
+                            onClick={() => openReviewModal(review)}
+                          >
+                            Submit Review
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
         )}
       </article>
 

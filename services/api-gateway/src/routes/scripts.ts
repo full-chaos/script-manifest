@@ -89,6 +89,38 @@ export function registerScriptRoutes(server: FastifyInstance, ctx: GatewayContex
     );
   });
 
+  server.get("/api/v1/scripts/:scriptId/view", async (req, reply) => {
+    const { scriptId } = req.params as { scriptId: string };
+    const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
+    if (!userId) {
+      return reply.status(401).send({ error: "unauthorized" });
+    }
+    return proxyJsonRequest(
+      reply,
+      ctx.requestFn,
+      `${ctx.scriptStorageBase}/internal/scripts/${encodeURIComponent(scriptId)}/view?viewerUserId=${encodeURIComponent(userId)}`,
+      { method: "GET", headers: addAuthUserIdHeader({}, userId) }
+    );
+  });
+
+  server.post("/api/v1/scripts/:scriptId/approve-viewer", async (req, reply) => {
+    const { scriptId } = req.params as { scriptId: string };
+    const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
+    if (!userId) {
+      return reply.status(401).send({ error: "unauthorized" });
+    }
+    return proxyJsonRequest(
+      reply,
+      ctx.requestFn,
+      `${ctx.scriptStorageBase}/internal/scripts/${encodeURIComponent(scriptId)}/approve-viewer`,
+      {
+        method: "POST",
+        headers: addAuthUserIdHeader({ "content-type": "application/json" }, userId),
+        body: JSON.stringify(req.body ?? {})
+      }
+    );
+  });
+
   server.patch("/api/v1/scripts/:scriptId/visibility", async (req, reply) => {
     const { scriptId } = req.params as { scriptId: string };
     const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);

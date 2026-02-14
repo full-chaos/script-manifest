@@ -7,7 +7,6 @@ import type {
   Project,
   ProjectDraft,
   ScriptRegisterResponse,
-  ScriptUploadSessionResponse,
   TokenBalanceResponse
 } from "@script-manifest/contracts";
 import { Modal } from "../components/modal";
@@ -16,7 +15,7 @@ import { EmptyIllustration } from "../components/illustrations";
 import { SkeletonCard } from "../components/skeleton";
 import { useToast } from "../components/toast";
 import { getAuthHeaders, readStoredSession } from "../lib/authSession";
-import { uploadScriptViaProxy } from "../lib/scriptUpload";
+import { type ScriptUploadProxyResponse, uploadScriptViaProxy } from "../lib/scriptUpload";
 
 function createScriptId(): string {
   const randomId = globalThis.crypto?.randomUUID?.();
@@ -283,39 +282,27 @@ export default function FeedbackPage() {
     const scriptId = createScriptId();
     const contentType = getScriptContentType(uploadFile);
 
-    // Step 1: Create upload session
+    // Step 1: Upload via server-side proxy
     setUploadStep("creating_session");
-    const sessionRes = await fetch("/api/v1/scripts/upload-session", {
-      method: "POST",
-      headers: { "content-type": "application/json", ...getAuthHeaders() },
-      body: JSON.stringify({
-        scriptId,
-        ownerUserId: signedInUserId,
-        filename: uploadFile.name,
-        contentType,
-        size: uploadFile.size
-      })
-    });
-    const sessionBody = (await sessionRes.json()) as ScriptUploadSessionResponse | { error?: string };
-    if (!sessionRes.ok) {
-      toast.error("error" in sessionBody && sessionBody.error ? sessionBody.error : "Failed to create upload session.");
-      return null;
-    }
-
-    // Step 2: Upload file to storage
     setUploadStep("uploading");
-    const session = sessionBody as ScriptUploadSessionResponse;
     const uploadRes = await uploadScriptViaProxy({
-      session,
+      scriptId,
+      ownerUserId: signedInUserId,
       file: uploadFile,
+      contentType,
       headers: getAuthHeaders()
     });
     if (!uploadRes.ok) {
-      toast.error("File upload failed.");
+      const detailPayload = (await uploadRes.json().catch(async () => ({
+        detail: await uploadRes.text()
+      }))) as { detail?: string; error?: string };
+      const detailMessage = detailPayload.detail ?? detailPayload.error ?? "File upload failed.";
+      toast.error(detailMessage);
       return null;
     }
+    const uploadBody = (await uploadRes.json()) as ScriptUploadProxyResponse;
 
-    // Step 3: Register script metadata
+    // Step 2: Register script metadata
     setUploadStep("registering");
     const registerRes = await fetch("/api/v1/scripts/register", {
       method: "POST",
@@ -323,7 +310,7 @@ export default function FeedbackPage() {
       body: JSON.stringify({
         scriptId,
         ownerUserId: signedInUserId,
-        objectKey: session.objectKey,
+        objectKey: uploadBody.objectKey,
         filename: uploadFile.name,
         contentType,
         size: uploadFile.size
@@ -336,7 +323,7 @@ export default function FeedbackPage() {
     }
     const registeredScriptId = (registerBody as ScriptRegisterResponse).script.scriptId;
 
-    // Step 4: Create project
+    // Step 3: Create project
     setUploadStep("creating_project");
     const projRes = await fetch("/api/v1/projects", {
       method: "POST",
@@ -355,7 +342,7 @@ export default function FeedbackPage() {
     }
     const projectId = projBody.project!.id;
 
-    // Step 5: Create draft linking script to project
+    // Step 4: Create draft linking script to project
     await fetch(`/api/v1/projects/${encodeURIComponent(projectId)}/drafts`, {
       method: "POST",
       headers: { "content-type": "application/json", ...getAuthHeaders() },

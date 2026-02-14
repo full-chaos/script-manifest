@@ -280,6 +280,7 @@ services:
       PORT: "3000"
       SCRIPT_STORAGE_SERVICE_URL: "http://script-storage-service:4011"
       API_GATEWAY_URL: "http://api-gateway:4000"
+      SCRIPT_UPLOAD_INTERNAL_BASE_URL: ${SCRIPT_UPLOAD_INTERNAL_BASE_URL:-http://minio:9000}
     depends_on:
       api-gateway:
         condition: service_healthy

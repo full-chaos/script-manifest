@@ -71,6 +71,7 @@ services:
     environment:
       MINIO_ROOT_USER: manifest
       MINIO_ROOT_PASSWORD: manifest123
+      MINIO_API_CORS_ALLOW_ORIGIN: "http://localhost:3000"
     ports:
       - "9000:9000"
       - "9001:9001"
@@ -254,8 +255,13 @@ services:
     environment:
       PORT: "4011"
       STORAGE_BUCKET: "scripts"
-      STORAGE_UPLOAD_BASE_URL: "http://minio:9000"
+      STORAGE_UPLOAD_BASE_URL: "http://localhost:9000"
       STORAGE_PUBLIC_BASE_URL: "http://localhost:9000"
+      STORAGE_S3_ENDPOINT: "http://minio:9000"
+      STORAGE_S3_REGION: "us-east-1"
+      STORAGE_S3_ACCESS_KEY: "manifest"
+      STORAGE_S3_SECRET_KEY: "manifest123"
+      STORAGE_S3_FORCE_PATH_STYLE: "true"
     command: >
       sh -lc "flock /workspace/.pnpm-install.lock -c 'pnpm install --frozen-lockfile=false' && pnpm --filter @script-manifest/script-storage-service dev"
     ports:

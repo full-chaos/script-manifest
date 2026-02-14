@@ -1,4 +1,10 @@
 import Fastify, { type FastifyInstance } from "fastify";
+import {
+  CreateBucketCommand,
+  HeadBucketCommand,
+  S3Client
+} from "@aws-sdk/client-s3";
+import { createPresignedPost } from "@aws-sdk/s3-presigned-post";
 import { randomUUID } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import {
@@ -24,6 +30,11 @@ export type ScriptStorageServiceOptions = {
   storageBucket?: string;
   uploadBaseUrl?: string;
   publicBaseUrl?: string;
+  s3Endpoint?: string;
+  s3Region?: string;
+  s3AccessKeyId?: string;
+  s3SecretAccessKey?: string;
+  s3ForcePathStyle?: boolean;
 };
 
 export function buildServer(options: ScriptStorageServiceOptions = {}): FastifyInstance {
@@ -35,8 +46,16 @@ export function buildServer(options: ScriptStorageServiceOptions = {}): FastifyI
     requestIdHeader: "x-request-id",
   });
   const storageBucket = options.storageBucket ?? "scripts";
-  const uploadBaseUrl = options.uploadBaseUrl ?? "http://localhost:9000";
+  const uploadBaseUrl = options.uploadBaseUrl ?? options.publicBaseUrl ?? "http://localhost:9000";
   const publicBaseUrl = options.publicBaseUrl ?? uploadBaseUrl;
+  const s3Client = buildS3Client({
+    endpoint: options.s3Endpoint,
+    region: options.s3Region,
+    accessKeyId: options.s3AccessKeyId,
+    secretAccessKey: options.s3SecretAccessKey,
+    forcePathStyle: options.s3ForcePathStyle
+  });
+  let bucketInitialized = false;
 
   const scripts = new Map<string, ScriptRecord>();
 
@@ -89,14 +108,46 @@ export function buildServer(options: ScriptStorageServiceOptions = {}): FastifyI
     )}`;
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
 
+    let uploadUrl = `${uploadBaseUrl.replace(/\/+$/g, "")}/${storageBucket}`;
+    let uploadFields: Record<string, string> = {
+      key: objectKey,
+      bucket: storageBucket,
+      "Content-Type": requestData.contentType,
+      "x-mock-presign-token": "phase-1-scaffold"
+    };
+
+    if (s3Client) {
+      try {
+        if (!bucketInitialized) {
+          await ensureBucket(s3Client, storageBucket);
+          bucketInitialized = true;
+        }
+
+        const presignedPost = await createPresignedPost(s3Client, {
+          Bucket: storageBucket,
+          Key: objectKey,
+          Expires: 15 * 60,
+          Fields: {
+            "Content-Type": requestData.contentType
+          },
+          Conditions: [
+            ["eq", "$Content-Type", requestData.contentType]
+          ]
+        });
+
+        uploadUrl = rewriteUploadUrlForClient(presignedPost.url, uploadBaseUrl);
+        uploadFields = presignedPost.fields;
+      } catch (error) {
+        req.log.error(
+          { error, storageBucket, objectKey },
+          "failed to generate presigned upload session, using scaffold fallback"
+        );
+      }
+    }
+
     const responsePayload = ScriptUploadSessionResponseSchema.parse({
-      uploadUrl: `${uploadBaseUrl.replace(/\/+$/g, "")}/${storageBucket}`,
-      uploadFields: {
-        key: objectKey,
-        bucket: storageBucket,
-        "Content-Type": requestData.contentType,
-        "x-mock-presign-token": "phase-1-scaffold"
-      },
+      uploadUrl,
+      uploadFields,
       bucket: storageBucket,
       objectKey,
       expiresAt
@@ -250,7 +301,12 @@ export async function startServer(): Promise<void> {
   const server = buildServer({
     storageBucket: process.env.STORAGE_BUCKET,
     uploadBaseUrl: process.env.STORAGE_UPLOAD_BASE_URL,
-    publicBaseUrl: process.env.STORAGE_PUBLIC_BASE_URL
+    publicBaseUrl: process.env.STORAGE_PUBLIC_BASE_URL,
+    s3Endpoint: process.env.STORAGE_S3_ENDPOINT,
+    s3Region: process.env.STORAGE_S3_REGION,
+    s3AccessKeyId: process.env.STORAGE_S3_ACCESS_KEY,
+    s3SecretAccessKey: process.env.STORAGE_S3_SECRET_KEY,
+    s3ForcePathStyle: process.env.STORAGE_S3_FORCE_PATH_STYLE !== "false"
   });
 
   await server.listen({ port, host: "0.0.0.0" });
@@ -264,6 +320,57 @@ function normalizeFilename(filename: string): string {
       .replace(/[^a-z0-9._-]+/g, "-")
       .replace(/^-+|-+$/g, "") || "script.pdf"
   );
+}
+
+function buildS3Client(options: {
+  endpoint?: string;
+  region?: string;
+  accessKeyId?: string;
+  secretAccessKey?: string;
+  forcePathStyle?: boolean;
+}): S3Client | null {
+  if (!options.endpoint || !options.accessKeyId || !options.secretAccessKey) {
+    return null;
+  }
+
+  return new S3Client({
+    endpoint: options.endpoint,
+    region: options.region ?? "us-east-1",
+    credentials: {
+      accessKeyId: options.accessKeyId,
+      secretAccessKey: options.secretAccessKey
+    },
+    forcePathStyle: options.forcePathStyle ?? true
+  });
+}
+
+async function ensureBucket(client: S3Client, bucket: string): Promise<void> {
+  try {
+    await client.send(new HeadBucketCommand({ Bucket: bucket }));
+    return;
+  } catch (error) {
+    if (!isMissingBucketError(error)) {
+      throw error;
+    }
+  }
+
+  await client.send(new CreateBucketCommand({ Bucket: bucket }));
+}
+
+function isMissingBucketError(error: unknown): boolean {
+  const unknownError = error as { name?: string; $metadata?: { httpStatusCode?: number } };
+  const code = unknownError.$metadata?.httpStatusCode;
+  return (
+    code === 404 ||
+    unknownError.name === "NotFound" ||
+    unknownError.name === "NoSuchBucket"
+  );
+}
+
+function rewriteUploadUrlForClient(sourceUrl: string, publicBaseUrl: string): string {
+  const signed = new URL(sourceUrl);
+  const base = new URL(publicBaseUrl.endsWith("/") ? publicBaseUrl : `${publicBaseUrl}/`);
+  return new URL(`${signed.pathname.replace(/^\/+/g, "")}${signed.search}`, base).toString();
 }
 
 function toUrlPath(bucket: string, objectKey: string): string {

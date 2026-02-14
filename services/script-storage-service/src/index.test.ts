@@ -24,6 +24,34 @@ test("script storage creates upload session", async (t) => {
   const payload = response.json();
   assert.equal(payload.bucket, "scripts");
   assert.match(payload.objectKey, /writer_01\/script_01/);
+  assert.equal(payload.uploadFields["x-mock-presign-token"], "phase-1-scaffold");
+});
+
+test("upload session uses browser-reachable base URL", async (t) => {
+  const server = buildServer({
+    logger: false,
+    uploadBaseUrl: "http://localhost:9000",
+    publicBaseUrl: "http://localhost:9000"
+  });
+  t.after(async () => {
+    await server.close();
+  });
+
+  const response = await server.inject({
+    method: "POST",
+    url: "/internal/scripts/upload-session",
+    payload: {
+      scriptId: "script_public_url",
+      ownerUserId: "writer_01",
+      filename: "script.pdf",
+      contentType: "application/pdf",
+      size: 2048
+    }
+  });
+
+  assert.equal(response.statusCode, 201);
+  const payload = response.json();
+  assert.equal(payload.uploadUrl, "http://localhost:9000/scripts");
 });
 
 test("script storage registers and views script as owner", async (t) => {

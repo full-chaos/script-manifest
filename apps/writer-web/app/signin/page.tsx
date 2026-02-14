@@ -235,6 +235,21 @@ export default function SignInPage() {
               </button>
             </div>
 
+            <button
+              type="button"
+              className="btn btn-primary w-full justify-center"
+              onClick={() => void signInWithGoogle()}
+              disabled={oauthSubmitting}
+            >
+              {oauthSubmitting ? "Connecting..." : "Continue with Google"}
+            </button>
+
+            <div className="flex items-center gap-3">
+              <div className="h-px flex-1 bg-ink-500/15" />
+              <span className="text-xs text-ink-500">or continue with email</span>
+              <div className="h-px flex-1 bg-ink-500/15" />
+            </div>
+
             {mode === "register" ? (
               <label className="stack-tight">
                 <span>Display name</span>
@@ -270,22 +285,7 @@ export default function SignInPage() {
               />
             </label>
 
-            <button
-              type="button"
-              className="btn btn-secondary w-full justify-center"
-              onClick={() => void signInWithGoogle()}
-              disabled={oauthSubmitting}
-            >
-              {oauthSubmitting ? "Connecting..." : "Continue with Google"}
-            </button>
-
-            <div className="flex items-center gap-3">
-              <div className="h-px flex-1 bg-ink-500/15" />
-              <span className="text-xs text-ink-500">or continue with email</span>
-              <div className="h-px flex-1 bg-ink-500/15" />
-            </div>
-
-            <button type="submit" className="btn btn-primary w-full justify-center" disabled={submitting}>
+            <button type="submit" className="btn btn-secondary w-full justify-center" disabled={submitting}>
               {submitting ? "Submitting..." : modeLabel}
             </button>
           </form>

@@ -5,6 +5,126 @@ describe("scripts upload route", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     delete process.env.SCRIPT_UPLOAD_INTERNAL_BASE_URL;
+    delete process.env.STORAGE_UPLOAD_BASE_URL;
+  });
+
+  it("requires authentication", async () => {
+    const requestForm = new FormData();
+    requestForm.append("file", new File([""], "draft.pdf", { type: "application/pdf" }));
+
+    const response = await POST({
+      url: "http://localhost/api/v1/scripts/upload",
+      formData: async () => requestForm,
+      headers: new Headers()
+    } as Request);
+
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toEqual({ error: "unauthorized" });
+  });
+
+  it("rejects files exceeding size limit", async () => {
+    const largeFile = new File(
+      [new ArrayBuffer(51 * 1024 * 1024)],
+      "large.pdf",
+      { type: "application/pdf" }
+    );
+    const requestForm = new FormData();
+    requestForm.append("file", largeFile);
+
+    const response = await POST({
+      url: "http://localhost/api/v1/scripts/upload",
+      formData: async () => requestForm,
+      headers: new Headers({ authorization: "Bearer token" })
+    } as Request);
+
+    expect(response.status).toBe(413);
+    await expect(response.json()).resolves.toMatchObject({ error: "file_too_large" });
+  });
+
+  it("validates uploadUrl against SSRF attacks", async () => {
+    const requestForm = new FormData();
+    requestForm.append("uploadUrl", "http://internal-service:8080/admin");
+    requestForm.append("uploadFields", JSON.stringify({ key: "test" }));
+    requestForm.append("objectKey", "test/key");
+    requestForm.append("file", new File([""], "draft.pdf", { type: "application/pdf" }));
+
+    process.env.STORAGE_UPLOAD_BASE_URL = "http://localhost:9000";
+
+    const response = await POST({
+      url: "http://localhost/api/v1/scripts/upload",
+      formData: async () => requestForm,
+      headers: new Headers({ authorization: "Bearer token" })
+    } as Request);
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "invalid_upload_url",
+      detail: "url_not_allowed"
+    });
+  });
+
+  it("accepts uploadUrl from allowed endpoint", async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () => new Response(null, { status: 204 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const requestForm = new FormData();
+    requestForm.append("uploadUrl", "http://localhost:9000/scripts");
+    requestForm.append(
+      "uploadFields",
+      JSON.stringify({
+        key: "writer_01/script_allowed/latest.pdf",
+        bucket: "scripts",
+        "Content-Type": "application/pdf"
+      })
+    );
+    requestForm.append("objectKey", "writer_01/script_allowed/latest.pdf");
+    requestForm.append("file", new File([""], "draft.pdf", { type: "application/pdf" }));
+
+    process.env.STORAGE_UPLOAD_BASE_URL = "http://localhost:9000";
+
+    const response = await POST({
+      url: "http://localhost/api/v1/scripts/upload",
+      formData: async () => requestForm,
+      headers: new Headers({ authorization: "Bearer token" })
+    } as Request);
+
+    expect(response.status).toBe(201);
+  });
+
+  it("sanitizes error messages on upstream failure", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockRejectedValue(
+      new Error("Internal network error: Cannot connect to 192.168.1.100")
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const requestForm = new FormData();
+    requestForm.append("uploadUrl", "http://localhost:9000/scripts");
+    requestForm.append(
+      "uploadFields",
+      JSON.stringify({
+        key: "test/key",
+        bucket: "scripts",
+        "Content-Type": "application/pdf"
+      })
+    );
+    requestForm.append("objectKey", "test/key");
+    requestForm.append("file", new File([""], "draft.pdf", { type: "application/pdf" }));
+
+    process.env.STORAGE_UPLOAD_BASE_URL = "http://localhost:9000";
+
+    const response = await POST({
+      url: "http://localhost/api/v1/scripts/upload",
+      formData: async () => requestForm,
+      headers: new Headers({ authorization: "Bearer token" })
+    } as Request);
+
+    expect(response.status).toBe(502);
+    const json = await response.json();
+    expect(json.error).toBe("upload_proxy_failed");
+    expect(json.detail).toBe("upstream_request_failed");
+    // Should NOT contain internal network details
+    expect(json.detail).not.toContain("192.168.1.100");
+    expect(json.detail).not.toContain("Internal network error");
   });
 
   it("creates upload session server-side and uploads to storage", async () => {
@@ -101,7 +221,13 @@ describe("scripts upload route", () => {
     requestForm.append("objectKey", "writer_01/script_legacy/latest.pdf");
     requestForm.append("file", new File([""], "draft.pdf", { type: "application/pdf" }));
 
-    const response = await POST({ formData: async () => requestForm } as Request);
+    process.env.SCRIPT_UPLOAD_INTERNAL_BASE_URL = "http://minio:9000";
+    process.env.STORAGE_UPLOAD_BASE_URL = "http://localhost:9000";
+
+    const response = await POST({
+      formData: async () => requestForm,
+      headers: new Headers({ authorization: "Bearer token" })
+    } as Request);
 
     expect(response.status).toBe(201);
     await expect(response.json()).resolves.toEqual({
@@ -116,7 +242,8 @@ describe("scripts upload route", () => {
 
     const response = await POST({
       url: "http://localhost/api/v1/scripts/upload",
-      formData: async () => requestForm
+      formData: async () => requestForm,
+      headers: new Headers({ authorization: "Bearer token" })
     } as Request);
 
     expect(response.status).toBe(400);

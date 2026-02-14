@@ -3,6 +3,8 @@ import type { ScriptUploadSessionResponse } from "@script-manifest/contracts";
 
 export const runtime = "nodejs";
 
+const MAX_UPLOAD_SIZE_BYTES = 50 * 1024 * 1024; // 50 MB
+
 type UploadFields = Record<string, string>;
 type UploadSessionRequestPayload = {
   scriptId: string;
@@ -71,6 +73,25 @@ function parseUploadSessionRequest(formData: FormData, file: File): UploadSessio
   };
 }
 
+function isAllowedUploadUrl(uploadUrl: string): boolean {
+  const allowedBase = process.env.STORAGE_UPLOAD_BASE_URL ?? "http://localhost:9000";
+  const internalBase = process.env.SCRIPT_UPLOAD_INTERNAL_BASE_URL;
+  
+  try {
+    const url = new URL(uploadUrl);
+    const allowed = new URL(allowedBase);
+    const internal = internalBase ? new URL(internalBase) : null;
+    
+    // Check if the URL matches either the allowed base or the internal base
+    const matchesAllowed = url.origin === allowed.origin;
+    const matchesInternal = internal ? url.origin === internal.origin : false;
+    
+    return matchesAllowed || matchesInternal;
+  } catch {
+    return false;
+  }
+}
+
 function resolveServerUploadUrl(uploadUrl: string): string {
   const internalBase = process.env.SCRIPT_UPLOAD_INTERNAL_BASE_URL;
   if (!internalBase) {
@@ -119,10 +140,24 @@ async function createUploadSession(
 }
 
 export async function POST(request: Request): Promise<NextResponse> {
+  // Require authentication
+  const authorization = request.headers.get("authorization");
+  if (!authorization) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+
   const formData = await request.formData();
   const file = formData.get("file");
   if (!(file instanceof File)) {
     return NextResponse.json({ error: "invalid_upload_request" }, { status: 400 });
+  }
+
+  // Validate file size to prevent resource exhaustion
+  if (file.size > MAX_UPLOAD_SIZE_BYTES) {
+    return NextResponse.json(
+      { error: "file_too_large", detail: `maximum_size_${MAX_UPLOAD_SIZE_BYTES}_bytes` },
+      { status: 413 }
+    );
   }
 
   let uploadUrlValue = normalizeTextField(formData.get("uploadUrl"));
@@ -143,6 +178,14 @@ export async function POST(request: Request): Promise<NextResponse> {
     uploadUrlValue = sessionResult.session.uploadUrl;
     uploadFields = sessionResult.session.uploadFields;
     objectKey = sessionResult.session.objectKey;
+  }
+
+  // SSRF protection: validate uploadUrl is from allowed endpoint
+  if (!isAllowedUploadUrl(uploadUrlValue)) {
+    return NextResponse.json(
+      { error: "invalid_upload_url", detail: "url_not_allowed" },
+      { status: 400 }
+    );
   }
 
   const resolvedUploadUrl = resolveServerUploadUrl(uploadUrlValue);
@@ -175,10 +218,12 @@ export async function POST(request: Request): Promise<NextResponse> {
       { status: 201 }
     );
   } catch (error) {
+    // Log full error details server-side for debugging without exposing them to clients
+    console.error("Upload proxy failed:", error);
     return NextResponse.json(
       {
         error: "upload_proxy_failed",
-        detail: error instanceof Error ? error.message : "unknown_error"
+        detail: "upstream_request_failed"
       },
       { status: 502 }
     );

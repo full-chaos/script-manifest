@@ -55,7 +55,15 @@ export function buildServer(options: ScriptStorageServiceOptions = {}): FastifyI
     secretAccessKey: options.s3SecretAccessKey,
     forcePathStyle: options.s3ForcePathStyle
   });
-  let bucketInitialized = false;
+
+  // Initialize bucket once at server startup to prevent race conditions
+  let bucketReady: Promise<void> | null = null;
+  if (s3Client) {
+    bucketReady = ensureBucket(s3Client, storageBucket).catch((error) => {
+      server.log.error({ error, storageBucket }, "failed to initialize bucket");
+      throw error;
+    });
+  }
 
   const scripts = new Map<string, ScriptRecord>();
 
@@ -116,12 +124,10 @@ export function buildServer(options: ScriptStorageServiceOptions = {}): FastifyI
       "x-mock-presign-token": "phase-1-scaffold"
     };
 
-    if (s3Client) {
+    if (s3Client && bucketReady) {
       try {
-        if (!bucketInitialized) {
-          await ensureBucket(s3Client, storageBucket);
-          bucketInitialized = true;
-        }
+        // Wait for bucket to be ready
+        await bucketReady;
 
         const presignedPost = await createPresignedPost(s3Client, {
           Bucket: storageBucket,
@@ -140,8 +146,13 @@ export function buildServer(options: ScriptStorageServiceOptions = {}): FastifyI
       } catch (error) {
         req.log.error(
           { error, storageBucket, objectKey },
-          "failed to generate presigned upload session, using scaffold fallback"
+          "failed to generate presigned upload session"
         );
+        // Return error instead of silently falling back to mock credentials
+        return reply.status(503).send({
+          error: "upload_session_unavailable",
+          detail: "storage_service_unavailable"
+        });
       }
     }
 
@@ -370,7 +381,23 @@ function isMissingBucketError(error: unknown): boolean {
 function rewriteUploadUrlForClient(sourceUrl: string, publicBaseUrl: string): string {
   const signed = new URL(sourceUrl);
   const base = new URL(publicBaseUrl.endsWith("/") ? publicBaseUrl : `${publicBaseUrl}/`);
-  return new URL(`${signed.pathname.replace(/^\/+/g, "")}${signed.search}`, base).toString();
+  
+  // Start from the base URL and append the signed path, preserving query and hash
+  const result = new URL(base.toString());
+  const strippedPath = signed.pathname.replace(/^\/+/, "");
+  
+  // Ensure we join base pathname and strippedPath with a single slash
+  if (result.pathname.endsWith("/")) {
+    result.pathname = `${result.pathname}${strippedPath}`;
+  } else {
+    result.pathname = `${result.pathname}/${strippedPath}`;
+  }
+  
+  // Preserve original query parameters and hash fragment
+  result.search = signed.search;
+  result.hash = signed.hash;
+  
+  return result.toString();
 }
 
 function toUrlPath(bucket: string, objectKey: string): string {

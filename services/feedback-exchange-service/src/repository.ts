@@ -57,6 +57,7 @@ export interface FeedbackExchangeRepository {
   // Reviews
   getReview(reviewId: string): Promise<FeedbackReview | null>;
   getReviewByListing(listingId: string): Promise<FeedbackReview | null>;
+  listReviewsByReviewer(reviewerUserId: string): Promise<FeedbackReview[]>;
   submitReview(reviewId: string, input: FeedbackReviewSubmitRequest): Promise<FeedbackReview | null>;
 
   // Ratings
@@ -350,6 +351,15 @@ export class PgFeedbackExchangeRepository implements FeedbackExchangeRepository 
       [listingId]
     );
     return result.rows[0] ? mapReview(result.rows[0]) : null;
+  }
+
+  async listReviewsByReviewer(reviewerUserId: string): Promise<FeedbackReview[]> {
+    const db = getPool();
+    const result = await db.query<ReviewRow>(
+      `SELECT * FROM feedback_reviews WHERE reviewer_user_id = $1 ORDER BY created_at DESC`,
+      [reviewerUserId]
+    );
+    return result.rows.map(mapReview);
   }
 
   async submitReview(reviewId: string, input: FeedbackReviewSubmitRequest): Promise<FeedbackReview | null> {

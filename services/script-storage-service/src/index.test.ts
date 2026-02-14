@@ -157,6 +157,86 @@ test("visibility change requires owner", async (t) => {
   assert.equal(forbiddenResponse.statusCode, 403);
 });
 
+test("approve-viewer grants access and upgrades visibility", async (t) => {
+  const server = buildServer({ logger: false });
+  t.after(async () => {
+    await server.close();
+  });
+
+  // Register a private script
+  await server.inject({
+    method: "POST",
+    url: "/internal/scripts/register",
+    payload: {
+      scriptId: "script_approve",
+      ownerUserId: "writer_01",
+      objectKey: "writer_01/script_approve/latest.pdf",
+      filename: "script.pdf",
+      contentType: "application/pdf",
+      size: 5000
+    }
+  });
+
+  // writer_02 cannot view before approval
+  const beforeRes = await server.inject({
+    method: "GET",
+    url: "/internal/scripts/script_approve/view?viewerUserId=writer_02"
+  });
+  assert.equal(beforeRes.json().access.canView, false);
+
+  // Owner approves writer_02
+  const approveRes = await server.inject({
+    method: "POST",
+    url: "/internal/scripts/script_approve/approve-viewer",
+    headers: { "x-auth-user-id": "writer_01" },
+    payload: { viewerUserId: "writer_02" }
+  });
+  assert.equal(approveRes.statusCode, 200);
+  assert.equal(approveRes.json().approved, true);
+
+  // writer_02 can now view
+  const afterRes = await server.inject({
+    method: "GET",
+    url: "/internal/scripts/script_approve/view?viewerUserId=writer_02"
+  });
+  assert.equal(afterRes.json().access.canView, true);
+
+  // Non-approved writer_03 still cannot view
+  const otherRes = await server.inject({
+    method: "GET",
+    url: "/internal/scripts/script_approve/view?viewerUserId=writer_03"
+  });
+  assert.equal(otherRes.json().access.canView, false);
+});
+
+test("approve-viewer rejects non-owner", async (t) => {
+  const server = buildServer({ logger: false });
+  t.after(async () => {
+    await server.close();
+  });
+
+  await server.inject({
+    method: "POST",
+    url: "/internal/scripts/register",
+    payload: {
+      scriptId: "script_nonowner",
+      ownerUserId: "writer_01",
+      objectKey: "writer_01/script_nonowner/latest.pdf",
+      filename: "script.pdf",
+      contentType: "application/pdf",
+      size: 5000
+    }
+  });
+
+  const res = await server.inject({
+    method: "POST",
+    url: "/internal/scripts/script_nonowner/approve-viewer",
+    headers: { "x-auth-user-id": "writer_02" },
+    payload: { viewerUserId: "writer_03" }
+  });
+  assert.equal(res.statusCode, 403);
+});
+
 test("approved_only script respects approved viewers", async (t) => {
   const server = buildServer({ logger: false });
   t.after(async () => {

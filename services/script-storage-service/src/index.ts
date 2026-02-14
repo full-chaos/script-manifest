@@ -185,6 +185,37 @@ export function buildServer(options: ScriptStorageServiceOptions = {}): FastifyI
     return reply.send(responsePayload);
   });
 
+  server.post("/internal/scripts/:scriptId/approve-viewer", async (req, reply) => {
+    const { scriptId } = req.params as { scriptId: string };
+    const ownerUserId = req.headers["x-auth-user-id"] as string | undefined;
+    const body = req.body as { viewerUserId?: string };
+
+    if (!ownerUserId) {
+      return reply.status(403).send({ error: "forbidden" });
+    }
+
+    const script = scripts.get(scriptId);
+    if (!script) {
+      return reply.status(404).send({ error: "script_not_found" });
+    }
+
+    if (ownerUserId !== script.ownerUserId) {
+      return reply.status(403).send({ error: "forbidden" });
+    }
+
+    if (!body.viewerUserId || typeof body.viewerUserId !== "string") {
+      return reply.status(400).send({ error: "missing_viewer_user_id" });
+    }
+
+    script.approvedViewers.add(body.viewerUserId);
+
+    if (script.visibility === "private") {
+      script.visibility = "approved_only";
+    }
+
+    return reply.send({ scriptId, viewerUserId: body.viewerUserId, approved: true });
+  });
+
   server.patch("/internal/scripts/:scriptId/visibility", async (req, reply) => {
     const { scriptId } = req.params as { scriptId: string };
     const body = req.body as { visibility?: string; ownerUserId?: string };

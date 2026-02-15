@@ -24,6 +24,66 @@ test("script storage creates upload session", async (t) => {
   const payload = response.json();
   assert.equal(payload.bucket, "scripts");
   assert.match(payload.objectKey, /writer_01\/script_01/);
+  assert.equal(payload.uploadFields["x-mock-presign-token"], "phase-1-scaffold");
+});
+
+test("upload session uses browser-reachable base URL", async (t) => {
+  const server = buildServer({
+    logger: false,
+    uploadBaseUrl: "http://localhost:9000",
+    publicBaseUrl: "http://localhost:9000"
+  });
+  t.after(async () => {
+    await server.close();
+  });
+
+  const response = await server.inject({
+    method: "POST",
+    url: "/internal/scripts/upload-session",
+    payload: {
+      scriptId: "script_public_url",
+      ownerUserId: "writer_01",
+      filename: "script.pdf",
+      contentType: "application/pdf",
+      size: 2048
+    }
+  });
+
+  assert.equal(response.statusCode, 201);
+  const payload = response.json();
+  assert.equal(payload.uploadUrl, "http://localhost:9000/scripts");
+});
+
+test("upload session returns 503 when S3 is unavailable", async (t) => {
+  // Configure with invalid S3 credentials to simulate S3 failure
+  const server = buildServer({
+    logger: false,
+    uploadBaseUrl: "http://localhost:9000",
+    s3Endpoint: "http://invalid-endpoint:9000",
+    s3Region: "us-east-1",
+    s3AccessKeyId: "invalid",
+    s3SecretAccessKey: "invalid",
+    s3ForcePathStyle: true
+  });
+  t.after(async () => {
+    await server.close();
+  });
+
+  const response = await server.inject({
+    method: "POST",
+    url: "/internal/scripts/upload-session",
+    payload: {
+      scriptId: "script_s3_fail",
+      ownerUserId: "writer_01",
+      filename: "script.pdf",
+      contentType: "application/pdf",
+      size: 2048
+    }
+  });
+
+  assert.equal(response.statusCode, 503);
+  const payload = response.json();
+  assert.equal(payload.error, "upload_session_unavailable");
 });
 
 test("script storage registers and views script as owner", async (t) => {

@@ -9,14 +9,14 @@ import type {
   ProjectCreateRequest,
   ProjectDraft,
   ScriptAccessRequest,
-  ScriptRegisterResponse,
-  ScriptUploadSessionResponse
+  ScriptRegisterResponse
 } from "@script-manifest/contracts";
 import { EmptyState } from "../components/emptyState";
 import { Modal } from "../components/modal";
 import { SkeletonCard } from "../components/skeleton";
 import { useToast } from "../components/toast";
 import { getAuthHeaders, readStoredSession } from "../lib/authSession";
+import { type ScriptUploadProxyResponse, uploadScriptViaProxy } from "../lib/scriptUpload";
 
 type ProjectForm = {
   title: string;
@@ -455,47 +455,23 @@ export default function ProjectsPage() {
     setUploadStep("creating_session");
 
     try {
-      const uploadSessionResponse = await fetch("/api/v1/scripts/upload-session", {
-        method: "POST",
-        headers: { "content-type": "application/json", ...getAuthHeaders() },
-        body: JSON.stringify({
-          scriptId,
-          ownerUserId,
-          filename: draftUploadFile.name,
-          contentType,
-          size: draftUploadFile.size
-        })
-      });
-      const uploadSessionBody = (await uploadSessionResponse.json()) as
-        | ScriptUploadSessionResponse
-        | { error?: string };
-
-      if (!uploadSessionResponse.ok) {
-        toast.error(
-          "error" in uploadSessionBody && uploadSessionBody.error
-            ? `${uploadSessionBody.error}`
-            : "Unable to create script upload session."
-        );
-        return;
-      }
-
       setUploadStep("uploading");
-      const uploadSession = uploadSessionBody as ScriptUploadSessionResponse;
-      const formData = new FormData();
-      for (const [key, value] of Object.entries(uploadSession.uploadFields)) {
-        formData.append(key, value);
-      }
-      formData.append("file", draftUploadFile);
-
-      const uploadResponse = await fetch(uploadSession.uploadUrl, {
-        method: "POST",
-        body: formData
+      const uploadResponse = await uploadScriptViaProxy({
+        scriptId,
+        ownerUserId,
+        file: draftUploadFile,
+        contentType,
+        headers: getAuthHeaders()
       });
       if (!uploadResponse.ok) {
-        const detail = await uploadResponse.text();
-        toast.error(detail ? `Upload failed: ${detail}` : "Upload failed.");
+        const detailPayload = (await uploadResponse.json().catch(async () => ({
+          detail: await uploadResponse.text()
+        }))) as { detail?: string; error?: string };
+        const detailMessage = detailPayload.detail ?? detailPayload.error ?? "";
+        toast.error(detailMessage ? `Upload failed: ${detailMessage}` : "Upload failed.");
         return;
       }
+      const uploadBody = (await uploadResponse.json()) as ScriptUploadProxyResponse;
 
       setUploadStep("registering");
       const registerResponse = await fetch("/api/v1/scripts/register", {
@@ -504,7 +480,7 @@ export default function ProjectsPage() {
         body: JSON.stringify({
           scriptId,
           ownerUserId,
-          objectKey: uploadSession.objectKey,
+          objectKey: uploadBody.objectKey,
           filename: draftUploadFile.name,
           contentType,
           size: draftUploadFile.size

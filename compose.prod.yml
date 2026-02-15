@@ -62,6 +62,7 @@ services:
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-manifest}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD is required}
+      MINIO_API_CORS_ALLOW_ORIGIN: ${MINIO_API_CORS_ALLOW_ORIGIN:-http://localhost:3000}
     volumes:
       - minio_data:/data
     healthcheck:
@@ -169,8 +170,15 @@ services:
       PORT: "4011"
       NODE_ENV: production
       STORAGE_BUCKET: "scripts"
-      STORAGE_UPLOAD_BASE_URL: "http://minio:9000"
-      STORAGE_PUBLIC_BASE_URL: ${STORAGE_PUBLIC_BASE_URL:-http://minio:9000}
+      # Browser-reachable URL for upload forms - MUST be externally accessible
+      STORAGE_UPLOAD_BASE_URL: ${STORAGE_UPLOAD_BASE_URL:-http://localhost:9000}
+      STORAGE_PUBLIC_BASE_URL: ${STORAGE_PUBLIC_BASE_URL:-http://localhost:9000}
+      # Internal network URL for S3 client operations
+      STORAGE_S3_ENDPOINT: ${STORAGE_S3_ENDPOINT:-http://minio:9000}
+      STORAGE_S3_REGION: ${STORAGE_S3_REGION:-us-east-1}
+      STORAGE_S3_ACCESS_KEY: ${MINIO_ROOT_USER:-manifest}
+      STORAGE_S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD is required}
+      STORAGE_S3_FORCE_PATH_STYLE: ${STORAGE_S3_FORCE_PATH_STYLE:-true}
     depends_on:
       minio:
         condition: service_healthy
@@ -274,6 +282,7 @@ services:
       PORT: "3000"
       SCRIPT_STORAGE_SERVICE_URL: "http://script-storage-service:4011"
       API_GATEWAY_URL: "http://api-gateway:4000"
+      SCRIPT_UPLOAD_INTERNAL_BASE_URL: ${SCRIPT_UPLOAD_INTERNAL_BASE_URL:-http://minio:9000}
     depends_on:
       api-gateway:
         condition: service_healthy

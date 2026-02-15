@@ -112,27 +112,16 @@ describe("ProjectsPage", () => {
         return jsonResponse({ accessRequests });
       }
 
-      if (url === "/api/v1/scripts/upload-session" && method === "POST") {
-        const payload = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
-        uploadedScriptId = String(payload.scriptId ?? "");
+      if (url === "/api/v1/scripts/upload" && method === "POST") {
+        const formData = init?.body as FormData;
+        uploadedScriptId = String(formData.get("scriptId") ?? "");
         return jsonResponse(
           {
-            uploadUrl: "http://upload-svc/scripts",
-            uploadFields: {
-              key: `writer_01/${uploadedScriptId}/latest.pdf`,
-              bucket: "scripts",
-              "Content-Type": String(payload.contentType ?? "application/octet-stream")
-            },
-            bucket: "scripts",
-            objectKey: `writer_01/${uploadedScriptId}/latest.pdf`,
-            expiresAt: "2026-02-06T00:10:00.000Z"
+            uploaded: true,
+            objectKey: `writer_01/${uploadedScriptId}/latest.pdf`
           },
           201
         );
-      }
-
-      if (url === "http://upload-svc/scripts" && method === "POST") {
-        return new Response(null, { status: 204 });
       }
 
       if (url === "/api/v1/scripts/register" && method === "POST") {

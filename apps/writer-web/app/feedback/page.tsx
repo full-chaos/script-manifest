@@ -170,7 +170,7 @@ export default function FeedbackPage() {
     try {
       await fetch("/api/v1/feedback/tokens/grant-signup", {
         method: "POST",
-        headers: { "content-type": "application/json", ...getAuthHeaders() }
+        headers: getAuthHeaders()
       });
       await loadBalance();
     } catch {
@@ -416,7 +416,7 @@ export default function FeedbackPage() {
     try {
       const response = await fetch(`/api/v1/feedback/listings/${encodeURIComponent(listingId)}/claim`, {
         method: "POST",
-        headers: { "content-type": "application/json", ...getAuthHeaders() }
+        headers: getAuthHeaders()
       });
       const body = (await response.json()) as { error?: string };
       if (!response.ok) {
@@ -434,7 +434,7 @@ export default function FeedbackPage() {
     try {
       const response = await fetch(`/api/v1/feedback/listings/${encodeURIComponent(listingId)}/cancel`, {
         method: "POST",
-        headers: { "content-type": "application/json", ...getAuthHeaders() }
+        headers: getAuthHeaders()
       });
       const body = (await response.json()) as { error?: string };
       if (!response.ok) {

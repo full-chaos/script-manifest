@@ -1,6 +1,6 @@
 # Script Manifest
 
-A rebuild of the core Coverfly writer ecosystem: portfolio hosting, competition tracking, ranking/discovery, feedback systems, and industry discovery.
+Revisiting the writer ecosystem: portfolio hosting, competition tracking, ranking/discovery, feedback systems, and industry discovery.
 
 ## Current Status
 

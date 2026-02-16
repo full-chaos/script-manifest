@@ -356,6 +356,42 @@ services:
       retries: 5
       start_period: 20s
 
+  coverage-marketplace-service:
+    <<: *node-dev
+    container_name: manifest-coverage-marketplace-service
+    working_dir: /workspace
+    volumes:
+      - .:/workspace
+    environment:
+      PORT: "4008"
+      DATABASE_URL: "postgresql://manifest:manifest@postgres:5432/manifest"
+      NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
+      STRIPE_SECRET_KEY: ""
+      STRIPE_WEBHOOK_SECRET: ""
+      PLATFORM_COMMISSION_RATE: "0.15"
+      COVERAGE_ADMIN_ALLOWLIST: "admin_01,user_admin_01"
+      STORAGE_S3_ENDPOINT: "http://minio:9000"
+      STORAGE_S3_ACCESS_KEY: "manifest"
+      STORAGE_S3_SECRET_KEY: "manifest123"
+      STORAGE_BUCKET: "coverage-reports"
+    command: >
+      sh -lc "flock /workspace/.pnpm-install.lock -c 'pnpm install --frozen-lockfile=false' && pnpm --filter @script-manifest/coverage-marketplace-service dev"
+    ports:
+      - "4008:4008"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      notification-service:
+        condition: service_started
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:4008/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
   api-gateway:
     <<: *node-dev
     container_name: manifest-api-gateway
@@ -371,6 +407,8 @@ services:
       SCRIPT_STORAGE_SERVICE_URL: "http://script-storage-service:4011"
       FEEDBACK_EXCHANGE_SERVICE_URL: "http://feedback-exchange-service:4006"
       RANKING_SERVICE_URL: "http://ranking-service:4007"
+      COVERAGE_MARKETPLACE_SERVICE_URL: "http://coverage-marketplace-service:4008"
+      COVERAGE_ADMIN_ALLOWLIST: "admin_01,user_admin_01"
     command: >
       sh -lc "flock /workspace/.pnpm-install.lock -c 'pnpm install --frozen-lockfile=false' && pnpm --filter @script-manifest/api-gateway dev"
     ports:
@@ -387,6 +425,8 @@ services:
       feedback-exchange-service:
         condition: service_healthy
       ranking-service:
+        condition: service_healthy
+      coverage-marketplace-service:
         condition: service_healthy
     healthcheck:
       test:

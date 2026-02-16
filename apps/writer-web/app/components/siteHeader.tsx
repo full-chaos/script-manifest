@@ -23,6 +23,8 @@ const navLinks: NavLink[] = [
   { href: "/projects" as Route, label: "Projects", signedInOnly: true },
   { href: "/submissions" as Route, label: "Submissions", signedInOnly: true },
   { href: "/feedback" as Route, label: "Feedback", signedInOnly: true },
+  { href: "/coverage" as Route, label: "Coverage", signedInOnly: true },
+  { href: "/coverage/dashboard" as Route, label: "Provider Dashboard", signedInOnly: true },
   { href: "/admin/competitions" as Route, label: "Admin", signedInOnly: true, adminOnly: true }
 ];
 

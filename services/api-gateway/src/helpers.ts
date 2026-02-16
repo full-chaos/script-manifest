@@ -12,7 +12,9 @@ export type GatewayContext = {
   scriptStorageBase: string;
   feedbackExchangeBase: string;
   rankingServiceBase: string;
+  coverageMarketplaceBase: string;
   competitionAdminAllowlist: Set<string>;
+  coverageAdminAllowlist: Set<string>;
 };
 
 export function buildQuerySuffix(rawQuery: unknown): string {

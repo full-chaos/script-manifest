@@ -14,6 +14,7 @@ import { registerScriptRoutes } from "./routes/scripts.js";
 import { registerExportRoutes } from "./routes/export.js";
 import { registerFeedbackRoutes } from "./routes/feedback.js";
 import { registerRankingRoutes } from "./routes/ranking.js";
+import { registerCoverageRoutes } from "./routes/coverage.js";
 import { registerHealthRoutes } from "./routes/health.js";
 
 export type ApiGatewayOptions = {
@@ -26,7 +27,9 @@ export type ApiGatewayOptions = {
   scriptStorageBase?: string;
   feedbackExchangeBase?: string;
   rankingServiceBase?: string;
+  coverageMarketplaceBase?: string;
   competitionAdminAllowlist?: string[];
+  coverageAdminAllowlist?: string[];
 };
 
 export function buildServer(options: ApiGatewayOptions = {}): FastifyInstance {
@@ -50,9 +53,14 @@ export function buildServer(options: ApiGatewayOptions = {}): FastifyInstance {
     scriptStorageBase: options.scriptStorageBase ?? "http://localhost:4011",
     feedbackExchangeBase: options.feedbackExchangeBase ?? "http://localhost:4006",
     rankingServiceBase: options.rankingServiceBase ?? "http://localhost:4007",
+    coverageMarketplaceBase: options.coverageMarketplaceBase ?? "http://localhost:4008",
     competitionAdminAllowlist: new Set(
       options.competitionAdminAllowlist ??
         parseAllowlist(process.env.COMPETITION_ADMIN_ALLOWLIST ?? "admin_01,user_admin_01")
+    ),
+    coverageAdminAllowlist: new Set(
+      options.coverageAdminAllowlist ??
+        parseAllowlist(process.env.COVERAGE_ADMIN_ALLOWLIST ?? "admin_01,user_admin_01")
     )
   };
 
@@ -67,6 +75,7 @@ export function buildServer(options: ApiGatewayOptions = {}): FastifyInstance {
   registerExportRoutes(server, ctx);
   registerFeedbackRoutes(server, ctx);
   registerRankingRoutes(server, ctx);
+  registerCoverageRoutes(server, ctx);
 
   return server;
 }
@@ -83,7 +92,9 @@ export async function startServer(): Promise<void> {
     scriptStorageBase: process.env.SCRIPT_STORAGE_SERVICE_URL,
     feedbackExchangeBase: process.env.FEEDBACK_EXCHANGE_SERVICE_URL,
     rankingServiceBase: process.env.RANKING_SERVICE_URL,
-    competitionAdminAllowlist: parseAllowlist(process.env.COMPETITION_ADMIN_ALLOWLIST ?? "")
+    coverageMarketplaceBase: process.env.COVERAGE_MARKETPLACE_SERVICE_URL,
+    competitionAdminAllowlist: parseAllowlist(process.env.COMPETITION_ADMIN_ALLOWLIST ?? ""),
+    coverageAdminAllowlist: parseAllowlist(process.env.COVERAGE_ADMIN_ALLOWLIST ?? "")
   });
 
   await server.listen({ port, host: "0.0.0.0" });

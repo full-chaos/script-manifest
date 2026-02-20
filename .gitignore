@@ -8,6 +8,9 @@
 .vscode/
 .idea/
 
+# Claude Code local settings (personal permissions, not shared)
+.claude/settings.local.json
+
 # Node/Python build artifacts
 node_modules/
 dist/

@@ -93,6 +93,17 @@ Coverfly shut down on August 1, 2025, following a chain of corporate acquisition
 
 ## Phased Rebuild Plan
 
+Execution docs index:
+- `docs/phase-inventory.md`
+- `docs/phase-0/README.md`
+- `docs/phase-1/README.md`
+- `docs/phase-2/README.md`
+- `docs/phase-3/README.md`
+- `docs/phase-4/README.md`
+- `docs/phase-5/README.md`
+- `docs/phase-6/README.md`
+- `docs/phase-7/README.md`
+
 ### Phase 0: Product & Legal Foundation (Weeks 1–3)
 
 **Goal**: Get the non-code decisions right before writing a line of code.
@@ -230,6 +241,8 @@ Coverfly shut down on August 1, 2025, following a chain of corporate acquisition
 
 ### Phase 5: Industry Portal & Discovery Dashboard (Weeks 37–46)
 
+Detailed implementation plan: `docs/phase-5/README.md`
+
 **Goal**: Build the B2B side that makes the platform career-changing for writers and valuable for agents, managers, and producers.
 
 **Core Features**:
@@ -262,6 +275,8 @@ Coverfly shut down on August 1, 2025, following a chain of corporate acquisition
 
 ### Phase 6: Programs & Events (Weeks 47–60+)
 
+Detailed implementation plan: `docs/phase-6/README.md`
+
 **Goal**: Launch the high-touch programs that differentiate from a database. Each program is a separate rollout.
 
 **Program Rollouts** (roughly in order of operational complexity):
@@ -290,6 +305,8 @@ Coverfly shut down on August 1, 2025, following a chain of corporate acquisition
 ---
 
 ### Phase 7: Partner Dashboard for Competition Organizers (Optional / Weeks 60+)
+
+Detailed implementation plan: `docs/phase-7/README.md`
 
 **Goal**: Become the backend platform that competitions run on, not just a directory that lists them.
 

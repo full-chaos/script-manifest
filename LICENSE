@@ -1,0 +1,60 @@
+Business Source License 1.1
+
+License text copyright (c) 2017 MariaDB Corporation Ab, All Rights Reserved.
+“Business Source License” is a trademark of MariaDB Corporation Ab.
+
+-------------------------------------------------------------------------------
+Parameters
+-------------------------------------------------------------------------------
+
+Licensor: Full Chaos, LLC.
+
+Licensed Work: full-chaos/script-manifest (the software in this repository)
+
+Additional Use Grant:
+You may use, copy, modify, create derivative works, and redistribute the Licensed Work
+for any purpose, including for internal business purposes, self-hosted deployments,
+and providing consulting, integration, training, and support services related to the
+Licensed Work, provided that you do not violate the Restriction below.
+
+Restriction:
+You may not use the Licensed Work to provide a hosted or managed service to third
+parties (including “software as a service”, “platform as a service”, or other
+service-based offering) that exposes the Licensed Work’s functionality to users
+other than your own employees and contractors, whether or not such a service is
+offered for a fee, without a separate commercial license from the Licensor.
+
+Change Date: 2029-02-20
+
+Change License: Apache License, Version 2.0
+
+-------------------------------------------------------------------------------
+Business Source License 1.1
+-------------------------------------------------------------------------------
+
+TERMS
+
+The Licensor hereby grants you the right to copy, modify, create derivative works,
+redistribute, and make non-production use of the Licensed Work. The Licensor may make
+an Additional Use Grant, above, permitting additional uses of the Licensed Work.
+
+All copies of the original and modified Licensed Work, and derivative works of the
+Licensed Work, are subject to this License. This License applies separately for each
+version of the Licensed Work and the Change Date may vary for each version.
+
+You must conspicuously display this License on each copy of the Licensed Work,
+and include the Parameters.
+
+You may not use the Licensed Work in violation of the Restriction above.
+
+On the Change Date, the Licensor hereby grants you rights under the Change License
+and the terms of this License no longer apply.
+
+This License does not grant you any right in any trademark or logo of Licensor.
+
+AS IS. WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
+THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT
+OF OR IN CONNECTION WITH THE LICENSED WORK OR THE USE OR OTHER DEALINGS IN THE LICENSED
+WORK.

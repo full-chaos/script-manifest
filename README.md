@@ -5,8 +5,13 @@ Revisiting the writer ecosystem: portfolio hosting, competition tracking, rankin
 ## Current Status
 
 - Phase 0 complete: product/legal foundation and architecture decisions.
-- Phase 1 in progress on branch `codex/phase-1-writer-hub`.
+- Phases 1-4 implemented and documented.
+- Phases 5-7 are planned and open in tracking (`script-manifest-n92`, `script-manifest-n2h`, `script-manifest-nzi`).
 - Local development stack: Docker Compose with PostgreSQL, Redis, OpenSearch, MinIO, Redpanda, and Mailpit.
+
+Planning and phase documentation index:
+- `docs/README.md`
+- `docs/phase-inventory.md`
 
 ## Phase 0 Deliverables
 
@@ -18,7 +23,7 @@ See:
 ## Local Infrastructure
 
 ```bash
-docker compose -f infra/docker-compose.yml up -d
+docker compose -f compose.yml up -d
 ```
 
 OpenSearch: `http://localhost:9200`
@@ -43,8 +48,8 @@ pnpm --filter @script-manifest/api-gateway dev
 pnpm --filter @script-manifest/writer-web dev
 ```
 
-Or use compose profile:
+Or run the local compose stack:
 
 ```bash
-docker compose -f infra/docker-compose.yml up -d
+docker compose -f compose.yml up -d
 ```

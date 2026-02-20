@@ -54,4 +54,4 @@ Go for Phase 1.
 
 Conditions:
 - Keep feature branch policy active after Phase 0.
-- Keep Beads and GitHub issue status in sync for all subsequent features.
+- Keep Beads and Linear issue status in sync for all subsequent features.

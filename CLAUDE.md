@@ -87,9 +87,45 @@ Shared Zod schemas + TypeScript types in `packages/contracts/`. All API request/
 - **NEVER commit or push directly to `main`.** All changes go through feature branches + PRs.
 - Branch format: `codex/phase-<n>-<short-feature-slug>`
 - Create from latest: `git fetch origin && git checkout main && git pull --ff-only`
-- Task tracking: Beads (`bd`) as local source of truth, mirrored to GitHub Issues on `full-chaos` Project #2
+- Task tracking: Beads (`bd`) as local source of truth, mirrored to [Linear project](https://linear.app/fullchaos/project/script-manifest-15384341055a) via `linear` CLI
 
 ## Known Gotchas
 
 - **Fastify empty JSON bodies**: `content-type: application/json` with no body causes `FST_ERR_CTP_EMPTY_JSON_BODY`. Don't set content-type on bodyless POST requests.
 - **pg TIMESTAMPTZ**: PostgreSQL `pg` driver returns `TIMESTAMPTZ` as JS `Date` objects, not strings. Zod `z.string().datetime()` will fail — use `instanceof Date` check + `.toISOString()`.
+
+## Linear
+
+This project uses **Linear** for issue tracking.
+Default team: **CHAOS**
+
+### Creating Issues
+
+```bash
+# Create a simple issue
+linear issues create "Fix login bug" --team CHAOS --priority high
+
+# Create with full details and dependencies
+linear issues create "Add OAuth integration" \
+  --team CHAOS \
+  --description "Integrate Google and GitHub OAuth providers" \
+  --parent CHAOS-100 \
+  --depends-on CHAOS-99 \
+  --labels "backend,security" \
+  --estimate 5
+
+# List and view issues
+linear issues list
+linear issues get CHAOS-123
+```
+
+### Claude Code Skills
+
+Available workflow skills (install with `linear skills install --all`):
+- `/prd` - Create agent-friendly tickets with PRDs and sub-issues
+- `/triage` - Analyze and prioritize backlog
+- `/cycle-plan` - Plan cycles using velocity analytics
+- `/retro` - Generate sprint retrospectives
+- `/deps` - Analyze dependency chains
+
+Run `linear skills list` for details.

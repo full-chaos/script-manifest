@@ -2,19 +2,16 @@
 
 This repository uses two tracking layers:
 - Local source of truth: `bd` (Beads) for feature/task/subtask planning.
-- External collaboration: GitHub Issues + GitHub Project (`full-chaos` Project `#2`).
+- External collaboration: Linear (`fullchaos` workspace, `Script Manifest` project).
 
-Use Beads first, then mirror work to GitHub.
+Use Beads first, then mirror work to Linear.
 
 ## Project Constants
 
-Set these before issue operations:
-
 ```bash
-export ORG="full-chaos"
-export PROJECT_NUMBER="2"
-export PROJECT_URL="https://github.com/orgs/full-chaos/projects/2"
-export REPO="${REPO:-full-chaos/script-manifest}"
+export LINEAR_TEAM="CHAOS"
+export LINEAR_PROJECT="Script Manifest"
+export LINEAR_PROJECT_URL="https://linear.app/fullchaos/project/script-manifest-15384341055a"
 ```
 
 ## Beads: Local Feature/Task/Subtask Database
@@ -56,66 +53,67 @@ bd close <id>
 bd sync
 ```
 
-## GitHub: Create Issues with `gh` and Add to Project #2
+## Linear: Create Issues with `linear` CLI
 
-Authenticate and confirm scopes:
+Authenticate and confirm status:
 
 ```bash
-gh auth status
+linear auth status
 ```
 
-If project operations fail, refresh token scope:
+If not authenticated:
 
 ```bash
-gh auth refresh -s project
+linear auth login
 ```
 
-Create a feature issue, then add it to the org project:
+Initialize default team (once per clone):
 
 ```bash
-FEATURE_ISSUE_URL=$(gh issue create \
-  -R "$REPO" \
-  --title "[Feature] <feature title>" \
-  --label feature \
-  --body $'Tracking in Beads: '"$FEATURE_ID"$'\nProject: '"$PROJECT_URL")
-
-gh project item-add "$PROJECT_NUMBER" --owner "$ORG" --url "$FEATURE_ISSUE_URL"
+linear init   # Select CHAOS team
 ```
 
-Create task/subtask issues similarly:
+Create a feature issue in the project:
 
 ```bash
-TASK_ISSUE_URL=$(gh issue create \
-  -R "$REPO" \
-  --title "[Task] <task title>" \
-  --label task \
-  --body $'Tracking in Beads: '"$TASK_ID"$'\nParent Feature: '"$FEATURE_ID")
-
-SUBTASK_ISSUE_URL=$(gh issue create \
-  -R "$REPO" \
-  --title "[Subtask] <subtask title>" \
-  --label subtask \
-  --body $'Tracking in Beads: '"$SUBTASK_ID"$'\nParent Task: '"$TASK_ID")
-
-gh project item-add "$PROJECT_NUMBER" --owner "$ORG" --url "$TASK_ISSUE_URL"
-gh project item-add "$PROJECT_NUMBER" --owner "$ORG" --url "$SUBTASK_ISSUE_URL"
+linear i create "[Feature] <feature title>" \
+  --team CHAOS \
+  --project "Script Manifest" \
+  --labels feature \
+  --priority 2 \
+  --description "Tracking in Beads: $FEATURE_ID"
 ```
 
-Back-link GitHub issue numbers into Beads:
+Create task/subtask issues (use `--parent` for hierarchy):
 
 ```bash
-TASK_ISSUE_NUMBER=$(basename "$TASK_ISSUE_URL")
-SUBTASK_ISSUE_NUMBER=$(basename "$SUBTASK_ISSUE_URL")
+linear i create "[Task] <task title>" \
+  --team CHAOS \
+  --project "Script Manifest" \
+  --labels task \
+  --parent CHAOS-<feature-number> \
+  --description "Tracking in Beads: $TASK_ID"
 
-bd update "$TASK_ID" --external-ref "gh-$TASK_ISSUE_NUMBER"
-bd update "$SUBTASK_ID" --external-ref "gh-$SUBTASK_ISSUE_NUMBER"
+linear i create "[Subtask] <subtask title>" \
+  --team CHAOS \
+  --project "Script Manifest" \
+  --labels subtask \
+  --parent CHAOS-<task-number> \
+  --description "Tracking in Beads: $SUBTASK_ID"
+```
+
+Back-link Linear issue IDs into Beads:
+
+```bash
+bd update "$TASK_ID" --external-ref "CHAOS-<number>"
+bd update "$SUBTASK_ID" --external-ref "CHAOS-<number>"
 ```
 
 ## Operating Rules
 
 - Always create and structure work in Beads first (`feature -> task -> subtask`).
-- Mirror work that needs team visibility into GitHub Issues.
-- Add every mirrored issue to `full-chaos` Project `#2`.
+- Mirror work that needs team visibility into Linear issues.
+- Add every mirrored issue to the `Script Manifest` project in Linear.
 - **NEVER commit or push directly to `main`.** ALL changes go through feature branches + PRs.
   - This applies to every change, no matter how small — config files, one-liners, CI tweaks, everything.
   - Branch format: `codex/phase-<n>-<short-feature-slug>` (example: `codex/phase-1-writer-profiles`).
@@ -124,7 +122,7 @@ bd update "$SUBTASK_ID" --external-ref "gh-$SUBTASK_ISSUE_NUMBER"
   - Keep all commits for that feature on its dedicated branch until merged.
   - Open a PR for review before merging.
 - Keep status aligned in both systems when work starts/completes.
-- Keep Beads IDs and GitHub issue numbers cross-linked (`external-ref` + issue body).
+- Keep Beads IDs and Linear issue IDs cross-linked (`external-ref` + issue description).
 
 ## Landing the Plane (Session Completion)
 
@@ -151,3 +149,39 @@ bd update "$SUBTASK_ID" --external-ref "gh-$SUBTASK_ISSUE_NUMBER"
 - NEVER stop before pushing - that leaves work stranded locally
 - NEVER say "ready to push when you are" - YOU must push
 - If push fails, resolve and retry until it succeeds
+
+## Linear
+
+This project uses **Linear** for issue tracking.
+Default team: **CHAOS**
+
+### Creating Issues
+
+```bash
+# Create a simple issue
+linear issues create "Fix login bug" --team CHAOS --priority high
+
+# Create with full details and dependencies
+linear issues create "Add OAuth integration" \
+  --team CHAOS \
+  --description "Integrate Google and GitHub OAuth providers" \
+  --parent CHAOS-100 \
+  --depends-on CHAOS-99 \
+  --labels "backend,security" \
+  --estimate 5
+
+# List and view issues
+linear issues list
+linear issues get CHAOS-123
+```
+
+### Claude Code Skills
+
+Available workflow skills (install with `linear skills install --all`):
+- `/prd` - Create agent-friendly tickets with PRDs and sub-issues
+- `/triage` - Analyze and prioritize backlog
+- `/cycle-plan` - Plan cycles using velocity analytics
+- `/retro` - Generate sprint retrospectives
+- `/deps` - Analyze dependency chains
+
+Run `linear skills list` for details.

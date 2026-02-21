@@ -56,6 +56,10 @@ export function SiteHeader() {
     };
   }, []);
 
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
+
   const visibleLinks = useMemo(
     () =>
       navLinks.filter((link) => {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import type { Route } from "next";
 import type { CoverageProvider, CoverageOrder } from "@script-manifest/contracts";
 import { EmptyState } from "../../components/emptyState";
 import { EmptyIllustration } from "../../components/illustrations";
@@ -136,7 +137,7 @@ export default function ProviderDashboardPage() {
             title="Not a provider yet"
             description="Register as a coverage provider to start accepting orders."
             actionLabel="Become a Provider"
-            actionHref="/coverage/become-provider"
+            actionHref={"/coverage/become-provider" as Route}
           />
         </article>
       </section>

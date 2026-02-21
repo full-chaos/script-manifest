@@ -38,6 +38,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Build shared packages
+        run: pnpm build --filter='./packages/*'
+
       - name: Run lint
         run: pnpm run lint
 
@@ -66,6 +69,9 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Build shared packages
+        run: pnpm build --filter='./packages/*'
 
       - name: Run unit and component tests
         run: pnpm run test:unit
@@ -139,6 +145,9 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Build shared packages
+        run: pnpm build --filter='./packages/*'
 
       - name: Run root coverage
         run: pnpm run test:coverage

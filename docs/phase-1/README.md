@@ -96,6 +96,25 @@ Profile user guide:
   - project create/list
   - submission create/list
 
+## Phase A Testing Automation (2026-02-21)
+
+- CI workflow now runs split jobs:
+  - `lint-typecheck`
+  - `unit-and-component`
+  - `build`
+  - `coverage-artifacts`
+  - `compose-config`
+- New root test commands:
+  - `pnpm run test:services`
+  - `pnpm run test:web`
+  - `pnpm run test:unit`
+  - `pnpm run test:coverage`
+  - `pnpm run test:inventory`
+- Inventory guard script:
+  - `scripts/check-test-inventory.sh`
+- Phase A guide:
+  - `/Users/chris/projects/script-manifest/docs/phase-1/testing-automation-user-manual.md`
+
 ## Notification Event Contract (Issue #21)
 
 Envelope fields:

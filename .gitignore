@@ -19,6 +19,9 @@ build/
 .next/
 .pnpm-store/
 .pnpm-install.lock
+.coverage/
+/coverage/
+apps/*/coverage/
 *.tsbuildinfo
 __pycache__/
 .pytest_cache/

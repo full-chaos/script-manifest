@@ -20,4 +20,4 @@
 
 - Coverage marketplace implementation plan: `docs/plans/2026-02-16-coverage-marketplace.md`
 - Coverage marketplace design: `docs/plans/2026-02-16-coverage-marketplace-design.md`
-
+- Testing inventory and automation roadmap: `docs/testing/gap-analysis-and-automation-plan.md`

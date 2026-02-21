@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import type { Route } from "next";
-import { useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import type {
   Project,
   ProjectCoWriter,
@@ -111,19 +111,30 @@ export default function ProjectsPage() {
 
   const selectedProject = projects.find((project) => project.id === selectedProjectId) ?? null;
 
-  useEffect(() => {
-    const session = readStoredSession();
-    if (!session) {
-      setStatus("Sign in to load your projects.");
-      setInitialLoading(false);
+  const loadAccessRequests = useCallback(async (scriptId: string) => {
+    if (!scriptId) {
+      setAccessRequests([]);
       return;
     }
 
-    setOwnerUserId(session.user.id);
-    void loadProjects(session.user.id);
-  }, []);
+    try {
+      const response = await fetch(
+        `/api/v1/scripts/${encodeURIComponent(scriptId)}/access-requests?ownerUserId=${encodeURIComponent(ownerUserId)}`,
+        { cache: "no-store", headers: getAuthHeaders() }
+      );
+      const body = await response.json();
+      if (!response.ok) {
+        toast.error(body.error ? `${body.error as string}` : "Unable to load access requests.");
+        return;
+      }
 
-  async function loadProjectContext(projectId: string) {
+      setAccessRequests((body.accessRequests as ScriptAccessRequest[]) ?? []);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to load access requests.");
+    }
+  }, [ownerUserId, toast]);
+
+  const loadProjectContext = useCallback(async (projectId: string) => {
     if (!projectId) {
       setCoWriters([]);
       setDrafts([]);
@@ -162,30 +173,7 @@ export default function ProjectsPage() {
     } finally {
       setContextLoading(false);
     }
-  }
-
-  async function loadAccessRequests(scriptId: string) {
-    if (!scriptId) {
-      setAccessRequests([]);
-      return;
-    }
-
-    try {
-      const response = await fetch(
-        `/api/v1/scripts/${encodeURIComponent(scriptId)}/access-requests?ownerUserId=${encodeURIComponent(ownerUserId)}`,
-        { cache: "no-store", headers: getAuthHeaders() }
-      );
-      const body = await response.json();
-      if (!response.ok) {
-        toast.error(body.error ? `${body.error as string}` : "Unable to load access requests.");
-        return;
-      }
-
-      setAccessRequests((body.accessRequests as ScriptAccessRequest[]) ?? []);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to load access requests.");
-    }
-  }
+  }, [loadAccessRequests, toast]);
 
   async function createAccessRequest(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -268,7 +256,7 @@ export default function ProjectsPage() {
     await loadProjectContext(projectId);
   }
 
-  async function loadProjects(explicitOwnerId?: string) {
+  const loadProjects = useCallback(async (explicitOwnerId?: string) => {
     const targetOwnerId = explicitOwnerId ?? ownerUserId;
     if (!targetOwnerId.trim()) {
       setStatus("Sign in to load your projects.");
@@ -300,7 +288,24 @@ export default function ProjectsPage() {
       setLoading(false);
       setInitialLoading(false);
     }
-  }
+  }, [loadProjectContext, ownerUserId, selectedProjectId, toast]);
+
+  useEffect(() => {
+    const session = readStoredSession();
+    if (!session) {
+      setStatus("Sign in to load your projects.");
+      setInitialLoading(false);
+      return;
+    }
+
+    setOwnerUserId(session.user.id);
+  }, []);
+
+  useEffect(() => {
+    if (ownerUserId) {
+      void loadProjects(ownerUserId);
+    }
+  }, [loadProjects, ownerUserId]);
 
   async function createProject(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { CoverageService, CoverageProvider, CoverageTier } from "@script-manifest/contracts";
 import { EmptyState } from "../components/emptyState";
 import { EmptyIllustration } from "../components/illustrations";
@@ -16,11 +16,7 @@ export default function CoverageMarketplacePage() {
   const [minPrice, setMinPrice] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
 
-  useEffect(() => {
-    void loadData();
-  }, [tierFilter, minPrice, maxPrice]);
-
-  async function loadData() {
+  const loadData = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
@@ -47,7 +43,11 @@ export default function CoverageMarketplacePage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [maxPrice, minPrice, tierFilter, toast]);
+
+  useEffect(() => {
+    void loadData();
+  }, [loadData]);
 
   function getProviderName(providerId: string): string {
     const provider = providers.find((p) => p.id === providerId);

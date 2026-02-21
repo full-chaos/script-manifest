@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import type { Route } from "next";
 import type {
   Competition,
@@ -44,19 +44,7 @@ export default function SubmissionsPage() {
   const [targetSubmissionId, setTargetSubmissionId] = useState("");
   const [placementStatus, setPlacementStatus] = useState<SubmissionStatus>("quarterfinalist");
 
-  useEffect(() => {
-    const session = readStoredSession();
-    if (!session) {
-      setMessage("Sign in to load submissions.");
-      setInitialLoading(false);
-      return;
-    }
-
-    setWriterId(session.user.id);
-    void loadData(session.user.id);
-  }, []);
-
-  async function loadData(explicitWriterId?: string) {
+  const loadData = useCallback(async (explicitWriterId?: string) => {
     const targetWriterId = explicitWriterId ?? writerId;
     if (!targetWriterId.trim()) {
       setMessage("Sign in to load submissions.");
@@ -107,7 +95,24 @@ export default function SubmissionsPage() {
       setLoading(false);
       setInitialLoading(false);
     }
-  }
+  }, [toast, writerId]);
+
+  useEffect(() => {
+    const session = readStoredSession();
+    if (!session) {
+      setMessage("Sign in to load submissions.");
+      setInitialLoading(false);
+      return;
+    }
+
+    setWriterId(session.user.id);
+  }, []);
+
+  useEffect(() => {
+    if (writerId) {
+      void loadData(writerId);
+    }
+  }, [loadData, writerId]);
 
   async function createSubmission(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

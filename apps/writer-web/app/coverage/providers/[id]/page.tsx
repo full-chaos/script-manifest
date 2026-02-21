@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import type { CoverageProvider, CoverageService, CoverageReview } from "@script-manifest/contracts";
 import { EmptyState } from "../../../components/emptyState";
@@ -17,11 +17,7 @@ export default function ProviderProfilePage() {
   const [services, setServices] = useState<CoverageService[]>([]);
   const [reviews, setReviews] = useState<CoverageReview[]>([]);
 
-  useEffect(() => {
-    void loadData();
-  }, [providerId]);
-
-  async function loadData() {
+  const loadData = useCallback(async () => {
     setLoading(true);
     try {
       const [providerRes, servicesRes, reviewsRes] = await Promise.all([
@@ -49,7 +45,11 @@ export default function ProviderProfilePage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [providerId, toast]);
+
+  useEffect(() => {
+    void loadData();
+  }, [loadData]);
 
   function formatPrice(cents: number): string {
     return `$${(cents / 100).toFixed(2)}`;

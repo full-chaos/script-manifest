@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import type { Route } from "next";
 import type { RankedWriterEntry, TierDesignation } from "@script-manifest/contracts";
 import { EmptyState } from "../components/emptyState";
@@ -81,22 +81,21 @@ export default function LeaderboardPage() {
     return Math.max(...rows.map((r) => r.totalScore), 1);
   }, [rows]);
 
-  async function loadLeaderboard(event?: FormEvent<HTMLFormElement>) {
-    event?.preventDefault();
+  const runLeaderboardQuery = useCallback(async (activeFilters: Filters) => {
     setLoading(true);
     setStatus("");
 
     const search = new URLSearchParams();
-    if (filters.format.trim()) {
-      search.set("format", filters.format.trim());
+    if (activeFilters.format.trim()) {
+      search.set("format", activeFilters.format.trim());
     }
-    if (filters.genre.trim()) {
-      search.set("genre", filters.genre.trim());
+    if (activeFilters.genre.trim()) {
+      search.set("genre", activeFilters.genre.trim());
     }
-    if (filters.tier) {
-      search.set("tier", filters.tier);
+    if (activeFilters.tier) {
+      search.set("tier", activeFilters.tier);
     }
-    if (filters.trending) {
+    if (activeFilters.trending) {
       search.set("trending", "true");
     }
 
@@ -117,11 +116,16 @@ export default function LeaderboardPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
+
+  const loadLeaderboard = useCallback((event?: FormEvent<HTMLFormElement>) => {
+    event?.preventDefault();
+    void runLeaderboardQuery(filters);
+  }, [filters, runLeaderboardQuery]);
 
   useEffect(() => {
-    void loadLeaderboard();
-  }, []);
+    void runLeaderboardQuery(initialFilters);
+  }, [runLeaderboardQuery]);
 
   return (
     <section className="space-y-4">
@@ -191,7 +195,7 @@ export default function LeaderboardPage() {
               className="btn btn-secondary"
               onClick={() => {
                 setFilters(initialFilters);
-                void loadLeaderboard();
+                void runLeaderboardQuery(initialFilters);
               }}
               disabled={loading}
             >

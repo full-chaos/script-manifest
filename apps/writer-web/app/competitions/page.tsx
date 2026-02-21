@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import type { Competition } from "@script-manifest/contracts";
 import { Modal } from "../components/modal";
 import { EmptyState } from "../components/emptyState";
@@ -95,16 +95,15 @@ export default function CompetitionsPage() {
       .map((entry) => entry.competition);
   }, [results]);
 
-  async function search(event?: FormEvent<HTMLFormElement>) {
-    event?.preventDefault();
+  const runSearch = useCallback(async (activeFilters: Filters) => {
     setLoading(true);
     setStatus("");
 
     const params = new URLSearchParams();
-    if (filters.query.trim()) params.set("query", filters.query.trim());
-    if (filters.format.trim()) params.set("format", filters.format.trim());
-    if (filters.genre.trim()) params.set("genre", filters.genre.trim());
-    if (filters.maxFeeUsd.trim()) params.set("maxFeeUsd", filters.maxFeeUsd.trim());
+    if (activeFilters.query.trim()) params.set("query", activeFilters.query.trim());
+    if (activeFilters.format.trim()) params.set("format", activeFilters.format.trim());
+    if (activeFilters.genre.trim()) params.set("genre", activeFilters.genre.trim());
+    if (activeFilters.maxFeeUsd.trim()) params.set("maxFeeUsd", activeFilters.maxFeeUsd.trim());
 
     try {
       const response = await fetch(`/api/v1/competitions?${params.toString()}`, { cache: "no-store" });
@@ -123,7 +122,12 @@ export default function CompetitionsPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [toast]);
+
+  const search = useCallback((event?: FormEvent<HTMLFormElement>) => {
+    event?.preventDefault();
+    void runSearch(filters);
+  }, [filters, runSearch]);
 
   useEffect(() => {
     const session = readStoredSession();
@@ -132,8 +136,8 @@ export default function CompetitionsPage() {
       setReminderTargetUserId(session.user.id);
     }
 
-    void search();
-  }, []);
+    void runSearch(initialFilters);
+  }, [runSearch]);
 
   function openReminderModal(competition: Competition) {
     setSelectedCompetition(competition);

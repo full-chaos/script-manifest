@@ -8,6 +8,7 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "test": "node --import tsx --test test/**/*.test.ts",
     "typecheck": "tsc --noEmit",
     "prisma:generate": "prisma generate",
     "prisma:format": "prisma format",
@@ -18,6 +19,7 @@
   },
   "devDependencies": {
     "@types/pg": "^8.11.10",
-    "prisma": "^5.22.0"
+    "prisma": "^5.22.0",
+    "tsx": "^4.19.2"
   }
 }

@@ -1,6 +1,6 @@
 # Phase 1 Testing Automation Guide
 
-Last updated: 2026-02-21
+Last updated: 2026-02-22
 
 ## What Phase A Added
 
@@ -20,6 +20,22 @@ Last updated: 2026-02-21
   - `test:inventory`
 - Added inventory guard script:
   - `scripts/check-test-inventory.sh`
+
+## What Phase B Added
+
+- Expanded root unit suite in `package.json`:
+  - `test:packages` runs package-level tests.
+  - `test:services` now includes all services (including coverage marketplace).
+  - `test:unit` now runs package + service + web tests.
+- Added API gateway helper unit tests:
+  - `services/api-gateway/src/helpers.test.ts`
+- Added contract package tests:
+  - `packages/contracts/test/index.test.ts`
+- Added DB package tests:
+  - `packages/db/test/index.test.ts`
+- Expanded proxy route coverage in:
+  - `apps/writer-web/app/api/v1/_proxy.test.ts`
+- Inventory guard now enforces Phase B critical tests.
 
 ## Running Locally
 
@@ -55,11 +71,6 @@ These are the same paths uploaded by the `coverage-artifacts` CI job.
   - `apps/writer-web/app/api/v1/scripts/upload/route.test.ts`
   - `apps/writer-web/app/api/v1/scripts/upload-session/route.test.ts`
   - `apps/writer-web/app/api/v1/scripts/register/route.test.ts`
-
-## Current Known Baseline Blocker
-
-`services/coverage-marketplace-service` currently fails tests and typecheck because of missing exports from shared packages. This is pre-existing and causes:
-
-- `pnpm run test:unit` to fail during service tests
-- `pnpm run test:coverage:services` to fail after producing partial coverage output
-
+  - `services/api-gateway/src/helpers.test.ts`
+  - `packages/contracts/test/index.test.ts`
+  - `packages/db/test/index.test.ts`

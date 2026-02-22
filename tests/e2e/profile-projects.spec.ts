@@ -11,7 +11,7 @@ test("authenticated profile and projects journey is interactive and accessible",
     page.getByRole("heading", { name: /Your public writer resume/i })
   ).toBeVisible();
   await expect(page.getByLabel("Display name")).toHaveValue("E2E Writer");
-  await expect(page).toHaveScreenshot("profile-authenticated.png", { fullPage: true });
+  await expect(page).toHaveScreenshot("profile-authenticated.png");
 
   await page.goto("/projects");
   await expect(page.getByRole("heading", { name: /Your script workspace/i })).toBeVisible();

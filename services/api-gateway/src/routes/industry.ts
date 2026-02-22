@@ -9,7 +9,9 @@ import {
 } from "../helpers.js";
 
 export function registerIndustryRoutes(server: FastifyInstance, ctx: GatewayContext): void {
-  server.post("/api/v1/industry/accounts", async (req, reply) => {
+  server.post("/api/v1/industry/accounts", {
+    config: { rateLimit: { max: 10, timeWindow: "1 minute" } }
+  }, async (req, reply) => {
     const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
     if (!userId) {
       return reply.status(401).send({ error: "unauthorized", detail: "Could not resolve user from auth token" });
@@ -30,7 +32,9 @@ export function registerIndustryRoutes(server: FastifyInstance, ctx: GatewayCont
     );
   });
 
-  server.get("/api/v1/industry/accounts/:accountId", async (req, reply) => {
+  server.get("/api/v1/industry/accounts/:accountId", {
+    config: { rateLimit: { max: 30, timeWindow: "1 minute" } }
+  }, async (req, reply) => {
     const { accountId } = req.params as { accountId: string };
     return proxyJsonRequest(
       reply,
@@ -42,7 +46,9 @@ export function registerIndustryRoutes(server: FastifyInstance, ctx: GatewayCont
     );
   });
 
-  server.post("/api/v1/industry/accounts/:accountId/verify", async (req, reply) => {
+  server.post("/api/v1/industry/accounts/:accountId/verify", {
+    config: { rateLimit: { max: 10, timeWindow: "1 minute" } }
+  }, async (req, reply) => {
     const { accountId } = req.params as { accountId: string };
     const adminUserId = await resolveAdminUserId(
       ctx.requestFn,
@@ -69,7 +75,9 @@ export function registerIndustryRoutes(server: FastifyInstance, ctx: GatewayCont
     );
   });
 
-  server.put("/api/v1/industry/entitlements/:writerUserId", async (req, reply) => {
+  server.put("/api/v1/industry/entitlements/:writerUserId", {
+    config: { rateLimit: { max: 20, timeWindow: "1 minute" } }
+  }, async (req, reply) => {
     const { writerUserId } = req.params as { writerUserId: string };
     const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
     if (!userId) {
@@ -91,7 +99,9 @@ export function registerIndustryRoutes(server: FastifyInstance, ctx: GatewayCont
     );
   });
 
-  server.get("/api/v1/industry/entitlements/:writerUserId/check", async (req, reply) => {
+  server.get("/api/v1/industry/entitlements/:writerUserId/check", {
+    config: { rateLimit: { max: 40, timeWindow: "1 minute" } }
+  }, async (req, reply) => {
     const { writerUserId } = req.params as { writerUserId: string };
     const querySuffix = buildQuerySuffix(req.query);
     return proxyJsonRequest(

@@ -265,6 +265,9 @@ importers:
 
   services/industry-portal-service:
     dependencies:
+      '@fastify/rate-limit':
+        specifier: ^10.2.1
+        version: 10.3.0
       '@script-manifest/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts

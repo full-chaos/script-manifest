@@ -11,6 +11,7 @@
     "lint": "echo 'lint not configured'"
   },
   "dependencies": {
+    "@fastify/rate-limit": "^10.2.1",
     "@script-manifest/contracts": "workspace:*",
     "@script-manifest/db": "workspace:*",
     "fastify": "^5.1.0",

@@ -1,4 +1,5 @@
 import Fastify, { type FastifyInstance } from "fastify";
+import rateLimit from "@fastify/rate-limit";
 import { randomUUID } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import {
@@ -32,11 +33,19 @@ export function buildServer(options: IndustryPortalServiceOptions = {}): Fastify
   });
   const repository = options.repository ?? new PgIndustryPortalRepository();
 
+  void server.register(rateLimit, {
+    max: 100,
+    timeWindow: "1 minute",
+    allowList: []
+  });
+
   server.addHook("onReady", async () => {
     await repository.init();
   });
 
-  server.get("/health", async (_req, reply) => {
+  server.get("/health", {
+    config: { rateLimit: { max: 60, timeWindow: "1 minute" } }
+  }, async (_req, reply) => {
     const checks: Record<string, boolean> = {};
     try {
       const result = await repository.healthCheck();
@@ -50,7 +59,9 @@ export function buildServer(options: IndustryPortalServiceOptions = {}): Fastify
 
   server.get("/health/live", async () => ({ ok: true }));
 
-  server.get("/health/ready", async (_req, reply) => {
+  server.get("/health/ready", {
+    config: { rateLimit: { max: 60, timeWindow: "1 minute" } }
+  }, async (_req, reply) => {
     const checks: Record<string, boolean> = {};
     try {
       const result = await repository.healthCheck();
@@ -62,7 +73,9 @@ export function buildServer(options: IndustryPortalServiceOptions = {}): Fastify
     return reply.status(ok ? 200 : 503).send({ service: "industry-portal-service", ok, checks });
   });
 
-  server.post("/internal/accounts", async (req, reply) => {
+  server.post("/internal/accounts", {
+    config: { rateLimit: { max: 10, timeWindow: "1 minute" } }
+  }, async (req, reply) => {
     const authUserId = readHeader(req.headers, "x-auth-user-id");
     if (!authUserId) {
       return reply.status(403).send({ error: "forbidden" });
@@ -88,7 +101,9 @@ export function buildServer(options: IndustryPortalServiceOptions = {}): Fastify
     return reply.status(201).send({ account: result.account });
   });
 
-  server.get("/internal/accounts/:accountId", async (req, reply) => {
+  server.get("/internal/accounts/:accountId", {
+    config: { rateLimit: { max: 30, timeWindow: "1 minute" } }
+  }, async (req, reply) => {
     const { accountId } = req.params as { accountId: string };
     const account = await repository.getAccountById(accountId);
     if (!account) {
@@ -97,7 +112,9 @@ export function buildServer(options: IndustryPortalServiceOptions = {}): Fastify
     return reply.send({ account });
   });
 
-  server.post("/internal/accounts/:accountId/verify", async (req, reply) => {
+  server.post("/internal/accounts/:accountId/verify", {
+    config: { rateLimit: { max: 10, timeWindow: "1 minute" } }
+  }, async (req, reply) => {
     const { accountId } = req.params as { accountId: string };
     const reviewerUserId = readHeader(req.headers, "x-admin-user-id");
     if (!reviewerUserId) {
@@ -117,7 +134,9 @@ export function buildServer(options: IndustryPortalServiceOptions = {}): Fastify
     return reply.send({ account });
   });
 
-  server.put("/internal/entitlements/:writerUserId", async (req, reply) => {
+  server.put("/internal/entitlements/:writerUserId", {
+    config: { rateLimit: { max: 20, timeWindow: "1 minute" } }
+  }, async (req, reply) => {
     const { writerUserId } = req.params as { writerUserId: string };
     const authUserId = readHeader(req.headers, "x-auth-user-id");
     if (!authUserId || authUserId !== writerUserId) {
@@ -137,7 +156,9 @@ export function buildServer(options: IndustryPortalServiceOptions = {}): Fastify
     return reply.send({ entitlement });
   });
 
-  server.get("/internal/entitlements/:writerUserId/check", async (req, reply) => {
+  server.get("/internal/entitlements/:writerUserId/check", {
+    config: { rateLimit: { max: 40, timeWindow: "1 minute" } }
+  }, async (req, reply) => {
     const { writerUserId } = req.params as { writerUserId: string };
     const query = req.query as { industryAccountId?: string; industryUserId?: string };
 

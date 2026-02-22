@@ -682,11 +682,17 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
                 ? object.payoutsEnabled
                 : undefined;
 
-          const accountStatus = await paymentGateway.getAccountStatus(accountId);
-          const onboardingComplete = Boolean(
-            (webhookChargesEnabled ?? accountStatus.chargesEnabled) &&
-            (webhookPayoutsEnabled ?? accountStatus.payoutsEnabled)
-          );
+          let chargesEnabled: boolean;
+          let payoutsEnabled: boolean;
+          if (webhookChargesEnabled !== undefined && webhookPayoutsEnabled !== undefined) {
+            chargesEnabled = webhookChargesEnabled;
+            payoutsEnabled = webhookPayoutsEnabled;
+          } else {
+            const accountStatus = await paymentGateway.getAccountStatus(accountId);
+            chargesEnabled = webhookChargesEnabled ?? accountStatus.chargesEnabled;
+            payoutsEnabled = webhookPayoutsEnabled ?? accountStatus.payoutsEnabled;
+          }
+          const onboardingComplete = Boolean(chargesEnabled && payoutsEnabled);
           await repository.updateProviderStripe(provider.id, accountId, onboardingComplete);
         }
       }

@@ -1457,3 +1457,120 @@ test("cannot dispute non-delivered order", async (t) => {
   assert.equal(res.statusCode, 409);
   assert.equal(res.json().error, "order_not_disputable");
 });
+
+// ── Webhook Tests ─────────────────────────────────────────────────────
+
+test("account.updated webhook with both fields present uses webhook values directly without fallback", async (t) => {
+  const { server, repo, gateway } = createServer();
+  t.after(() => server.close());
+
+  // Create a provider
+  const providerRes = await server.inject({
+    method: "POST",
+    url: "/internal/providers",
+    headers: { "x-auth-user-id": "provider_01", "content-type": "application/json" },
+    payload: { displayName: "Test Provider", bio: "Bio", specialties: ["drama"] }
+  });
+  const provider = providerRes.json().provider;
+
+  // Trigger stripe-onboarding to assign a Stripe account ID
+  await server.inject({
+    method: "GET",
+    url: `/internal/providers/${provider.id}/stripe-onboarding`,
+    headers: { "x-auth-user-id": "provider_01" }
+  });
+  const updatedProvider = await repo.getProvider(provider.id);
+  const accountId = updatedProvider!.stripeAccountId!;
+
+  // Set gateway so getAccountStatus would return true if called (stale)
+  gateway.accounts.set(accountId, { chargesEnabled: true, payoutsEnabled: true });
+
+  // Send webhook with both fields explicitly false — should override stale gateway data
+  const res = await server.inject({
+    method: "POST",
+    url: "/internal/stripe-webhook",
+    headers: { "stripe-signature": "sig", "content-type": "application/json" },
+    payload: {
+      type: "account.updated",
+      data: { object: { id: accountId, charges_enabled: false, payouts_enabled: false } }
+    }
+  });
+
+  assert.equal(res.statusCode, 200);
+  const refreshed = await repo.getProvider(provider.id);
+  assert.equal(refreshed!.stripeOnboardingComplete, false);
+});
+
+test("account.updated webhook with both fields true marks onboarding complete", async (t) => {
+  const { server, repo } = createServer();
+  t.after(() => server.close());
+
+  const providerRes = await server.inject({
+    method: "POST",
+    url: "/internal/providers",
+    headers: { "x-auth-user-id": "provider_01", "content-type": "application/json" },
+    payload: { displayName: "Test Provider", bio: "Bio", specialties: ["drama"] }
+  });
+  const provider = providerRes.json().provider;
+
+  await server.inject({
+    method: "GET",
+    url: `/internal/providers/${provider.id}/stripe-onboarding`,
+    headers: { "x-auth-user-id": "provider_01" }
+  });
+  const updatedProvider = await repo.getProvider(provider.id);
+  const accountId = updatedProvider!.stripeAccountId!;
+
+  const res = await server.inject({
+    method: "POST",
+    url: "/internal/stripe-webhook",
+    headers: { "stripe-signature": "sig", "content-type": "application/json" },
+    payload: {
+      type: "account.updated",
+      data: { object: { id: accountId, charges_enabled: true, payouts_enabled: true } }
+    }
+  });
+
+  assert.equal(res.statusCode, 200);
+  const refreshed = await repo.getProvider(provider.id);
+  assert.equal(refreshed!.stripeOnboardingComplete, true);
+});
+
+test("account.updated webhook with missing fields falls back to getAccountStatus", async (t) => {
+  const { server, repo, gateway } = createServer();
+  t.after(() => server.close());
+
+  const providerRes = await server.inject({
+    method: "POST",
+    url: "/internal/providers",
+    headers: { "x-auth-user-id": "provider_01", "content-type": "application/json" },
+    payload: { displayName: "Test Provider", bio: "Bio", specialties: ["drama"] }
+  });
+  const provider = providerRes.json().provider;
+
+  await server.inject({
+    method: "GET",
+    url: `/internal/providers/${provider.id}/stripe-onboarding`,
+    headers: { "x-auth-user-id": "provider_01" }
+  });
+  const updatedProvider = await repo.getProvider(provider.id);
+  const accountId = updatedProvider!.stripeAccountId!;
+
+  // Set gateway to completed onboarding
+  gateway.accounts.set(accountId, { chargesEnabled: true, payoutsEnabled: true });
+
+  // Send webhook with neither field — should fall back to gateway
+  const res = await server.inject({
+    method: "POST",
+    url: "/internal/stripe-webhook",
+    headers: { "stripe-signature": "sig", "content-type": "application/json" },
+    payload: {
+      type: "account.updated",
+      data: { object: { id: accountId } }
+    }
+  });
+
+  assert.equal(res.statusCode, 200);
+  const refreshed = await repo.getProvider(provider.id);
+  assert.equal(refreshed!.stripeOnboardingComplete, true);
+});

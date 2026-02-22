@@ -9,6 +9,7 @@
 
 - Phase 0: `docs/phase-0/README.md`
 - Phase 1: `docs/phase-1/README.md`
+  - Phase 1 testing automation guide: `docs/phase-1/testing-automation-user-manual.md`
 - Phase 2: `docs/phase-2/README.md`
 - Phase 3: `docs/phase-3/README.md`
 - Phase 4: `docs/phase-4/README.md`
@@ -20,4 +21,3 @@
 
 - Coverage marketplace implementation plan: `docs/plans/2026-02-16-coverage-marketplace.md`
 - Coverage marketplace design: `docs/plans/2026-02-16-coverage-marketplace-design.md`
-

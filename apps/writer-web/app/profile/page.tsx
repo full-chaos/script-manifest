@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import type { WriterProfile, WriterProfileUpdateRequest } from "@script-manifest/contracts";
 import { SkeletonText } from "../components/skeleton";
 import { useToast } from "../components/toast";
@@ -38,7 +38,7 @@ export default function ProfilePage() {
   const [exporting, setExporting] = useState<"csv" | "zip" | null>(null);
   const [status, setStatus] = useState("");
 
-  async function loadProfile(explicitWriterId?: string) {
+  const loadProfile = useCallback(async (explicitWriterId?: string) => {
     const targetWriterId = explicitWriterId ?? writerId;
     if (!targetWriterId.trim()) {
       setStatus("Sign in to load your profile.");
@@ -78,7 +78,7 @@ export default function ProfilePage() {
       setLoading(false);
       setInitialLoading(false);
     }
-  }
+  }, [toast, writerId]);
 
   useEffect(() => {
     const session = readStoredSession();
@@ -89,8 +89,13 @@ export default function ProfilePage() {
     }
 
     setWriterId(session.user.id);
-    void loadProfile(session.user.id);
   }, []);
+
+  useEffect(() => {
+    if (writerId) {
+      void loadProfile(writerId);
+    }
+  }, [loadProfile, writerId]);
 
   async function saveProfile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useParams } from "next/navigation";
 import type { CoverageOrder, CoverageDelivery, CoverageOrderStatus } from "@script-manifest/contracts";
 import { EmptyState } from "../../../components/emptyState";
@@ -36,11 +36,7 @@ export default function OrderDetailPage() {
     }
   }, []);
 
-  useEffect(() => {
-    void loadData();
-  }, [orderId]);
-
-  async function loadData() {
+  const loadData = useCallback(async () => {
     setLoading(true);
     try {
       const response = await fetch(`/api/v1/coverage/orders/${encodeURIComponent(orderId)}`, {
@@ -58,7 +54,11 @@ export default function OrderDetailPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [orderId, toast]);
+
+  useEffect(() => {
+    void loadData();
+  }, [loadData]);
 
   async function handleClaim() {
     setClaiming(true);

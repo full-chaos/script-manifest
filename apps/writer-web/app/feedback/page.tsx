@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import type {
   FeedbackListing,
   FeedbackReview,
@@ -142,17 +142,7 @@ export default function FeedbackPage() {
     }
   }, []);
 
-  useEffect(() => {
-    if (signedInUserId) {
-      void loadBalance();
-      void grantSignupTokens();
-      void loadProjects();
-      void loadMyReviews();
-    }
-    void loadListings();
-  }, [signedInUserId]);
-
-  async function loadBalance() {
+  const loadBalance = useCallback(async () => {
     try {
       const response = await fetch("/api/v1/feedback/tokens/balance", {
         headers: getAuthHeaders()
@@ -164,9 +154,9 @@ export default function FeedbackPage() {
     } catch {
       // Silently fail — balance will show as null
     }
-  }
+  }, []);
 
-  async function grantSignupTokens() {
+  const grantSignupTokens = useCallback(async () => {
     try {
       await fetch("/api/v1/feedback/tokens/grant-signup", {
         method: "POST",
@@ -176,9 +166,9 @@ export default function FeedbackPage() {
     } catch {
       // Grant is idempotent, failure is non-critical
     }
-  }
+  }, [loadBalance]);
 
-  async function loadListings() {
+  const loadListings = useCallback(async () => {
     setLoading(true);
     try {
       const response = await fetch("/api/v1/feedback/listings?status=open", { cache: "no-store" });
@@ -198,9 +188,9 @@ export default function FeedbackPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [signedInUserId, toast]);
 
-  async function loadProjects() {
+  const loadProjects = useCallback(async () => {
     try {
       const response = await fetch(
         `/api/v1/projects?ownerUserId=${encodeURIComponent(signedInUserId)}`,
@@ -213,7 +203,7 @@ export default function FeedbackPage() {
     } catch {
       // Non-critical — user can still type IDs manually
     }
-  }
+  }, [signedInUserId]);
 
   async function loadDrafts(projectId: string) {
     setDrafts([]);
@@ -232,7 +222,7 @@ export default function FeedbackPage() {
     }
   }
 
-  async function loadMyReviews() {
+  const loadMyReviews = useCallback(async () => {
     try {
       const response = await fetch(
         `/api/v1/feedback/reviews?reviewerUserId=${encodeURIComponent(signedInUserId)}`,
@@ -245,7 +235,17 @@ export default function FeedbackPage() {
     } catch {
       // Non-critical
     }
-  }
+  }, [signedInUserId]);
+
+  useEffect(() => {
+    if (signedInUserId) {
+      void loadBalance();
+      void grantSignupTokens();
+      void loadProjects();
+      void loadMyReviews();
+    }
+    void loadListings();
+  }, [grantSignupTokens, loadBalance, loadListings, loadMyReviews, loadProjects, signedInUserId]);
 
   function handleProjectSelect(projectId: string) {
     setSelectedProjectId(projectId);

@@ -1,9 +1,7 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import type { CoverageProvider } from "@script-manifest/contracts";
-import { EmptyState } from "../../components/emptyState";
-import { EmptyIllustration } from "../../components/illustrations";
 import { SkeletonCard } from "../../components/skeleton";
 import { useToast } from "../../components/toast";
 import { getAuthHeaders, readStoredSession } from "../../lib/authSession";
@@ -26,13 +24,7 @@ export default function BecomeProviderPage() {
     }
   }, []);
 
-  useEffect(() => {
-    if (signedInUserId) {
-      void loadProvider();
-    }
-  }, [signedInUserId]);
-
-  async function loadProvider() {
+  const loadProvider = useCallback(async () => {
     setLoading(true);
     try {
       const response = await fetch("/api/v1/coverage/providers", {
@@ -50,7 +42,13 @@ export default function BecomeProviderPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [signedInUserId, toast]);
+
+  useEffect(() => {
+    if (signedInUserId) {
+      void loadProvider();
+    }
+  }, [signedInUserId, loadProvider]);
 
   async function handleRegister(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -185,7 +183,7 @@ export default function BecomeProviderPage() {
               <strong className="text-sm font-semibold text-amber-900">Action Required</strong>
               <p className="mt-1 text-sm text-amber-700">
                 You must complete Stripe onboarding to receive payments for your services.
-                Click "Complete Stripe Setup" above to continue.
+                Click &quot;Complete Stripe Setup&quot; above to continue.
               </p>
             </div>
           </article>
@@ -201,7 +199,7 @@ export default function BecomeProviderPage() {
         <h1 className="text-4xl text-ink-900">Join our marketplace</h1>
         <p className="max-w-3xl text-ink-700">
           Register as a coverage provider to offer professional script feedback services.
-          After registration, you'll complete Stripe onboarding to receive payments.
+          After registration, you&apos;ll complete Stripe onboarding to receive payments.
         </p>
       </article>
 

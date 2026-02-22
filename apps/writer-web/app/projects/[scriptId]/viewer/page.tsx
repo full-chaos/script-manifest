@@ -21,11 +21,12 @@ const initialState: ViewState = {
 export default function ScriptViewerPage() {
   const params = useParams<{ scriptId: string }>();
   const scriptId = Array.isArray(params.scriptId) ? params.scriptId[0] : params.scriptId;
-  const [viewState, setViewState] = useState<ViewState>(initialState);
+  const [viewState, setViewState] = useState<ViewState>(() =>
+    scriptId ? initialState : { loading: false, viewer: null, error: "missing_script_id" }
+  );
 
   useEffect(() => {
     if (!scriptId) {
-      setViewState({ loading: false, viewer: null, error: "missing_script_id" });
       return;
     }
 

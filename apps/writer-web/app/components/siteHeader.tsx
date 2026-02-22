@@ -40,6 +40,11 @@ export function SiteHeader() {
   const pathname = usePathname();
   const [user, setUser] = useState<AuthUser | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [prevPathname, setPrevPathname] = useState(pathname);
+  if (prevPathname !== pathname) {
+    setPrevPathname(pathname);
+    setMobileOpen(false);
+  }
 
   useEffect(() => {
     const syncSession = () => {
@@ -55,10 +60,6 @@ export function SiteHeader() {
       window.removeEventListener(SESSION_CHANGED_EVENT, syncSession);
     };
   }, []);
-
-  useEffect(() => {
-    setMobileOpen(false);
-  }, [pathname]);
 
   const visibleLinks = useMemo(
     () =>
@@ -161,6 +162,7 @@ export function SiteHeader() {
                     <Link
                       href={link.href}
                       aria-current={active ? "page" : undefined}
+                      onClick={() => setMobileOpen(false)}
                       className={
                         active
                           ? "block rounded-md border border-ember-500/40 bg-ember-500/10 px-3 py-2 text-sm font-semibold text-ember-700 no-underline"
@@ -176,7 +178,7 @@ export function SiteHeader() {
           </nav>
 
           <div className="inline-form">
-            <Link href="/signin" className="btn btn-primary no-underline">
+            <Link href="/signin" className="btn btn-primary no-underline" onClick={() => setMobileOpen(false)}>
               {user ? "Account" : "Sign in"}
             </Link>
           </div>

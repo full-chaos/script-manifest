@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import type { CoverageDispute, CoverageDisputeStatus } from "@script-manifest/contracts";
 import { EmptyState } from "../../../components/emptyState";
 import { EmptyIllustration } from "../../../components/illustrations";
@@ -19,11 +19,7 @@ export default function AdminDisputesPage() {
   const [refundAmount, setRefundAmount] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => {
-    void loadDisputes();
-  }, []);
-
-  async function loadDisputes() {
+  const loadDisputes = useCallback(async () => {
     setLoading(true);
     try {
       const response = await fetch("/api/v1/coverage/disputes", {
@@ -40,7 +36,11 @@ export default function AdminDisputesPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [toast]);
+
+  useEffect(() => {
+    void loadDisputes();
+  }, [loadDisputes]);
 
   async function handleResolve(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

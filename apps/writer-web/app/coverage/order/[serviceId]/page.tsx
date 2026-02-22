@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useParams } from "next/navigation";
 import type { CoverageService, CoverageOrder } from "@script-manifest/contracts";
 import { EmptyState } from "../../../components/emptyState";
@@ -28,11 +28,7 @@ export default function OrderFlowPage() {
     }
   }, []);
 
-  useEffect(() => {
-    void loadService();
-  }, [serviceId]);
-
-  async function loadService() {
+  const loadService = useCallback(async () => {
     setLoading(true);
     try {
       const response = await fetch(`/api/v1/coverage/services?limit=100`, { cache: "no-store" });
@@ -46,7 +42,11 @@ export default function OrderFlowPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [serviceId, toast]);
+
+  useEffect(() => {
+    void loadService();
+  }, [loadService]);
 
   async function handlePlaceOrder(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

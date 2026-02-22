@@ -37,14 +37,39 @@ Last updated: 2026-02-22
   - `apps/writer-web/app/api/v1/_proxy.test.ts`
 - Inventory guard now enforces Phase B critical tests.
 
+## What Phase C Added
+
+- Added compose-backed integration harness script:
+  - `scripts/compose-integration-harness.sh`
+  - Commands: `up`, `down`, `reset`, `test`
+- Added root integration scripts in `package.json`:
+  - `test:integration` (runs integration flow tests against running compose stack)
+  - `test:integration:compose` (resets stack + runs integration tests + tears down)
+- Added real multi-service flow tests in `tests/integration/compose/`:
+  - `script-upload-register-view.test.ts`
+  - `submission-ranking-flow.test.ts`
+  - `coverage-order-flow.test.ts`
+  - `feedback-exchange-flow.test.ts`
+- CI now runs compose integration in a dedicated job:
+  - `.github/workflows/ci.yml` job `integration-compose`
+
 ## Running Locally
 
 ```bash
 pnpm run lint
 pnpm run typecheck
 pnpm run test:unit
+pnpm run test:integration:compose
 pnpm run test:inventory
 pnpm run test:coverage
+```
+
+You can also keep the stack up while iterating:
+
+```bash
+bash ./scripts/compose-integration-harness.sh up
+pnpm run test:integration
+bash ./scripts/compose-integration-harness.sh down
 ```
 
 ## Coverage Artifact Paths

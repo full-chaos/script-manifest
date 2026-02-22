@@ -668,10 +668,26 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
         const providers = await repository.listProviders({ offset: 0, limit: 1000 });
         const provider = providers.find((p) => p.stripeAccountId === accountId);
         if (provider) {
-          const status = await paymentGateway.getAccountStatus(accountId);
-          if (status.chargesEnabled && status.payoutsEnabled) {
-            await repository.updateProviderStripe(provider.id, accountId, true);
-          }
+          const object = event.data?.object ?? {};
+          const webhookChargesEnabled =
+            typeof object.charges_enabled === "boolean"
+              ? object.charges_enabled
+              : typeof object.chargesEnabled === "boolean"
+                ? object.chargesEnabled
+                : undefined;
+          const webhookPayoutsEnabled =
+            typeof object.payouts_enabled === "boolean"
+              ? object.payouts_enabled
+              : typeof object.payoutsEnabled === "boolean"
+                ? object.payoutsEnabled
+                : undefined;
+
+          const accountStatus = await paymentGateway.getAccountStatus(accountId);
+          const onboardingComplete = Boolean(
+            (webhookChargesEnabled ?? accountStatus.chargesEnabled) &&
+            (webhookPayoutsEnabled ?? accountStatus.payoutsEnabled)
+          );
+          await repository.updateProviderStripe(provider.id, accountId, onboardingComplete);
         }
       }
     }

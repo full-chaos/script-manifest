@@ -1,0 +1,184 @@
+name: Nightly Reliability
+
+on:
+  schedule:
+    - cron: "0 9 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: nightly-reliability-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  nightly-reliability:
+    name: Nightly Reliability Suite
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 25
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build shared packages
+        run: pnpm build --filter='./packages/*'
+
+      - name: Lint + typecheck
+        run: |
+          pnpm run lint
+          pnpm run typecheck
+
+      - name: Unit and inventory tests
+        run: |
+          pnpm run test:unit
+          pnpm run test:inventory
+
+      - name: Integration compose suite
+        run: pnpm run test:integration:compose
+
+      - name: Install Playwright browser
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run Playwright suite (JSON report)
+        id: e2e
+        continue-on-error: true
+        run: |
+          mkdir -p .artifacts
+          pnpm exec playwright test --config tests/e2e/playwright.config.ts --reporter=json > .artifacts/playwright-results.json
+
+      - name: Generate flaky test summary
+        if: always()
+        run: |
+          if [ -s .artifacts/playwright-results.json ]; then
+            node scripts/ci/playwright-flake-report.mjs \
+              --input .artifacts/playwright-results.json \
+              --output .artifacts/playwright-flakes.json \
+              --markdown .artifacts/playwright-flakes.md \
+              --quarantine-file tests/e2e/quarantine.list
+          else
+            echo "No valid Playwright JSON report found; skipping flaky test summary generation." >&2
+            mkdir -p .artifacts
+            echo '{}' > .artifacts/playwright-flakes.json
+            printf '%s\n' "# Playwright Flake Summary" "" "No Playwright test report was generated; no flake data is available." > .artifacts/playwright-flakes.md
+          fi
+
+      - name: Run coverage collection
+        id: coverage
+        continue-on-error: true
+        run: pnpm run test:coverage
+
+      - name: Enforce coverage thresholds
+        id: coverage_gate
+        if: steps.coverage.outcome == 'success'
+        run: |
+          node scripts/ci/coverage-thresholds.mjs \
+            --baseline .github/coverage-thresholds.json \
+            --services-summary .coverage/services/coverage-summary.json \
+            --web-summary apps/writer-web/coverage/coverage-summary.json \
+            --ratchet-out .artifacts/coverage-thresholds-ratchet.json
+
+      - name: Upload nightly artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-reliability-artifacts
+          path: |
+            .artifacts
+            .coverage/services
+            apps/writer-web/coverage
+            playwright-report
+            test-results
+          if-no-files-found: warn
+
+      - name: Fail if Playwright run failed
+        if: steps.e2e.outcome == 'failure'
+        run: exit 1
+
+      - name: Fail if coverage run failed
+        if: steps.coverage.outcome == 'failure'
+        run: exit 1
+
+      - name: Create repeated-failure issue
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const runUrl = `${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`;
+
+            const runs = await github.rest.actions.listWorkflowRuns({
+              owner,
+              repo,
+              workflow_id: 'nightly-reliability.yml',
+              branch: 'main',
+              per_page: 5
+            });
+
+            const previous = runs.data.workflow_runs
+              .filter((run) => run.id !== context.runId && run.status === 'completed')
+              .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
+
+            if (!previous || previous.conclusion !== 'failure') {
+              core.info('Previous completed nightly run was not failing. Skipping issue creation.');
+              return;
+            }
+
+            const title = 'Nightly reliability regression on main';
+            const openIssues = await github.rest.issues.listForRepo({
+              owner,
+              repo,
+              state: 'open',
+              per_page: 100
+            });
+
+            const existing = openIssues.data.find((issue) => issue.title === title);
+            const body = [
+              'Repeated nightly failures detected on `main`.',
+              '',
+              `- Current run: ${runUrl}`,
+              `- Previous failing run: ${previous.html_url}`,
+              '',
+              'Artifacts to inspect:',
+              '- `nightly-reliability-artifacts`',
+              '- `.artifacts/playwright-flakes.md`',
+              '- `.artifacts/coverage-thresholds-ratchet.json`'
+            ].join('\n');
+
+            if (existing) {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: existing.number,
+                body
+              });
+              core.info(`Updated existing issue #${existing.number}`);
+              return;
+            }
+
+            const created = await github.rest.issues.create({
+              owner,
+              repo,
+              title,
+              body
+            });
+            core.info(`Created issue #${created.data.number}`);

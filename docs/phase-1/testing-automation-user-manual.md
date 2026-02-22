@@ -78,6 +78,24 @@ Last updated: 2026-02-22
   - `.github/workflows/ci.yml` job `e2e-ux`
 - Inventory guard now enforces Phase D critical e2e files.
 
+## What Phase E Added
+
+- Added nightly reliability workflow:
+  - `.github/workflows/nightly-reliability.yml`
+  - Includes lint, typecheck, unit, inventory, compose integration, e2e, and coverage.
+- Added ops-level reliability scripts:
+  - `scripts/ci/coverage-thresholds.mjs`
+  - `scripts/ci/playwright-flake-report.mjs`
+- Added ops unit tests:
+  - `scripts/ci/coverage-thresholds.test.mjs`
+  - `scripts/ci/playwright-flake-report.test.mjs`
+- Added quarantine control file:
+  - `tests/e2e/quarantine.list`
+- Added baseline coverage threshold config:
+  - `.github/coverage-thresholds.json`
+- Added repeated-failure issue automation for nightly regressions on `main`.
+- `test:unit` now includes `test:ops` so reliability checks run on every unit pass.
+
 ## Running Locally
 
 ```bash
@@ -89,6 +107,7 @@ pnpm exec playwright install --with-deps chromium
 pnpm run test:e2e
 pnpm run test:inventory
 pnpm run test:coverage
+pnpm run test:ops
 ```
 
 You can also keep the stack up while iterating:
@@ -105,6 +124,45 @@ bash ./scripts/compose-integration-harness.sh down
 - Writer web coverage output: `apps/writer-web/coverage`
 
 These are the same paths uploaded by the `coverage-artifacts` CI job.
+
+Nightly reliability additionally uploads:
+
+- `.artifacts/playwright-flakes.json`
+- `.artifacts/playwright-flakes.md`
+- `.artifacts/coverage-thresholds-ratchet.json`
+
+### Managing Coverage Thresholds
+
+- Baseline file:
+  - `.github/coverage-thresholds.json`
+- Gate command:
+
+```bash
+node scripts/ci/coverage-thresholds.mjs \
+  --baseline .github/coverage-thresholds.json \
+  --services-summary .coverage/services/coverage-summary.json \
+  --web-summary apps/writer-web/coverage/coverage-summary.json \
+  --ratchet-out .artifacts/coverage-thresholds-ratchet.json
+```
+
+- When coverage improves, promote ratcheted values from `.artifacts/coverage-thresholds-ratchet.json` into `.github/coverage-thresholds.json`.
+
+### Managing Flaky E2E Quarantine
+
+- Quarantine file:
+  - `tests/e2e/quarantine.list`
+- Flake summary command:
+
+```bash
+node scripts/ci/playwright-flake-report.mjs \
+  --input .artifacts/playwright-results.json \
+  --output .artifacts/playwright-flakes.json \
+  --markdown .artifacts/playwright-flakes.md \
+  --quarantine-file tests/e2e/quarantine.list
+```
+
+- Add one substring pattern per line matching:
+  - `<projectName> <suite/spec title>`
 
 ## Inventory Guard Rules
 

@@ -144,6 +144,26 @@ Profile user guide:
   - `pnpm run test:e2e`
   - `pnpm run test:e2e:update`
 
+## Phase E Nightly Reliability Controls (2026-02-22)
+
+- Nightly reliability workflow:
+  - `.github/workflows/nightly-reliability.yml`
+  - Runs on schedule and manual dispatch, main-only.
+- Added CI ops scripts:
+  - `scripts/ci/coverage-thresholds.mjs`
+  - `scripts/ci/playwright-flake-report.mjs`
+  - `tests/e2e/quarantine.list`
+- Coverage gate inputs and artifacts:
+  - Baseline thresholds: `.github/coverage-thresholds.json`
+  - Ratchet output: `.artifacts/coverage-thresholds-ratchet.json`
+- Playwright reliability artifacts:
+  - Flake JSON summary: `.artifacts/playwright-flakes.json`
+  - Flake markdown summary: `.artifacts/playwright-flakes.md`
+- Repeated nightly failures now auto-open/update an issue via `actions/github-script`.
+- Root scripts:
+  - `pnpm run test:ops`
+  - `pnpm run test:unit` now includes `test:ops`
+
 ## Notification Event Contract (Issue #21)
 
 Envelope fields:

@@ -32,157 +32,168 @@ export function buildServer(options: IndustryPortalServiceOptions = {}): Fastify
     requestIdHeader: "x-request-id"
   });
   const repository = options.repository ?? new PgIndustryPortalRepository();
+  const repositoryReady = repository.init();
 
-  void server.register(rateLimit, {
+  server.register(rateLimit, {
     max: 100,
     timeWindow: "1 minute",
     allowList: []
   });
 
-  server.addHook("onReady", async () => {
-    await repository.init();
-  });
-
   server.get("/health", {
-    config: { rateLimit: { max: 60, timeWindow: "1 minute" } }
-  }, async (_req, reply) => {
-    const checks: Record<string, boolean> = {};
-    try {
-      const result = await repository.healthCheck();
-      checks.database = result.database;
-    } catch {
-      checks.database = false;
+    config: { rateLimit: { max: 60, timeWindow: "1 minute" } },
+    handler: async (_req, reply) => {
+      await repositoryReady;
+      const checks: Record<string, boolean> = {};
+      try {
+        const result = await repository.healthCheck();
+        checks.database = result.database;
+      } catch {
+        checks.database = false;
+      }
+      const ok = Object.values(checks).every(Boolean);
+      return reply.status(ok ? 200 : 503).send({ service: "industry-portal-service", ok, checks });
     }
-    const ok = Object.values(checks).every(Boolean);
-    return reply.status(ok ? 200 : 503).send({ service: "industry-portal-service", ok, checks });
   });
 
   server.get("/health/live", async () => ({ ok: true }));
 
   server.get("/health/ready", {
-    config: { rateLimit: { max: 60, timeWindow: "1 minute" } }
-  }, async (_req, reply) => {
-    const checks: Record<string, boolean> = {};
-    try {
-      const result = await repository.healthCheck();
-      checks.database = result.database;
-    } catch {
-      checks.database = false;
+    config: { rateLimit: { max: 60, timeWindow: "1 minute" } },
+    handler: async (_req, reply) => {
+      await repositoryReady;
+      const checks: Record<string, boolean> = {};
+      try {
+        const result = await repository.healthCheck();
+        checks.database = result.database;
+      } catch {
+        checks.database = false;
+      }
+      const ok = Object.values(checks).every(Boolean);
+      return reply.status(ok ? 200 : 503).send({ service: "industry-portal-service", ok, checks });
     }
-    const ok = Object.values(checks).every(Boolean);
-    return reply.status(ok ? 200 : 503).send({ service: "industry-portal-service", ok, checks });
   });
 
   server.post("/internal/accounts", {
-    config: { rateLimit: { max: 10, timeWindow: "1 minute" } }
-  }, async (req, reply) => {
-    const authUserId = readHeader(req.headers, "x-auth-user-id");
-    if (!authUserId) {
-      return reply.status(403).send({ error: "forbidden" });
-    }
+    config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
+      await repositoryReady;
+      const authUserId = readHeader(req.headers, "x-auth-user-id");
+      if (!authUserId) {
+        return reply.status(403).send({ error: "forbidden" });
+      }
 
-    const parsed = IndustryAccountCreateRequestSchema.safeParse(req.body);
-    if (!parsed.success) {
-      return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
-    }
+      const parsed = IndustryAccountCreateRequestSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
+      }
 
-    const result = await repository.createAccount({
-      ...parsed.data,
-      userId: authUserId
-    });
+      const result = await repository.createAccount({
+        ...parsed.data,
+        userId: authUserId
+      });
 
-    if (result.status === "user_not_found") {
-      return reply.status(404).send({ error: "user_not_found" });
-    }
-    if (result.status === "already_exists") {
-      return reply.status(409).send({ error: "industry_account_exists", account: result.account });
-    }
+      if (result.status === "user_not_found") {
+        return reply.status(404).send({ error: "user_not_found" });
+      }
+      if (result.status === "already_exists") {
+        return reply.status(409).send({ error: "industry_account_exists", account: result.account });
+      }
 
-    return reply.status(201).send({ account: result.account });
+      return reply.status(201).send({ account: result.account });
+    }
   });
 
   server.get("/internal/accounts/:accountId", {
-    config: { rateLimit: { max: 30, timeWindow: "1 minute" } }
-  }, async (req, reply) => {
-    const { accountId } = req.params as { accountId: string };
-    const account = await repository.getAccountById(accountId);
-    if (!account) {
-      return reply.status(404).send({ error: "industry_account_not_found" });
+    config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
+      await repositoryReady;
+      const { accountId } = req.params as { accountId: string };
+      const account = await repository.getAccountById(accountId);
+      if (!account) {
+        return reply.status(404).send({ error: "industry_account_not_found" });
+      }
+      return reply.send({ account });
     }
-    return reply.send({ account });
   });
 
   server.post("/internal/accounts/:accountId/verify", {
-    config: { rateLimit: { max: 10, timeWindow: "1 minute" } }
-  }, async (req, reply) => {
-    const { accountId } = req.params as { accountId: string };
-    const reviewerUserId = readHeader(req.headers, "x-admin-user-id");
-    if (!reviewerUserId) {
-      return reply.status(403).send({ error: "forbidden" });
-    }
+    config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
+      await repositoryReady;
+      const { accountId } = req.params as { accountId: string };
+      const reviewerUserId = readHeader(req.headers, "x-admin-user-id");
+      if (!reviewerUserId) {
+        return reply.status(403).send({ error: "forbidden" });
+      }
 
-    const parsed = IndustryAccountVerificationRequestSchema.safeParse(req.body);
-    if (!parsed.success) {
-      return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
-    }
+      const parsed = IndustryAccountVerificationRequestSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
+      }
 
-    const account = await repository.verifyAccount(accountId, reviewerUserId, parsed.data);
-    if (!account) {
-      return reply.status(404).send({ error: "industry_account_not_found" });
-    }
+      const account = await repository.verifyAccount(accountId, reviewerUserId, parsed.data);
+      if (!account) {
+        return reply.status(404).send({ error: "industry_account_not_found" });
+      }
 
-    return reply.send({ account });
+      return reply.send({ account });
+    }
   });
 
   server.put("/internal/entitlements/:writerUserId", {
-    config: { rateLimit: { max: 20, timeWindow: "1 minute" } }
-  }, async (req, reply) => {
-    const { writerUserId } = req.params as { writerUserId: string };
-    const authUserId = readHeader(req.headers, "x-auth-user-id");
-    if (!authUserId || authUserId !== writerUserId) {
-      return reply.status(403).send({ error: "forbidden" });
-    }
+    config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
+      await repositoryReady;
+      const { writerUserId } = req.params as { writerUserId: string };
+      const authUserId = readHeader(req.headers, "x-auth-user-id");
+      if (!authUserId || authUserId !== writerUserId) {
+        return reply.status(403).send({ error: "forbidden" });
+      }
 
-    const parsed = IndustryEntitlementUpsertRequestSchema.safeParse(req.body);
-    if (!parsed.success) {
-      return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
-    }
+      const parsed = IndustryEntitlementUpsertRequestSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
+      }
 
-    const entitlement = await repository.upsertEntitlement(writerUserId, authUserId, parsed.data);
-    if (!entitlement) {
-      return reply.status(404).send({ error: "entitlement_target_not_found" });
-    }
+      const entitlement = await repository.upsertEntitlement(writerUserId, authUserId, parsed.data);
+      if (!entitlement) {
+        return reply.status(404).send({ error: "entitlement_target_not_found" });
+      }
 
-    return reply.send({ entitlement });
+      return reply.send({ entitlement });
+    }
   });
 
   server.get("/internal/entitlements/:writerUserId/check", {
-    config: { rateLimit: { max: 40, timeWindow: "1 minute" } }
-  }, async (req, reply) => {
-    const { writerUserId } = req.params as { writerUserId: string };
-    const query = req.query as { industryAccountId?: string; industryUserId?: string };
+    config: { rateLimit: { max: 40, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
+      await repositoryReady;
+      const { writerUserId } = req.params as { writerUserId: string };
+      const query = req.query as { industryAccountId?: string; industryUserId?: string };
 
-    let industryAccountId = typeof query.industryAccountId === "string"
-      ? query.industryAccountId
-      : "";
-    if (!industryAccountId && typeof query.industryUserId === "string" && query.industryUserId.length > 0) {
-      const account = await repository.getAccountByUserId(query.industryUserId);
-      industryAccountId = account?.id ?? "";
-    }
-    if (!industryAccountId) {
-      return reply.status(400).send({ error: "invalid_query", detail: "industryAccountId or industryUserId is required" });
-    }
+      let industryAccountId = typeof query.industryAccountId === "string"
+        ? query.industryAccountId
+        : "";
+      if (!industryAccountId && typeof query.industryUserId === "string" && query.industryUserId.length > 0) {
+        const account = await repository.getAccountByUserId(query.industryUserId);
+        industryAccountId = account?.id ?? "";
+      }
+      if (!industryAccountId) {
+        return reply.status(400).send({ error: "invalid_query", detail: "industryAccountId or industryUserId is required" });
+      }
 
-    const entitlement = await repository.getEntitlement(writerUserId, industryAccountId);
-    const accessLevel = entitlement?.accessLevel ?? "none";
-    const response = IndustryEntitlementCheckResponseSchema.parse({
-      writerUserId,
-      industryAccountId,
-      accessLevel,
-      canView: accessLevel === "view" || accessLevel === "download",
-      canDownload: accessLevel === "download"
-    });
-    return reply.send(response);
+      const entitlement = await repository.getEntitlement(writerUserId, industryAccountId);
+      const accessLevel = entitlement?.accessLevel ?? "none";
+      const response = IndustryEntitlementCheckResponseSchema.parse({
+        writerUserId,
+        industryAccountId,
+        accessLevel,
+        canView: accessLevel === "view" || accessLevel === "download",
+        canDownload: accessLevel === "download"
+      });
+      return reply.send(response);
+    }
   });
 
   return server;

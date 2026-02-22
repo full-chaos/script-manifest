@@ -67,11 +67,18 @@ jobs:
       - name: Generate flaky test summary
         if: always()
         run: |
-          node scripts/ci/playwright-flake-report.mjs \
-            --input .artifacts/playwright-results.json \
-            --output .artifacts/playwright-flakes.json \
-            --markdown .artifacts/playwright-flakes.md \
-            --quarantine-file tests/e2e/quarantine.list
+          if [ -s .artifacts/playwright-results.json ]; then
+            node scripts/ci/playwright-flake-report.mjs \
+              --input .artifacts/playwright-results.json \
+              --output .artifacts/playwright-flakes.json \
+              --markdown .artifacts/playwright-flakes.md \
+              --quarantine-file tests/e2e/quarantine.list
+          else
+            echo "No valid Playwright JSON report found; skipping flaky test summary generation." >&2
+            mkdir -p .artifacts
+            echo '{}' > .artifacts/playwright-flakes.json
+            printf '%s\n' "# Playwright Flake Summary" "" "No Playwright test report was generated; no flake data is available." > .artifacts/playwright-flakes.md
+          fi
 
       - name: Run coverage collection
         id: coverage
@@ -80,6 +87,7 @@ jobs:
 
       - name: Enforce coverage thresholds
         id: coverage_gate
+        if: steps.coverage.outcome == 'success'
         run: |
           node scripts/ci/coverage-thresholds.mjs \
             --baseline .github/coverage-thresholds.json \

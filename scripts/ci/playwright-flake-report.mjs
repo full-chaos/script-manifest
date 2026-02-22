@@ -1,10 +1,24 @@
 import fs from "node:fs";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 
 const FAILING_STATUSES = new Set(["failed", "timedOut", "interrupted"]);
 
 function readJson(filePath) {
-  return JSON.parse(fs.readFileSync(filePath, "utf8"));
+  try {
+    const contents = fs.readFileSync(filePath, "utf8");
+
+    if (!contents || !contents.trim()) {
+      return { error: `Empty JSON file: ${filePath}` };
+    }
+
+    return JSON.parse(contents);
+  } catch (err) {
+    return {
+      error: `Failed to read or parse JSON file: ${filePath}`,
+      details: err && err.message ? String(err.message) : String(err)
+    };
+  }
 }
 
 function parseQuarantineFile(filePath) {
@@ -165,9 +179,24 @@ export function runPlaywrightFlakeReport(cliArgs = process.argv.slice(2)) {
   const args = parseArgs(cliArgs);
   const report = readJson(args.input);
   const quarantinePatterns = parseQuarantineFile(args.quarantineFile);
-  const summary = analyzePlaywrightReport(report, quarantinePatterns);
 
   fs.mkdirSync(path.dirname(args.output), { recursive: true });
+
+  if (report.error) {
+    const placeholder = report.details
+      ? { error: report.error, details: report.details }
+      : { error: report.error };
+    fs.writeFileSync(args.output, JSON.stringify(placeholder, null, 2));
+    fs.writeFileSync(
+      args.markdown,
+      ["# Playwright Flake Summary", "", `Error: ${report.error}`].join("\n")
+    );
+    console.error(`Failed to read report: ${report.error}`);
+    return;
+  }
+
+  const summary = analyzePlaywrightReport(report, quarantinePatterns);
+
   fs.writeFileSync(args.output, JSON.stringify(summary, null, 2));
   fs.writeFileSync(args.markdown, formatMarkdown(summary));
 
@@ -175,10 +204,6 @@ export function runPlaywrightFlakeReport(cliArgs = process.argv.slice(2)) {
   console.log(`Flake markdown written to ${args.markdown}`);
 }
 
-const isDirectExecution = process.argv[1]
-  ? path.resolve(process.argv[1]) === path.resolve(new URL(import.meta.url).pathname)
-  : false;
-
-if (isDirectExecution) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   runPlaywrightFlakeReport();
 }

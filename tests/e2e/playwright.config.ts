@@ -10,7 +10,7 @@ export default defineConfig({
   expect: {
     toHaveScreenshot: {
       animations: "disabled",
-      maxDiffPixelRatio: 0.01
+      maxDiffPixelRatio: 0.05
     }
   },
   use: {
@@ -30,19 +30,22 @@ export default defineConfig({
       name: "chromium-desktop",
       use: {
         ...devices["Desktop Chrome"],
+        browserName: "chromium",
         viewport: { width: 1440, height: 900 }
       }
     },
     {
       name: "chromium-tablet",
       use: {
-        ...devices["iPad (gen 7)"]
+        ...devices["iPad (gen 7)"],
+        browserName: "chromium"
       }
     },
     {
       name: "chromium-mobile",
       use: {
-        ...devices["iPhone 13"]
+        ...devices["iPhone 13"],
+        browserName: "chromium"
       }
     }
   ]

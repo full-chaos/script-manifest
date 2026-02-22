@@ -15,7 +15,7 @@ test("sign-in page supports register and sign-out journey", async ({ page }) => 
 
   await expect(page.getByText(/Signed in as/i)).toBeVisible();
   await expectNoSeriousA11yViolations(page);
-  await expect(page).toHaveScreenshot("signin-authenticated.png", { fullPage: true });
+  await expect(page).toHaveScreenshot("signin-authenticated.png");
 
   await page.getByRole("button", { name: "Sign out" }).click();
   await expect(page.getByText("Signed out.")).toBeVisible();

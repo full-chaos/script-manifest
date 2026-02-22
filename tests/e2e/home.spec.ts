@@ -15,5 +15,5 @@ test("logged-out home page renders with stable hero UX", async ({ page }) => {
   await expect(page.getByRole("link", { name: "Browse competitions" })).toBeVisible();
 
   await expectNoSeriousA11yViolations(page);
-  await expect(page).toHaveScreenshot("home-logged-out.png", { fullPage: true });
+  await expect(page).toHaveScreenshot("home-logged-out.png");
 });

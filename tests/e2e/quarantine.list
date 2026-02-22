@@ -1,0 +1,4 @@
+# Quarantine list for known flaky Playwright tests.
+# Format: substring match against "<projectName> <suite/spec title>"
+# Example:
+# chromium-mobile authenticated profile and projects journey is interactive and accessible

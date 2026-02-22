@@ -45,7 +45,7 @@ pnpm --filter @script-manifest/submission-tracking-service dev
 Or boot infra + app services together:
 
 ```bash
-docker compose -f infra/docker-compose.yml up -d
+docker compose -f compose.yml up -d
 ```
 
 ## Auth + Profile/Project CRUD (Issue #29)
@@ -114,6 +114,19 @@ Profile user guide:
   - `scripts/check-test-inventory.sh`
 - Phase A guide:
   - [testing-automation-user-manual.md](testing-automation-user-manual.md)
+
+## Phase C Integration Harness (2026-02-22)
+
+- Compose-backed integration harness:
+  - `scripts/compose-integration-harness.sh` (`up|down|reset|test`)
+- Integration flows:
+  - script upload/register/view
+  - submission -> placement -> ranking recompute
+  - coverage provider/order lifecycle
+  - feedback listing/review/rating lifecycle
+- Root scripts:
+  - `pnpm run test:integration`
+  - `pnpm run test:integration:compose`
 
 ## Notification Event Contract (Issue #21)
 

@@ -123,6 +123,35 @@ jobs:
       - name: Validate compose config (repeatable)
         run: docker compose -f compose.yml config -q
 
+  integration-compose:
+    name: Integration (Compose Harness)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 25
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build shared packages
+        run: pnpm build --filter='./packages/*'
+
+      - name: Run compose-backed integration tests
+        run: bash ./scripts/compose-integration-harness.sh test
+
   coverage-artifacts:
     name: Coverage Artifacts
     runs-on: ubuntu-latest

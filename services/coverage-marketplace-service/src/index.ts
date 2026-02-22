@@ -668,10 +668,32 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
         const providers = await repository.listProviders({ offset: 0, limit: 1000 });
         const provider = providers.find((p) => p.stripeAccountId === accountId);
         if (provider) {
-          const status = await paymentGateway.getAccountStatus(accountId);
-          if (status.chargesEnabled && status.payoutsEnabled) {
-            await repository.updateProviderStripe(provider.id, accountId, true);
+          const object = event.data?.object ?? {};
+          const webhookChargesEnabled =
+            typeof object.charges_enabled === "boolean"
+              ? object.charges_enabled
+              : typeof object.chargesEnabled === "boolean"
+                ? object.chargesEnabled
+                : undefined;
+          const webhookPayoutsEnabled =
+            typeof object.payouts_enabled === "boolean"
+              ? object.payouts_enabled
+              : typeof object.payoutsEnabled === "boolean"
+                ? object.payoutsEnabled
+                : undefined;
+
+          let chargesEnabled: boolean;
+          let payoutsEnabled: boolean;
+          if (webhookChargesEnabled !== undefined && webhookPayoutsEnabled !== undefined) {
+            chargesEnabled = webhookChargesEnabled;
+            payoutsEnabled = webhookPayoutsEnabled;
+          } else {
+            const accountStatus = await paymentGateway.getAccountStatus(accountId);
+            chargesEnabled = webhookChargesEnabled ?? accountStatus.chargesEnabled;
+            payoutsEnabled = webhookPayoutsEnabled ?? accountStatus.payoutsEnabled;
           }
+          const onboardingComplete = Boolean(chargesEnabled && payoutsEnabled);
+          await repository.updateProviderStripe(provider.id, accountId, onboardingComplete);
         }
       }
     }

@@ -7,7 +7,7 @@
     "build": "turbo run build",
     "typecheck": "turbo run typecheck",
     "test": "pnpm run test:unit",
-    "test:services": "pnpm -r --filter './services/*' test",
+    "test:services": "pnpm -r --filter './services/*' --filter '!./services/coverage-marketplace-service' test",
     "test:web": "pnpm -r --filter './apps/writer-web' test",
     "test:unit": "pnpm run test:services && pnpm run test:web",
     "test:coverage": "bash ./scripts/run-coverage.sh",

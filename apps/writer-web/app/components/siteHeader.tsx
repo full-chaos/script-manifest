@@ -40,6 +40,11 @@ export function SiteHeader() {
   const pathname = usePathname();
   const [user, setUser] = useState<AuthUser | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [prevPathname, setPrevPathname] = useState(pathname);
+  if (prevPathname !== pathname) {
+    setPrevPathname(pathname);
+    setMobileOpen(false);
+  }
 
   useEffect(() => {
     const syncSession = () => {

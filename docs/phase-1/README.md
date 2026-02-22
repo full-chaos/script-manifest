@@ -113,7 +113,7 @@ Profile user guide:
 - Inventory guard script:
   - `scripts/check-test-inventory.sh`
 - Phase A guide:
-  - `/Users/chris/projects/script-manifest/docs/phase-1/testing-automation-user-manual.md`
+  - [testing-automation-user-manual.md](testing-automation-user-manual.md)
 
 ## Notification Event Contract (Issue #21)
 

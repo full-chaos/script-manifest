@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 
 const METRICS = ["lines", "functions", "statements", "branches"];
 
@@ -119,10 +120,6 @@ export function runCoverageThresholdCheck(cliArgs = process.argv.slice(2)) {
   }
 }
 
-const isDirectExecution = process.argv[1]
-  ? path.resolve(process.argv[1]) === path.resolve(new URL(import.meta.url).pathname)
-  : false;
-
-if (isDirectExecution) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   runCoverageThresholdCheck();
 }

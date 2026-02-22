@@ -9,6 +9,8 @@
     "test": "pnpm run test:unit",
     "test:integration": "node --import tsx --test --test-concurrency=1 tests/integration/compose/**/*.test.ts",
     "test:integration:compose": "bash ./scripts/compose-integration-harness.sh test",
+    "test:e2e": "playwright test --config tests/e2e/playwright.config.ts",
+    "test:e2e:update": "playwright test --config tests/e2e/playwright.config.ts --update-snapshots",
     "test:packages": "pnpm -r --filter './packages/*' test",
     "test:services": "pnpm -r --filter './services/*' test",
     "test:web": "pnpm -r --filter './apps/writer-web' test",
@@ -21,6 +23,8 @@
     "format": "turbo run format"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.10.2",
+    "@playwright/test": "^1.56.1",
     "c8": "^10.1.3",
     "tsx": "^4.19.2",
     "turbo": "^2.1.3",

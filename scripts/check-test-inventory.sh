@@ -4,15 +4,19 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WRITER_WEB_ROOT="$REPO_ROOT/apps/writer-web"
 WRITER_WEB_APP_DIR="$WRITER_WEB_ROOT/app"
+E2E_TEST_DIR="$REPO_ROOT/tests/e2e"
 
 MIN_PAGE_TESTS=8
 MIN_ROUTE_TESTS=5
+MIN_E2E_TESTS=3
 
 page_test_count="$(find "$WRITER_WEB_APP_DIR" -type f \( -name 'page.test.ts' -o -name 'page.test.tsx' \) | wc -l | tr -d '[:space:]')"
 route_test_count="$(find "$WRITER_WEB_APP_DIR" -type f -name 'route.test.ts' | wc -l | tr -d '[:space:]')"
+e2e_test_count="$(find "$E2E_TEST_DIR" -type f -name '*.spec.ts' | wc -l | tr -d '[:space:]')"
 
 echo "Detected page tests: $page_test_count"
 echo "Detected route tests: $route_test_count"
+echo "Detected e2e specs: $e2e_test_count"
 
 declare -a critical_tests=(
   "app/page.test.tsx"
@@ -33,6 +37,13 @@ declare -a phase_b_critical_tests=(
   "packages/db/test/index.test.ts"
 )
 
+declare -a phase_d_critical_tests=(
+  "tests/e2e/playwright.config.ts"
+  "tests/e2e/home.spec.ts"
+  "tests/e2e/signin.spec.ts"
+  "tests/e2e/profile-projects.spec.ts"
+)
+
 errors=0
 
 if (( page_test_count < MIN_PAGE_TESTS )); then
@@ -42,6 +53,11 @@ fi
 
 if (( route_test_count < MIN_ROUTE_TESTS )); then
   echo "ERROR: Expected at least $MIN_ROUTE_TESTS route tests, found $route_test_count."
+  errors=1
+fi
+
+if (( e2e_test_count < MIN_E2E_TESTS )); then
+  echo "ERROR: Expected at least $MIN_E2E_TESTS e2e specs, found $e2e_test_count."
   errors=1
 fi
 
@@ -57,6 +73,14 @@ for relative_path in "${phase_b_critical_tests[@]}"; do
   absolute_path="$REPO_ROOT/$relative_path"
   if [[ ! -f "$absolute_path" ]]; then
     echo "ERROR: Missing Phase B critical test file: $relative_path"
+    errors=1
+  fi
+done
+
+for relative_path in "${phase_d_critical_tests[@]}"; do
+  absolute_path="$REPO_ROOT/$relative_path"
+  if [[ ! -f "$absolute_path" ]]; then
+    echo "ERROR: Missing Phase D critical test file: $relative_path"
     errors=1
   fi
 done

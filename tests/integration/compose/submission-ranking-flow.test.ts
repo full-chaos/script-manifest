@@ -105,7 +105,8 @@ test("compose flow: submission placement drives ranking recompute", async () => 
     `${RANKING_SERVICE_BASE_URL}/internal/recompute`,
     {
       method: "POST",
-      headers: { "content-type": "application/json" }
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({})
     },
     200
   );

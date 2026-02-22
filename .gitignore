@@ -22,6 +22,8 @@ build/
 .coverage/
 /coverage/
 apps/*/coverage/
+playwright-report/
+test-results/
 *.tsbuildinfo
 __pycache__/
 .pytest_cache/

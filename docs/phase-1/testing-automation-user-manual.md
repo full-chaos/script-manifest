@@ -53,6 +53,31 @@ Last updated: 2026-02-22
 - CI now runs compose integration in a dedicated job:
   - `.github/workflows/ci.yml` job `integration-compose`
 
+## What Phase D Added
+
+- Added Playwright E2E test project:
+  - Config: `tests/e2e/playwright.config.ts`
+  - Specs:
+    - `tests/e2e/home.spec.ts`
+    - `tests/e2e/signin.spec.ts`
+    - `tests/e2e/profile-projects.spec.ts`
+- Added accessibility assertions using Axe:
+  - `tests/e2e/support/a11y.ts`
+- Added responsive viewport matrix:
+  - `chromium-desktop`
+  - `chromium-tablet`
+  - `chromium-mobile`
+- Added visual regression snapshots on high-risk pages:
+  - Home (logged-out)
+  - Sign in (authenticated state)
+  - Profile (authenticated state)
+- Added root scripts:
+  - `test:e2e`
+  - `test:e2e:update`
+- CI now runs Playwright in dedicated job:
+  - `.github/workflows/ci.yml` job `e2e-ux`
+- Inventory guard now enforces Phase D critical e2e files.
+
 ## Running Locally
 
 ```bash
@@ -60,6 +85,8 @@ pnpm run lint
 pnpm run typecheck
 pnpm run test:unit
 pnpm run test:integration:compose
+pnpm exec playwright install --with-deps chromium
+pnpm run test:e2e
 pnpm run test:inventory
 pnpm run test:coverage
 ```

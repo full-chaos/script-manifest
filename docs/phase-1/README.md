@@ -128,6 +128,22 @@ Profile user guide:
   - `pnpm run test:integration`
   - `pnpm run test:integration:compose`
 
+## Phase D E2E and UX Guardrails (2026-02-22)
+
+- Playwright configuration:
+  - `tests/e2e/playwright.config.ts`
+- E2E core journeys:
+  - Logged-out home experience
+  - Sign-in/register and sign-out flow
+  - Authenticated profile + project creation modal flow
+- UX safeguards:
+  - Axe accessibility scan for key pages
+  - Responsive viewport matrix (desktop/tablet/mobile)
+  - Visual snapshot assertions on high-risk views
+- Root scripts:
+  - `pnpm run test:e2e`
+  - `pnpm run test:e2e:update`
+
 ## Notification Event Contract (Issue #21)
 
 Envelope fields:

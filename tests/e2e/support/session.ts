@@ -14,19 +14,29 @@ export const TEST_SESSION = {
 } as const;
 
 const SESSION_STORAGE_KEY = "script_manifest_session";
+const SESSION_EVENT_NAME = `${SESSION_STORAGE_KEY}_changed`;
 
 export async function seedSession(page: Page): Promise<void> {
-  await page.addInitScript((session) => {
-    window.localStorage.setItem("script_manifest_session", JSON.stringify(session));
-    window.dispatchEvent(new CustomEvent("script_manifest_session_changed"));
-  }, TEST_SESSION);
+  await page.addInitScript(
+    (session, storageKey, eventName) => {
+      window.localStorage.setItem(storageKey, JSON.stringify(session));
+      window.dispatchEvent(new CustomEvent(eventName));
+    },
+    TEST_SESSION,
+    SESSION_STORAGE_KEY,
+    SESSION_EVENT_NAME
+  );
 }
 
 export async function clearSession(page: Page): Promise<void> {
-  await page.addInitScript(() => {
-    window.localStorage.removeItem("script_manifest_session");
-    window.dispatchEvent(new CustomEvent("script_manifest_session_changed"));
-  });
+  await page.addInitScript(
+    (storageKey, eventName) => {
+      window.localStorage.removeItem(storageKey);
+      window.dispatchEvent(new CustomEvent(eventName));
+    },
+    SESSION_STORAGE_KEY,
+    SESSION_EVENT_NAME
+  );
 }
 
 export function sessionStorageKey(): string {

@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import type { WriterProfile, WriterProfileUpdateRequest } from "@script-manifest/contracts";
 import { SkeletonText } from "../components/skeleton";
@@ -27,6 +28,15 @@ const initialDraft: EditableProfile = {
   customProfileUrl: "",
   isSearchable: true
 };
+
+function isPreviewableImageUrl(value: string): boolean {
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
 
 export default function ProfilePage() {
   const toast = useToast();
@@ -324,10 +334,17 @@ export default function ProfilePage() {
               <span>Allow profile in search results</span>
             </label>
 
-            {draft.headshotUrl ? (
+            {isPreviewableImageUrl(draft.headshotUrl) ? (
               <div className="subcard">
                 <p className="eyebrow">Headshot Preview</p>
-                <img src={draft.headshotUrl} alt="Headshot preview" className="w-32 rounded-md border border-cream-300" />
+                <Image
+                  src={draft.headshotUrl}
+                  alt="Headshot preview"
+                  width={128}
+                  height={128}
+                  unoptimized
+                  className="w-32 rounded-md border border-cream-300"
+                />
               </div>
             ) : null}
 

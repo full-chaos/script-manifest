@@ -27,6 +27,12 @@ declare -a critical_tests=(
   "app/api/v1/scripts/register/route.test.ts"
 )
 
+declare -a phase_b_critical_tests=(
+  "services/api-gateway/src/helpers.test.ts"
+  "packages/contracts/test/index.test.ts"
+  "packages/db/test/index.test.ts"
+)
+
 errors=0
 
 if (( page_test_count < MIN_PAGE_TESTS )); then
@@ -43,6 +49,14 @@ for relative_path in "${critical_tests[@]}"; do
   absolute_path="$WRITER_WEB_ROOT/$relative_path"
   if [[ ! -f "$absolute_path" ]]; then
     echo "ERROR: Missing critical test file: $relative_path"
+    errors=1
+  fi
+done
+
+for relative_path in "${phase_b_critical_tests[@]}"; do
+  absolute_path="$REPO_ROOT/$relative_path"
+  if [[ ! -f "$absolute_path" ]]; then
+    echo "ERROR: Missing Phase B critical test file: $relative_path"
     errors=1
   fi
 done

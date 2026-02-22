@@ -91,6 +91,9 @@ importers:
         specifier: ^3.23.8
         version: 3.25.76
     devDependencies:
+      tsx:
+        specifier: ^4.19.2
+        version: 4.21.0
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -107,6 +110,9 @@ importers:
       prisma:
         specifier: ^5.22.0
         version: 5.22.0
+      tsx:
+        specifier: ^4.19.2
+        version: 4.21.0
 
   services/api-gateway:
     dependencies:

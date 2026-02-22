@@ -1,7 +1,7 @@
 # Phase 5: Industry Portal and Discovery Dashboard
 
-Status: Planned (feature `script-manifest-n92` open)
-External ref: `gh-107`
+Status: In Progress (feature `script-manifest-n92`)
+External ref: `CHAOS-352`
 
 ## Objective
 
@@ -100,6 +100,35 @@ Gateway namespace:
 3. Mandates + recommendation ops (`script-manifest-n92.3`)
 4. Hardening, analytics validation, and user docs
 
+## Current Implementation (n92.1 Foundation)
+
+Implemented in `codex/phase-5-industry-portal-foundation`:
+
+- New deployable:
+  - `services/industry-portal-service`
+- New gateway routing surface:
+  - `services/api-gateway/src/routes/industry.ts`
+- New contract schemas:
+  - `packages/contracts/src/index.ts` (industry account + entitlement schemas)
+- New DB table provisioning:
+  - `packages/db/src/index.ts` (`ensureIndustryPortalTables`)
+
+Initial internal service endpoints:
+
+- `POST /internal/accounts` (industry account application)
+- `GET /internal/accounts/:accountId`
+- `POST /internal/accounts/:accountId/verify` (manual reviewer action)
+- `PUT /internal/entitlements/:writerUserId` (writer-controlled access grant)
+- `GET /internal/entitlements/:writerUserId/check` (view/download entitlement check)
+
+Initial gateway endpoints:
+
+- `POST /api/v1/industry/accounts`
+- `GET /api/v1/industry/accounts/:accountId`
+- `POST /api/v1/industry/accounts/:accountId/verify`
+- `PUT /api/v1/industry/entitlements/:writerUserId`
+- `GET /api/v1/industry/entitlements/:writerUserId/check`
+
 ## Exit Criteria
 
 - Industry users can be manually vetted and segmented by account tier.
@@ -115,3 +144,6 @@ Gateway namespace:
 - Mandate and OWA operations runbook
 - Weekly digest curation SOP
 
+Current draft:
+
+- `docs/phase-5/industry-vetting-and-access-user-manual.md`

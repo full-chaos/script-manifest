@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  IndustryAccountCreateRequestSchema,
+  IndustryEntitlementCheckResponseSchema,
   ProjectDraftCreateRequestSchema,
   WriterProfileSchema,
   WriterProfileUpdateRequestSchema
@@ -45,4 +47,29 @@ test("ProjectDraftCreateRequestSchema fills default fields for draft creation", 
   assert.equal(parsed.changeSummary, "");
   assert.equal(parsed.pageCount, 0);
   assert.equal(parsed.setPrimary, true);
+});
+
+test("IndustryAccountCreateRequestSchema applies safe optional URL defaults", () => {
+  const parsed = IndustryAccountCreateRequestSchema.parse({
+    companyName: "Film Studio",
+    roleTitle: "Development Executive",
+    professionalEmail: "exec@example.com"
+  });
+
+  assert.equal(parsed.websiteUrl, "");
+  assert.equal(parsed.linkedinUrl, "");
+  assert.equal(parsed.imdbUrl, "");
+});
+
+test("IndustryEntitlementCheckResponseSchema enforces entitlement response shape", () => {
+  const parsed = IndustryEntitlementCheckResponseSchema.parse({
+    writerUserId: "writer_01",
+    industryAccountId: "industry_acct_01",
+    accessLevel: "download",
+    canView: true,
+    canDownload: true
+  });
+
+  assert.equal(parsed.accessLevel, "download");
+  assert.equal(parsed.canDownload, true);
 });

@@ -13,8 +13,10 @@ export type GatewayContext = {
   feedbackExchangeBase: string;
   rankingServiceBase: string;
   coverageMarketplaceBase: string;
+  industryPortalBase: string;
   competitionAdminAllowlist: Set<string>;
   coverageAdminAllowlist: Set<string>;
+  industryAdminAllowlist: Set<string>;
 };
 
 export function buildQuerySuffix(rawQuery: unknown): string {

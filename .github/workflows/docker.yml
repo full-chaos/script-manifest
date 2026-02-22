@@ -25,6 +25,9 @@ jobs:
           - name: feedback-exchange-service
             dockerfile: infra/docker/service.Dockerfile
             context: .
+          - name: industry-portal-service
+            dockerfile: infra/docker/service.Dockerfile
+            context: .
           - name: identity-service
             dockerfile: infra/docker/service.Dockerfile
             context: .

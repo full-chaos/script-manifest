@@ -325,6 +325,88 @@ export async function ensureFeedbackExchangeTables(): Promise<void> {
   `);
 }
 
+export async function ensureIndustryPortalTables(): Promise<void> {
+  const db = getPool();
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS industry_accounts (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+      company_name TEXT NOT NULL,
+      role_title TEXT NOT NULL,
+      professional_email TEXT NOT NULL,
+      website_url VARCHAR(2048) NOT NULL DEFAULT '',
+      linkedin_url VARCHAR(2048) NOT NULL DEFAULT '',
+      imdb_url VARCHAR(2048) NOT NULL DEFAULT '',
+      verification_status TEXT NOT NULL DEFAULT 'pending_review'
+        CHECK (verification_status IN ('pending_review', 'verified', 'rejected', 'suspended')),
+      verification_notes TEXT NULL,
+      verified_by_user_id TEXT NULL REFERENCES app_users(id) ON DELETE SET NULL,
+      verified_at TIMESTAMPTZ NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE (user_id)
+    );
+  `);
+
+  await db.query(`
+    CREATE INDEX IF NOT EXISTS idx_industry_accounts_status
+      ON industry_accounts(verification_status);
+  `);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS industry_vetting_reviews (
+      id TEXT PRIMARY KEY,
+      account_id TEXT NOT NULL REFERENCES industry_accounts(id) ON DELETE CASCADE,
+      reviewer_user_id TEXT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+      decision_status TEXT NOT NULL
+        CHECK (decision_status IN ('verified', 'rejected', 'suspended')),
+      notes TEXT NOT NULL DEFAULT '',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+
+  await db.query(`
+    CREATE INDEX IF NOT EXISTS idx_industry_vetting_reviews_account
+      ON industry_vetting_reviews(account_id);
+  `);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS industry_entitlements (
+      writer_user_id TEXT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+      industry_account_id TEXT NOT NULL REFERENCES industry_accounts(id) ON DELETE CASCADE,
+      access_level TEXT NOT NULL DEFAULT 'none'
+        CHECK (access_level IN ('none', 'view', 'download')),
+      granted_by_user_id TEXT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      PRIMARY KEY (writer_user_id, industry_account_id)
+    );
+  `);
+
+  await db.query(`
+    CREATE INDEX IF NOT EXISTS idx_industry_entitlements_account
+      ON industry_entitlements(industry_account_id);
+  `);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS industry_download_audit (
+      id TEXT PRIMARY KEY,
+      script_id TEXT NOT NULL,
+      writer_user_id TEXT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+      industry_account_id TEXT NOT NULL REFERENCES industry_accounts(id) ON DELETE CASCADE,
+      downloaded_by_user_id TEXT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+      downloaded_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      source TEXT NOT NULL DEFAULT 'industry_portal'
+    );
+  `);
+
+  await db.query(`
+    CREATE INDEX IF NOT EXISTS idx_industry_download_audit_writer
+      ON industry_download_audit(writer_user_id, downloaded_at DESC);
+  `);
+}
+
 export async function ensureRankingTables(): Promise<void> {
   const db = getPool();
 

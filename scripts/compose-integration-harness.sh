@@ -18,6 +18,7 @@ SERVICES=(
   feedback-exchange-service
   ranking-service
   coverage-marketplace-service
+  industry-portal-service
   script-storage-service
   api-gateway
 )
@@ -32,6 +33,7 @@ HEALTH_ENDPOINTS=(
   "http://localhost:4006/health"
   "http://localhost:4007/health"
   "http://localhost:4008/health"
+  "http://localhost:4009/health"
   "http://localhost:4010/health"
   "http://localhost:4011/health"
 )

@@ -424,6 +424,98 @@ export type ScriptAccessRequestDecisionRequest = z.infer<
   typeof ScriptAccessRequestDecisionRequestSchema
 >;
 
+export const IndustryAccountVerificationStatusSchema = z.enum([
+  "pending_review",
+  "verified",
+  "rejected",
+  "suspended"
+]);
+
+export type IndustryAccountVerificationStatus = z.infer<
+  typeof IndustryAccountVerificationStatusSchema
+>;
+
+export const IndustryAccountSchema = z.object({
+  id: z.string().min(1),
+  userId: z.string().min(1),
+  companyName: z.string().min(1),
+  roleTitle: z.string().min(1),
+  professionalEmail: z.string().email(),
+  websiteUrl: OptionalUrlStringSchema.default(""),
+  linkedinUrl: OptionalUrlStringSchema.default(""),
+  imdbUrl: OptionalUrlStringSchema.default(""),
+  verificationStatus: IndustryAccountVerificationStatusSchema,
+  verificationNotes: z.string().nullable(),
+  verifiedByUserId: z.string().nullable(),
+  verifiedAt: z.string().datetime({ offset: true }).nullable(),
+  createdAt: z.string().datetime({ offset: true }),
+  updatedAt: z.string().datetime({ offset: true })
+});
+
+export type IndustryAccount = z.infer<typeof IndustryAccountSchema>;
+
+export const IndustryAccountCreateRequestSchema = z.object({
+  companyName: z.string().min(1).max(240),
+  roleTitle: z.string().min(1).max(240),
+  professionalEmail: z.string().email(),
+  websiteUrl: OptionalUrlStringSchema.default(""),
+  linkedinUrl: OptionalUrlStringSchema.default(""),
+  imdbUrl: OptionalUrlStringSchema.default("")
+});
+
+export type IndustryAccountCreateRequest = z.infer<typeof IndustryAccountCreateRequestSchema>;
+
+export const IndustryAccountCreateInternalSchema = IndustryAccountCreateRequestSchema.extend({
+  userId: z.string().min(1)
+});
+
+export type IndustryAccountCreateInternal = z.infer<typeof IndustryAccountCreateInternalSchema>;
+
+export const IndustryAccountVerificationRequestSchema = z.object({
+  status: z.enum(["verified", "rejected", "suspended"]),
+  verificationNotes: z.string().max(2000).default("")
+});
+
+export type IndustryAccountVerificationRequest = z.infer<
+  typeof IndustryAccountVerificationRequestSchema
+>;
+
+export const IndustryEntitlementAccessLevelSchema = z.enum(["none", "view", "download"]);
+
+export type IndustryEntitlementAccessLevel = z.infer<typeof IndustryEntitlementAccessLevelSchema>;
+
+export const IndustryEntitlementSchema = z.object({
+  writerUserId: z.string().min(1),
+  industryAccountId: z.string().min(1),
+  accessLevel: IndustryEntitlementAccessLevelSchema,
+  grantedByUserId: z.string().min(1),
+  createdAt: z.string().datetime({ offset: true }),
+  updatedAt: z.string().datetime({ offset: true })
+});
+
+export type IndustryEntitlement = z.infer<typeof IndustryEntitlementSchema>;
+
+export const IndustryEntitlementUpsertRequestSchema = z.object({
+  industryAccountId: z.string().min(1),
+  accessLevel: IndustryEntitlementAccessLevelSchema
+});
+
+export type IndustryEntitlementUpsertRequest = z.infer<
+  typeof IndustryEntitlementUpsertRequestSchema
+>;
+
+export const IndustryEntitlementCheckResponseSchema = z.object({
+  writerUserId: z.string().min(1),
+  industryAccountId: z.string().min(1),
+  accessLevel: IndustryEntitlementAccessLevelSchema,
+  canView: z.boolean(),
+  canDownload: z.boolean()
+});
+
+export type IndustryEntitlementCheckResponse = z.infer<
+  typeof IndustryEntitlementCheckResponseSchema
+>;
+
 export const SubmissionStatusSchema = z.enum([
   "pending",
   "quarterfinalist",

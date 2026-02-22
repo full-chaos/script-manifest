@@ -15,6 +15,7 @@ import { registerExportRoutes } from "./routes/export.js";
 import { registerFeedbackRoutes } from "./routes/feedback.js";
 import { registerRankingRoutes } from "./routes/ranking.js";
 import { registerCoverageRoutes } from "./routes/coverage.js";
+import { registerIndustryRoutes } from "./routes/industry.js";
 import { registerHealthRoutes } from "./routes/health.js";
 
 export type ApiGatewayOptions = {
@@ -28,8 +29,10 @@ export type ApiGatewayOptions = {
   feedbackExchangeBase?: string;
   rankingServiceBase?: string;
   coverageMarketplaceBase?: string;
+  industryPortalBase?: string;
   competitionAdminAllowlist?: string[];
   coverageAdminAllowlist?: string[];
+  industryAdminAllowlist?: string[];
 };
 
 export function buildServer(options: ApiGatewayOptions = {}): FastifyInstance {
@@ -54,6 +57,7 @@ export function buildServer(options: ApiGatewayOptions = {}): FastifyInstance {
     feedbackExchangeBase: options.feedbackExchangeBase ?? "http://localhost:4006",
     rankingServiceBase: options.rankingServiceBase ?? "http://localhost:4007",
     coverageMarketplaceBase: options.coverageMarketplaceBase ?? "http://localhost:4008",
+    industryPortalBase: options.industryPortalBase ?? "http://localhost:4009",
     competitionAdminAllowlist: new Set(
       options.competitionAdminAllowlist ??
         parseAllowlist(process.env.COMPETITION_ADMIN_ALLOWLIST ?? "admin_01,user_admin_01")
@@ -61,6 +65,10 @@ export function buildServer(options: ApiGatewayOptions = {}): FastifyInstance {
     coverageAdminAllowlist: new Set(
       options.coverageAdminAllowlist ??
         parseAllowlist(process.env.COVERAGE_ADMIN_ALLOWLIST ?? "admin_01,user_admin_01")
+    ),
+    industryAdminAllowlist: new Set(
+      options.industryAdminAllowlist ??
+        parseAllowlist(process.env.INDUSTRY_ADMIN_ALLOWLIST ?? "admin_01,user_admin_01")
     )
   };
 
@@ -76,6 +84,7 @@ export function buildServer(options: ApiGatewayOptions = {}): FastifyInstance {
   registerFeedbackRoutes(server, ctx);
   registerRankingRoutes(server, ctx);
   registerCoverageRoutes(server, ctx);
+  registerIndustryRoutes(server, ctx);
 
   return server;
 }
@@ -93,8 +102,10 @@ export async function startServer(): Promise<void> {
     feedbackExchangeBase: process.env.FEEDBACK_EXCHANGE_SERVICE_URL,
     rankingServiceBase: process.env.RANKING_SERVICE_URL,
     coverageMarketplaceBase: process.env.COVERAGE_MARKETPLACE_SERVICE_URL,
+    industryPortalBase: process.env.INDUSTRY_PORTAL_SERVICE_URL,
     competitionAdminAllowlist: parseAllowlist(process.env.COMPETITION_ADMIN_ALLOWLIST ?? ""),
-    coverageAdminAllowlist: parseAllowlist(process.env.COVERAGE_ADMIN_ALLOWLIST ?? "")
+    coverageAdminAllowlist: parseAllowlist(process.env.COVERAGE_ADMIN_ALLOWLIST ?? ""),
+    industryAdminAllowlist: parseAllowlist(process.env.INDUSTRY_ADMIN_ALLOWLIST ?? "")
   });
 
   await server.listen({ port, host: "0.0.0.0" });

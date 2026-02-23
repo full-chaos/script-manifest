@@ -15,6 +15,7 @@ export type GatewayContext = {
   coverageMarketplaceBase: string;
   industryPortalBase: string;
   programsServiceBase: string;
+  partnerDashboardServiceBase: string;
   competitionAdminAllowlist: Set<string>;
   coverageAdminAllowlist: Set<string>;
   industryAdminAllowlist: Set<string>;

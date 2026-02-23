@@ -374,3 +374,95 @@ test("programs service supports application, cohorts, sessions, mentorship and a
   assert.equal(analytics.statusCode, 200);
   assert.equal(analytics.json().summary.applicationsAccepted, 1);
 });
+
+test("programs service enforces auth, validation, and not-found paths", async (t) => {
+  const server = buildServer({ logger: false, repository: new MemoryProgramsRepository() });
+  t.after(async () => {
+    await server.close();
+  });
+
+  const invalidStatus = await server.inject({
+    method: "GET",
+    url: "/internal/programs?status=unknown"
+  });
+  assert.equal(invalidStatus.statusCode, 400);
+
+  const missingAuth = await server.inject({
+    method: "POST",
+    url: "/internal/programs/program_1/applications",
+    payload: { statement: "hello" }
+  });
+  assert.equal(missingAuth.statusCode, 403);
+
+  const invalidApplicationPayload = await server.inject({
+    method: "POST",
+    url: "/internal/programs/program_1/applications",
+    headers: { "x-auth-user-id": "writer_01" },
+    payload: {}
+  });
+  assert.equal(invalidApplicationPayload.statusCode, 400);
+
+  const unknownProgram = await server.inject({
+    method: "POST",
+    url: "/internal/programs/program_unknown/applications",
+    headers: { "x-auth-user-id": "writer_01" },
+    payload: { statement: "hello" }
+  });
+  assert.equal(unknownProgram.statusCode, 404);
+
+  const reviewMissingAdmin = await server.inject({
+    method: "POST",
+    url: "/internal/admin/programs/program_1/applications/app_404/review",
+    payload: { status: "accepted" }
+  });
+  assert.equal(reviewMissingAdmin.statusCode, 403);
+
+  const reviewNotFound = await server.inject({
+    method: "POST",
+    url: "/internal/admin/programs/program_1/applications/app_404/review",
+    headers: { "x-admin-user-id": "admin_01" },
+    payload: { status: "accepted" }
+  });
+  assert.equal(reviewNotFound.statusCode, 404);
+
+  const invalidCohortPayload = await server.inject({
+    method: "POST",
+    url: "/internal/admin/programs/program_1/cohorts",
+    headers: { "x-admin-user-id": "admin_01" },
+    payload: { name: "" }
+  });
+  assert.equal(invalidCohortPayload.statusCode, 400);
+
+  const invalidSessionPayload = await server.inject({
+    method: "POST",
+    url: "/internal/admin/programs/program_1/sessions",
+    headers: { "x-admin-user-id": "admin_01" },
+    payload: { title: "Session only" }
+  });
+  assert.equal(invalidSessionPayload.statusCode, 400);
+
+  const attendanceMissingSession = await server.inject({
+    method: "POST",
+    url: "/internal/admin/programs/program_1/sessions/session_404/attendance",
+    headers: { "x-admin-user-id": "admin_01" },
+    payload: { userId: "writer_01", status: "attended" }
+  });
+  assert.equal(attendanceMissingSession.statusCode, 404);
+
+  const mentorshipUnknownUser = await server.inject({
+    method: "POST",
+    url: "/internal/admin/programs/program_1/mentorship/matches",
+    headers: { "x-admin-user-id": "admin_01" },
+    payload: {
+      matches: [{ mentorUserId: "missing_mentor", menteeUserId: "writer_01" }]
+    }
+  });
+  assert.equal(mentorshipUnknownUser.statusCode, 404);
+
+  const analyticsUnknownProgram = await server.inject({
+    method: "GET",
+    url: "/internal/admin/programs/program_404/analytics",
+    headers: { "x-admin-user-id": "admin_01" }
+  });
+  assert.equal(analyticsUnknownProgram.statusCode, 404);
+});

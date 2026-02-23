@@ -6,6 +6,10 @@ import {
   IndustryDigestRunSchema,
   IndustryEntitlementCheckResponseSchema,
   IndustryMandateSubmissionReviewRequestSchema,
+  PartnerAnalyticsSummarySchema,
+  PartnerCompetitionCreateRequestSchema,
+  PartnerDraftSwapRequestSchema,
+  PartnerPublishResultsRequestSchema,
   ProgramAnalyticsSummarySchema,
   ProgramCohortCreateRequestSchema,
   ProgramMentorshipMatchCreateRequestSchema,
@@ -170,4 +174,43 @@ test("Program workflow schemas apply defaults and enforce shape", () => {
     mentorshipMatchesCompleted: 2
   });
   assert.equal(analytics.attendanceRate, 0.6);
+});
+
+test("Partner schemas apply defaults and enforce shape", () => {
+  const competition = PartnerCompetitionCreateRequestSchema.parse({
+    organizerAccountId: "org_1",
+    slug: "spring-fellowship-2026",
+    title: "Spring Fellowship 2026",
+    format: "pilot",
+    genre: "drama",
+    submissionOpensAt: "2026-01-01T00:00:00.000Z",
+    submissionClosesAt: "2026-03-01T00:00:00.000Z"
+  });
+  assert.equal(competition.status, "draft");
+  assert.equal(competition.description, "");
+
+  const publish = PartnerPublishResultsRequestSchema.parse({
+    results: [{ submissionId: "sub_1", placementStatus: "winner" }]
+  });
+  assert.equal(publish.notes, "");
+
+  const draftSwap = PartnerDraftSwapRequestSchema.parse({
+    submissionId: "sub_1",
+    replacementScriptId: "script_2"
+  });
+  assert.equal(draftSwap.feeCents, 500);
+  assert.equal(draftSwap.reason, "");
+
+  const analytics = PartnerAnalyticsSummarySchema.parse({
+    submissionsTotal: 100,
+    submissionsPublished: 15,
+    judgesAssigned: 8,
+    evaluationsSubmitted: 220,
+    normalizationRuns: 3,
+    resultsPublished: 1,
+    draftSwapsProcessed: 5,
+    syncJobsTotal: 12,
+    syncJobsFailed: 1
+  });
+  assert.equal(analytics.syncJobsFailed, 1);
 });

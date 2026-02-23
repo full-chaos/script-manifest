@@ -405,6 +405,103 @@ export async function ensureIndustryPortalTables(): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_industry_download_audit_writer
       ON industry_download_audit(writer_user_id, downloaded_at DESC);
   `);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS industry_lists (
+      id TEXT PRIMARY KEY,
+      industry_account_id TEXT NOT NULL REFERENCES industry_accounts(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      created_by_user_id TEXT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+      is_shared BOOLEAN NOT NULL DEFAULT FALSE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+
+  await db.query(`
+    CREATE INDEX IF NOT EXISTS idx_industry_lists_account
+      ON industry_lists(industry_account_id, updated_at DESC);
+  `);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS industry_list_items (
+      id TEXT PRIMARY KEY,
+      list_id TEXT NOT NULL REFERENCES industry_lists(id) ON DELETE CASCADE,
+      writer_user_id TEXT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+      project_id TEXT NULL REFERENCES projects(id) ON DELETE SET NULL,
+      added_by_user_id TEXT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE (list_id, writer_user_id, project_id)
+    );
+  `);
+
+  await db.query(`
+    CREATE INDEX IF NOT EXISTS idx_industry_list_items_list
+      ON industry_list_items(list_id, created_at DESC);
+  `);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS industry_notes (
+      id TEXT PRIMARY KEY,
+      list_id TEXT NOT NULL REFERENCES industry_lists(id) ON DELETE CASCADE,
+      writer_user_id TEXT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+      project_id TEXT NULL REFERENCES projects(id) ON DELETE SET NULL,
+      body TEXT NOT NULL,
+      created_by_user_id TEXT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+
+  await db.query(`
+    CREATE INDEX IF NOT EXISTS idx_industry_notes_list
+      ON industry_notes(list_id, created_at DESC);
+  `);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS mandates (
+      id TEXT PRIMARY KEY,
+      type TEXT NOT NULL DEFAULT 'mandate'
+        CHECK (type IN ('mandate', 'owa')),
+      title TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      format TEXT NOT NULL,
+      genre TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'open'
+        CHECK (status IN ('open', 'closed', 'expired')),
+      opens_at TIMESTAMPTZ NOT NULL,
+      closes_at TIMESTAMPTZ NOT NULL,
+      created_by_user_id TEXT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+
+  await db.query(`
+    CREATE INDEX IF NOT EXISTS idx_mandates_status_closes
+      ON mandates(status, closes_at ASC);
+  `);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS mandate_submissions (
+      id TEXT PRIMARY KEY,
+      mandate_id TEXT NOT NULL REFERENCES mandates(id) ON DELETE CASCADE,
+      writer_user_id TEXT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+      project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      fit_explanation TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'submitted'
+        CHECK (status IN ('submitted', 'under_review', 'forwarded', 'rejected')),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE (mandate_id, writer_user_id, project_id)
+    );
+  `);
+
+  await db.query(`
+    CREATE INDEX IF NOT EXISTS idx_mandate_submissions_mandate
+      ON mandate_submissions(mandate_id, created_at DESC);
+  `);
 }
 
 export async function ensureRankingTables(): Promise<void> {

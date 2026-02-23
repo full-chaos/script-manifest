@@ -516,6 +516,183 @@ export type IndustryEntitlementCheckResponse = z.infer<
   typeof IndustryEntitlementCheckResponseSchema
 >;
 
+export const IndustryTalentSearchFiltersSchema = z.object({
+  q: z.string().trim().max(200).optional(),
+  genre: z.string().trim().min(1).max(120).optional(),
+  format: z.string().trim().min(1).max(120).optional(),
+  representationStatus: z
+    .enum(["represented", "unrepresented", "seeking_rep"])
+    .optional(),
+  limit: z.number().int().positive().max(100).default(20).optional(),
+  offset: z.number().int().nonnegative().default(0).optional()
+});
+
+export type IndustryTalentSearchFilters = z.infer<typeof IndustryTalentSearchFiltersSchema>;
+
+export const IndustryTalentSearchResultSchema = z.object({
+  writerId: z.string().min(1),
+  displayName: z.string().min(1),
+  representationStatus: z.enum(["represented", "unrepresented", "seeking_rep"]),
+  genres: z.array(z.string()).default([]),
+  demographics: z.array(z.string()).default([]),
+  projectId: z.string().min(1),
+  projectTitle: z.string().min(1),
+  projectFormat: z.string().min(1),
+  projectGenre: z.string().min(1),
+  logline: z.string().default(""),
+  synopsis: z.string().default("")
+});
+
+export type IndustryTalentSearchResult = z.infer<typeof IndustryTalentSearchResultSchema>;
+
+export const IndustryTalentSearchResponseSchema = z.object({
+  results: z.array(IndustryTalentSearchResultSchema),
+  total: z.number().int().nonnegative(),
+  limit: z.number().int().positive(),
+  offset: z.number().int().nonnegative()
+});
+
+export type IndustryTalentSearchResponse = z.infer<typeof IndustryTalentSearchResponseSchema>;
+
+export const IndustryListSchema = z.object({
+  id: z.string().min(1),
+  industryAccountId: z.string().min(1),
+  name: z.string().min(1),
+  description: z.string().default(""),
+  createdByUserId: z.string().min(1),
+  isShared: z.boolean(),
+  createdAt: z.string().datetime({ offset: true }),
+  updatedAt: z.string().datetime({ offset: true })
+});
+
+export type IndustryList = z.infer<typeof IndustryListSchema>;
+
+export const IndustryListCreateRequestSchema = z.object({
+  name: z.string().min(1).max(180),
+  description: z.string().max(2000).default(""),
+  isShared: z.boolean().default(false)
+});
+
+export type IndustryListCreateRequest = z.infer<typeof IndustryListCreateRequestSchema>;
+
+export const IndustryListItemSchema = z.object({
+  id: z.string().min(1),
+  listId: z.string().min(1),
+  writerUserId: z.string().min(1),
+  projectId: z.string().nullable(),
+  addedByUserId: z.string().min(1),
+  createdAt: z.string().datetime({ offset: true })
+});
+
+export type IndustryListItem = z.infer<typeof IndustryListItemSchema>;
+
+export const IndustryListItemCreateRequestSchema = z.object({
+  writerUserId: z.string().min(1),
+  projectId: z.string().min(1).optional()
+});
+
+export type IndustryListItemCreateRequest = z.infer<typeof IndustryListItemCreateRequestSchema>;
+
+export const IndustryNoteSchema = z.object({
+  id: z.string().min(1),
+  listId: z.string().min(1),
+  writerUserId: z.string().nullable(),
+  projectId: z.string().nullable(),
+  body: z.string().min(1),
+  createdByUserId: z.string().min(1),
+  createdAt: z.string().datetime({ offset: true }),
+  updatedAt: z.string().datetime({ offset: true })
+});
+
+export type IndustryNote = z.infer<typeof IndustryNoteSchema>;
+
+export const IndustryNoteCreateRequestSchema = z.object({
+  writerUserId: z.string().min(1).optional(),
+  projectId: z.string().min(1).optional(),
+  body: z.string().min(1).max(5000)
+});
+
+export type IndustryNoteCreateRequest = z.infer<typeof IndustryNoteCreateRequestSchema>;
+
+export const IndustryMandateStatusSchema = z.enum(["open", "closed", "expired"]);
+
+export type IndustryMandateStatus = z.infer<typeof IndustryMandateStatusSchema>;
+
+export const IndustryMandateTypeSchema = z.enum(["mandate", "owa"]);
+
+export type IndustryMandateType = z.infer<typeof IndustryMandateTypeSchema>;
+
+export const IndustryMandateSchema = z.object({
+  id: z.string().min(1),
+  type: IndustryMandateTypeSchema,
+  title: z.string().min(1),
+  description: z.string().default(""),
+  format: z.string().min(1),
+  genre: z.string().min(1),
+  status: IndustryMandateStatusSchema,
+  opensAt: z.string().datetime({ offset: true }),
+  closesAt: z.string().datetime({ offset: true }),
+  createdByUserId: z.string().min(1),
+  createdAt: z.string().datetime({ offset: true }),
+  updatedAt: z.string().datetime({ offset: true })
+});
+
+export type IndustryMandate = z.infer<typeof IndustryMandateSchema>;
+
+export const IndustryMandateCreateRequestSchema = z.object({
+  type: IndustryMandateTypeSchema.default("mandate"),
+  title: z.string().min(1).max(240),
+  description: z.string().max(5000).default(""),
+  format: z.string().min(1).max(120),
+  genre: z.string().min(1).max(120),
+  opensAt: z.string().datetime({ offset: true }),
+  closesAt: z.string().datetime({ offset: true })
+});
+
+export type IndustryMandateCreateRequest = z.infer<typeof IndustryMandateCreateRequestSchema>;
+
+export const IndustryMandateFiltersSchema = z.object({
+  type: IndustryMandateTypeSchema.optional(),
+  status: IndustryMandateStatusSchema.optional(),
+  format: z.string().trim().min(1).optional(),
+  genre: z.string().trim().min(1).optional(),
+  limit: z.number().int().positive().max(100).default(20).optional(),
+  offset: z.number().int().nonnegative().default(0).optional()
+});
+
+export type IndustryMandateFilters = z.infer<typeof IndustryMandateFiltersSchema>;
+
+export const IndustryMandateSubmissionStatusSchema = z.enum([
+  "submitted",
+  "under_review",
+  "forwarded",
+  "rejected"
+]);
+
+export type IndustryMandateSubmissionStatus = z.infer<typeof IndustryMandateSubmissionStatusSchema>;
+
+export const IndustryMandateSubmissionSchema = z.object({
+  id: z.string().min(1),
+  mandateId: z.string().min(1),
+  writerUserId: z.string().min(1),
+  projectId: z.string().min(1),
+  fitExplanation: z.string().default(""),
+  status: IndustryMandateSubmissionStatusSchema,
+  createdAt: z.string().datetime({ offset: true }),
+  updatedAt: z.string().datetime({ offset: true })
+});
+
+export type IndustryMandateSubmission = z.infer<typeof IndustryMandateSubmissionSchema>;
+
+export const IndustryMandateSubmissionCreateRequestSchema = z.object({
+  projectId: z.string().min(1),
+  fitExplanation: z.string().max(3000).default("")
+});
+
+export type IndustryMandateSubmissionCreateRequest = z.infer<
+  typeof IndustryMandateSubmissionCreateRequestSchema
+>;
+
 export const SubmissionStatusSchema = z.enum([
   "pending",
   "quarterfinalist",

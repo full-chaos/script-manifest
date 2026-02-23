@@ -504,6 +504,55 @@ export async function ensureIndustryPortalTables(): Promise<void> {
   `);
 }
 
+export async function ensureProgramsTables(): Promise<void> {
+  const db = getPool();
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS programs (
+      id TEXT PRIMARY KEY,
+      slug TEXT NOT NULL UNIQUE,
+      title TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'draft'
+        CHECK (status IN ('draft', 'open', 'closed', 'archived')),
+      application_opens_at TIMESTAMPTZ NOT NULL,
+      application_closes_at TIMESTAMPTZ NOT NULL,
+      created_by_user_id TEXT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+
+  await db.query(`
+    CREATE INDEX IF NOT EXISTS idx_programs_status
+      ON programs(status, application_closes_at ASC);
+  `);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS program_applications (
+      id TEXT PRIMARY KEY,
+      program_id TEXT NOT NULL REFERENCES programs(id) ON DELETE CASCADE,
+      user_id TEXT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+      statement TEXT NOT NULL DEFAULT '',
+      sample_project_id TEXT NULL REFERENCES projects(id) ON DELETE SET NULL,
+      status TEXT NOT NULL DEFAULT 'submitted'
+        CHECK (status IN ('submitted', 'under_review', 'accepted', 'waitlisted', 'rejected')),
+      score INTEGER NULL CHECK (score IS NULL OR (score >= 0 AND score <= 100)),
+      decision_notes TEXT NULL,
+      reviewed_by_user_id TEXT NULL REFERENCES app_users(id) ON DELETE SET NULL,
+      reviewed_at TIMESTAMPTZ NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE (program_id, user_id)
+    );
+  `);
+
+  await db.query(`
+    CREATE INDEX IF NOT EXISTS idx_program_applications_program_status
+      ON program_applications(program_id, status, updated_at DESC);
+  `);
+}
+
 export async function ensureRankingTables(): Promise<void> {
   const db = getPool();
 

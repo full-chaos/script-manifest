@@ -34,6 +34,9 @@ jobs:
           - name: notification-service
             dockerfile: infra/docker/service.Dockerfile
             context: .
+          - name: programs-service
+            dockerfile: infra/docker/service.Dockerfile
+            context: .
           - name: profile-project-service
             dockerfile: infra/docker/service.Dockerfile
             context: .

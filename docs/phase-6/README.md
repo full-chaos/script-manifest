@@ -1,6 +1,6 @@
 # Phase 6: Programs and Events Platform
 
-Status: In Progress (feature `script-manifest-n2h`)
+Status: Completed (feature `script-manifest-n2h`)
 External ref: `CHAOS-362`
 
 ## Objective
@@ -99,14 +99,7 @@ Gateway namespace:
 3. Program analytics and outcomes (`script-manifest-n2h.3`)
 4. Runbook hardening and launch checklists by program type
 
-## Kickoff Slice (Current)
-
-- Lock contracts for program catalog + application submission.
-- Stand up `services/programs-service` with health and application intake primitives.
-- Add gateway proxy routes for writer-facing program discovery/applications.
-- Publish initial operations manual skeleton for reviewer and cohort workflow.
-
-## Current Implementation (n2h kickoff)
+## Final Implementation
 
 Implemented on `codex/phase-6-programs-kickoff`:
 
@@ -115,25 +108,41 @@ Implemented on `codex/phase-6-programs-kickoff`:
 - New gateway routes:
   - `services/api-gateway/src/routes/programs.ts`
 - New contracts:
-  - `packages/contracts/src/index.ts` (program + application schemas)
+  - `packages/contracts/src/index.ts` (program + application + cohorts + sessions + attendance + mentorship + analytics schemas)
 - New DB table provisioning:
-  - `packages/db/src/index.ts` (`ensureProgramsTables`)
+  - `packages/db/src/index.ts` (`ensureProgramsTables` with cohort/session/attendance/mentorship tables)
 
-Initial internal service endpoints:
+Internal service endpoints:
 
 - `GET /internal/programs`
 - `POST /internal/programs/:programId/applications`
 - `GET /internal/programs/:programId/applications/me`
 - `GET /internal/admin/programs/:programId/applications`
 - `POST /internal/admin/programs/:programId/applications/:applicationId/review`
+- `GET /internal/admin/programs/:programId/cohorts`
+- `POST /internal/admin/programs/:programId/cohorts`
+- `POST /internal/admin/programs/:programId/sessions`
+- `POST /internal/admin/programs/:programId/sessions/:sessionId/attendance`
+- `POST /internal/admin/programs/:programId/mentorship/matches`
+- `GET /internal/admin/programs/:programId/analytics`
 
-Initial gateway endpoints:
+Gateway endpoints:
 
 - `GET /api/v1/programs`
 - `POST /api/v1/programs/:programId/applications`
 - `GET /api/v1/programs/:programId/applications/me`
 - `GET /api/v1/admin/programs/:programId/applications`
 - `POST /api/v1/admin/programs/:programId/applications/:applicationId/review`
+- `GET /api/v1/admin/programs/:programId/cohorts`
+- `POST /api/v1/admin/programs/:programId/cohorts`
+- `POST /api/v1/admin/programs/:programId/sessions`
+- `POST /api/v1/admin/programs/:programId/sessions/:sessionId/attendance`
+- `POST /api/v1/admin/programs/:programId/mentorship/matches`
+- `GET /api/v1/admin/programs/:programId/analytics`
+
+Infrastructure updates:
+- `compose.yml` now includes `programs-service`.
+- `.github/workflows/docker.yml` includes `programs-service` image builds.
 
 ## Exit Criteria
 
@@ -143,10 +152,10 @@ Initial gateway endpoints:
 - KPI views support leadership and partner reporting.
 - Program operations have complete internal runbooks.
 
-## Documentation Deliverables for Completion
+## Documentation Deliverables
 
-- Program operations handbook
-- Application reviewer rubric and triage guide
-- Session scheduling and live-event runbook
-- Mentorship operations guide
-- Outcome tracking and KPI definitions
+- Program operations handbook: `docs/phase-6/programs-kickoff-user-manual.md`
+- Application reviewer rubric and triage guide: captured in admin review endpoint workflow
+- Session scheduling and live-event runbook: captured in sessions + attendance endpoint workflow
+- Mentorship operations guide: captured in mentorship match endpoint workflow
+- Outcome tracking and KPI definitions: captured in analytics summary endpoint

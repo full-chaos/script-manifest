@@ -1,6 +1,6 @@
-# Programs Kickoff User Manual
+# Programs Operations User Manual
 
-This manual covers the initial Phase 6 kickoff APIs for program catalog, writer applications, and admin review actions.
+This manual covers the implemented Phase 6 APIs for program catalog, application lifecycle, cohort operations, session attendance, mentorship matching, and analytics.
 
 ## Endpoints
 
@@ -9,6 +9,12 @@ This manual covers the initial Phase 6 kickoff APIs for program catalog, writer 
 - `GET /api/v1/programs/:programId/applications/me`
 - `GET /api/v1/admin/programs/:programId/applications`
 - `POST /api/v1/admin/programs/:programId/applications/:applicationId/review`
+- `GET /api/v1/admin/programs/:programId/cohorts`
+- `POST /api/v1/admin/programs/:programId/cohorts`
+- `POST /api/v1/admin/programs/:programId/sessions`
+- `POST /api/v1/admin/programs/:programId/sessions/:sessionId/attendance`
+- `POST /api/v1/admin/programs/:programId/mentorship/matches`
+- `GET /api/v1/admin/programs/:programId/analytics`
 
 ## Writer Flow
 
@@ -57,4 +63,71 @@ curl -X POST "http://localhost:4000/api/v1/admin/programs/<program-id>/applicati
     "score": 92,
     "decisionNotes": "Strong statement and clear career goals."
   }'
+```
+
+Create a cohort:
+
+```bash
+curl -X POST "http://localhost:4000/api/v1/admin/programs/<program-id>/cohorts" \
+  -H "x-admin-user-id: admin_01" \
+  -H "content-type: application/json" \
+  -d '{
+    "name": "Career Lab Cohort A",
+    "summary": "Primary spring cohort",
+    "startAt": "2026-06-01T00:00:00.000Z",
+    "endAt": "2026-08-01T00:00:00.000Z",
+    "memberApplicationIds": ["<application-id>"]
+  }'
+```
+
+Schedule a session:
+
+```bash
+curl -X POST "http://localhost:4000/api/v1/admin/programs/<program-id>/sessions" \
+  -H "x-admin-user-id: admin_01" \
+  -H "content-type: application/json" \
+  -d '{
+    "cohortId": "<cohort-id>",
+    "title": "Pitch Rehearsal Workshop",
+    "sessionType": "workshop",
+    "startsAt": "2026-06-15T17:00:00.000Z",
+    "endsAt": "2026-06-15T18:30:00.000Z",
+    "provider": "zoom",
+    "meetingUrl": "https://example.com/meeting/abc123",
+    "attendeeUserIds": ["writer_01", "writer_02"]
+  }'
+```
+
+Record attendance:
+
+```bash
+curl -X POST "http://localhost:4000/api/v1/admin/programs/<program-id>/sessions/<session-id>/attendance" \
+  -H "x-admin-user-id: admin_01" \
+  -H "content-type: application/json" \
+  -d '{
+    "userId": "writer_01",
+    "status": "attended",
+    "notes": "Joined on time and completed exercise."
+  }'
+```
+
+Create mentorship matches:
+
+```bash
+curl -X POST "http://localhost:4000/api/v1/admin/programs/<program-id>/mentorship/matches" \
+  -H "x-admin-user-id: admin_01" \
+  -H "content-type: application/json" \
+  -d '{
+    "cohortId": "<cohort-id>",
+    "matches": [
+      { "mentorUserId": "mentor_01", "menteeUserId": "writer_01", "notes": "TV pilot focus" }
+    ]
+  }'
+```
+
+Fetch program analytics:
+
+```bash
+curl "http://localhost:4000/api/v1/admin/programs/<program-id>/analytics" \
+  -H "x-admin-user-id: admin_01"
 ```

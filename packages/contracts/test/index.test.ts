@@ -6,6 +6,11 @@ import {
   IndustryDigestRunSchema,
   IndustryEntitlementCheckResponseSchema,
   IndustryMandateSubmissionReviewRequestSchema,
+  ProgramAnalyticsSummarySchema,
+  ProgramCohortCreateRequestSchema,
+  ProgramMentorshipMatchCreateRequestSchema,
+  ProgramSessionAttendanceUpsertRequestSchema,
+  ProgramSessionCreateRequestSchema,
   IndustryWeeklyDigestRunRequestSchema,
   ProjectDraftCreateRequestSchema,
   WriterProfileSchema,
@@ -115,4 +120,54 @@ test("Industry review and digest schemas apply defaults and enforce output shape
     digestsGenerated: 1
   });
   assert.equal(analytics.mandatesOpen, 1);
+});
+
+test("Program workflow schemas apply defaults and enforce shape", () => {
+  const cohort = ProgramCohortCreateRequestSchema.parse({
+    name: "Career Lab Cohort A",
+    startAt: "2026-06-01T00:00:00.000Z",
+    endAt: "2026-08-01T00:00:00.000Z"
+  });
+  assert.equal(cohort.summary, "");
+  assert.deepEqual(cohort.memberApplicationIds, []);
+
+  const session = ProgramSessionCreateRequestSchema.parse({
+    title: "Pitch Prep Workshop",
+    startsAt: "2026-06-10T16:00:00.000Z",
+    endsAt: "2026-06-10T18:00:00.000Z"
+  });
+  assert.equal(session.description, "");
+  assert.equal(session.sessionType, "event");
+  assert.deepEqual(session.attendeeUserIds, []);
+
+  const attendance = ProgramSessionAttendanceUpsertRequestSchema.parse({
+    userId: "writer_01",
+    status: "attended"
+  });
+  assert.equal(attendance.notes, "");
+
+  const mentorship = ProgramMentorshipMatchCreateRequestSchema.parse({
+    matches: [{ mentorUserId: "mentor_01", menteeUserId: "writer_01" }]
+  });
+  assert.equal(mentorship.matches.length, 1);
+  assert.equal(mentorship.matches[0]?.notes, "");
+
+  const analytics = ProgramAnalyticsSummarySchema.parse({
+    applicationsSubmitted: 12,
+    applicationsUnderReview: 4,
+    applicationsAccepted: 3,
+    applicationsWaitlisted: 1,
+    applicationsRejected: 2,
+    cohortsTotal: 2,
+    cohortMembersActive: 14,
+    sessionsScheduled: 8,
+    sessionsCompleted: 3,
+    attendanceInvited: 30,
+    attendanceMarked: 21,
+    attendanceAttended: 18,
+    attendanceRate: 0.6,
+    mentorshipMatchesActive: 6,
+    mentorshipMatchesCompleted: 2
+  });
+  assert.equal(analytics.attendanceRate, 0.6);
 });

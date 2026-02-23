@@ -116,4 +116,170 @@ export function registerProgramsRoutes(server: FastifyInstance, ctx: GatewayCont
       );
     }
   });
+
+  server.get("/api/v1/admin/programs/:programId/cohorts", {
+    config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
+      const { programId } = req.params as { programId: string };
+      const adminUserId = await resolveAdminUserId(
+        ctx.requestFn,
+        ctx.identityServiceBase,
+        req.headers as Record<string, unknown>,
+        ctx.industryAdminAllowlist
+      );
+      if (!adminUserId) {
+        return reply.status(403).send({ error: "forbidden" });
+      }
+      return proxyJsonRequest(
+        reply,
+        ctx.requestFn,
+        `${ctx.programsServiceBase}/internal/admin/programs/${encodeURIComponent(programId)}/cohorts`,
+        {
+          method: "GET",
+          headers: { "x-admin-user-id": adminUserId }
+        }
+      );
+    }
+  });
+
+  server.post("/api/v1/admin/programs/:programId/cohorts", {
+    config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
+      const { programId } = req.params as { programId: string };
+      const adminUserId = await resolveAdminUserId(
+        ctx.requestFn,
+        ctx.identityServiceBase,
+        req.headers as Record<string, unknown>,
+        ctx.industryAdminAllowlist
+      );
+      if (!adminUserId) {
+        return reply.status(403).send({ error: "forbidden" });
+      }
+      return proxyJsonRequest(
+        reply,
+        ctx.requestFn,
+        `${ctx.programsServiceBase}/internal/admin/programs/${encodeURIComponent(programId)}/cohorts`,
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "x-admin-user-id": adminUserId
+          },
+          body: JSON.stringify(req.body ?? {})
+        }
+      );
+    }
+  });
+
+  server.post("/api/v1/admin/programs/:programId/sessions", {
+    config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
+      const { programId } = req.params as { programId: string };
+      const adminUserId = await resolveAdminUserId(
+        ctx.requestFn,
+        ctx.identityServiceBase,
+        req.headers as Record<string, unknown>,
+        ctx.industryAdminAllowlist
+      );
+      if (!adminUserId) {
+        return reply.status(403).send({ error: "forbidden" });
+      }
+      return proxyJsonRequest(
+        reply,
+        ctx.requestFn,
+        `${ctx.programsServiceBase}/internal/admin/programs/${encodeURIComponent(programId)}/sessions`,
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "x-admin-user-id": adminUserId
+          },
+          body: JSON.stringify(req.body ?? {})
+        }
+      );
+    }
+  });
+
+  server.post("/api/v1/admin/programs/:programId/sessions/:sessionId/attendance", {
+    config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
+      const { programId, sessionId } = req.params as { programId: string; sessionId: string };
+      const adminUserId = await resolveAdminUserId(
+        ctx.requestFn,
+        ctx.identityServiceBase,
+        req.headers as Record<string, unknown>,
+        ctx.industryAdminAllowlist
+      );
+      if (!adminUserId) {
+        return reply.status(403).send({ error: "forbidden" });
+      }
+      return proxyJsonRequest(
+        reply,
+        ctx.requestFn,
+        `${ctx.programsServiceBase}/internal/admin/programs/${encodeURIComponent(programId)}/sessions/${encodeURIComponent(sessionId)}/attendance`,
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "x-admin-user-id": adminUserId
+          },
+          body: JSON.stringify(req.body ?? {})
+        }
+      );
+    }
+  });
+
+  server.post("/api/v1/admin/programs/:programId/mentorship/matches", {
+    config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
+      const { programId } = req.params as { programId: string };
+      const adminUserId = await resolveAdminUserId(
+        ctx.requestFn,
+        ctx.identityServiceBase,
+        req.headers as Record<string, unknown>,
+        ctx.industryAdminAllowlist
+      );
+      if (!adminUserId) {
+        return reply.status(403).send({ error: "forbidden" });
+      }
+      return proxyJsonRequest(
+        reply,
+        ctx.requestFn,
+        `${ctx.programsServiceBase}/internal/admin/programs/${encodeURIComponent(programId)}/mentorship/matches`,
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "x-admin-user-id": adminUserId
+          },
+          body: JSON.stringify(req.body ?? {})
+        }
+      );
+    }
+  });
+
+  server.get("/api/v1/admin/programs/:programId/analytics", {
+    config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
+      const { programId } = req.params as { programId: string };
+      const adminUserId = await resolveAdminUserId(
+        ctx.requestFn,
+        ctx.identityServiceBase,
+        req.headers as Record<string, unknown>,
+        ctx.industryAdminAllowlist
+      );
+      if (!adminUserId) {
+        return reply.status(403).send({ error: "forbidden" });
+      }
+      return proxyJsonRequest(
+        reply,
+        ctx.requestFn,
+        `${ctx.programsServiceBase}/internal/admin/programs/${encodeURIComponent(programId)}/analytics`,
+        {
+          method: "GET",
+          headers: { "x-admin-user-id": adminUserId }
+        }
+      );
+    }
+  });
 }

@@ -5,6 +5,10 @@ import { pathToFileURL } from "node:url";
 import {
   ProgramApplicationCreateRequestSchema,
   ProgramApplicationReviewRequestSchema,
+  ProgramCohortCreateRequestSchema,
+  ProgramMentorshipMatchCreateRequestSchema,
+  ProgramSessionAttendanceUpsertRequestSchema,
+  ProgramSessionCreateRequestSchema,
   ProgramStatusSchema
 } from "@script-manifest/contracts";
 import { PgProgramsRepository, type ProgramsRepository } from "./repository.js";
@@ -158,6 +162,126 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
         return reply.status(404).send({ error: "application_not_found" });
       }
       return reply.send({ application });
+    }
+  });
+
+  server.get("/internal/admin/programs/:programId/cohorts", {
+    config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
+      await repositoryReady;
+      const adminUserId = readHeader(req.headers, "x-admin-user-id");
+      if (!adminUserId) {
+        return reply.status(403).send({ error: "forbidden" });
+      }
+      const { programId } = req.params as { programId: string };
+      const cohorts = await repository.listProgramCohorts(programId);
+      return reply.send({ cohorts });
+    }
+  });
+
+  server.post("/internal/admin/programs/:programId/cohorts", {
+    config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
+      await repositoryReady;
+      const adminUserId = readHeader(req.headers, "x-admin-user-id");
+      if (!adminUserId) {
+        return reply.status(403).send({ error: "forbidden" });
+      }
+      const { programId } = req.params as { programId: string };
+      const parsed = ProgramCohortCreateRequestSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
+      }
+      const cohort = await repository.createProgramCohort(programId, adminUserId, parsed.data);
+      if (!cohort) {
+        return reply.status(404).send({ error: "program_or_admin_not_found" });
+      }
+      return reply.status(201).send({ cohort });
+    }
+  });
+
+  server.post("/internal/admin/programs/:programId/sessions", {
+    config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
+      await repositoryReady;
+      const adminUserId = readHeader(req.headers, "x-admin-user-id");
+      if (!adminUserId) {
+        return reply.status(403).send({ error: "forbidden" });
+      }
+      const { programId } = req.params as { programId: string };
+      const parsed = ProgramSessionCreateRequestSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
+      }
+      const session = await repository.createProgramSession(programId, adminUserId, parsed.data);
+      if (!session) {
+        return reply.status(404).send({ error: "program_or_admin_or_cohort_not_found" });
+      }
+      return reply.status(201).send({ session });
+    }
+  });
+
+  server.post("/internal/admin/programs/:programId/sessions/:sessionId/attendance", {
+    config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
+      await repositoryReady;
+      const adminUserId = readHeader(req.headers, "x-admin-user-id");
+      if (!adminUserId) {
+        return reply.status(403).send({ error: "forbidden" });
+      }
+      const { programId, sessionId } = req.params as { programId: string; sessionId: string };
+      const parsed = ProgramSessionAttendanceUpsertRequestSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
+      }
+      const attendance = await repository.upsertSessionAttendance(
+        programId,
+        sessionId,
+        adminUserId,
+        parsed.data
+      );
+      if (!attendance) {
+        return reply.status(404).send({ error: "session_or_user_or_admin_not_found" });
+      }
+      return reply.send({ attendance });
+    }
+  });
+
+  server.post("/internal/admin/programs/:programId/mentorship/matches", {
+    config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
+      await repositoryReady;
+      const adminUserId = readHeader(req.headers, "x-admin-user-id");
+      if (!adminUserId) {
+        return reply.status(403).send({ error: "forbidden" });
+      }
+      const { programId } = req.params as { programId: string };
+      const parsed = ProgramMentorshipMatchCreateRequestSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
+      }
+      const matches = await repository.createMentorshipMatches(programId, adminUserId, parsed.data);
+      if (!matches) {
+        return reply.status(404).send({ error: "program_or_admin_or_users_not_found" });
+      }
+      return reply.status(201).send({ matches });
+    }
+  });
+
+  server.get("/internal/admin/programs/:programId/analytics", {
+    config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
+      await repositoryReady;
+      const adminUserId = readHeader(req.headers, "x-admin-user-id");
+      if (!adminUserId) {
+        return reply.status(403).send({ error: "forbidden" });
+      }
+      const { programId } = req.params as { programId: string };
+      const summary = await repository.getProgramAnalytics(programId);
+      if (!summary) {
+        return reply.status(404).send({ error: "program_not_found" });
+      }
+      return reply.send({ summary });
     }
   });
 

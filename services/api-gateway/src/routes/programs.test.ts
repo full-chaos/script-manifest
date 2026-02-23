@@ -58,7 +58,7 @@ test("programs routes proxy application flow with auth context", async (t) => {
   assert.equal(urls[1], "http://programs-svc/internal/programs/program_1/applications/me");
 });
 
-test("admin program review route requires allowlisted admin", async (t) => {
+test("admin programs routes enforce allowlist and proxy lifecycle endpoints", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
   const server = buildServer({
@@ -77,22 +77,81 @@ test("admin program review route requires allowlisted admin", async (t) => {
 
   const forbidden = await server.inject({
     method: "POST",
-    url: "/api/v1/admin/programs/program_1/applications/app_1/review",
-    payload: { status: "accepted" }
+    url: "/api/v1/admin/programs/program_1/cohorts",
+    payload: { name: "Cohort A" }
   });
   assert.equal(forbidden.statusCode, 403);
   assert.equal(urls.length, 0);
 
-  const allowed = await server.inject({
+  const review = await server.inject({
     method: "POST",
     url: "/api/v1/admin/programs/program_1/applications/app_1/review",
     headers: { "x-admin-user-id": "admin_01" },
     payload: { status: "accepted", score: 90 }
   });
-  assert.equal(allowed.statusCode, 200);
+  assert.equal(review.statusCode, 200);
+
+  const cohortCreate = await server.inject({
+    method: "POST",
+    url: "/api/v1/admin/programs/program_1/cohorts",
+    headers: { "x-admin-user-id": "admin_01" },
+    payload: {
+      name: "Cohort A",
+      startAt: "2026-06-01T00:00:00.000Z",
+      endAt: "2026-08-01T00:00:00.000Z"
+    }
+  });
+  assert.equal(cohortCreate.statusCode, 200);
+
+  const sessionCreate = await server.inject({
+    method: "POST",
+    url: "/api/v1/admin/programs/program_1/sessions",
+    headers: { "x-admin-user-id": "admin_01" },
+    payload: {
+      title: "Live Workshop",
+      startsAt: "2026-06-15T17:00:00.000Z",
+      endsAt: "2026-06-15T18:00:00.000Z"
+    }
+  });
+  assert.equal(sessionCreate.statusCode, 200);
+
+  const attendance = await server.inject({
+    method: "POST",
+    url: "/api/v1/admin/programs/program_1/sessions/session_1/attendance",
+    headers: { "x-admin-user-id": "admin_01" },
+    payload: { userId: "writer_01", status: "attended" }
+  });
+  assert.equal(attendance.statusCode, 200);
+
+  const mentorship = await server.inject({
+    method: "POST",
+    url: "/api/v1/admin/programs/program_1/mentorship/matches",
+    headers: { "x-admin-user-id": "admin_01" },
+    payload: { matches: [{ mentorUserId: "mentor_01", menteeUserId: "writer_01" }] }
+  });
+  assert.equal(mentorship.statusCode, 200);
+
+  const analytics = await server.inject({
+    method: "GET",
+    url: "/api/v1/admin/programs/program_1/analytics",
+    headers: { "x-admin-user-id": "admin_01" }
+  });
+  assert.equal(analytics.statusCode, 200);
+
   assert.equal(
     urls[0],
     "http://programs-svc/internal/admin/programs/program_1/applications/app_1/review"
   );
-  assert.equal(headers[0]?.["x-admin-user-id"], "admin_01");
+  assert.equal(urls[1], "http://programs-svc/internal/admin/programs/program_1/cohorts");
+  assert.equal(urls[2], "http://programs-svc/internal/admin/programs/program_1/sessions");
+  assert.equal(
+    urls[3],
+    "http://programs-svc/internal/admin/programs/program_1/sessions/session_1/attendance"
+  );
+  assert.equal(
+    urls[4],
+    "http://programs-svc/internal/admin/programs/program_1/mentorship/matches"
+  );
+  assert.equal(urls[5], "http://programs-svc/internal/admin/programs/program_1/analytics");
+  assert.equal(headers[5]?.["x-admin-user-id"], "admin_01");
 });

@@ -415,6 +415,29 @@ services:
       retries: 5
       start_period: 20s
 
+  programs-service:
+    <<: *node-dev
+    container_name: manifest-programs-service
+    working_dir: /workspace
+    volumes:
+      - .:/workspace
+    environment:
+      PORT: "4012"
+      DATABASE_URL: "postgresql://manifest:manifest@postgres:5432/manifest"
+    command: >
+      sh -lc "flock /workspace/.pnpm-install.lock -c 'pnpm install --frozen-lockfile=false' && pnpm --filter @script-manifest/programs-service dev"
+    ports:
+      - "4012:4012"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:4012/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
   api-gateway:
     <<: *node-dev
     container_name: manifest-api-gateway
@@ -432,6 +455,7 @@ services:
       RANKING_SERVICE_URL: "http://ranking-service:4007"
       COVERAGE_MARKETPLACE_SERVICE_URL: "http://coverage-marketplace-service:4008"
       INDUSTRY_PORTAL_SERVICE_URL: "http://industry-portal-service:4009"
+      PROGRAMS_SERVICE_URL: "http://programs-service:4012"
       COVERAGE_ADMIN_ALLOWLIST: "admin_01,user_admin_01"
       INDUSTRY_ADMIN_ALLOWLIST: "admin_01,user_admin_01"
     command: >
@@ -454,6 +478,8 @@ services:
       coverage-marketplace-service:
         condition: service_healthy
       industry-portal-service:
+        condition: service_healthy
+      programs-service:
         condition: service_healthy
     healthcheck:
       test:

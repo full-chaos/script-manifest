@@ -1,6 +1,6 @@
 # Phase 7: Partner Dashboard for Competition Organizers
 
-Status: Planned (feature `script-manifest-nzi` open)
+Status: In Progress (feature `script-manifest-nzi`)
 External ref: `gh-127`
 
 ## Objective
@@ -103,6 +103,13 @@ Gateway namespace:
 3. Publication + integration + analytics (`script-manifest-nzi.3`)
 4. Operational readiness and partner onboarding playbook
 
+## Kickoff Slice (Current)
+
+- Lock contracts for organizer account + competition configuration payloads.
+- Stand up `services/partner-dashboard-service` health + organizer workspace primitives.
+- Add initial gateway proxy routes for organizer competition CRUD.
+- Define publication event contracts for ranking/profile sync integration tests.
+
 ## Exit Criteria
 
 - Organizers can run a full submission cycle end-to-end.
@@ -118,4 +125,3 @@ Gateway namespace:
 - Result publication and rollback runbook
 - FilmFreeway integration and reconciliation guide
 - Draft swap and fee handling policy
-

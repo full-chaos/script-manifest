@@ -6,7 +6,15 @@ import {
   IndustryAccountCreateRequestSchema,
   IndustryAccountVerificationRequestSchema,
   IndustryEntitlementCheckResponseSchema,
-  IndustryEntitlementUpsertRequestSchema
+  IndustryEntitlementUpsertRequestSchema,
+  IndustryListCreateRequestSchema,
+  IndustryListItemCreateRequestSchema,
+  IndustryMandateCreateRequestSchema,
+  IndustryMandateFiltersSchema,
+  IndustryMandateSubmissionCreateRequestSchema,
+  IndustryNoteCreateRequestSchema,
+  IndustryTalentSearchFiltersSchema,
+  IndustryTalentSearchResponseSchema
 } from "@script-manifest/contracts";
 import {
   type IndustryPortalRepository,
@@ -21,6 +29,17 @@ export type IndustryPortalServiceOptions = {
 function readHeader(headers: Record<string, unknown>, name: string): string | null {
   const value = headers[name];
   return typeof value === "string" && value.length > 0 ? value : null;
+}
+
+async function resolveVerifiedIndustryAccountId(
+  repository: IndustryPortalRepository,
+  authUserId: string
+): Promise<string | null> {
+  const account = await repository.getAccountByUserId(authUserId);
+  if (!account || account.verificationStatus !== "verified") {
+    return null;
+  }
+  return account.id;
 }
 
 export function buildServer(options: IndustryPortalServiceOptions = {}): FastifyInstance {
@@ -193,6 +212,179 @@ export function buildServer(options: IndustryPortalServiceOptions = {}): Fastify
         canDownload: accessLevel === "download"
       });
       return reply.send(response);
+    }
+  });
+
+  server.get("/internal/talent-search", {
+    config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
+      await repositoryReady;
+      const authUserId = readHeader(req.headers, "x-auth-user-id");
+      if (!authUserId) {
+        return reply.status(403).send({ error: "forbidden" });
+      }
+
+      const verifiedAccountId = await resolveVerifiedIndustryAccountId(repository, authUserId);
+      if (!verifiedAccountId) {
+        return reply.status(403).send({ error: "industry_account_not_verified" });
+      }
+
+      const parsed = IndustryTalentSearchFiltersSchema.safeParse(req.query ?? {});
+      if (!parsed.success) {
+        return reply.status(400).send({ error: "invalid_query", details: parsed.error.flatten() });
+      }
+
+      const page = await repository.searchTalent(parsed.data);
+      const response = IndustryTalentSearchResponseSchema.parse(page);
+      return reply.send(response);
+    }
+  });
+
+  server.get("/internal/lists", {
+    config: { rateLimit: { max: 40, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
+      await repositoryReady;
+      const authUserId = readHeader(req.headers, "x-auth-user-id");
+      if (!authUserId) {
+        return reply.status(403).send({ error: "forbidden" });
+      }
+      const verifiedAccountId = await resolveVerifiedIndustryAccountId(repository, authUserId);
+      if (!verifiedAccountId) {
+        return reply.status(403).send({ error: "industry_account_not_verified" });
+      }
+
+      const lists = await repository.listLists(verifiedAccountId);
+      return reply.send({ lists });
+    }
+  });
+
+  server.post("/internal/lists", {
+    config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
+      await repositoryReady;
+      const authUserId = readHeader(req.headers, "x-auth-user-id");
+      if (!authUserId) {
+        return reply.status(403).send({ error: "forbidden" });
+      }
+      const verifiedAccountId = await resolveVerifiedIndustryAccountId(repository, authUserId);
+      if (!verifiedAccountId) {
+        return reply.status(403).send({ error: "industry_account_not_verified" });
+      }
+
+      const parsed = IndustryListCreateRequestSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
+      }
+
+      const list = await repository.createList(verifiedAccountId, authUserId, parsed.data);
+      if (!list) {
+        return reply.status(404).send({ error: "industry_account_not_found" });
+      }
+      return reply.status(201).send({ list });
+    }
+  });
+
+  server.post("/internal/lists/:listId/items", {
+    config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
+      await repositoryReady;
+      const authUserId = readHeader(req.headers, "x-auth-user-id");
+      if (!authUserId) {
+        return reply.status(403).send({ error: "forbidden" });
+      }
+      const verifiedAccountId = await resolveVerifiedIndustryAccountId(repository, authUserId);
+      if (!verifiedAccountId) {
+        return reply.status(403).send({ error: "industry_account_not_verified" });
+      }
+      const parsed = IndustryListItemCreateRequestSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
+      }
+      const { listId } = req.params as { listId: string };
+      const item = await repository.addListItem(listId, verifiedAccountId, authUserId, parsed.data);
+      if (!item) {
+        return reply.status(404).send({ error: "list_or_writer_not_found" });
+      }
+      return reply.status(201).send({ item });
+    }
+  });
+
+  server.post("/internal/lists/:listId/notes", {
+    config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
+      await repositoryReady;
+      const authUserId = readHeader(req.headers, "x-auth-user-id");
+      if (!authUserId) {
+        return reply.status(403).send({ error: "forbidden" });
+      }
+      const verifiedAccountId = await resolveVerifiedIndustryAccountId(repository, authUserId);
+      if (!verifiedAccountId) {
+        return reply.status(403).send({ error: "industry_account_not_verified" });
+      }
+      const parsed = IndustryNoteCreateRequestSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
+      }
+      const { listId } = req.params as { listId: string };
+      const note = await repository.addListNote(listId, verifiedAccountId, authUserId, parsed.data);
+      if (!note) {
+        return reply.status(404).send({ error: "list_or_target_not_found" });
+      }
+      return reply.status(201).send({ note });
+    }
+  });
+
+  server.get("/internal/mandates", {
+    config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
+      await repositoryReady;
+      const parsed = IndustryMandateFiltersSchema.safeParse(req.query ?? {});
+      if (!parsed.success) {
+        return reply.status(400).send({ error: "invalid_query", details: parsed.error.flatten() });
+      }
+      const page = await repository.listMandates(parsed.data);
+      return reply.send(page);
+    }
+  });
+
+  server.post("/internal/mandates", {
+    config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
+      await repositoryReady;
+      const adminUserId = readHeader(req.headers, "x-admin-user-id");
+      if (!adminUserId) {
+        return reply.status(403).send({ error: "forbidden" });
+      }
+      const parsed = IndustryMandateCreateRequestSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
+      }
+      const mandate = await repository.createMandate(adminUserId, parsed.data);
+      if (!mandate) {
+        return reply.status(404).send({ error: "admin_user_not_found" });
+      }
+      return reply.status(201).send({ mandate });
+    }
+  });
+
+  server.post("/internal/mandates/:mandateId/submissions", {
+    config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
+      await repositoryReady;
+      const writerUserId = readHeader(req.headers, "x-auth-user-id");
+      if (!writerUserId) {
+        return reply.status(403).send({ error: "forbidden" });
+      }
+      const { mandateId } = req.params as { mandateId: string };
+      const parsed = IndustryMandateSubmissionCreateRequestSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
+      }
+      const submission = await repository.createMandateSubmission(mandateId, writerUserId, parsed.data);
+      if (!submission) {
+        return reply.status(404).send({ error: "mandate_or_project_not_found" });
+      }
+      return reply.status(201).send({ submission });
     }
   });
 

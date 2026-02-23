@@ -1,6 +1,6 @@
 # Phase 6: Programs and Events Platform
 
-Status: Planned (feature `script-manifest-n2h` open)
+Status: In Progress (feature `script-manifest-n2h`)
 External ref: `gh-117`
 
 ## Objective
@@ -99,6 +99,13 @@ Gateway namespace:
 3. Program analytics and outcomes (`script-manifest-n2h.3`)
 4. Runbook hardening and launch checklists by program type
 
+## Kickoff Slice (Current)
+
+- Lock contracts for program catalog + application submission.
+- Stand up `services/programs-service` with health and application intake primitives.
+- Add gateway proxy routes for writer-facing program discovery/applications.
+- Publish initial operations manual skeleton for reviewer and cohort workflow.
+
 ## Exit Criteria
 
 - Application intake and review are auditable and repeatable.
@@ -114,4 +121,3 @@ Gateway namespace:
 - Session scheduling and live-event runbook
 - Mentorship operations guide
 - Outcome tracking and KPI definitions
-

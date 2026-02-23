@@ -100,7 +100,7 @@ Gateway namespace:
 3. Mandates + recommendation ops (`script-manifest-n92.3`)
 4. Hardening, analytics validation, and user docs
 
-## Current Implementation (n92.1 Foundation)
+## Current Implementation (n92.1 + n92.2/n92.3 Slice)
 
 Implemented in `codex/phase-5-industry-portal-foundation`:
 
@@ -129,6 +129,28 @@ Initial gateway endpoints:
 - `PUT /api/v1/industry/entitlements/:writerUserId`
 - `GET /api/v1/industry/entitlements/:writerUserId/check`
 
+Additional internal endpoints delivered on `codex/phase-5-discovery-mandates`:
+
+- `GET /internal/talent-search`
+- `GET /internal/lists`
+- `POST /internal/lists`
+- `POST /internal/lists/:listId/items`
+- `POST /internal/lists/:listId/notes`
+- `GET /internal/mandates`
+- `POST /internal/mandates`
+- `POST /internal/mandates/:mandateId/submissions`
+
+Additional gateway endpoints delivered on `codex/phase-5-discovery-mandates`:
+
+- `GET /api/v1/industry/talent-search`
+- `GET /api/v1/industry/lists`
+- `POST /api/v1/industry/lists`
+- `POST /api/v1/industry/lists/:listId/items`
+- `POST /api/v1/industry/lists/:listId/notes`
+- `GET /api/v1/industry/mandates`
+- `POST /api/v1/industry/mandates`
+- `POST /api/v1/industry/mandates/:mandateId/submissions`
+
 ## Exit Criteria
 
 - Industry users can be manually vetted and segmented by account tier.
@@ -147,3 +169,4 @@ Initial gateway endpoints:
 Current draft:
 
 - `docs/phase-5/industry-vetting-and-access-user-manual.md`
+- `docs/phase-5/discovery-collaboration-mandates-user-manual.md`

@@ -288,3 +288,95 @@ test("partner dashboard service supports organizer operations flow", async (t) =
   });
   assert.equal(sync.statusCode, 202);
 });
+
+test("partner dashboard service enforces auth, validation, and missing-resource guards", async (t) => {
+  const server = buildServer({ logger: false, repository: new MemoryPartnerRepository() });
+  t.after(async () => {
+    await server.close();
+  });
+
+  const missingAdmin = await server.inject({
+    method: "POST",
+    url: "/internal/partners/competitions",
+    payload: {
+      organizerAccountId: "organizer_1",
+      slug: "bad",
+      title: "Bad",
+      format: "feature",
+      genre: "drama",
+      submissionOpensAt: "2026-01-01T00:00:00.000Z",
+      submissionClosesAt: "2026-02-01T00:00:00.000Z"
+    }
+  });
+  assert.equal(missingAdmin.statusCode, 403);
+
+  const invalidCompetitionPayload = await server.inject({
+    method: "POST",
+    url: "/internal/partners/competitions",
+    headers: { "x-admin-user-id": "admin_01" },
+    payload: { title: "Only title" }
+  });
+  assert.equal(invalidCompetitionPayload.statusCode, 400);
+
+  const missingCompetitionSubmissions = await server.inject({
+    method: "GET",
+    url: "/internal/partners/competitions/competition_404/submissions",
+    headers: { "x-admin-user-id": "admin_01" }
+  });
+  assert.equal(missingCompetitionSubmissions.statusCode, 404);
+
+  const invalidAssignPayload = await server.inject({
+    method: "POST",
+    url: "/internal/partners/competitions/competition_1/judges/assign",
+    headers: { "x-admin-user-id": "admin_01" },
+    payload: { judgeUserId: "judge_01", submissionIds: [] }
+  });
+  assert.equal(invalidAssignPayload.statusCode, 400);
+
+  const missingEvaluationTarget = await server.inject({
+    method: "POST",
+    url: "/internal/partners/competitions/competition_404/evaluations",
+    headers: { "x-admin-user-id": "admin_01" },
+    payload: { submissionId: "submission_404", judgeUserId: "judge_01", score: 88 }
+  });
+  assert.equal(missingEvaluationTarget.statusCode, 404);
+
+  const invalidNormalizePayload = await server.inject({
+    method: "POST",
+    url: "/internal/partners/competitions/competition_1/normalize",
+    headers: { "x-admin-user-id": "admin_01" },
+    payload: { round: "" }
+  });
+  assert.equal(invalidNormalizePayload.statusCode, 400);
+
+  const missingPublishTarget = await server.inject({
+    method: "POST",
+    url: "/internal/partners/competitions/competition_404/publish-results",
+    headers: { "x-admin-user-id": "admin_01" },
+    payload: { results: [{ submissionId: "submission_1", placementStatus: "winner" }] }
+  });
+  assert.equal(missingPublishTarget.statusCode, 404);
+
+  const missingDraftSwapTarget = await server.inject({
+    method: "POST",
+    url: "/internal/partners/competitions/competition_1/draft-swaps",
+    headers: { "x-admin-user-id": "admin_01" },
+    payload: { submissionId: "submission_404", replacementScriptId: "script_2" }
+  });
+  assert.equal(missingDraftSwapTarget.statusCode, 404);
+
+  const missingAnalyticsTarget = await server.inject({
+    method: "GET",
+    url: "/internal/partners/competitions/competition_404/analytics",
+    headers: { "x-admin-user-id": "admin_01" }
+  });
+  assert.equal(missingAnalyticsTarget.statusCode, 404);
+
+  const missingSyncTarget = await server.inject({
+    method: "POST",
+    url: "/internal/partners/integrations/filmfreeway/sync",
+    headers: { "x-admin-user-id": "admin_01" },
+    payload: { competitionId: "competition_404", direction: "import" }
+  });
+  assert.equal(missingSyncTarget.statusCode, 404);
+});

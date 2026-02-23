@@ -155,3 +155,79 @@ test("admin programs routes enforce allowlist and proxy lifecycle endpoints", as
   assert.equal(urls[5], "http://programs-svc/internal/admin/programs/program_1/analytics");
   assert.equal(headers[5]?.["x-admin-user-id"], "admin_01");
 });
+
+test("programs routes reject requests when user auth cannot be resolved", async (t) => {
+  const urls: string[] = [];
+  const server = buildServer({
+    logger: false,
+    requestFn: (async (url) => {
+      const urlStr = String(url);
+      urls.push(urlStr);
+      if (urlStr.includes("/internal/auth/me")) {
+        return jsonResponse({ error: "unauthorized" }, 401);
+      }
+      return jsonResponse({ ok: true }, 200);
+    }) as typeof request,
+    identityServiceBase: "http://identity-svc",
+    programsServiceBase: "http://programs-svc"
+  });
+  t.after(async () => {
+    await server.close();
+  });
+
+  const apply = await server.inject({
+    method: "POST",
+    url: "/api/v1/programs/program_1/applications",
+    headers: { authorization: "Bearer sess_bad" },
+    payload: { statement: "Hello" }
+  });
+  assert.equal(apply.statusCode, 401);
+
+  assert.equal(urls.length, 1);
+  assert.equal(urls[0], "http://identity-svc/internal/auth/me");
+});
+
+test("programs routes proxy query filters and support bearer-based admin resolution", async (t) => {
+  const urls: string[] = [];
+  const headers: Record<string, string>[] = [];
+  const server = buildServer({
+    logger: false,
+    industryAdminAllowlist: ["admin_01"],
+    requestFn: (async (url, options) => {
+      const urlStr = String(url);
+      if (urlStr.includes("/internal/auth/me")) {
+        return jsonResponse({
+          user: { id: "admin_01" },
+          expiresAt: "2026-12-31T00:00:00.000Z"
+        });
+      }
+      urls.push(urlStr);
+      headers.push((options?.headers as Record<string, string> | undefined) ?? {});
+      return jsonResponse({ ok: true }, 200);
+    }) as typeof request,
+    identityServiceBase: "http://identity-svc",
+    programsServiceBase: "http://programs-svc"
+  });
+  t.after(async () => {
+    await server.close();
+  });
+
+  const programs = await server.inject({
+    method: "GET",
+    url: "/api/v1/programs?status=open"
+  });
+  assert.equal(programs.statusCode, 200);
+  assert.equal(urls[0], "http://programs-svc/internal/programs?status=open");
+
+  const adminApps = await server.inject({
+    method: "GET",
+    url: "/api/v1/admin/programs/program%201/applications",
+    headers: { authorization: "Bearer admin_token" }
+  });
+  assert.equal(adminApps.statusCode, 200);
+  assert.equal(
+    urls[1],
+    "http://programs-svc/internal/admin/programs/program%201/applications"
+  );
+  assert.equal(headers[1]?.["x-admin-user-id"], "admin_01");
+});

@@ -128,3 +128,76 @@ test("partner routes require admin and proxy organizer workflows", async (t) => 
   assert.equal(urls[8], "http://partner-svc/internal/partners/integrations/filmfreeway/sync");
   assert.equal(headers[8]?.["x-admin-user-id"], "admin_01");
 });
+
+test("partner routes support bearer-based admin resolution and encoded ids", async (t) => {
+  const urls: string[] = [];
+  const headers: Record<string, string>[] = [];
+  const server = buildServer({
+    logger: false,
+    competitionAdminAllowlist: ["admin_01"],
+    identityServiceBase: "http://identity-svc",
+    partnerDashboardServiceBase: "http://partner-svc",
+    requestFn: (async (url, options) => {
+      const urlStr = String(url);
+      if (urlStr.includes("/internal/auth/me")) {
+        return jsonResponse({
+          user: { id: "admin_01" },
+          expiresAt: "2026-12-31T00:00:00.000Z"
+        });
+      }
+      urls.push(urlStr);
+      headers.push((options?.headers as Record<string, string> | undefined) ?? {});
+      return jsonResponse({ ok: true }, 200);
+    }) as typeof request
+  });
+  t.after(async () => {
+    await server.close();
+  });
+
+  const submissions = await server.inject({
+    method: "GET",
+    url: "/api/v1/partners/competitions/competition%201/submissions",
+    headers: { authorization: "Bearer admin_token" }
+  });
+  assert.equal(submissions.statusCode, 200);
+
+  assert.equal(
+    urls[0],
+    "http://partner-svc/internal/partners/competitions/competition%201/submissions"
+  );
+  assert.equal(headers[0]?.["x-admin-user-id"], "admin_01");
+});
+
+test("partner routes return forbidden when bearer auth resolves to non-admin user", async (t) => {
+  const urls: string[] = [];
+  const server = buildServer({
+    logger: false,
+    competitionAdminAllowlist: ["admin_01"],
+    identityServiceBase: "http://identity-svc",
+    partnerDashboardServiceBase: "http://partner-svc",
+    requestFn: (async (url) => {
+      const urlStr = String(url);
+      urls.push(urlStr);
+      if (urlStr.includes("/internal/auth/me")) {
+        return jsonResponse({
+          user: { id: "writer_01" },
+          expiresAt: "2026-12-31T00:00:00.000Z"
+        });
+      }
+      return jsonResponse({ ok: true }, 200);
+    }) as typeof request
+  });
+  t.after(async () => {
+    await server.close();
+  });
+
+  const response = await server.inject({
+    method: "POST",
+    url: "/api/v1/partners/integrations/filmfreeway/sync",
+    headers: { authorization: "Bearer writer_token" },
+    payload: { competitionId: "competition_1", direction: "import" }
+  });
+  assert.equal(response.statusCode, 403);
+  assert.equal(urls.length, 1);
+  assert.equal(urls[0], "http://identity-svc/internal/auth/me");
+});

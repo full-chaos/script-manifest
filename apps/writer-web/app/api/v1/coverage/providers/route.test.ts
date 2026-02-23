@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
+import { NextResponse } from "next/server";
 
 vi.mock("../../_proxy", () => ({
   proxyRequest: vi.fn(async () =>
-    new Response(JSON.stringify({ providers: [] }), { status: 200 })
+    NextResponse.json({ providers: [] }, { status: 200 })
   )
 }));
 
@@ -39,7 +40,7 @@ describe("coverage providers route", () => {
 
     it("returns upstream error status on failure", async () => {
       vi.mocked(proxyRequest).mockResolvedValueOnce(
-        new Response(JSON.stringify({ error: "api_gateway_unavailable" }), { status: 502 })
+        NextResponse.json({ error: "api_gateway_unavailable" }, { status: 502 })
       );
 
       const request = new Request("http://localhost/api/v1/coverage/providers", {
@@ -55,7 +56,7 @@ describe("coverage providers route", () => {
   describe("POST", () => {
     it("proxies POST to gateway coverage providers endpoint", async () => {
       vi.mocked(proxyRequest).mockResolvedValueOnce(
-        new Response(JSON.stringify({ providerId: "prov_1" }), { status: 201 })
+        NextResponse.json({ providerId: "prov_1" }, { status: 201 })
       );
 
       const request = new Request("http://localhost/api/v1/coverage/providers", {
@@ -75,7 +76,7 @@ describe("coverage providers route", () => {
 
     it("returns 409 when provider already exists", async () => {
       vi.mocked(proxyRequest).mockResolvedValueOnce(
-        new Response(JSON.stringify({ error: "provider_already_exists" }), { status: 409 })
+        NextResponse.json({ error: "provider_already_exists" }, { status: 409 })
       );
 
       const request = new Request("http://localhost/api/v1/coverage/providers", {

@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
+import { NextResponse } from "next/server";
 
 vi.mock("../../_proxy", () => ({
   proxyRequest: vi.fn(async () =>
-    new Response(JSON.stringify({ listings: [] }), { status: 200 })
+    NextResponse.json({ listings: [] }, { status: 200 })
   )
 }));
 
@@ -39,7 +40,7 @@ describe("feedback listings route", () => {
 
     it("returns 401 when not authenticated", async () => {
       vi.mocked(proxyRequest).mockResolvedValueOnce(
-        new Response(JSON.stringify({ error: "unauthorized" }), { status: 401 })
+        NextResponse.json({ error: "unauthorized" }, { status: 401 })
       );
 
       const request = new Request("http://localhost/api/v1/feedback/listings", {
@@ -53,7 +54,7 @@ describe("feedback listings route", () => {
 
     it("returns 502 when gateway is unavailable", async () => {
       vi.mocked(proxyRequest).mockResolvedValueOnce(
-        new Response(JSON.stringify({ error: "api_gateway_unavailable" }), { status: 502 })
+        NextResponse.json({ error: "api_gateway_unavailable" }, { status: 502 })
       );
 
       const request = new Request("http://localhost/api/v1/feedback/listings", {
@@ -70,7 +71,7 @@ describe("feedback listings route", () => {
   describe("POST", () => {
     it("proxies POST to gateway feedback listings endpoint", async () => {
       vi.mocked(proxyRequest).mockResolvedValueOnce(
-        new Response(JSON.stringify({ listingId: "listing_1" }), { status: 201 })
+        NextResponse.json({ listingId: "listing_1" }, { status: 201 })
       );
 
       const request = new Request("http://localhost/api/v1/feedback/listings", {
@@ -94,7 +95,7 @@ describe("feedback listings route", () => {
 
     it("returns 422 when listing data is invalid", async () => {
       vi.mocked(proxyRequest).mockResolvedValueOnce(
-        new Response(JSON.stringify({ error: "validation_failed" }), { status: 422 })
+        NextResponse.json({ error: "validation_failed" }, { status: 422 })
       );
 
       const request = new Request("http://localhost/api/v1/feedback/listings", {

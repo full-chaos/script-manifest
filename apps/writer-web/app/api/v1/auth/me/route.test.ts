@@ -1,9 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
+import { NextResponse } from "next/server";
 
 vi.mock("../../_proxy", () => ({
   proxyRequest: vi.fn(async () =>
-    new Response(
-      JSON.stringify({ userId: "user_1", email: "writer@example.com" }),
+    NextResponse.json(
+      { userId: "user_1", email: "writer@example.com" },
       { status: 200 }
     )
   )
@@ -38,7 +39,7 @@ describe("auth me route", () => {
 
   it("returns 401 when token is invalid", async () => {
     vi.mocked(proxyRequest).mockResolvedValueOnce(
-      new Response(JSON.stringify({ error: "unauthorized" }), { status: 401 })
+      NextResponse.json({ error: "unauthorized" }, { status: 401 })
     );
 
     const request = new Request("http://localhost/api/v1/auth/me", {
@@ -53,7 +54,7 @@ describe("auth me route", () => {
 
   it("returns 502 when gateway is unavailable", async () => {
     vi.mocked(proxyRequest).mockResolvedValueOnce(
-      new Response(JSON.stringify({ error: "api_gateway_unavailable" }), { status: 502 })
+      NextResponse.json({ error: "api_gateway_unavailable" }, { status: 502 })
     );
 
     const request = new Request("http://localhost/api/v1/auth/me", {

@@ -1,9 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
+import { NextResponse } from "next/server";
 
 vi.mock("../../_proxy", () => ({
   proxyRequest: vi.fn(async () =>
-    new Response(
-      JSON.stringify({ userId: "user_1", displayName: "Jane Writer" }),
+    NextResponse.json(
+      { userId: "user_1", displayName: "Jane Writer" },
       { status: 200 }
     )
   )
@@ -43,7 +44,7 @@ describe("profiles [writerId] route", () => {
 
     it("returns 404 when writer is not found", async () => {
       vi.mocked(proxyRequest).mockResolvedValueOnce(
-        new Response(JSON.stringify({ error: "profile_not_found" }), { status: 404 })
+        NextResponse.json({ error: "profile_not_found" }, { status: 404 })
       );
 
       const request = new Request("http://localhost/api/v1/profiles/unknown_user", {
@@ -58,7 +59,7 @@ describe("profiles [writerId] route", () => {
 
     it("returns 502 when gateway is unavailable", async () => {
       vi.mocked(proxyRequest).mockResolvedValueOnce(
-        new Response(JSON.stringify({ error: "api_gateway_unavailable" }), { status: 502 })
+        NextResponse.json({ error: "api_gateway_unavailable" }, { status: 502 })
       );
 
       const request = new Request("http://localhost/api/v1/profiles/user_1", {
@@ -75,8 +76,8 @@ describe("profiles [writerId] route", () => {
   describe("PUT", () => {
     it("proxies PUT to the gateway profile endpoint with writerId", async () => {
       vi.mocked(proxyRequest).mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({ userId: "user_1", displayName: "Jane Updated" }),
+        NextResponse.json(
+          { userId: "user_1", displayName: "Jane Updated" },
           { status: 200 }
         )
       );
@@ -99,7 +100,7 @@ describe("profiles [writerId] route", () => {
 
     it("returns 403 when updating another user's profile", async () => {
       vi.mocked(proxyRequest).mockResolvedValueOnce(
-        new Response(JSON.stringify({ error: "forbidden" }), { status: 403 })
+        NextResponse.json({ error: "forbidden" }, { status: 403 })
       );
 
       const request = new Request("http://localhost/api/v1/profiles/other_user", {

@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
+import { NextResponse } from "next/server";
 
 vi.mock("../../_proxy", () => ({
   proxyRequest: vi.fn(async () =>
-    new Response(JSON.stringify({ token: "sess_abc123" }), { status: 200 })
+    NextResponse.json({ token: "sess_abc123" }, { status: 200 })
   )
 }));
 
@@ -25,7 +26,7 @@ describe("auth login route", () => {
 
   it("returns session token on success", async () => {
     vi.mocked(proxyRequest).mockResolvedValueOnce(
-      new Response(JSON.stringify({ token: "sess_new_token" }), { status: 200 })
+      NextResponse.json({ token: "sess_new_token" }, { status: 200 })
     );
 
     const request = new Request("http://localhost/api/v1/auth/login", {
@@ -41,7 +42,7 @@ describe("auth login route", () => {
 
   it("returns 401 when credentials are invalid", async () => {
     vi.mocked(proxyRequest).mockResolvedValueOnce(
-      new Response(JSON.stringify({ error: "invalid_credentials" }), { status: 401 })
+      NextResponse.json({ error: "invalid_credentials" }, { status: 401 })
     );
 
     const request = new Request("http://localhost/api/v1/auth/login", {
@@ -57,7 +58,7 @@ describe("auth login route", () => {
 
   it("returns 502 when gateway is unavailable", async () => {
     vi.mocked(proxyRequest).mockResolvedValueOnce(
-      new Response(JSON.stringify({ error: "api_gateway_unavailable" }), { status: 502 })
+      NextResponse.json({ error: "api_gateway_unavailable" }, { status: 502 })
     );
 
     const request = new Request("http://localhost/api/v1/auth/login", {

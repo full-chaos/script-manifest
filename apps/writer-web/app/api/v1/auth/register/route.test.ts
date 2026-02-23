@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
+import { NextResponse } from "next/server";
 
 vi.mock("../../_proxy", () => ({
-  proxyRequest: vi.fn(async () => new Response(JSON.stringify({ userId: "user_1" }), { status: 201 }))
+  proxyRequest: vi.fn(async () => NextResponse.json({ userId: "user_1" }, { status: 201 }))
 }));
 
 import { POST } from "./route";
@@ -23,7 +24,7 @@ describe("auth register route", () => {
 
   it("forwards auth header when present", async () => {
     vi.mocked(proxyRequest).mockResolvedValueOnce(
-      new Response(JSON.stringify({ userId: "user_2" }), { status: 201 })
+      NextResponse.json({ userId: "user_2" }, { status: 201 })
     );
 
     const request = new Request("http://localhost/api/v1/auth/register", {
@@ -43,7 +44,7 @@ describe("auth register route", () => {
 
   it("returns upstream error status on failure", async () => {
     vi.mocked(proxyRequest).mockResolvedValueOnce(
-      new Response(JSON.stringify({ error: "email_taken" }), { status: 409 })
+      NextResponse.json({ error: "email_taken" }, { status: 409 })
     );
 
     const request = new Request("http://localhost/api/v1/auth/register", {

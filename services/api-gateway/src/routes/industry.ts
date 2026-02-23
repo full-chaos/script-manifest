@@ -289,4 +289,265 @@ export function registerIndustryRoutes(server: FastifyInstance, ctx: GatewayCont
       );
     }
   });
+
+  server.get("/api/v1/industry/mandates/:mandateId/submissions", {
+    config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
+      const { mandateId } = req.params as { mandateId: string };
+      const adminUserId = await resolveAdminUserId(
+        ctx.requestFn,
+        ctx.identityServiceBase,
+        req.headers as Record<string, unknown>,
+        ctx.industryAdminAllowlist
+      );
+      if (!adminUserId) {
+        return reply.status(403).send({ error: "forbidden" });
+      }
+
+      return proxyJsonRequest(
+        reply,
+        ctx.requestFn,
+        `${ctx.industryPortalBase}/internal/mandates/${encodeURIComponent(mandateId)}/submissions`,
+        {
+          method: "GET",
+          headers: { "x-admin-user-id": adminUserId }
+        }
+      );
+    }
+  });
+
+  server.post("/api/v1/industry/mandates/:mandateId/submissions/:submissionId/review", {
+    config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
+      const { mandateId, submissionId } = req.params as { mandateId: string; submissionId: string };
+      const adminUserId = await resolveAdminUserId(
+        ctx.requestFn,
+        ctx.identityServiceBase,
+        req.headers as Record<string, unknown>,
+        ctx.industryAdminAllowlist
+      );
+      if (!adminUserId) {
+        return reply.status(403).send({ error: "forbidden" });
+      }
+      return proxyJsonRequest(
+        reply,
+        ctx.requestFn,
+        `${ctx.industryPortalBase}/internal/mandates/${encodeURIComponent(mandateId)}/submissions/${encodeURIComponent(submissionId)}/review`,
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "x-admin-user-id": adminUserId
+          },
+          body: JSON.stringify(req.body ?? {})
+        }
+      );
+    }
+  });
+
+  server.post("/api/v1/industry/talent-index/rebuild", {
+    config: { rateLimit: { max: 5, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
+      const adminUserId = await resolveAdminUserId(
+        ctx.requestFn,
+        ctx.identityServiceBase,
+        req.headers as Record<string, unknown>,
+        ctx.industryAdminAllowlist
+      );
+      if (!adminUserId) {
+        return reply.status(403).send({ error: "forbidden" });
+      }
+      return proxyJsonRequest(
+        reply,
+        ctx.requestFn,
+        `${ctx.industryPortalBase}/internal/talent-index/rebuild`,
+        {
+          method: "POST",
+          headers: { "x-admin-user-id": adminUserId }
+        }
+      );
+    }
+  });
+
+  server.post("/api/v1/industry/lists/:listId/share-team", {
+    config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
+      const { listId } = req.params as { listId: string };
+      const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
+      if (!userId) {
+        return reply.status(401).send({ error: "unauthorized", detail: "Could not resolve user from auth token" });
+      }
+      return proxyJsonRequest(
+        reply,
+        ctx.requestFn,
+        `${ctx.industryPortalBase}/internal/lists/${encodeURIComponent(listId)}/share-team`,
+        {
+          method: "POST",
+          headers: addAuthUserIdHeader({ "content-type": "application/json" }, userId),
+          body: JSON.stringify(req.body ?? {})
+        }
+      );
+    }
+  });
+
+  server.get("/api/v1/industry/teams", {
+    config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
+      const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
+      if (!userId) {
+        return reply.status(401).send({ error: "unauthorized", detail: "Could not resolve user from auth token" });
+      }
+      return proxyJsonRequest(
+        reply,
+        ctx.requestFn,
+        `${ctx.industryPortalBase}/internal/teams`,
+        {
+          method: "GET",
+          headers: addAuthUserIdHeader({}, userId)
+        }
+      );
+    }
+  });
+
+  server.post("/api/v1/industry/teams", {
+    config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
+      const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
+      if (!userId) {
+        return reply.status(401).send({ error: "unauthorized", detail: "Could not resolve user from auth token" });
+      }
+      return proxyJsonRequest(
+        reply,
+        ctx.requestFn,
+        `${ctx.industryPortalBase}/internal/teams`,
+        {
+          method: "POST",
+          headers: addAuthUserIdHeader({ "content-type": "application/json" }, userId),
+          body: JSON.stringify(req.body ?? {})
+        }
+      );
+    }
+  });
+
+  server.put("/api/v1/industry/teams/:teamId/members", {
+    config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
+      const { teamId } = req.params as { teamId: string };
+      const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
+      if (!userId) {
+        return reply.status(401).send({ error: "unauthorized", detail: "Could not resolve user from auth token" });
+      }
+      return proxyJsonRequest(
+        reply,
+        ctx.requestFn,
+        `${ctx.industryPortalBase}/internal/teams/${encodeURIComponent(teamId)}/members`,
+        {
+          method: "PUT",
+          headers: addAuthUserIdHeader({ "content-type": "application/json" }, userId),
+          body: JSON.stringify(req.body ?? {})
+        }
+      );
+    }
+  });
+
+  server.get("/api/v1/industry/activity", {
+    config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
+      const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
+      if (!userId) {
+        return reply.status(401).send({ error: "unauthorized", detail: "Could not resolve user from auth token" });
+      }
+      const querySuffix = buildQuerySuffix(req.query);
+      return proxyJsonRequest(
+        reply,
+        ctx.requestFn,
+        `${ctx.industryPortalBase}/internal/activity${querySuffix}`,
+        {
+          method: "GET",
+          headers: addAuthUserIdHeader({}, userId)
+        }
+      );
+    }
+  });
+
+  server.post("/api/v1/industry/digests/weekly/run", {
+    config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
+      const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
+      if (!userId) {
+        return reply.status(401).send({ error: "unauthorized", detail: "Could not resolve user from auth token" });
+      }
+      return proxyJsonRequest(
+        reply,
+        ctx.requestFn,
+        `${ctx.industryPortalBase}/internal/digests/weekly/run`,
+        {
+          method: "POST",
+          headers: addAuthUserIdHeader({ "content-type": "application/json" }, userId),
+          body: JSON.stringify(req.body ?? {})
+        }
+      );
+    }
+  });
+
+  server.get("/api/v1/industry/digests/weekly/runs", {
+    config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
+      const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
+      if (!userId) {
+        return reply.status(401).send({ error: "unauthorized", detail: "Could not resolve user from auth token" });
+      }
+      const querySuffix = buildQuerySuffix(req.query);
+      return proxyJsonRequest(
+        reply,
+        ctx.requestFn,
+        `${ctx.industryPortalBase}/internal/digests/weekly/runs${querySuffix}`,
+        {
+          method: "GET",
+          headers: addAuthUserIdHeader({}, userId)
+        }
+      );
+    }
+  });
+
+  server.get("/api/v1/industry/analytics", {
+    config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
+      const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
+      if (!userId) {
+        return reply.status(401).send({ error: "unauthorized", detail: "Could not resolve user from auth token" });
+      }
+      const querySuffix = buildQuerySuffix(req.query);
+      return proxyJsonRequest(
+        reply,
+        ctx.requestFn,
+        `${ctx.industryPortalBase}/internal/analytics${querySuffix}`,
+        {
+          method: "GET",
+          headers: addAuthUserIdHeader({}, userId)
+        }
+      );
+    }
+  });
+
+  server.post("/api/v1/industry/scripts/:scriptId/download", {
+    config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
+      const { scriptId } = req.params as { scriptId: string };
+      const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
+      if (!userId) {
+        return reply.status(401).send({ error: "unauthorized", detail: "Could not resolve user from auth token" });
+      }
+      return proxyJsonRequest(
+        reply,
+        ctx.requestFn,
+        `${ctx.industryPortalBase}/internal/scripts/${encodeURIComponent(scriptId)}/download`,
+        {
+          method: "POST",
+          headers: addAuthUserIdHeader({ "content-type": "application/json" }, userId),
+          body: JSON.stringify(req.body ?? {})
+        }
+      );
+    }
+  });
 }

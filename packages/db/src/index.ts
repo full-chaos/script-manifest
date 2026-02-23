@@ -460,6 +460,135 @@ export async function ensureIndustryPortalTables(): Promise<void> {
   `);
 
   await db.query(`
+    CREATE TABLE IF NOT EXISTS industry_teams (
+      id TEXT PRIMARY KEY,
+      industry_account_id TEXT NOT NULL REFERENCES industry_accounts(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      created_by_user_id TEXT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+
+  await db.query(`
+    CREATE INDEX IF NOT EXISTS idx_industry_teams_account
+      ON industry_teams(industry_account_id, updated_at DESC);
+  `);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS industry_team_members (
+      team_id TEXT NOT NULL REFERENCES industry_teams(id) ON DELETE CASCADE,
+      user_id TEXT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+      role TEXT NOT NULL DEFAULT 'viewer'
+        CHECK (role IN ('owner', 'editor', 'viewer')),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      PRIMARY KEY (team_id, user_id)
+    );
+  `);
+
+  await db.query(`
+    CREATE INDEX IF NOT EXISTS idx_industry_team_members_user
+      ON industry_team_members(user_id, team_id);
+  `);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS industry_list_permissions (
+      list_id TEXT NOT NULL REFERENCES industry_lists(id) ON DELETE CASCADE,
+      team_id TEXT NOT NULL REFERENCES industry_teams(id) ON DELETE CASCADE,
+      permission TEXT NOT NULL DEFAULT 'view'
+        CHECK (permission IN ('view', 'edit')),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      PRIMARY KEY (list_id, team_id)
+    );
+  `);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS industry_activity_log (
+      id TEXT PRIMARY KEY,
+      industry_account_id TEXT NOT NULL REFERENCES industry_accounts(id) ON DELETE CASCADE,
+      actor_user_id TEXT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+      entity_type TEXT NOT NULL,
+      entity_id TEXT NOT NULL,
+      action TEXT NOT NULL,
+      metadata_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+
+  await db.query(`
+    CREATE INDEX IF NOT EXISTS idx_industry_activity_log_account
+      ON industry_activity_log(industry_account_id, created_at DESC);
+  `);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS industry_digest_runs (
+      id TEXT PRIMARY KEY,
+      industry_account_id TEXT NOT NULL REFERENCES industry_accounts(id) ON DELETE CASCADE,
+      generated_by_user_id TEXT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+      window_start TIMESTAMPTZ NOT NULL,
+      window_end TIMESTAMPTZ NOT NULL,
+      candidate_count INTEGER NOT NULL DEFAULT 0,
+      recommendations_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+      override_writer_ids TEXT[] NOT NULL DEFAULT '{}',
+      notes TEXT NOT NULL DEFAULT '',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+
+  await db.query(`
+    CREATE INDEX IF NOT EXISTS idx_industry_digest_runs_account
+      ON industry_digest_runs(industry_account_id, created_at DESC);
+  `);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS industry_talent_index (
+      writer_id TEXT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+      project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      display_name TEXT NOT NULL,
+      representation_status TEXT NOT NULL,
+      genres TEXT[] NOT NULL DEFAULT '{}',
+      demographics TEXT[] NOT NULL DEFAULT '{}',
+      project_title TEXT NOT NULL,
+      project_format TEXT NOT NULL,
+      project_genre TEXT NOT NULL,
+      logline TEXT NOT NULL DEFAULT '',
+      synopsis TEXT NOT NULL DEFAULT '',
+      project_updated_at TIMESTAMPTZ NOT NULL,
+      search_text TSVECTOR GENERATED ALWAYS AS (
+        to_tsvector(
+          'english',
+          COALESCE(display_name, '') || ' ' ||
+          COALESCE(project_title, '') || ' ' ||
+          COALESCE(logline, '') || ' ' ||
+          COALESCE(synopsis, '')
+        )
+      ) STORED,
+      PRIMARY KEY (writer_id, project_id)
+    );
+  `);
+
+  await db.query(`
+    CREATE INDEX IF NOT EXISTS idx_industry_talent_index_search
+      ON industry_talent_index USING GIN(search_text);
+  `);
+
+  await db.query(`
+    CREATE INDEX IF NOT EXISTS idx_industry_talent_index_format
+      ON industry_talent_index(project_format);
+  `);
+
+  await db.query(`
+    CREATE INDEX IF NOT EXISTS idx_industry_talent_index_genre
+      ON industry_talent_index(project_genre);
+  `);
+
+  await db.query(`
+    CREATE INDEX IF NOT EXISTS idx_industry_talent_index_updated
+      ON industry_talent_index(project_updated_at DESC);
+  `);
+
+  await db.query(`
     CREATE TABLE IF NOT EXISTS mandates (
       id TEXT PRIMARY KEY,
       type TEXT NOT NULL DEFAULT 'mandate'
@@ -501,6 +630,14 @@ export async function ensureIndustryPortalTables(): Promise<void> {
   await db.query(`
     CREATE INDEX IF NOT EXISTS idx_mandate_submissions_mandate
       ON mandate_submissions(mandate_id, created_at DESC);
+  `);
+
+  await db.query(`
+    ALTER TABLE mandate_submissions
+      ADD COLUMN IF NOT EXISTS editorial_notes TEXT NOT NULL DEFAULT '',
+      ADD COLUMN IF NOT EXISTS reviewed_by_user_id TEXT NULL REFERENCES app_users(id) ON DELETE SET NULL,
+      ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMPTZ NULL,
+      ADD COLUMN IF NOT EXISTS forwarded_to TEXT NOT NULL DEFAULT '';
   `);
 }
 

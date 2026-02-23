@@ -253,3 +253,135 @@ test("industry mandate create route requires allowlisted admin", async (t) => {
   assert.equal(urls[0], "http://industry-svc/internal/mandates");
   assert.equal(headers[0]?.["x-admin-user-id"], "admin_writer");
 });
+
+test("industry collaboration and digest routes proxy authenticated user headers", async (t) => {
+  const urls: string[] = [];
+  const headers: Record<string, string>[] = [];
+  const server = buildServer({
+    logger: false,
+    requestFn: (async (url, options) => {
+      const urlStr = String(url);
+      if (urlStr.includes("/internal/auth/me")) {
+        return jsonResponse({
+          user: { id: "industry_01", email: "exec@example.com", displayName: "Industry User" },
+          expiresAt: "2026-12-31T00:00:00.000Z"
+        });
+      }
+      urls.push(urlStr);
+      headers.push((options?.headers as Record<string, string> | undefined) ?? {});
+      return jsonResponse({ ok: true }, 200);
+    }) as typeof request,
+    identityServiceBase: "http://identity-svc",
+    industryPortalBase: "http://industry-svc"
+  });
+  t.after(async () => {
+    await server.close();
+  });
+
+  const share = await server.inject({
+    method: "POST",
+    url: "/api/v1/industry/lists/list_1/share-team",
+    headers: { authorization: "Bearer sess_1" },
+    payload: { teamId: "team_1", permission: "edit" }
+  });
+  assert.equal(share.statusCode, 200);
+
+  const digest = await server.inject({
+    method: "POST",
+    url: "/api/v1/industry/digests/weekly/run",
+    headers: { authorization: "Bearer sess_1" },
+    payload: { limit: 5, overrideWriterIds: [] }
+  });
+  assert.equal(digest.statusCode, 200);
+
+  const analytics = await server.inject({
+    method: "GET",
+    url: "/api/v1/industry/analytics?windowDays=30",
+    headers: { authorization: "Bearer sess_1" }
+  });
+  assert.equal(analytics.statusCode, 200);
+
+  assert.equal(urls[0], "http://industry-svc/internal/lists/list_1/share-team");
+  assert.equal(headers[0]?.["x-auth-user-id"], "industry_01");
+  assert.equal(urls[1], "http://industry-svc/internal/digests/weekly/run");
+  assert.equal(headers[1]?.["x-auth-user-id"], "industry_01");
+  assert.equal(urls[2], "http://industry-svc/internal/analytics?windowDays=30");
+});
+
+test("industry mandate review and index rebuild routes require admin", async (t) => {
+  const urls: string[] = [];
+  const headers: Record<string, string>[] = [];
+  const server = buildServer({
+    logger: false,
+    industryAdminAllowlist: ["admin_writer"],
+    requestFn: (async (url, options) => {
+      urls.push(String(url));
+      headers.push((options?.headers as Record<string, string> | undefined) ?? {});
+      return jsonResponse({ ok: true }, 200);
+    }) as typeof request,
+    industryPortalBase: "http://industry-svc"
+  });
+  t.after(async () => {
+    await server.close();
+  });
+
+  const forbidden = await server.inject({
+    method: "POST",
+    url: "/api/v1/industry/mandates/mandate_1/submissions/submission_1/review",
+    payload: { status: "forwarded", editorialNotes: "ok", forwardedTo: "exec@studio.com" }
+  });
+  assert.equal(forbidden.statusCode, 403);
+
+  const reviewed = await server.inject({
+    method: "POST",
+    url: "/api/v1/industry/mandates/mandate_1/submissions/submission_1/review",
+    headers: { "x-admin-user-id": "admin_writer" },
+    payload: { status: "forwarded", editorialNotes: "ok", forwardedTo: "exec@studio.com" }
+  });
+  assert.equal(reviewed.statusCode, 200);
+
+  const rebuild = await server.inject({
+    method: "POST",
+    url: "/api/v1/industry/talent-index/rebuild",
+    headers: { "x-admin-user-id": "admin_writer" }
+  });
+  assert.equal(rebuild.statusCode, 200);
+  assert.equal(urls[0], "http://industry-svc/internal/mandates/mandate_1/submissions/submission_1/review");
+  assert.equal(headers[0]?.["x-admin-user-id"], "admin_writer");
+  assert.equal(urls[1], "http://industry-svc/internal/talent-index/rebuild");
+});
+
+test("industry script download route proxies authenticated context", async (t) => {
+  const urls: string[] = [];
+  const headers: Record<string, string>[] = [];
+  const server = buildServer({
+    logger: false,
+    requestFn: (async (url, options) => {
+      const urlStr = String(url);
+      if (urlStr.includes("/internal/auth/me")) {
+        return jsonResponse({
+          user: { id: "industry_01", email: "exec@example.com", displayName: "Industry User" },
+          expiresAt: "2026-12-31T00:00:00.000Z"
+        });
+      }
+      urls.push(urlStr);
+      headers.push((options?.headers as Record<string, string> | undefined) ?? {});
+      return jsonResponse({ scriptId: "script_01" }, 200);
+    }) as typeof request,
+    identityServiceBase: "http://identity-svc",
+    industryPortalBase: "http://industry-svc"
+  });
+  t.after(async () => {
+    await server.close();
+  });
+
+  const response = await server.inject({
+    method: "POST",
+    url: "/api/v1/industry/scripts/script_01/download",
+    headers: { authorization: "Bearer sess_1" }
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(urls[0], "http://industry-svc/internal/scripts/script_01/download");
+  assert.equal(headers[0]?.["x-auth-user-id"], "industry_01");
+});

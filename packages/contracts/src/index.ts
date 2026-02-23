@@ -520,9 +520,12 @@ export const IndustryTalentSearchFiltersSchema = z.object({
   q: z.string().trim().max(200).optional(),
   genre: z.string().trim().min(1).max(120).optional(),
   format: z.string().trim().min(1).max(120).optional(),
+  demographics: z.array(z.string().trim().min(1).max(120)).max(10).optional(),
+  genres: z.array(z.string().trim().min(1).max(120)).max(10).optional(),
   representationStatus: z
     .enum(["represented", "unrepresented", "seeking_rep"])
     .optional(),
+  sort: z.enum(["recent", "relevance"]).default("recent").optional(),
   limit: z.number().int().positive().max(100).default(20).optional(),
   offset: z.number().int().nonnegative().default(0).optional()
 });
@@ -678,6 +681,10 @@ export const IndustryMandateSubmissionSchema = z.object({
   projectId: z.string().min(1),
   fitExplanation: z.string().default(""),
   status: IndustryMandateSubmissionStatusSchema,
+  editorialNotes: z.string().default(""),
+  reviewedByUserId: z.string().nullable(),
+  reviewedAt: z.string().datetime({ offset: true }).nullable(),
+  forwardedTo: z.string().default(""),
   createdAt: z.string().datetime({ offset: true }),
   updatedAt: z.string().datetime({ offset: true })
 });
@@ -692,6 +699,119 @@ export const IndustryMandateSubmissionCreateRequestSchema = z.object({
 export type IndustryMandateSubmissionCreateRequest = z.infer<
   typeof IndustryMandateSubmissionCreateRequestSchema
 >;
+
+export const IndustryMandateSubmissionReviewRequestSchema = z.object({
+  status: z.enum(["under_review", "forwarded", "rejected"]),
+  editorialNotes: z.string().max(5000).default(""),
+  forwardedTo: z.string().max(240).default("")
+});
+
+export type IndustryMandateSubmissionReviewRequest = z.infer<
+  typeof IndustryMandateSubmissionReviewRequestSchema
+>;
+
+export const IndustryTeamRoleSchema = z.enum(["owner", "editor", "viewer"]);
+
+export type IndustryTeamRole = z.infer<typeof IndustryTeamRoleSchema>;
+
+export const IndustryTeamSchema = z.object({
+  id: z.string().min(1),
+  industryAccountId: z.string().min(1),
+  name: z.string().min(1),
+  createdByUserId: z.string().min(1),
+  createdAt: z.string().datetime({ offset: true }),
+  updatedAt: z.string().datetime({ offset: true })
+});
+
+export type IndustryTeam = z.infer<typeof IndustryTeamSchema>;
+
+export const IndustryTeamMemberSchema = z.object({
+  teamId: z.string().min(1),
+  userId: z.string().min(1),
+  role: IndustryTeamRoleSchema,
+  createdAt: z.string().datetime({ offset: true })
+});
+
+export type IndustryTeamMember = z.infer<typeof IndustryTeamMemberSchema>;
+
+export const IndustryTeamCreateRequestSchema = z.object({
+  name: z.string().min(1).max(180)
+});
+
+export type IndustryTeamCreateRequest = z.infer<typeof IndustryTeamCreateRequestSchema>;
+
+export const IndustryTeamMemberUpsertRequestSchema = z.object({
+  userId: z.string().min(1),
+  role: IndustryTeamRoleSchema
+});
+
+export type IndustryTeamMemberUpsertRequest = z.infer<
+  typeof IndustryTeamMemberUpsertRequestSchema
+>;
+
+export const IndustryListShareTeamRequestSchema = z.object({
+  teamId: z.string().min(1),
+  permission: z.enum(["view", "edit"]).default("view")
+});
+
+export type IndustryListShareTeamRequest = z.infer<typeof IndustryListShareTeamRequestSchema>;
+
+export const IndustryActivitySchema = z.object({
+  id: z.string().min(1),
+  industryAccountId: z.string().min(1),
+  actorUserId: z.string().min(1),
+  entityType: z.string().min(1),
+  entityId: z.string().min(1),
+  action: z.string().min(1),
+  metadata: z.record(z.unknown()).default({}),
+  createdAt: z.string().datetime({ offset: true })
+});
+
+export type IndustryActivity = z.infer<typeof IndustryActivitySchema>;
+
+export const IndustryDigestRecommendationSchema = z.object({
+  writerId: z.string().min(1),
+  projectId: z.string().min(1),
+  reason: z.string().max(1000).default(""),
+  source: z.enum(["algorithm", "override"]).default("algorithm")
+});
+
+export type IndustryDigestRecommendation = z.infer<typeof IndustryDigestRecommendationSchema>;
+
+export const IndustryWeeklyDigestRunRequestSchema = z.object({
+  limit: z.number().int().positive().max(100).default(10),
+  overrideWriterIds: z.array(z.string().min(1)).max(50).default([]),
+  notes: z.string().max(5000).default("")
+});
+
+export type IndustryWeeklyDigestRunRequest = z.infer<typeof IndustryWeeklyDigestRunRequestSchema>;
+
+export const IndustryDigestRunSchema = z.object({
+  id: z.string().min(1),
+  industryAccountId: z.string().min(1),
+  generatedByUserId: z.string().min(1),
+  windowStart: z.string().datetime({ offset: true }),
+  windowEnd: z.string().datetime({ offset: true }),
+  candidateCount: z.number().int().nonnegative(),
+  recommendations: z.array(IndustryDigestRecommendationSchema),
+  overrideWriterIds: z.array(z.string()),
+  notes: z.string().default(""),
+  createdAt: z.string().datetime({ offset: true })
+});
+
+export type IndustryDigestRun = z.infer<typeof IndustryDigestRunSchema>;
+
+export const IndustryAnalyticsSummarySchema = z.object({
+  downloadsTotal: z.number().int().nonnegative(),
+  uniqueWritersDownloaded: z.number().int().nonnegative(),
+  listsTotal: z.number().int().nonnegative(),
+  notesTotal: z.number().int().nonnegative(),
+  mandatesOpen: z.number().int().nonnegative(),
+  submissionsForwarded: z.number().int().nonnegative(),
+  digestsGenerated: z.number().int().nonnegative()
+});
+
+export type IndustryAnalyticsSummary = z.infer<typeof IndustryAnalyticsSummarySchema>;
 
 export const ProgramStatusSchema = z.enum(["draft", "open", "closed", "archived"]);
 
@@ -757,7 +877,6 @@ export const ProgramApplicationReviewRequestSchema = z.object({
 export type ProgramApplicationReviewRequest = z.infer<
   typeof ProgramApplicationReviewRequestSchema
 >;
-
 export const SubmissionStatusSchema = z.enum([
   "pending",
   "quarterfinalist",

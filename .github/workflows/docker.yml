@@ -37,6 +37,9 @@ jobs:
           - name: programs-service
             dockerfile: infra/docker/service.Dockerfile
             context: .
+          - name: partner-dashboard-service
+            dockerfile: infra/docker/service.Dockerfile
+            context: .
           - name: profile-project-service
             dockerfile: infra/docker/service.Dockerfile
             context: .

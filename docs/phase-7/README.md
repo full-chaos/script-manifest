@@ -1,7 +1,7 @@
 # Phase 7: Partner Dashboard for Competition Organizers
 
-Status: In Progress (feature `script-manifest-nzi`)
-External ref: `gh-127`
+Status: Completed (feature `script-manifest-nzi`)
+External ref: `CHAOS-372`
 
 ## Objective
 
@@ -103,12 +103,45 @@ Gateway namespace:
 3. Publication + integration + analytics (`script-manifest-nzi.3`)
 4. Operational readiness and partner onboarding playbook
 
-## Kickoff Slice (Current)
+## Final Implementation
 
-- Lock contracts for organizer account + competition configuration payloads.
-- Stand up `services/partner-dashboard-service` health + organizer workspace primitives.
-- Add initial gateway proxy routes for organizer competition CRUD.
-- Define publication event contracts for ranking/profile sync integration tests.
+Implemented on `codex/phase-7-partner-dashboard-complete`:
+
+- New deployable:
+  - `services/partner-dashboard-service`
+- New gateway routes:
+  - `services/api-gateway/src/routes/partners.ts`
+- Contracts extension:
+  - `packages/contracts/src/index.ts` (partner competition, submission, judging, evaluation, normalization, publication, draft swap, analytics, and sync schemas)
+- DB provisioning:
+  - `packages/db/src/index.ts` (`ensurePartnerTables`)
+- Runtime wiring:
+  - `compose.yml` (`partner-dashboard-service` and gateway env wiring)
+  - `.github/workflows/docker.yml` (partner image build)
+
+Internal service endpoints:
+
+- `POST /internal/partners/competitions`
+- `GET /internal/partners/competitions/:competitionId/submissions`
+- `POST /internal/partners/competitions/:competitionId/judges/assign`
+- `POST /internal/partners/competitions/:competitionId/evaluations`
+- `POST /internal/partners/competitions/:competitionId/normalize`
+- `POST /internal/partners/competitions/:competitionId/publish-results`
+- `POST /internal/partners/competitions/:competitionId/draft-swaps`
+- `GET /internal/partners/competitions/:competitionId/analytics`
+- `POST /internal/partners/integrations/filmfreeway/sync`
+
+Gateway endpoints:
+
+- `POST /api/v1/partners/competitions`
+- `GET /api/v1/partners/competitions/:competitionId/submissions`
+- `POST /api/v1/partners/competitions/:competitionId/judges/assign`
+- `POST /api/v1/partners/competitions/:competitionId/evaluations`
+- `POST /api/v1/partners/competitions/:competitionId/normalize`
+- `POST /api/v1/partners/competitions/:competitionId/publish-results`
+- `POST /api/v1/partners/competitions/:competitionId/draft-swaps`
+- `GET /api/v1/partners/competitions/:competitionId/analytics`
+- `POST /api/v1/partners/integrations/filmfreeway/sync`
 
 ## Exit Criteria
 
@@ -118,10 +151,10 @@ Gateway namespace:
 - FilmFreeway bridge supports import reconciliation without duplication.
 - Partner operations have clear support and incident runbooks.
 
-## Documentation Deliverables for Completion
+## Documentation Deliverables
 
-- Organizer onboarding and RBAC guide
-- Judge assignment and scoring operations manual
-- Result publication and rollback runbook
-- FilmFreeway integration and reconciliation guide
-- Draft swap and fee handling policy
+- Organizer onboarding and RBAC guide: `docs/phase-7/partner-dashboard-user-manual.md`
+- Judge assignment and scoring operations manual: included in judge/evaluation/normalization endpoint workflow
+- Result publication and rollback runbook: included in publish-results endpoint workflow
+- FilmFreeway integration and reconciliation guide: included in sync endpoint workflow
+- Draft swap and fee handling policy: included in draft-swaps endpoint workflow

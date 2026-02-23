@@ -1035,6 +1035,136 @@ export const ProgramAnalyticsSummarySchema = z.object({
 
 export type ProgramAnalyticsSummary = z.infer<typeof ProgramAnalyticsSummarySchema>;
 
+export const PartnerCompetitionStatusSchema = z.enum(["draft", "open", "closed", "published", "archived"]);
+
+export type PartnerCompetitionStatus = z.infer<typeof PartnerCompetitionStatusSchema>;
+
+export const PartnerCompetitionSchema = z.object({
+  id: z.string().min(1),
+  organizerAccountId: z.string().min(1),
+  slug: z.string().min(1),
+  title: z.string().min(1),
+  description: z.string().default(""),
+  format: z.string().min(1),
+  genre: z.string().min(1),
+  status: PartnerCompetitionStatusSchema,
+  submissionOpensAt: z.string().datetime({ offset: true }),
+  submissionClosesAt: z.string().datetime({ offset: true }),
+  createdByUserId: z.string().min(1),
+  createdAt: z.string().datetime({ offset: true }),
+  updatedAt: z.string().datetime({ offset: true })
+});
+
+export type PartnerCompetition = z.infer<typeof PartnerCompetitionSchema>;
+
+export const PartnerCompetitionCreateRequestSchema = z.object({
+  organizerAccountId: z.string().min(1),
+  slug: z.string().min(1).max(120),
+  title: z.string().min(1).max(240),
+  description: z.string().max(5000).default(""),
+  format: z.string().min(1).max(120),
+  genre: z.string().min(1).max(120),
+  status: PartnerCompetitionStatusSchema.default("draft"),
+  submissionOpensAt: z.string().datetime({ offset: true }),
+  submissionClosesAt: z.string().datetime({ offset: true })
+});
+
+export type PartnerCompetitionCreateRequest = z.infer<typeof PartnerCompetitionCreateRequestSchema>;
+
+export const PartnerSubmissionStatusSchema = z.enum([
+  "received",
+  "in_review",
+  "shortlisted",
+  "finalist",
+  "winner",
+  "published",
+  "withdrawn"
+]);
+
+export type PartnerSubmissionStatus = z.infer<typeof PartnerSubmissionStatusSchema>;
+
+export const PartnerSubmissionSchema = z.object({
+  id: z.string().min(1),
+  competitionId: z.string().min(1),
+  writerUserId: z.string().min(1),
+  projectId: z.string().min(1),
+  scriptId: z.string().min(1),
+  status: PartnerSubmissionStatusSchema,
+  entryFeeCents: z.number().int().nonnegative(),
+  notes: z.string().default(""),
+  createdAt: z.string().datetime({ offset: true }),
+  updatedAt: z.string().datetime({ offset: true })
+});
+
+export type PartnerSubmission = z.infer<typeof PartnerSubmissionSchema>;
+
+export const PartnerJudgeAssignmentRequestSchema = z.object({
+  judgeUserId: z.string().min(1),
+  submissionIds: z.array(z.string().min(1)).min(1).max(500)
+});
+
+export type PartnerJudgeAssignmentRequest = z.infer<typeof PartnerJudgeAssignmentRequestSchema>;
+
+export const PartnerEvaluationRequestSchema = z.object({
+  submissionId: z.string().min(1),
+  judgeUserId: z.string().min(1),
+  round: z.string().min(1).max(120).default("default"),
+  score: z.number().min(0).max(100),
+  notes: z.string().max(5000).default("")
+});
+
+export type PartnerEvaluationRequest = z.infer<typeof PartnerEvaluationRequestSchema>;
+
+export const PartnerNormalizeRequestSchema = z.object({
+  round: z.string().min(1).max(120).default("default")
+});
+
+export type PartnerNormalizeRequest = z.infer<typeof PartnerNormalizeRequestSchema>;
+
+export const PartnerPublishedResultItemSchema = z.object({
+  submissionId: z.string().min(1),
+  placementStatus: z.enum(["quarterfinalist", "semifinalist", "finalist", "winner"])
+});
+
+export type PartnerPublishedResultItem = z.infer<typeof PartnerPublishedResultItemSchema>;
+
+export const PartnerPublishResultsRequestSchema = z.object({
+  results: z.array(PartnerPublishedResultItemSchema).min(1).max(2000),
+  notes: z.string().max(5000).default("")
+});
+
+export type PartnerPublishResultsRequest = z.infer<typeof PartnerPublishResultsRequestSchema>;
+
+export const PartnerDraftSwapRequestSchema = z.object({
+  submissionId: z.string().min(1),
+  replacementScriptId: z.string().min(1),
+  feeCents: z.number().int().nonnegative().default(500),
+  reason: z.string().max(2000).default("")
+});
+
+export type PartnerDraftSwapRequest = z.infer<typeof PartnerDraftSwapRequestSchema>;
+
+export const PartnerFilmFreewaySyncRequestSchema = z.object({
+  competitionId: z.string().min(1),
+  direction: z.enum(["import", "export"]).default("import"),
+  externalRunId: z.string().min(1).max(200).optional()
+});
+
+export type PartnerFilmFreewaySyncRequest = z.infer<typeof PartnerFilmFreewaySyncRequestSchema>;
+
+export const PartnerAnalyticsSummarySchema = z.object({
+  submissionsTotal: z.number().int().nonnegative(),
+  submissionsPublished: z.number().int().nonnegative(),
+  judgesAssigned: z.number().int().nonnegative(),
+  evaluationsSubmitted: z.number().int().nonnegative(),
+  normalizationRuns: z.number().int().nonnegative(),
+  resultsPublished: z.number().int().nonnegative(),
+  draftSwapsProcessed: z.number().int().nonnegative(),
+  syncJobsTotal: z.number().int().nonnegative(),
+  syncJobsFailed: z.number().int().nonnegative()
+});
+
+export type PartnerAnalyticsSummary = z.infer<typeof PartnerAnalyticsSummarySchema>;
 export const SubmissionStatusSchema = z.enum([
   "pending",
   "quarterfinalist",

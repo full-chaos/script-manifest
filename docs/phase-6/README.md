@@ -1,7 +1,7 @@
 # Phase 6: Programs and Events Platform
 
 Status: In Progress (feature `script-manifest-n2h`)
-External ref: `gh-117`
+External ref: `CHAOS-362`
 
 ## Objective
 
@@ -105,6 +105,35 @@ Gateway namespace:
 - Stand up `services/programs-service` with health and application intake primitives.
 - Add gateway proxy routes for writer-facing program discovery/applications.
 - Publish initial operations manual skeleton for reviewer and cohort workflow.
+
+## Current Implementation (n2h kickoff)
+
+Implemented on `codex/phase-6-programs-kickoff`:
+
+- New deployable:
+  - `services/programs-service`
+- New gateway routes:
+  - `services/api-gateway/src/routes/programs.ts`
+- New contracts:
+  - `packages/contracts/src/index.ts` (program + application schemas)
+- New DB table provisioning:
+  - `packages/db/src/index.ts` (`ensureProgramsTables`)
+
+Initial internal service endpoints:
+
+- `GET /internal/programs`
+- `POST /internal/programs/:programId/applications`
+- `GET /internal/programs/:programId/applications/me`
+- `GET /internal/admin/programs/:programId/applications`
+- `POST /internal/admin/programs/:programId/applications/:applicationId/review`
+
+Initial gateway endpoints:
+
+- `GET /api/v1/programs`
+- `POST /api/v1/programs/:programId/applications`
+- `GET /api/v1/programs/:programId/applications/me`
+- `GET /api/v1/admin/programs/:programId/applications`
+- `POST /api/v1/admin/programs/:programId/applications/:applicationId/review`
 
 ## Exit Criteria
 

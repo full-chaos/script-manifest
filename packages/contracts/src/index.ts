@@ -813,6 +813,70 @@ export const IndustryAnalyticsSummarySchema = z.object({
 
 export type IndustryAnalyticsSummary = z.infer<typeof IndustryAnalyticsSummarySchema>;
 
+export const ProgramStatusSchema = z.enum(["draft", "open", "closed", "archived"]);
+
+export type ProgramStatus = z.infer<typeof ProgramStatusSchema>;
+
+export const ProgramSchema = z.object({
+  id: z.string().min(1),
+  slug: z.string().min(1),
+  title: z.string().min(1),
+  description: z.string().default(""),
+  status: ProgramStatusSchema,
+  applicationOpensAt: z.string().datetime({ offset: true }),
+  applicationClosesAt: z.string().datetime({ offset: true }),
+  createdByUserId: z.string().min(1),
+  createdAt: z.string().datetime({ offset: true }),
+  updatedAt: z.string().datetime({ offset: true })
+});
+
+export type Program = z.infer<typeof ProgramSchema>;
+
+export const ProgramApplicationStatusSchema = z.enum([
+  "submitted",
+  "under_review",
+  "accepted",
+  "waitlisted",
+  "rejected"
+]);
+
+export type ProgramApplicationStatus = z.infer<typeof ProgramApplicationStatusSchema>;
+
+export const ProgramApplicationSchema = z.object({
+  id: z.string().min(1),
+  programId: z.string().min(1),
+  userId: z.string().min(1),
+  statement: z.string().default(""),
+  sampleProjectId: z.string().nullable(),
+  status: ProgramApplicationStatusSchema,
+  score: z.number().min(0).max(100).nullable(),
+  decisionNotes: z.string().nullable(),
+  reviewedByUserId: z.string().nullable(),
+  reviewedAt: z.string().datetime({ offset: true }).nullable(),
+  createdAt: z.string().datetime({ offset: true }),
+  updatedAt: z.string().datetime({ offset: true })
+});
+
+export type ProgramApplication = z.infer<typeof ProgramApplicationSchema>;
+
+export const ProgramApplicationCreateRequestSchema = z.object({
+  statement: z.string().min(1).max(5000),
+  sampleProjectId: z.string().min(1).optional()
+});
+
+export type ProgramApplicationCreateRequest = z.infer<
+  typeof ProgramApplicationCreateRequestSchema
+>;
+
+export const ProgramApplicationReviewRequestSchema = z.object({
+  status: z.enum(["under_review", "accepted", "waitlisted", "rejected"]),
+  score: z.number().min(0).max(100).optional(),
+  decisionNotes: z.string().max(5000).default("")
+});
+
+export type ProgramApplicationReviewRequest = z.infer<
+  typeof ProgramApplicationReviewRequestSchema
+>;
 export const SubmissionStatusSchema = z.enum([
   "pending",
   "quarterfinalist",

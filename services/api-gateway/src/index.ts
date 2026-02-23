@@ -16,6 +16,7 @@ import { registerFeedbackRoutes } from "./routes/feedback.js";
 import { registerRankingRoutes } from "./routes/ranking.js";
 import { registerCoverageRoutes } from "./routes/coverage.js";
 import { registerIndustryRoutes } from "./routes/industry.js";
+import { registerProgramsRoutes } from "./routes/programs.js";
 import { registerHealthRoutes } from "./routes/health.js";
 
 export type ApiGatewayOptions = {
@@ -30,6 +31,7 @@ export type ApiGatewayOptions = {
   rankingServiceBase?: string;
   coverageMarketplaceBase?: string;
   industryPortalBase?: string;
+  programsServiceBase?: string;
   competitionAdminAllowlist?: string[];
   coverageAdminAllowlist?: string[];
   industryAdminAllowlist?: string[];
@@ -58,6 +60,7 @@ export function buildServer(options: ApiGatewayOptions = {}): FastifyInstance {
     rankingServiceBase: options.rankingServiceBase ?? "http://localhost:4007",
     coverageMarketplaceBase: options.coverageMarketplaceBase ?? "http://localhost:4008",
     industryPortalBase: options.industryPortalBase ?? "http://localhost:4009",
+    programsServiceBase: options.programsServiceBase ?? "http://localhost:4012",
     competitionAdminAllowlist: new Set(
       options.competitionAdminAllowlist ??
         parseAllowlist(process.env.COMPETITION_ADMIN_ALLOWLIST ?? "admin_01,user_admin_01")
@@ -85,6 +88,7 @@ export function buildServer(options: ApiGatewayOptions = {}): FastifyInstance {
   registerRankingRoutes(server, ctx);
   registerCoverageRoutes(server, ctx);
   registerIndustryRoutes(server, ctx);
+  registerProgramsRoutes(server, ctx);
 
   return server;
 }
@@ -103,6 +107,7 @@ export async function startServer(): Promise<void> {
     rankingServiceBase: process.env.RANKING_SERVICE_URL,
     coverageMarketplaceBase: process.env.COVERAGE_MARKETPLACE_SERVICE_URL,
     industryPortalBase: process.env.INDUSTRY_PORTAL_SERVICE_URL,
+    programsServiceBase: process.env.PROGRAMS_SERVICE_URL,
     competitionAdminAllowlist: parseAllowlist(process.env.COMPETITION_ADMIN_ALLOWLIST ?? ""),
     coverageAdminAllowlist: parseAllowlist(process.env.COVERAGE_ADMIN_ALLOWLIST ?? ""),
     industryAdminAllowlist: parseAllowlist(process.env.INDUSTRY_ADMIN_ALLOWLIST ?? "")

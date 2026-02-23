@@ -1,6 +1,6 @@
 # Phase 5: Industry Portal and Discovery Dashboard
 
-Status: In Progress (feature `script-manifest-n92`)
+Status: Complete (feature `script-manifest-n92`)
 External ref: `CHAOS-352`
 
 ## Objective
@@ -140,6 +140,21 @@ Additional internal endpoints delivered on `codex/phase-5-discovery-mandates`:
 - `POST /internal/mandates`
 - `POST /internal/mandates/:mandateId/submissions`
 
+Phase 5 completion endpoints delivered on `codex/phase-5-complete-industry-portal`:
+
+- `POST /internal/talent-index/rebuild`
+- `POST /internal/lists/:listId/share-team`
+- `GET /internal/teams`
+- `POST /internal/teams`
+- `PUT /internal/teams/:teamId/members`
+- `GET /internal/activity`
+- `GET /internal/mandates/:mandateId/submissions`
+- `POST /internal/mandates/:mandateId/submissions/:submissionId/review`
+- `POST /internal/digests/weekly/run`
+- `GET /internal/digests/weekly/runs`
+- `GET /internal/analytics`
+- `POST /internal/scripts/:scriptId/download`
+
 Additional gateway endpoints delivered on `codex/phase-5-discovery-mandates`:
 
 - `GET /api/v1/industry/talent-search`
@@ -150,6 +165,21 @@ Additional gateway endpoints delivered on `codex/phase-5-discovery-mandates`:
 - `GET /api/v1/industry/mandates`
 - `POST /api/v1/industry/mandates`
 - `POST /api/v1/industry/mandates/:mandateId/submissions`
+
+Phase 5 completion gateway endpoints delivered on `codex/phase-5-complete-industry-portal`:
+
+- `POST /api/v1/industry/talent-index/rebuild`
+- `POST /api/v1/industry/lists/:listId/share-team`
+- `GET /api/v1/industry/teams`
+- `POST /api/v1/industry/teams`
+- `PUT /api/v1/industry/teams/:teamId/members`
+- `GET /api/v1/industry/activity`
+- `GET /api/v1/industry/mandates/:mandateId/submissions`
+- `POST /api/v1/industry/mandates/:mandateId/submissions/:submissionId/review`
+- `POST /api/v1/industry/digests/weekly/run`
+- `GET /api/v1/industry/digests/weekly/runs`
+- `GET /api/v1/industry/analytics`
+- `POST /api/v1/industry/scripts/:scriptId/download`
 
 ## Exit Criteria
 

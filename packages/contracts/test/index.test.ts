@@ -2,7 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   IndustryAccountCreateRequestSchema,
+  IndustryAnalyticsSummarySchema,
+  IndustryDigestRunSchema,
   IndustryEntitlementCheckResponseSchema,
+  IndustryMandateSubmissionReviewRequestSchema,
+  IndustryWeeklyDigestRunRequestSchema,
   ProjectDraftCreateRequestSchema,
   WriterProfileSchema,
   WriterProfileUpdateRequestSchema
@@ -72,4 +76,43 @@ test("IndustryEntitlementCheckResponseSchema enforces entitlement response shape
 
   assert.equal(parsed.accessLevel, "download");
   assert.equal(parsed.canDownload, true);
+});
+
+test("Industry review and digest schemas apply defaults and enforce output shape", () => {
+  const review = IndustryMandateSubmissionReviewRequestSchema.parse({
+    status: "under_review"
+  });
+  assert.equal(review.editorialNotes, "");
+  assert.equal(review.forwardedTo, "");
+
+  const runRequest = IndustryWeeklyDigestRunRequestSchema.parse({});
+  assert.equal(runRequest.limit, 10);
+  assert.deepEqual(runRequest.overrideWriterIds, []);
+
+  const digest = IndustryDigestRunSchema.parse({
+    id: "digest_1",
+    industryAccountId: "industry_account_1",
+    generatedByUserId: "industry_01",
+    windowStart: "2026-02-16T00:00:00.000Z",
+    windowEnd: "2026-02-23T00:00:00.000Z",
+    candidateCount: 2,
+    recommendations: [
+      { writerId: "writer_01", projectId: "project_01", reason: "Strong fit", source: "algorithm" }
+    ],
+    overrideWriterIds: [],
+    notes: "",
+    createdAt: "2026-02-23T00:00:00.000Z"
+  });
+  assert.equal(digest.recommendations.length, 1);
+
+  const analytics = IndustryAnalyticsSummarySchema.parse({
+    downloadsTotal: 1,
+    uniqueWritersDownloaded: 1,
+    listsTotal: 2,
+    notesTotal: 2,
+    mandatesOpen: 1,
+    submissionsForwarded: 1,
+    digestsGenerated: 1
+  });
+  assert.equal(analytics.mandatesOpen, 1);
 });

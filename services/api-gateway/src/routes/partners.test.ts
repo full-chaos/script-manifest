@@ -201,3 +201,70 @@ test("partner routes return forbidden when bearer auth resolves to non-admin use
   assert.equal(urls.length, 1);
   assert.equal(urls[0], "http://identity-svc/internal/auth/me");
 });
+
+test("partner routes proxy rbac, intake, submission intake, and auto-assign operations", async (t) => {
+  const urls: string[] = [];
+  const headers: Record<string, string>[] = [];
+  const server = buildServer({
+    logger: false,
+    competitionAdminAllowlist: ["admin_01"],
+    partnerDashboardServiceBase: "http://partner-svc",
+    requestFn: (async (url, options) => {
+      urls.push(String(url));
+      headers.push((options?.headers as Record<string, string> | undefined) ?? {});
+      return jsonResponse({ ok: true, assignedCount: 1 }, 200);
+    }) as typeof request
+  });
+  t.after(async () => {
+    await server.close();
+  });
+
+  const membership = await server.inject({
+    method: "PUT",
+    url: "/api/v1/partners/competitions/competition_1/memberships/judge_01",
+    headers: { "x-admin-user-id": "admin_01" },
+    payload: { role: "judge" }
+  });
+  assert.equal(membership.statusCode, 200);
+
+  const intake = await server.inject({
+    method: "PUT",
+    url: "/api/v1/partners/competitions/competition_1/intake",
+    headers: { "x-admin-user-id": "admin_01" },
+    payload: { formFields: [], feeRules: { baseFeeCents: 2500 } }
+  });
+  assert.equal(intake.statusCode, 200);
+
+  const submission = await server.inject({
+    method: "POST",
+    url: "/api/v1/partners/competitions/competition_1/submissions",
+    headers: { "x-admin-user-id": "admin_01" },
+    payload: {
+      writerUserId: "writer_01",
+      projectId: "project_01",
+      scriptId: "script_01",
+      formResponses: {}
+    }
+  });
+  assert.equal(submission.statusCode, 200);
+
+  const autoAssign = await server.inject({
+    method: "POST",
+    url: "/api/v1/partners/competitions/competition_1/judges/auto-assign",
+    headers: { "x-admin-user-id": "admin_01" },
+    payload: { judgeUserIds: ["judge_01"], maxAssignmentsPerJudge: 2 }
+  });
+  assert.equal(autoAssign.statusCode, 200);
+
+  assert.equal(
+    urls[0],
+    "http://partner-svc/internal/partners/competitions/competition_1/memberships/judge_01"
+  );
+  assert.equal(urls[1], "http://partner-svc/internal/partners/competitions/competition_1/intake");
+  assert.equal(urls[2], "http://partner-svc/internal/partners/competitions/competition_1/submissions");
+  assert.equal(
+    urls[3],
+    "http://partner-svc/internal/partners/competitions/competition_1/judges/auto-assign"
+  );
+  assert.equal(headers[3]?.["x-admin-user-id"], "admin_01");
+});

@@ -466,3 +466,189 @@ test("programs service enforces auth, validation, and not-found paths", async (t
   });
   assert.equal(analyticsUnknownProgram.statusCode, 404);
 });
+
+test("programs service supports forms, scheduling, reminders, and crm hooks", async (t) => {
+  const server = buildServer({ logger: false, repository: new MemoryProgramsRepository() });
+  t.after(async () => {
+    await server.close();
+  });
+
+  const formUpsert = await server.inject({
+    method: "PUT",
+    url: "/internal/admin/programs/program_1/application-form",
+    headers: { "x-admin-user-id": "admin_01" },
+    payload: {
+      fields: [
+        { key: "goals", label: "Goals", type: "textarea", required: true },
+        { key: "sample", label: "Sample Link", type: "url", required: false }
+      ]
+    }
+  });
+  assert.equal(formUpsert.statusCode, 200);
+
+  const formGet = await server.inject({
+    method: "GET",
+    url: "/internal/programs/program_1/application-form"
+  });
+  assert.equal(formGet.statusCode, 200);
+  assert.equal(formGet.json().form.fields.length, 2);
+
+  const rubricUpsert = await server.inject({
+    method: "PUT",
+    url: "/internal/admin/programs/program_1/scoring-rubric",
+    headers: { "x-admin-user-id": "admin_01" },
+    payload: {
+      criteria: [
+        { key: "voice", label: "Voice", weight: 0.5, maxScore: 100 },
+        { key: "structure", label: "Structure", weight: 0.5, maxScore: 100 }
+      ]
+    }
+  });
+  assert.equal(rubricUpsert.statusCode, 200);
+
+  const availability = await server.inject({
+    method: "POST",
+    url: "/internal/admin/programs/program_1/availability",
+    headers: { "x-admin-user-id": "admin_01" },
+    payload: {
+      windows: [
+        {
+          userId: "writer_01",
+          startsAt: "2026-06-20T16:00:00.000Z",
+          endsAt: "2026-06-20T18:00:00.000Z"
+        },
+        {
+          userId: "writer_02",
+          startsAt: "2026-06-20T17:00:00.000Z",
+          endsAt: "2026-06-20T19:00:00.000Z"
+        }
+      ]
+    }
+  });
+  assert.equal(availability.statusCode, 200);
+
+  const match = await server.inject({
+    method: "POST",
+    url: "/internal/admin/programs/program_1/scheduling/match",
+    headers: { "x-admin-user-id": "admin_01" },
+    payload: {
+      attendeeUserIds: ["writer_01", "writer_02"],
+      durationMinutes: 45
+    }
+  });
+  assert.equal(match.statusCode, 200);
+  assert.equal(match.json().match.attendeeUserIds.length, 2);
+
+  const session = await server.inject({
+    method: "POST",
+    url: "/internal/admin/programs/program_1/sessions",
+    headers: { "x-admin-user-id": "admin_01" },
+    payload: {
+      title: "Mentor Session",
+      startsAt: "2026-06-20T17:00:00.000Z",
+      endsAt: "2026-06-20T18:00:00.000Z",
+      attendeeUserIds: ["writer_01", "writer_02"]
+    }
+  });
+  assert.equal(session.statusCode, 201);
+  const sessionId = session.json().session.id as string;
+
+  const integration = await server.inject({
+    method: "PATCH",
+    url: `/internal/admin/programs/program_1/sessions/${sessionId}/integration`,
+    headers: { "x-admin-user-id": "admin_01" },
+    payload: {
+      provider: "zoom",
+      meetingUrl: "https://example.com/zoom/session",
+      recordingUrl: "https://example.com/recordings/session",
+      reminderOffsetsMinutes: [120, 30]
+    }
+  });
+  assert.equal(integration.statusCode, 200);
+
+  const reminders = await server.inject({
+    method: "POST",
+    url: `/internal/admin/programs/program_1/sessions/${sessionId}/reminders/dispatch`,
+    headers: { "x-admin-user-id": "admin_01" }
+  });
+  assert.equal(reminders.statusCode, 202);
+  assert.equal(reminders.json().queued, 2);
+
+  const outcome = await server.inject({
+    method: "POST",
+    url: "/internal/admin/programs/program_1/outcomes",
+    headers: { "x-admin-user-id": "admin_01" },
+    payload: {
+      userId: "writer_01",
+      outcomeType: "signed_with_manager",
+      notes: "Signed after pitch week"
+    }
+  });
+  assert.equal(outcome.statusCode, 201);
+
+  const crm = await server.inject({
+    method: "POST",
+    url: "/internal/admin/programs/program_1/crm-sync",
+    headers: { "x-admin-user-id": "admin_01" },
+    payload: { reason: "weekly_follow_up" }
+  });
+  assert.equal(crm.statusCode, 202);
+
+  const crmList = await server.inject({
+    method: "GET",
+    url: "/internal/admin/programs/program_1/crm-sync",
+    headers: { "x-admin-user-id": "admin_01" }
+  });
+  assert.equal(crmList.statusCode, 200);
+  assert.equal(crmList.json().jobs.length, 1);
+});
+
+test("programs service review flow triggers applicant decision notification hook", async (t) => {
+  const observed: Array<{ url: string; body: string }> = [];
+  const requestFn = (async (url: string | URL, options?: { body?: unknown }) => {
+    observed.push({ url: String(url), body: String(options?.body ?? "") });
+    return {
+      statusCode: 202,
+      body: {
+        json: async () => ({ queued: true }),
+        text: async () => JSON.stringify({ queued: true })
+      }
+    };
+  }) as any;
+
+  const server = buildServer({
+    logger: false,
+    repository: new MemoryProgramsRepository(),
+    requestFn,
+    notificationServiceBase: "http://notification-svc"
+  });
+  t.after(async () => {
+    await server.close();
+  });
+
+  const apply = await server.inject({
+    method: "POST",
+    url: "/internal/programs/program_1/applications",
+    headers: { "x-auth-user-id": "writer_01" },
+    payload: { statement: "Application for review hook test." }
+  });
+  assert.equal(apply.statusCode, 201);
+  const applicationId = apply.json().application.id as string;
+
+  const review = await server.inject({
+    method: "POST",
+    url: `/internal/admin/programs/program_1/applications/${applicationId}/review`,
+    headers: { "x-admin-user-id": "admin_01" },
+    payload: { status: "accepted", score: 95, decisionNotes: "Strong fit for cohort." }
+  });
+  assert.equal(review.statusCode, 200);
+
+  assert.equal(observed.length, 1);
+  assert.equal(
+    observed[0]?.url,
+    "http://notification-svc/internal/notifications/program-application-decision"
+  );
+  assert.match(observed[0]?.body ?? "", /"programId":"program_1"/);
+  assert.match(observed[0]?.body ?? "", /"applicationId":"program_application_/);
+  assert.match(observed[0]?.body ?? "", /"status":"accepted"/);
+});

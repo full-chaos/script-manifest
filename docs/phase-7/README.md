@@ -74,8 +74,12 @@ Out of scope for this phase:
 
 Gateway namespace:
 - `POST /api/v1/partners/competitions`
+- `PUT /api/v1/partners/competitions/:competitionId/memberships/:userId`
+- `PUT /api/v1/partners/competitions/:competitionId/intake`
+- `POST /api/v1/partners/competitions/:competitionId/submissions`
 - `GET /api/v1/partners/competitions/:competitionId/submissions`
 - `POST /api/v1/partners/competitions/:competitionId/judges/assign`
+- `POST /api/v1/partners/competitions/:competitionId/judges/auto-assign`
 - `POST /api/v1/partners/competitions/:competitionId/evaluations`
 - `POST /api/v1/partners/competitions/:competitionId/normalize`
 - `POST /api/v1/partners/competitions/:competitionId/publish-results`
@@ -122,8 +126,12 @@ Implemented on `codex/phase-7-partner-dashboard-complete`:
 Internal service endpoints:
 
 - `POST /internal/partners/competitions`
+- `PUT /internal/partners/competitions/:competitionId/memberships/:userId`
+- `PUT /internal/partners/competitions/:competitionId/intake`
+- `POST /internal/partners/competitions/:competitionId/submissions`
 - `GET /internal/partners/competitions/:competitionId/submissions`
 - `POST /internal/partners/competitions/:competitionId/judges/assign`
+- `POST /internal/partners/competitions/:competitionId/judges/auto-assign`
 - `POST /internal/partners/competitions/:competitionId/evaluations`
 - `POST /internal/partners/competitions/:competitionId/normalize`
 - `POST /internal/partners/competitions/:competitionId/publish-results`
@@ -134,8 +142,12 @@ Internal service endpoints:
 Gateway endpoints:
 
 - `POST /api/v1/partners/competitions`
+- `PUT /api/v1/partners/competitions/:competitionId/memberships/:userId`
+- `PUT /api/v1/partners/competitions/:competitionId/intake`
+- `POST /api/v1/partners/competitions/:competitionId/submissions`
 - `GET /api/v1/partners/competitions/:competitionId/submissions`
 - `POST /api/v1/partners/competitions/:competitionId/judges/assign`
+- `POST /api/v1/partners/competitions/:competitionId/judges/auto-assign`
 - `POST /api/v1/partners/competitions/:competitionId/evaluations`
 - `POST /api/v1/partners/competitions/:competitionId/normalize`
 - `POST /api/v1/partners/competitions/:competitionId/publish-results`

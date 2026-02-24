@@ -327,6 +327,12 @@ importers:
       fastify:
         specifier: ^5.1.0
         version: 5.7.4
+      undici:
+        specifier: ^7.2.0
+        version: 7.20.0
+      zod:
+        specifier: ^3.24.1
+        version: 3.25.76
     devDependencies:
       '@types/node':
         specifier: ^22.8.1
@@ -380,6 +386,12 @@ importers:
       fastify:
         specifier: ^5.1.0
         version: 5.7.4
+      undici:
+        specifier: ^7.2.0
+        version: 7.20.0
+      zod:
+        specifier: ^3.24.1
+        version: 3.25.76
     devDependencies:
       '@types/node':
         specifier: ^22.8.1

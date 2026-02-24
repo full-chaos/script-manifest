@@ -70,13 +70,23 @@ Out of scope for this phase:
 
 Gateway namespace:
 - `GET /api/v1/programs`
+- `GET /api/v1/programs/:programId/application-form`
 - `POST /api/v1/programs/:programId/applications`
 - `GET /api/v1/programs/:programId/applications/me`
+- `PUT /api/v1/admin/programs/:programId/application-form`
+- `PUT /api/v1/admin/programs/:programId/scoring-rubric`
+- `POST /api/v1/admin/programs/:programId/availability`
+- `POST /api/v1/admin/programs/:programId/scheduling/match`
 - `POST /api/v1/admin/programs/:programId/reviews`
 - `POST /api/v1/admin/programs/:programId/cohorts`
 - `POST /api/v1/admin/programs/:programId/sessions`
 - `POST /api/v1/admin/programs/:programId/sessions/:sessionId/attendance`
+- `PATCH /api/v1/admin/programs/:programId/sessions/:sessionId/integration`
+- `POST /api/v1/admin/programs/:programId/sessions/:sessionId/reminders/dispatch`
 - `POST /api/v1/admin/programs/:programId/mentorship/matches`
+- `POST /api/v1/admin/programs/:programId/outcomes`
+- `POST /api/v1/admin/programs/:programId/crm-sync`
+- `GET /api/v1/admin/programs/:programId/crm-sync`
 - `GET /api/v1/admin/programs/:programId/analytics`
 
 ## Job and Event Plan
@@ -115,29 +125,49 @@ Implemented on `codex/phase-6-programs-kickoff`:
 Internal service endpoints:
 
 - `GET /internal/programs`
+- `GET /internal/programs/:programId/application-form`
 - `POST /internal/programs/:programId/applications`
 - `GET /internal/programs/:programId/applications/me`
 - `GET /internal/admin/programs/:programId/applications`
 - `POST /internal/admin/programs/:programId/applications/:applicationId/review`
+- `PUT /internal/admin/programs/:programId/application-form`
+- `PUT /internal/admin/programs/:programId/scoring-rubric`
 - `GET /internal/admin/programs/:programId/cohorts`
 - `POST /internal/admin/programs/:programId/cohorts`
+- `POST /internal/admin/programs/:programId/availability`
+- `POST /internal/admin/programs/:programId/scheduling/match`
 - `POST /internal/admin/programs/:programId/sessions`
 - `POST /internal/admin/programs/:programId/sessions/:sessionId/attendance`
+- `PATCH /internal/admin/programs/:programId/sessions/:sessionId/integration`
+- `POST /internal/admin/programs/:programId/sessions/:sessionId/reminders/dispatch`
 - `POST /internal/admin/programs/:programId/mentorship/matches`
+- `POST /internal/admin/programs/:programId/outcomes`
+- `POST /internal/admin/programs/:programId/crm-sync`
+- `GET /internal/admin/programs/:programId/crm-sync`
 - `GET /internal/admin/programs/:programId/analytics`
 
 Gateway endpoints:
 
 - `GET /api/v1/programs`
+- `GET /api/v1/programs/:programId/application-form`
 - `POST /api/v1/programs/:programId/applications`
 - `GET /api/v1/programs/:programId/applications/me`
 - `GET /api/v1/admin/programs/:programId/applications`
 - `POST /api/v1/admin/programs/:programId/applications/:applicationId/review`
+- `PUT /api/v1/admin/programs/:programId/application-form`
+- `PUT /api/v1/admin/programs/:programId/scoring-rubric`
 - `GET /api/v1/admin/programs/:programId/cohorts`
 - `POST /api/v1/admin/programs/:programId/cohorts`
+- `POST /api/v1/admin/programs/:programId/availability`
+- `POST /api/v1/admin/programs/:programId/scheduling/match`
 - `POST /api/v1/admin/programs/:programId/sessions`
 - `POST /api/v1/admin/programs/:programId/sessions/:sessionId/attendance`
+- `PATCH /api/v1/admin/programs/:programId/sessions/:sessionId/integration`
+- `POST /api/v1/admin/programs/:programId/sessions/:sessionId/reminders/dispatch`
 - `POST /api/v1/admin/programs/:programId/mentorship/matches`
+- `POST /api/v1/admin/programs/:programId/outcomes`
+- `POST /api/v1/admin/programs/:programId/crm-sync`
+- `GET /api/v1/admin/programs/:programId/crm-sync`
 - `GET /api/v1/admin/programs/:programId/analytics`
 
 Infrastructure updates:

@@ -380,3 +380,94 @@ test("partner dashboard service enforces auth, validation, and missing-resource 
   });
   assert.equal(missingSyncTarget.statusCode, 404);
 });
+
+test("partner dashboard service supports rbac, intake rules, and balanced assignment", async (t) => {
+  const server = buildServer({ logger: false, repository: new MemoryPartnerRepository() });
+  t.after(async () => {
+    await server.close();
+  });
+
+  const membership = await server.inject({
+    method: "PUT",
+    url: "/internal/partners/competitions/competition_1/memberships/judge_01",
+    headers: { "x-admin-user-id": "admin_01" },
+    payload: { role: "judge" }
+  });
+  assert.equal(membership.statusCode, 200);
+
+  const intake = await server.inject({
+    method: "PUT",
+    url: "/internal/partners/competitions/competition_1/intake",
+    headers: { "x-admin-user-id": "admin_01" },
+    payload: {
+      formFields: [{ key: "bio", label: "Bio", type: "textarea", required: true }],
+      feeRules: { baseFeeCents: 5500, lateFeeCents: 1500 }
+    }
+  });
+  assert.equal(intake.statusCode, 200);
+
+  const submission = await server.inject({
+    method: "POST",
+    url: "/internal/partners/competitions/competition_1/submissions",
+    headers: { "x-admin-user-id": "admin_01" },
+    payload: {
+      writerUserId: "writer_01",
+      projectId: "project_01",
+      scriptId: "script_01",
+      formResponses: { bio: "Writer bio" }
+    }
+  });
+  assert.equal(submission.statusCode, 201);
+  assert.equal(submission.json().submission.entryFeeCents, 5500);
+
+  const autoAssign = await server.inject({
+    method: "POST",
+    url: "/internal/partners/competitions/competition_1/judges/auto-assign",
+    headers: { "x-admin-user-id": "admin_01" },
+    payload: {
+      judgeUserIds: ["judge_01", "judge_02"],
+      maxAssignmentsPerJudge: 2
+    }
+  });
+  assert.equal(autoAssign.statusCode, 200);
+  assert.equal(autoAssign.json().assignedCount >= 1, true);
+});
+
+test("partner dashboard publish-results triggers ranking incremental recompute hook", async (t) => {
+  const observed: Array<{ url: string; body: string }> = [];
+  const requestFn = (async (url: string | URL, options?: { body?: unknown }) => {
+    observed.push({ url: String(url), body: String(options?.body ?? "") });
+    return {
+      statusCode: 200,
+      body: {
+        json: async () => ({ ok: true }),
+        text: async () => JSON.stringify({ ok: true })
+      }
+    };
+  }) as any;
+
+  const server = buildServer({
+    logger: false,
+    repository: new MemoryPartnerRepository(),
+    requestFn,
+    rankingServiceBase: "http://ranking-svc"
+  });
+  t.after(async () => {
+    await server.close();
+  });
+
+  const publish = await server.inject({
+    method: "POST",
+    url: "/internal/partners/competitions/competition_1/publish-results",
+    headers: { "x-admin-user-id": "admin_01" },
+    payload: {
+      results: [{ submissionId: "submission_1", placementStatus: "winner" }]
+    }
+  });
+  assert.equal(publish.statusCode, 200);
+
+  assert.equal(observed.length, 1);
+  assert.equal(observed[0]?.url, "http://ranking-svc/internal/recompute/incremental");
+  assert.match(observed[0]?.body ?? "", /"source":"partner_publish_results"/);
+  assert.match(observed[0]?.body ?? "", /"competitionId":"competition_1"/);
+});

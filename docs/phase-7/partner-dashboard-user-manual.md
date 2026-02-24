@@ -5,8 +5,12 @@ This manual covers the implemented Phase 7 organizer workflows for competition o
 ## Endpoints
 
 - `POST /api/v1/partners/competitions`
+- `PUT /api/v1/partners/competitions/:competitionId/memberships/:userId`
+- `PUT /api/v1/partners/competitions/:competitionId/intake`
+- `POST /api/v1/partners/competitions/:competitionId/submissions`
 - `GET /api/v1/partners/competitions/:competitionId/submissions`
 - `POST /api/v1/partners/competitions/:competitionId/judges/assign`
+- `POST /api/v1/partners/competitions/:competitionId/judges/auto-assign`
 - `POST /api/v1/partners/competitions/:competitionId/evaluations`
 - `POST /api/v1/partners/competitions/:competitionId/normalize`
 - `POST /api/v1/partners/competitions/:competitionId/publish-results`
@@ -44,6 +48,39 @@ curl "http://localhost:4000/api/v1/partners/competitions/<competition-id>/submis
   -H "x-admin-user-id: admin_01"
 ```
 
+Set competition member role and configure intake:
+
+```bash
+curl -X PUT "http://localhost:4000/api/v1/partners/competitions/<competition-id>/memberships/judge_01" \
+  -H "x-admin-user-id: admin_01" \
+  -H "content-type: application/json" \
+  -d '{ "role": "judge" }'
+
+curl -X PUT "http://localhost:4000/api/v1/partners/competitions/<competition-id>/intake" \
+  -H "x-admin-user-id: admin_01" \
+  -H "content-type: application/json" \
+  -d '{
+    "formFields": [
+      { "key": "bio", "label": "Bio", "type": "textarea", "required": true }
+    ],
+    "feeRules": { "baseFeeCents": 5500, "lateFeeCents": 1500 }
+  }'
+```
+
+Create submission from intake workflow:
+
+```bash
+curl -X POST "http://localhost:4000/api/v1/partners/competitions/<competition-id>/submissions" \
+  -H "x-admin-user-id: admin_01" \
+  -H "content-type: application/json" \
+  -d '{
+    "writerUserId": "writer_01",
+    "projectId": "project_01",
+    "scriptId": "script_01",
+    "formResponses": { "bio": "Writer bio goes here" }
+  }'
+```
+
 Assign judge:
 
 ```bash
@@ -53,6 +90,18 @@ curl -X POST "http://localhost:4000/api/v1/partners/competitions/<competition-id
   -d '{
     "judgeUserId": "judge_01",
     "submissionIds": ["submission_01", "submission_02"]
+  }'
+```
+
+Auto-assign judges with workload cap:
+
+```bash
+curl -X POST "http://localhost:4000/api/v1/partners/competitions/<competition-id>/judges/auto-assign" \
+  -H "x-admin-user-id: admin_01" \
+  -H "content-type: application/json" \
+  -d '{
+    "judgeUserIds": ["judge_01", "judge_02"],
+    "maxAssignmentsPerJudge": 4
   }'
 ```
 

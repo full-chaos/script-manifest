@@ -23,6 +23,8 @@ import {
 } from "@script-manifest/contracts";
 import { ensureCoreTables, ensurePartnerTables, getPool } from "@script-manifest/db";
 
+export type CompetitionRole = "owner" | "admin" | "editor" | "judge" | "viewer";
+
 export type PartnerJudgeAssignmentResult = {
   assignedCount: number;
 };
@@ -34,6 +36,7 @@ export type PartnerNormalizationResult = {
 
 export type PartnerPublishResultsResult = {
   publishedCount: number;
+  writerUserIds: string[];
 };
 
 export type PartnerDraftSwapResult = {
@@ -50,9 +53,98 @@ export type PartnerSyncJobResult = {
   status: "queued" | "running" | "succeeded" | "failed";
 };
 
+export type PartnerSyncJob = PartnerSyncJobResult & {
+  externalRunId: string | null;
+  detail: string;
+  triggeredByUserId: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type PartnerCompetitionMembership = {
+  competitionId: string;
+  userId: string;
+  role: CompetitionRole;
+};
+
+export type PartnerCompetitionIntakeConfig = {
+  formFields: Array<Record<string, unknown>>;
+  feeRules: {
+    baseFeeCents: number;
+    lateFeeCents: number;
+  };
+};
+
+export type PartnerCompetitionIntakeConfigAudit = PartnerCompetitionIntakeConfig & {
+  updatedByUserId: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type PartnerSubmissionWithFormResponses = PartnerSubmission & {
+  formResponses: Record<string, unknown>;
+};
+
+export type PartnerEntrantMessageKind = "direct" | "broadcast" | "reminder";
+
+export type PartnerEntrantMessage = {
+  id: string;
+  competitionId: string;
+  senderUserId: string;
+  targetUserId: string | null;
+  messageKind: PartnerEntrantMessageKind;
+  templateKey: string;
+  subject: string;
+  body: string;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+};
+
+export type PartnerEntrantMessageCreateInput = {
+  targetUserId?: string | null;
+  messageKind: PartnerEntrantMessageKind;
+  templateKey?: string;
+  subject?: string;
+  body?: string;
+  metadata?: Record<string, unknown>;
+};
+
 export interface PartnerDashboardRepository {
   init(): Promise<void>;
   healthCheck(): Promise<{ database: boolean }>;
+  competitionExists(competitionId: string): Promise<boolean>;
+  getCompetitionRole(competitionId: string, userId: string): Promise<CompetitionRole | null>;
+  upsertCompetitionMembership(
+    competitionId: string,
+    userId: string,
+    role: CompetitionRole
+  ): Promise<PartnerCompetitionMembership | null>;
+  getCompetitionIntakeConfig(competitionId: string): Promise<PartnerCompetitionIntakeConfig | null>;
+  upsertCompetitionIntakeConfig(
+    competitionId: string,
+    actorUserId: string,
+    config: PartnerCompetitionIntakeConfig
+  ): Promise<PartnerCompetitionIntakeConfigAudit | null>;
+  createCompetitionSubmission(
+    competitionId: string,
+    input: {
+      writerUserId: string;
+      projectId: string;
+      scriptId: string;
+      formResponses: Record<string, unknown>;
+      entryFeeCents: number;
+      notes?: string;
+    }
+  ): Promise<PartnerSubmissionWithFormResponses | null>;
+  createEntrantMessage(
+    competitionId: string,
+    senderUserId: string,
+    input: PartnerEntrantMessageCreateInput
+  ): Promise<PartnerEntrantMessage | null>;
+  listEntrantMessages(
+    competitionId: string,
+    input?: { targetUserId?: string; limit?: number }
+  ): Promise<PartnerEntrantMessage[] | null>;
   createCompetition(adminUserId: string, input: PartnerCompetitionCreateRequest): Promise<PartnerCompetition | null>;
   listCompetitionSubmissions(competitionId: string): Promise<PartnerSubmission[] | null>;
   assignJudges(
@@ -84,7 +176,10 @@ export interface PartnerDashboardRepository {
   queueFilmFreewaySync(
     adminUserId: string,
     input: PartnerFilmFreewaySyncRequest
-  ): Promise<PartnerSyncJobResult | null>;
+  ): Promise<PartnerSyncJob | null>;
+  claimNextFilmFreewaySyncJob(): Promise<PartnerSyncJob | null>;
+  completeFilmFreewaySyncJob(jobId: string, detail?: string): Promise<PartnerSyncJob | null>;
+  failFilmFreewaySyncJob(jobId: string, detail: string): Promise<PartnerSyncJob | null>;
 }
 
 function mapCompetition(row: Record<string, unknown>): PartnerCompetition {
@@ -120,6 +215,59 @@ function mapSubmission(row: Record<string, unknown>): PartnerSubmission {
   });
 }
 
+function mapSubmissionWithFormResponses(row: Record<string, unknown>): PartnerSubmissionWithFormResponses {
+  const submission = mapSubmission(row);
+  const formResponsesRaw = row.form_responses;
+  const formResponses = (
+    typeof formResponsesRaw === "object" &&
+    formResponsesRaw !== null &&
+    !Array.isArray(formResponsesRaw)
+      ? formResponsesRaw
+      : {}
+  ) as Record<string, unknown>;
+  return {
+    ...submission,
+    formResponses
+  };
+}
+
+function mapSyncJob(row: Record<string, unknown>): PartnerSyncJob {
+  return {
+    jobId: String(row.id),
+    competitionId: String(row.competition_id),
+    direction: row.direction === "export" ? "export" : "import",
+    status: row.status as PartnerSyncJob["status"],
+    externalRunId: typeof row.external_run_id === "string" ? row.external_run_id : null,
+    detail: String(row.detail ?? ""),
+    triggeredByUserId: String(row.triggered_by_user_id),
+    createdAt: new Date(String(row.created_at)).toISOString(),
+    updatedAt: new Date(String(row.updated_at)).toISOString()
+  };
+}
+
+function mapEntrantMessage(row: Record<string, unknown>): PartnerEntrantMessage {
+  const metadataRaw = row.metadata_json;
+  const metadata = (
+    typeof metadataRaw === "object" &&
+    metadataRaw !== null &&
+    !Array.isArray(metadataRaw)
+      ? metadataRaw
+      : {}
+  ) as Record<string, unknown>;
+  return {
+    id: String(row.id),
+    competitionId: String(row.competition_id),
+    senderUserId: String(row.sender_user_id),
+    targetUserId: typeof row.target_user_id === "string" ? row.target_user_id : null,
+    messageKind: row.message_kind as PartnerEntrantMessageKind,
+    templateKey: String(row.template_key ?? ""),
+    subject: String(row.subject ?? ""),
+    body: String(row.body ?? ""),
+    metadata,
+    createdAt: new Date(String(row.created_at)).toISOString()
+  };
+}
+
 async function ensureUserExists(userId: string): Promise<boolean> {
   const db = getPool();
   const result = await db.query("SELECT 1 FROM app_users WHERE id = $1 LIMIT 1", [userId]);
@@ -144,6 +292,306 @@ export class PgPartnerDashboardRepository implements PartnerDashboardRepository 
     return { database: true };
   }
 
+  async competitionExists(competitionId: string): Promise<boolean> {
+    return ensureCompetitionExists(competitionId);
+  }
+
+  async getCompetitionRole(competitionId: string, userId: string): Promise<CompetitionRole | null> {
+    const db = getPool();
+    const result = await db.query(
+      `SELECT om.role
+         FROM partner_competitions pc
+         LEFT JOIN organizer_memberships om
+           ON om.organizer_account_id = pc.organizer_account_id
+          AND om.user_id = $2
+        WHERE pc.id = $1
+        LIMIT 1`,
+      [competitionId, userId]
+    );
+    if ((result.rowCount ?? 0) < 1) {
+      return null;
+    }
+    const row = result.rows[0] as Record<string, unknown>;
+    return typeof row.role === "string" ? (row.role as CompetitionRole) : null;
+  }
+
+  async upsertCompetitionMembership(
+    competitionId: string,
+    userId: string,
+    role: CompetitionRole
+  ): Promise<PartnerCompetitionMembership | null> {
+    const userExists = await ensureUserExists(userId);
+    if (!userExists) {
+      return null;
+    }
+
+    const db = getPool();
+    const now = new Date().toISOString();
+    const result = await db.query(
+      `WITH competition AS (
+         SELECT organizer_account_id
+           FROM partner_competitions
+          WHERE id = $1
+       )
+       INSERT INTO organizer_memberships (
+         organizer_account_id,
+         user_id,
+         role,
+         created_at
+       )
+       SELECT competition.organizer_account_id, $2, $3, $4
+         FROM competition
+       ON CONFLICT (organizer_account_id, user_id)
+       DO UPDATE SET role = EXCLUDED.role
+       RETURNING user_id, role`,
+      [competitionId, userId, role, now]
+    );
+    if ((result.rowCount ?? 0) < 1) {
+      return null;
+    }
+
+    const row = result.rows[0] as Record<string, unknown>;
+    return {
+      competitionId,
+      userId: String(row.user_id),
+      role: row.role as CompetitionRole
+    };
+  }
+
+  async getCompetitionIntakeConfig(competitionId: string): Promise<PartnerCompetitionIntakeConfig | null> {
+    const db = getPool();
+    const result = await db.query(
+      `SELECT form_fields_json, fee_rules_json
+         FROM partner_competition_intake_configs
+        WHERE competition_id = $1
+        LIMIT 1`,
+      [competitionId]
+    );
+    if ((result.rowCount ?? 0) < 1) {
+      return null;
+    }
+    const row = result.rows[0] as Record<string, unknown>;
+    const formFieldsRaw = row.form_fields_json;
+    const feeRulesRaw = row.fee_rules_json;
+    const formFields = Array.isArray(formFieldsRaw) ? formFieldsRaw as Array<Record<string, unknown>> : [];
+    const feeRules = (
+      typeof feeRulesRaw === "object" &&
+      feeRulesRaw !== null &&
+      !Array.isArray(feeRulesRaw)
+        ? feeRulesRaw
+        : {}
+    ) as Record<string, unknown>;
+
+    return {
+      formFields,
+      feeRules: {
+        baseFeeCents: Number(feeRules.baseFeeCents ?? 0),
+        lateFeeCents: Number(feeRules.lateFeeCents ?? 0)
+      }
+    };
+  }
+
+  async upsertCompetitionIntakeConfig(
+    competitionId: string,
+    actorUserId: string,
+    config: PartnerCompetitionIntakeConfig
+  ): Promise<PartnerCompetitionIntakeConfigAudit | null> {
+    const [actorExists, competitionExists] = await Promise.all([
+      ensureUserExists(actorUserId),
+      ensureCompetitionExists(competitionId)
+    ]);
+    if (!actorExists || !competitionExists) {
+      return null;
+    }
+
+    const db = getPool();
+    const now = new Date().toISOString();
+    const result = await db.query(
+      `INSERT INTO partner_competition_intake_configs (
+         competition_id,
+         form_fields_json,
+         fee_rules_json,
+         updated_by_user_id,
+         created_at,
+         updated_at
+       ) VALUES ($1,$2::jsonb,$3::jsonb,$4,$5,$6)
+       ON CONFLICT (competition_id)
+       DO UPDATE SET
+         form_fields_json = EXCLUDED.form_fields_json,
+         fee_rules_json = EXCLUDED.fee_rules_json,
+         updated_by_user_id = EXCLUDED.updated_by_user_id,
+         updated_at = EXCLUDED.updated_at
+       RETURNING form_fields_json, fee_rules_json, updated_by_user_id, created_at, updated_at`,
+      [
+        competitionId,
+        JSON.stringify(config.formFields),
+        JSON.stringify(config.feeRules),
+        actorUserId,
+        now,
+        now
+      ]
+    );
+    const row = result.rows[0] as Record<string, unknown>;
+    return {
+      formFields: Array.isArray(row.form_fields_json)
+        ? row.form_fields_json as Array<Record<string, unknown>>
+        : [],
+      feeRules: (() => {
+        const raw = (
+          typeof row.fee_rules_json === "object" &&
+          row.fee_rules_json !== null &&
+          !Array.isArray(row.fee_rules_json)
+            ? row.fee_rules_json
+            : {}
+        ) as Record<string, unknown>;
+        return {
+          baseFeeCents: Number(raw.baseFeeCents ?? 0),
+          lateFeeCents: Number(raw.lateFeeCents ?? 0)
+        };
+      })(),
+      updatedByUserId: String(row.updated_by_user_id),
+      createdAt: new Date(String(row.created_at)).toISOString(),
+      updatedAt: new Date(String(row.updated_at)).toISOString()
+    };
+  }
+
+  async createCompetitionSubmission(
+    competitionId: string,
+    input: {
+      writerUserId: string;
+      projectId: string;
+      scriptId: string;
+      formResponses: Record<string, unknown>;
+      entryFeeCents: number;
+      notes?: string;
+    }
+  ): Promise<PartnerSubmissionWithFormResponses | null> {
+    const [competitionExists, writerExists] = await Promise.all([
+      ensureCompetitionExists(competitionId),
+      ensureUserExists(input.writerUserId)
+    ]);
+    if (!competitionExists || !writerExists) {
+      return null;
+    }
+
+    const db = getPool();
+    const project = await db.query(
+      `SELECT id
+         FROM projects
+        WHERE id = $1
+          AND owner_user_id = $2
+        LIMIT 1`,
+      [input.projectId, input.writerUserId]
+    );
+    if ((project.rowCount ?? 0) < 1) {
+      return null;
+    }
+
+    const now = new Date().toISOString();
+    const result = await db.query(
+      `INSERT INTO partner_submissions (
+         id,
+         competition_id,
+         writer_user_id,
+         project_id,
+         script_id,
+         status,
+         entry_fee_cents,
+         notes,
+         form_responses,
+         created_at,
+         updated_at
+       ) VALUES ($1,$2,$3,$4,$5,'received',$6,$7,$8::jsonb,$9,$10)
+       RETURNING *`,
+      [
+        `partner_submission_${randomUUID()}`,
+        competitionId,
+        input.writerUserId,
+        input.projectId,
+        input.scriptId,
+        input.entryFeeCents,
+        input.notes ?? "",
+        JSON.stringify(input.formResponses),
+        now,
+        now
+      ]
+    );
+    return mapSubmissionWithFormResponses(result.rows[0] as Record<string, unknown>);
+  }
+
+  async createEntrantMessage(
+    competitionId: string,
+    senderUserId: string,
+    input: PartnerEntrantMessageCreateInput
+  ): Promise<PartnerEntrantMessage | null> {
+    const [competitionExists, senderExists] = await Promise.all([
+      ensureCompetitionExists(competitionId),
+      ensureUserExists(senderUserId)
+    ]);
+    if (!competitionExists || !senderExists) {
+      return null;
+    }
+    if (input.targetUserId) {
+      const targetExists = await ensureUserExists(input.targetUserId);
+      if (!targetExists) {
+        return null;
+      }
+    }
+
+    const db = getPool();
+    const now = new Date().toISOString();
+    const result = await db.query(
+      `INSERT INTO partner_entrant_messages (
+         id,
+         competition_id,
+         sender_user_id,
+         target_user_id,
+         message_kind,
+         template_key,
+         subject,
+         body,
+         metadata_json,
+         created_at
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10)
+       RETURNING *`,
+      [
+        `partner_message_${randomUUID()}`,
+        competitionId,
+        senderUserId,
+        input.targetUserId ?? null,
+        input.messageKind,
+        input.templateKey ?? "",
+        input.subject ?? "",
+        input.body ?? "",
+        JSON.stringify(input.metadata ?? {}),
+        now
+      ]
+    );
+    return mapEntrantMessage(result.rows[0] as Record<string, unknown>);
+  }
+
+  async listEntrantMessages(
+    competitionId: string,
+    input: { targetUserId?: string; limit?: number } = {}
+  ): Promise<PartnerEntrantMessage[] | null> {
+    const competitionExists = await ensureCompetitionExists(competitionId);
+    if (!competitionExists) {
+      return null;
+    }
+    const db = getPool();
+    const limit = Math.max(1, Math.min(500, input.limit ?? 100));
+    const result = await db.query(
+      `SELECT *
+         FROM partner_entrant_messages
+        WHERE competition_id = $1
+          AND ($2::text IS NULL OR target_user_id = $2 OR target_user_id IS NULL)
+        ORDER BY created_at DESC
+        LIMIT $3`,
+      [competitionId, input.targetUserId ?? null, limit]
+    );
+    return result.rows.map((row) => mapEntrantMessage(row as Record<string, unknown>));
+  }
+
   async createCompetition(
     adminUserId: string,
     input: PartnerCompetitionCreateRequest
@@ -163,41 +611,61 @@ export class PgPartnerDashboardRepository implements PartnerDashboardRepository 
     }
 
     const now = new Date().toISOString();
-    const result = await db.query(
-      `INSERT INTO partner_competitions (
-         id,
-         organizer_account_id,
-         slug,
-         title,
-         description,
-         format,
-         genre,
-         status,
-         submission_opens_at,
-         submission_closes_at,
-         created_by_user_id,
-         created_at,
-         updated_at
-       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
-       RETURNING *`,
-      [
-        `partner_competition_${randomUUID()}`,
-        parsed.organizerAccountId,
-        parsed.slug,
-        parsed.title,
-        parsed.description,
-        parsed.format,
-        parsed.genre,
-        parsed.status,
-        parsed.submissionOpensAt,
-        parsed.submissionClosesAt,
-        adminUserId,
-        now,
-        now
-      ]
-    );
+    await db.query("BEGIN");
+    try {
+      const result = await db.query(
+        `INSERT INTO partner_competitions (
+           id,
+           organizer_account_id,
+           slug,
+           title,
+           description,
+           format,
+           genre,
+           status,
+           submission_opens_at,
+           submission_closes_at,
+           created_by_user_id,
+           created_at,
+           updated_at
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+         RETURNING *`,
+        [
+          `partner_competition_${randomUUID()}`,
+          parsed.organizerAccountId,
+          parsed.slug,
+          parsed.title,
+          parsed.description,
+          parsed.format,
+          parsed.genre,
+          parsed.status,
+          parsed.submissionOpensAt,
+          parsed.submissionClosesAt,
+          adminUserId,
+          now,
+          now
+        ]
+      );
 
-    return mapCompetition(result.rows[0] as Record<string, unknown>);
+      const competition = mapCompetition(result.rows[0] as Record<string, unknown>);
+      await db.query(
+        `INSERT INTO organizer_memberships (
+           organizer_account_id,
+           user_id,
+           role,
+           created_at
+         ) VALUES ($1,$2,'owner',$3)
+         ON CONFLICT (organizer_account_id, user_id)
+         DO UPDATE SET role = 'owner'`,
+        [competition.organizerAccountId, adminUserId, now]
+      );
+
+      await db.query("COMMIT");
+      return competition;
+    } catch (error) {
+      await db.query("ROLLBACK");
+      throw error;
+    }
   }
 
   async listCompetitionSubmissions(competitionId: string): Promise<PartnerSubmission[] | null> {
@@ -420,14 +888,16 @@ export class PgPartnerDashboardRepository implements PartnerDashboardRepository 
     await db.query("BEGIN");
     try {
       let publishedCount = 0;
+      const writerUserIds = new Set<string>();
       for (const item of parsed.results) {
         const submissionResult = await db.query(
-          "SELECT id FROM partner_submissions WHERE id = $1 AND competition_id = $2 LIMIT 1",
+          "SELECT id, writer_user_id FROM partner_submissions WHERE id = $1 AND competition_id = $2 LIMIT 1",
           [item.submissionId, competitionId]
         );
         if ((submissionResult.rowCount ?? 0) < 1) {
           continue;
         }
+        const submissionRow = submissionResult.rows[0] as Record<string, unknown>;
 
         await db.query(
           `INSERT INTO partner_published_results (
@@ -455,6 +925,7 @@ export class PgPartnerDashboardRepository implements PartnerDashboardRepository 
           [item.submissionId, competitionId, now]
         );
         publishedCount += 1;
+        writerUserIds.add(String(submissionRow.writer_user_id));
       }
 
       await db.query(
@@ -463,7 +934,10 @@ export class PgPartnerDashboardRepository implements PartnerDashboardRepository 
       );
 
       await db.query("COMMIT");
-      return { publishedCount };
+      return {
+        publishedCount,
+        writerUserIds: [...writerUserIds]
+      };
     } catch (error) {
       await db.query("ROLLBACK");
       throw error;
@@ -617,7 +1091,7 @@ export class PgPartnerDashboardRepository implements PartnerDashboardRepository 
   async queueFilmFreewaySync(
     adminUserId: string,
     input: PartnerFilmFreewaySyncRequest
-  ): Promise<PartnerSyncJobResult | null> {
+  ): Promise<PartnerSyncJob | null> {
     const parsed = PartnerFilmFreewaySyncRequestSchema.parse(input);
     const [adminExists, competitionExists] = await Promise.all([
       ensureUserExists(adminUserId),
@@ -630,7 +1104,7 @@ export class PgPartnerDashboardRepository implements PartnerDashboardRepository 
     const db = getPool();
     const now = new Date().toISOString();
     const jobId = `partner_sync_${randomUUID()}`;
-    await db.query(
+    const result = await db.query(
       `INSERT INTO partner_sync_jobs (
          id,
          competition_id,
@@ -638,18 +1112,86 @@ export class PgPartnerDashboardRepository implements PartnerDashboardRepository 
          status,
          external_run_id,
          detail,
-         triggered_by_user_id,
-         created_at,
-         updated_at
-       ) VALUES ($1,$2,$3,'queued',$4,'',$5,$6,$7)`,
+       triggered_by_user_id,
+        created_at,
+        updated_at
+       ) VALUES ($1,$2,$3,'queued',$4,'',$5,$6,$7)
+       RETURNING *`,
       [jobId, parsed.competitionId, parsed.direction, parsed.externalRunId ?? null, adminUserId, now, now]
     );
+    const row = result.rows[0] as Record<string, unknown> | undefined;
+    if (!row) {
+      return null;
+    }
+    return mapSyncJob(row);
+  }
 
-    return {
-      jobId,
-      competitionId: parsed.competitionId,
-      direction: parsed.direction,
-      status: "queued"
-    };
+  async claimNextFilmFreewaySyncJob(): Promise<PartnerSyncJob | null> {
+    const db = getPool();
+    const now = new Date().toISOString();
+    await db.query("BEGIN");
+    try {
+      const result = await db.query(
+        `WITH next_job AS (
+           SELECT id
+             FROM partner_sync_jobs
+            WHERE status = 'queued'
+            ORDER BY created_at ASC
+            FOR UPDATE SKIP LOCKED
+            LIMIT 1
+         )
+         UPDATE partner_sync_jobs job
+            SET status = 'running',
+                updated_at = $1
+           FROM next_job
+          WHERE job.id = next_job.id
+        RETURNING job.*`,
+        [now]
+      );
+      await db.query("COMMIT");
+      if ((result.rowCount ?? 0) < 1) {
+        return null;
+      }
+      return mapSyncJob(result.rows[0] as Record<string, unknown>);
+    } catch (error) {
+      await db.query("ROLLBACK");
+      throw error;
+    }
+  }
+
+  async completeFilmFreewaySyncJob(jobId: string, detail = ""): Promise<PartnerSyncJob | null> {
+    const db = getPool();
+    const result = await db.query(
+      `UPDATE partner_sync_jobs
+          SET status = 'succeeded',
+              detail = $2,
+              updated_at = $3
+        WHERE id = $1
+          AND status = 'running'
+      RETURNING *`,
+      [jobId, detail, new Date().toISOString()]
+    );
+    if ((result.rowCount ?? 0) < 1) {
+      return null;
+    }
+    return mapSyncJob(result.rows[0] as Record<string, unknown>);
+  }
+
+  async failFilmFreewaySyncJob(jobId: string, detail: string): Promise<PartnerSyncJob | null> {
+    const db = getPool();
+    const result = await db.query(
+      `UPDATE partner_sync_jobs
+          SET status = 'failed',
+              detail = $2,
+              updated_at = $3
+        WHERE id = $1
+          AND status = 'running'
+      RETURNING *`,
+      [jobId, detail, new Date().toISOString()]
+    );
+    if ((result.rowCount ?? 0) < 1) {
+      return null;
+    }
+    return mapSyncJob(result.rows[0] as Record<string, unknown>);
   }
 }

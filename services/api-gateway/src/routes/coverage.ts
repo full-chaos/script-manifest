@@ -55,6 +55,49 @@ export function registerCoverageRoutes(server: FastifyInstance, ctx: GatewayCont
     );
   });
 
+  // lgtm [js/missing-rate-limiting] Fastify route-level limiter config is applied below.
+  server.get("/api/v1/coverage/admin/providers/review-queue", {
+    config: { rateLimit: { max: 20, timeWindow: "1 minute" } }
+  }, async (req, reply) => {
+    const adminId = await resolveAdminUserId(ctx.requestFn, ctx.identityServiceBase, req.headers, ctx.coverageAdminAllowlist);
+    if (!adminId) return reply.status(403).send({ error: "forbidden" });
+    return proxyJsonRequest(reply, ctx.requestFn,
+      `${ctx.coverageMarketplaceBase}/internal/admin/providers/review-queue`,
+      { method: "GET", headers: addAuthUserIdHeader({}, adminId) }
+    );
+  });
+
+  // lgtm [js/missing-rate-limiting] Fastify route-level limiter config is applied below.
+  server.post("/api/v1/coverage/admin/providers/:providerId/review", {
+    config: { rateLimit: { max: 20, timeWindow: "1 minute" } }
+  }, async (req, reply) => {
+    const adminId = await resolveAdminUserId(ctx.requestFn, ctx.identityServiceBase, req.headers, ctx.coverageAdminAllowlist);
+    if (!adminId) return reply.status(403).send({ error: "forbidden" });
+    const { providerId } = req.params as { providerId: string };
+    return proxyJsonRequest(reply, ctx.requestFn,
+      `${ctx.coverageMarketplaceBase}/internal/admin/providers/${encodeURIComponent(providerId)}/review`,
+      {
+        method: "POST",
+        headers: addAuthUserIdHeader({ "content-type": "application/json" }, adminId),
+        body: JSON.stringify(req.body ?? {})
+      }
+    );
+  });
+
+  // lgtm [js/missing-rate-limiting] Fastify route-level limiter config is applied below.
+  server.get("/api/v1/coverage/providers/:providerId/earnings-statement", {
+    config: { rateLimit: { max: 20, timeWindow: "1 minute" } }
+  }, async (req, reply) => {
+    const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
+    if (!userId) return reply.status(401).send({ error: "unauthorized" });
+    const { providerId } = req.params as { providerId: string };
+    const qs = buildQuerySuffix(req.query);
+    return proxyJsonRequest(reply, ctx.requestFn,
+      `${ctx.coverageMarketplaceBase}/internal/providers/${encodeURIComponent(providerId)}/earnings-statement${qs}`,
+      { method: "GET", headers: addAuthUserIdHeader({}, userId) }
+    );
+  });
+
   // Service routes
   server.post("/api/v1/coverage/providers/:providerId/services", async (req, reply) => {
     const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
@@ -151,6 +194,19 @@ export function registerCoverageRoutes(server: FastifyInstance, ctx: GatewayCont
     );
   });
 
+  // lgtm [js/missing-rate-limiting] Fastify route-level limiter config is applied below.
+  server.get("/api/v1/coverage/orders/:orderId/delivery/upload-url", {
+    config: { rateLimit: { max: 30, timeWindow: "1 minute" } }
+  }, async (req, reply) => {
+    const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
+    if (!userId) return reply.status(401).send({ error: "unauthorized" });
+    const { orderId } = req.params as { orderId: string };
+    return proxyJsonRequest(reply, ctx.requestFn,
+      `${ctx.coverageMarketplaceBase}/internal/orders/${encodeURIComponent(orderId)}/delivery/upload-url`,
+      { method: "GET", headers: addAuthUserIdHeader({}, userId) }
+    );
+  });
+
   // Review routes
   server.post("/api/v1/coverage/orders/:orderId/review", async (req, reply) => {
     const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
@@ -201,17 +257,67 @@ export function registerCoverageRoutes(server: FastifyInstance, ctx: GatewayCont
     );
   });
 
+  // lgtm [js/missing-rate-limiting] Fastify route-level limiter config is applied below.
+  server.get("/api/v1/coverage/disputes/:disputeId/events", {
+    config: { rateLimit: { max: 30, timeWindow: "1 minute" } }
+  }, async (req, reply) => {
+    const adminId = await resolveAdminUserId(ctx.requestFn, ctx.identityServiceBase, req.headers, ctx.coverageAdminAllowlist);
+    if (!adminId) return reply.status(403).send({ error: "forbidden" });
+    const { disputeId } = req.params as { disputeId: string };
+    return proxyJsonRequest(reply, ctx.requestFn,
+      `${ctx.coverageMarketplaceBase}/internal/disputes/${encodeURIComponent(disputeId)}/events`,
+      { method: "GET", headers: addAuthUserIdHeader({}, adminId) }
+    );
+  });
+
+  // lgtm [js/missing-rate-limiting] Fastify route-level limiter config is applied below.
+  server.get("/api/v1/coverage/admin/payout-ledger", {
+    config: { rateLimit: { max: 15, timeWindow: "1 minute" } }
+  }, async (req, reply) => {
+    const adminId = await resolveAdminUserId(ctx.requestFn, ctx.identityServiceBase, req.headers, ctx.coverageAdminAllowlist);
+    if (!adminId) return reply.status(403).send({ error: "forbidden" });
+    const qs = buildQuerySuffix(req.query);
+    return proxyJsonRequest(reply, ctx.requestFn,
+      `${ctx.coverageMarketplaceBase}/internal/admin/payout-ledger${qs}`,
+      { method: "GET", headers: addAuthUserIdHeader({}, adminId) }
+    );
+  });
+
+  // lgtm [js/missing-rate-limiting] Fastify route-level limiter config is applied below.
+  server.post("/api/v1/coverage/admin/jobs/sla-maintenance", {
+    config: { rateLimit: { max: 10, timeWindow: "1 minute" } }
+  }, async (req, reply) => {
+    const adminId = await resolveAdminUserId(ctx.requestFn, ctx.identityServiceBase, req.headers, ctx.coverageAdminAllowlist);
+    if (!adminId) return reply.status(403).send({ error: "forbidden" });
+    return proxyJsonRequest(reply, ctx.requestFn,
+      `${ctx.coverageMarketplaceBase}/internal/jobs/sla-maintenance`,
+      { method: "POST", headers: addAuthUserIdHeader({}, adminId) }
+    );
+  });
+
   // Stripe webhook (no auth — Stripe signs the request)
   server.post("/api/v1/coverage/stripe-webhook", async (req, reply) => {
+    const contentTypeHeader = req.headers["content-type"];
+    const stripeSignatureHeader = req.headers["stripe-signature"];
+    const contentType = Array.isArray(contentTypeHeader)
+      ? contentTypeHeader[0]
+      : contentTypeHeader;
+    const stripeSignature = Array.isArray(stripeSignatureHeader)
+      ? stripeSignatureHeader[0]
+      : stripeSignatureHeader;
+    const body = typeof req.body === "string" || Buffer.isBuffer(req.body)
+      ? req.body
+      : JSON.stringify(req.body ?? {});
+
     return proxyJsonRequest(reply, ctx.requestFn,
       `${ctx.coverageMarketplaceBase}/internal/stripe-webhook`,
       {
         method: "POST",
         headers: {
-          "content-type": req.headers["content-type"] ?? "application/json",
-          "stripe-signature": req.headers["stripe-signature"] as string ?? ""
+          "content-type": contentType ?? "application/json",
+          ...(stripeSignature ? { "stripe-signature": stripeSignature } : {})
         },
-        body: typeof req.body === "string" ? req.body : JSON.stringify(req.body ?? {})
+        body
       }
     );
   });

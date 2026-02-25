@@ -5,6 +5,8 @@ import type {
   CoverageProviderCreateRequest,
   CoverageProviderUpdateRequest,
   CoverageProviderFilters,
+  CoverageProviderReview,
+  CoverageProviderReviewRequest,
   CoverageService,
   CoverageServiceCreateRequest,
   CoverageServiceUpdateRequest,
@@ -18,6 +20,7 @@ import type {
   CoverageDispute,
   CoverageDisputeCreateRequest,
   CoverageDisputeResolveRequest,
+  CoverageDisputeEvent,
   CoverageDisputeStatus
 } from "@script-manifest/contracts";
 import { buildServer } from "./index.js";
@@ -31,6 +34,8 @@ class MemoryCoverageMarketplaceRepository implements CoverageMarketplaceReposito
   private deliveries = new Map<string, CoverageDelivery>();
   private reviews = new Map<string, CoverageReview>();
   private disputes = new Map<string, CoverageDispute>();
+  private providerReviews = new Map<string, CoverageProviderReview>();
+  private disputeEvents = new Map<string, CoverageDisputeEvent>();
   private nextId = 1;
 
   async init() {}
@@ -89,7 +94,7 @@ class MemoryCoverageMarketplaceRepository implements CoverageMarketplaceReposito
     if (!provider) return null;
     provider.stripeAccountId = stripeAccountId;
     provider.stripeOnboardingComplete = onboardingComplete;
-    if (onboardingComplete) {
+    if (onboardingComplete && provider.status === "pending_verification") {
       provider.status = "active";
     }
     provider.updatedAt = new Date().toISOString();
@@ -113,6 +118,24 @@ class MemoryCoverageMarketplaceRepository implements CoverageMarketplaceReposito
       results = results.filter((p) => p.specialties.includes(filters.specialty!));
     }
     return results.slice(0, filters.limit ?? 30);
+  }
+
+  async createProviderReview(providerId: string, reviewedByUserId: string, input: CoverageProviderReviewRequest): Promise<CoverageProviderReview> {
+    const review: CoverageProviderReview = {
+      id: this.id("cprv"),
+      providerId,
+      reviewedByUserId,
+      decision: input.decision,
+      reason: input.reason ?? null,
+      checklist: input.checklist ?? [],
+      createdAt: new Date().toISOString()
+    };
+    this.providerReviews.set(review.id, review);
+    return review;
+  }
+
+  async listProviderReviews(providerId: string): Promise<CoverageProviderReview[]> {
+    return Array.from(this.providerReviews.values()).filter((review) => review.providerId === providerId);
   }
 
   // ── Services ─────────────────────────────────────────────────────────
@@ -362,6 +385,32 @@ class MemoryCoverageMarketplaceRepository implements CoverageMarketplaceReposito
     dispute.updatedAt = new Date().toISOString();
     return dispute;
   }
+
+  async createDisputeEvent(params: {
+    disputeId: string;
+    actorUserId: string;
+    eventType: string;
+    note?: string | null;
+    fromStatus?: CoverageDisputeStatus | null;
+    toStatus?: CoverageDisputeStatus | null;
+  }): Promise<CoverageDisputeEvent> {
+    const event: CoverageDisputeEvent = {
+      id: this.id("cdie"),
+      disputeId: params.disputeId,
+      actorUserId: params.actorUserId,
+      eventType: params.eventType,
+      note: params.note ?? null,
+      fromStatus: params.fromStatus ?? null,
+      toStatus: params.toStatus ?? null,
+      createdAt: new Date().toISOString()
+    };
+    this.disputeEvents.set(event.id, event);
+    return event;
+  }
+
+  async listDisputeEvents(disputeId: string): Promise<CoverageDisputeEvent[]> {
+    return Array.from(this.disputeEvents.values()).filter((event) => event.disputeId === disputeId);
+  }
 }
 
 function createServer() {
@@ -543,6 +592,56 @@ test("list providers returns array", async (t) => {
   assert.equal(res.statusCode, 200);
   assert.ok(Array.isArray(res.json().providers));
   assert.equal(res.json().providers.length, 1);
+});
+
+test("admin provider review queue and review decisions work", async (t) => {
+  const { server } = createServer();
+  t.after(() => server.close());
+
+  const createRes = await server.inject({
+    method: "POST",
+    url: "/internal/providers",
+    headers: { "x-auth-user-id": "provider_01", "content-type": "application/json" },
+    payload: {
+      displayName: "Review Me",
+      bio: "Bio",
+      specialties: ["drama"]
+    }
+  });
+  const provider = createRes.json().provider;
+
+  const queueRes = await server.inject({
+    method: "GET",
+    url: "/internal/admin/providers/review-queue",
+    headers: { "x-auth-user-id": "admin_01" }
+  });
+  assert.equal(queueRes.statusCode, 200);
+  assert.equal(queueRes.json().entries.length, 1);
+
+  const missingReasonRes = await server.inject({
+    method: "POST",
+    url: `/internal/admin/providers/${provider.id}/review`,
+    headers: { "x-auth-user-id": "admin_01", "content-type": "application/json" },
+    payload: {
+      decision: "rejected"
+    }
+  });
+  assert.equal(missingReasonRes.statusCode, 400);
+  assert.equal(missingReasonRes.json().error, "reason_required");
+
+  const reviewRes = await server.inject({
+    method: "POST",
+    url: `/internal/admin/providers/${provider.id}/review`,
+    headers: { "x-auth-user-id": "admin_01", "content-type": "application/json" },
+    payload: {
+      decision: "suspended",
+      reason: "Verification mismatch",
+      checklist: ["identity_verified", "portfolio_reviewed"]
+    }
+  });
+  assert.equal(reviewRes.statusCode, 200);
+  assert.equal(reviewRes.json().provider.status, "suspended");
+  assert.equal(reviewRes.json().review.decision, "suspended");
 });
 
 // ── Service Tests ────────────────────────────────────────────────────
@@ -878,6 +977,70 @@ test("deliver order returns 200", async (t) => {
 
   assert.equal(res.statusCode, 200);
   assert.ok(res.json().delivery);
+});
+
+test("provider can request delivery upload URL", async (t) => {
+  const { server, gateway, repo } = createServer();
+  t.after(() => server.close());
+
+  const providerRes = await server.inject({
+    method: "POST",
+    url: "/internal/providers",
+    headers: { "x-auth-user-id": "provider_01", "content-type": "application/json" },
+    payload: {
+      displayName: "John Doe",
+      bio: "Professional script consultant",
+      specialties: ["drama"]
+    }
+  });
+  const provider = providerRes.json().provider;
+  gateway.completeOnboarding(provider.stripeAccountId!);
+  await server.inject({
+    method: "GET",
+    url: `/internal/providers/${provider.id}/stripe-onboarding`,
+    headers: { "x-auth-user-id": "provider_01" }
+  });
+
+  const serviceRes = await server.inject({
+    method: "POST",
+    url: `/internal/providers/${provider.id}/services`,
+    headers: { "x-auth-user-id": "provider_01", "content-type": "application/json" },
+    payload: {
+      title: "Professional Coverage",
+      description: "In-depth script analysis",
+      tier: "competition_ready",
+      priceCents: 15000,
+      currency: "usd",
+      turnaroundDays: 7,
+      maxPages: 120
+    }
+  });
+  const service = serviceRes.json().service;
+
+  const orderRes = await server.inject({
+    method: "POST",
+    url: "/internal/orders",
+    headers: { "x-auth-user-id": "writer_01", "content-type": "application/json" },
+    payload: { serviceId: service.id, scriptId: "script_01", projectId: "project_01" }
+  });
+  const order = orderRes.json().order;
+  await repo.updateOrderStatus(order.id, "payment_held");
+  await server.inject({
+    method: "POST",
+    url: `/internal/orders/${order.id}/claim`,
+    headers: { "x-auth-user-id": "provider_01" }
+  });
+
+  const uploadUrlRes = await server.inject({
+    method: "GET",
+    url: `/internal/orders/${order.id}/delivery/upload-url`,
+    headers: { "x-auth-user-id": "provider_01" }
+  });
+  assert.equal(uploadUrlRes.statusCode, 200);
+  const body = uploadUrlRes.json();
+  assert.equal(body.method, "POST");
+  assert.equal(typeof body.uploadUrl, "string");
+  assert.ok(body.uploadFields.key.includes(order.id));
 });
 
 test("complete order triggers payment transfer", async (t) => {
@@ -1378,7 +1541,7 @@ test("resolve dispute with refund works", async (t) => {
   const res = await server.inject({
     method: "PATCH",
     url: `/internal/disputes/${dispute.id}`,
-    headers: { "content-type": "application/json" },
+    headers: { "x-auth-user-id": "admin_01", "content-type": "application/json" },
     payload: {
       status: "resolved_refund",
       adminNotes: "Refund approved"
@@ -1388,6 +1551,143 @@ test("resolve dispute with refund works", async (t) => {
   assert.equal(res.statusCode, 200);
   assert.equal(res.json().dispute.status, "resolved_refund");
   assert.equal(gateway.refunds.length, 1);
+});
+
+test("resolve dispute with no refund completes order and logs events", async (t) => {
+  const { server, gateway, repo } = createServer();
+  t.after(() => server.close());
+
+  const providerRes = await server.inject({
+    method: "POST",
+    url: "/internal/providers",
+    headers: { "x-auth-user-id": "provider_01", "content-type": "application/json" },
+    payload: { displayName: "John Doe", bio: "Bio", specialties: ["drama"] }
+  });
+  const provider = providerRes.json().provider;
+  gateway.completeOnboarding(provider.stripeAccountId!);
+  await server.inject({
+    method: "GET",
+    url: `/internal/providers/${provider.id}/stripe-onboarding`,
+    headers: { "x-auth-user-id": "provider_01" }
+  });
+  const serviceRes = await server.inject({
+    method: "POST",
+    url: `/internal/providers/${provider.id}/services`,
+    headers: { "x-auth-user-id": "provider_01", "content-type": "application/json" },
+    payload: {
+      title: "Professional Coverage",
+      description: "In-depth script analysis",
+      tier: "competition_ready",
+      priceCents: 15000,
+      currency: "usd",
+      turnaroundDays: 7,
+      maxPages: 120
+    }
+  });
+  const service = serviceRes.json().service;
+  const orderRes = await server.inject({
+    method: "POST",
+    url: "/internal/orders",
+    headers: { "x-auth-user-id": "writer_01", "content-type": "application/json" },
+    payload: { serviceId: service.id, scriptId: "script_01", projectId: "project_01" }
+  });
+  const order = orderRes.json().order;
+  await repo.updateOrderStatus(order.id, "delivered");
+
+  const disputeRes = await server.inject({
+    method: "POST",
+    url: `/internal/orders/${order.id}/dispute`,
+    headers: { "x-auth-user-id": "writer_01", "content-type": "application/json" },
+    payload: { reason: "quality", description: "Needs review" }
+  });
+  const dispute = disputeRes.json().dispute;
+
+  const resolveRes = await server.inject({
+    method: "PATCH",
+    url: `/internal/disputes/${dispute.id}`,
+    headers: { "x-auth-user-id": "admin_01", "content-type": "application/json" },
+    payload: {
+      status: "resolved_no_refund",
+      adminNotes: "Coverage stands"
+    }
+  });
+  assert.equal(resolveRes.statusCode, 200);
+  assert.equal(resolveRes.json().dispute.status, "resolved_no_refund");
+  assert.equal(gateway.transfers.length, 1);
+
+  const updatedOrder = await repo.getOrder(order.id);
+  assert.equal(updatedOrder?.status, "completed");
+
+  const eventsRes = await server.inject({
+    method: "GET",
+    url: `/internal/disputes/${dispute.id}/events`,
+    headers: { "x-auth-user-id": "admin_01" }
+  });
+  assert.equal(eventsRes.statusCode, 200);
+  assert.equal(eventsRes.json().events.length, 2);
+  assert.equal(eventsRes.json().events[0].eventType, "opened");
+  assert.equal(eventsRes.json().events[1].eventType, "resolved");
+});
+
+test("resolve dispute partial refund requires refund amount", async (t) => {
+  const { server, gateway, repo } = createServer();
+  t.after(() => server.close());
+
+  const providerRes = await server.inject({
+    method: "POST",
+    url: "/internal/providers",
+    headers: { "x-auth-user-id": "provider_01", "content-type": "application/json" },
+    payload: { displayName: "John Doe", bio: "Bio", specialties: ["drama"] }
+  });
+  const provider = providerRes.json().provider;
+  gateway.completeOnboarding(provider.stripeAccountId!);
+  await server.inject({
+    method: "GET",
+    url: `/internal/providers/${provider.id}/stripe-onboarding`,
+    headers: { "x-auth-user-id": "provider_01" }
+  });
+  const serviceRes = await server.inject({
+    method: "POST",
+    url: `/internal/providers/${provider.id}/services`,
+    headers: { "x-auth-user-id": "provider_01", "content-type": "application/json" },
+    payload: {
+      title: "Professional Coverage",
+      description: "In-depth script analysis",
+      tier: "competition_ready",
+      priceCents: 15000,
+      currency: "usd",
+      turnaroundDays: 7,
+      maxPages: 120
+    }
+  });
+  const service = serviceRes.json().service;
+  const orderRes = await server.inject({
+    method: "POST",
+    url: "/internal/orders",
+    headers: { "x-auth-user-id": "writer_01", "content-type": "application/json" },
+    payload: { serviceId: service.id, scriptId: "script_01", projectId: "project_01" }
+  });
+  const order = orderRes.json().order;
+  await repo.updateOrderStatus(order.id, "delivered");
+  const disputeRes = await server.inject({
+    method: "POST",
+    url: `/internal/orders/${order.id}/dispute`,
+    headers: { "x-auth-user-id": "writer_01", "content-type": "application/json" },
+    payload: { reason: "quality", description: "Needs partial refund" }
+  });
+  const dispute = disputeRes.json().dispute;
+
+  const resolveRes = await server.inject({
+    method: "PATCH",
+    url: `/internal/disputes/${dispute.id}`,
+    headers: { "x-auth-user-id": "admin_01", "content-type": "application/json" },
+    payload: {
+      status: "resolved_partial",
+      adminNotes: "Partial refund approved"
+    }
+  });
+  assert.equal(resolveRes.statusCode, 400);
+  assert.equal(resolveRes.json().error, "refund_amount_required_for_partial");
 });
 
 test("cannot dispute non-delivered order", async (t) => {
@@ -1456,6 +1756,133 @@ test("cannot dispute non-delivered order", async (t) => {
 
   assert.equal(res.statusCode, 409);
   assert.equal(res.json().error, "order_not_disputable");
+});
+
+test("provider earnings statement supports json and csv", async (t) => {
+  const { server, gateway, repo } = createServer();
+  t.after(() => server.close());
+
+  const providerRes = await server.inject({
+    method: "POST",
+    url: "/internal/providers",
+    headers: { "x-auth-user-id": "provider_01", "content-type": "application/json" },
+    payload: { displayName: "John Doe", bio: "Bio", specialties: ["drama"] }
+  });
+  const provider = providerRes.json().provider;
+  gateway.completeOnboarding(provider.stripeAccountId!);
+  await server.inject({
+    method: "GET",
+    url: `/internal/providers/${provider.id}/stripe-onboarding`,
+    headers: { "x-auth-user-id": "provider_01" }
+  });
+  const serviceRes = await server.inject({
+    method: "POST",
+    url: `/internal/providers/${provider.id}/services`,
+    headers: { "x-auth-user-id": "provider_01", "content-type": "application/json" },
+    payload: {
+      title: "Professional Coverage",
+      description: "In-depth script analysis",
+      tier: "competition_ready",
+      priceCents: 15000,
+      currency: "usd",
+      turnaroundDays: 7,
+      maxPages: 120
+    }
+  });
+  const service = serviceRes.json().service;
+  const orderRes = await server.inject({
+    method: "POST",
+    url: "/internal/orders",
+    headers: { "x-auth-user-id": "writer_01", "content-type": "application/json" },
+    payload: { serviceId: service.id, scriptId: "script_01", projectId: "project_01" }
+  });
+  const order = orderRes.json().order;
+  await repo.updateOrderStatus(order.id, "completed", { stripeTransferId: "tr_123" });
+
+  const month = new Date().toISOString().slice(0, 7);
+  const jsonRes = await server.inject({
+    method: "GET",
+    url: `/internal/providers/${provider.id}/earnings-statement?month=${month}`,
+    headers: { "x-auth-user-id": "provider_01" }
+  });
+  assert.equal(jsonRes.statusCode, 200);
+  assert.equal(jsonRes.json().rows.length, 1);
+
+  const csvRes = await server.inject({
+    method: "GET",
+    url: `/internal/providers/${provider.id}/earnings-statement?month=${month}&format=csv`,
+    headers: { "x-auth-user-id": "provider_01" }
+  });
+  assert.equal(csvRes.statusCode, 200);
+  assert.match(csvRes.body, /order_id,status,updated_at/);
+});
+
+test("sla maintenance auto-completes delivered and opens dispute on breach", async (t) => {
+  const { server, gateway, repo } = createServer();
+  t.after(() => server.close());
+
+  const providerRes = await server.inject({
+    method: "POST",
+    url: "/internal/providers",
+    headers: { "x-auth-user-id": "provider_01", "content-type": "application/json" },
+    payload: { displayName: "John Doe", bio: "Bio", specialties: ["drama"] }
+  });
+  const provider = providerRes.json().provider;
+  gateway.completeOnboarding(provider.stripeAccountId!);
+  await server.inject({
+    method: "GET",
+    url: `/internal/providers/${provider.id}/stripe-onboarding`,
+    headers: { "x-auth-user-id": "provider_01" }
+  });
+  const serviceRes = await server.inject({
+    method: "POST",
+    url: `/internal/providers/${provider.id}/services`,
+    headers: { "x-auth-user-id": "provider_01", "content-type": "application/json" },
+    payload: {
+      title: "Professional Coverage",
+      description: "In-depth script analysis",
+      tier: "competition_ready",
+      priceCents: 15000,
+      currency: "usd",
+      turnaroundDays: 7,
+      maxPages: 120
+    }
+  });
+  const service = serviceRes.json().service;
+
+  const deliveredOrderRes = await server.inject({
+    method: "POST",
+    url: "/internal/orders",
+    headers: { "x-auth-user-id": "writer_01", "content-type": "application/json" },
+    payload: { serviceId: service.id, scriptId: "script_a", projectId: "project_a" }
+  });
+  const deliveredOrder = deliveredOrderRes.json().order;
+  const staleDeliveredAt = new Date(Date.now() - 8 * 86400000).toISOString();
+  await repo.updateOrderStatus(deliveredOrder.id, "delivered", { deliveredAt: staleDeliveredAt });
+
+  const breachedOrderRes = await server.inject({
+    method: "POST",
+    url: "/internal/orders",
+    headers: { "x-auth-user-id": "writer_02", "content-type": "application/json" },
+    payload: { serviceId: service.id, scriptId: "script_b", projectId: "project_b" }
+  });
+  const breachedOrder = breachedOrderRes.json().order;
+  const staleSla = new Date(Date.now() - 3600000).toISOString();
+  await repo.updateOrderStatus(breachedOrder.id, "claimed", { slaDeadline: staleSla });
+
+  const runRes = await server.inject({
+    method: "POST",
+    url: "/internal/jobs/sla-maintenance",
+    headers: { "x-auth-user-id": "admin_01" }
+  });
+  assert.equal(runRes.statusCode, 200);
+  assert.equal(runRes.json().autoCompleted, 1);
+  assert.equal(runRes.json().slaBreachesDisputed, 1);
+
+  const completedOrder = await repo.getOrder(deliveredOrder.id);
+  assert.equal(completedOrder?.status, "completed");
+  const disputedOrder = await repo.getOrder(breachedOrder.id);
+  assert.equal(disputedOrder?.status, "disputed");
 });
 
 // ── Webhook Tests ─────────────────────────────────────────────────────
@@ -1533,6 +1960,42 @@ test("account.updated webhook with both fields true marks onboarding complete", 
 
   assert.equal(res.statusCode, 200);
   const refreshed = await repo.getProvider(provider.id);
+  assert.equal(refreshed!.stripeOnboardingComplete, true);
+});
+
+test("account.updated does not reactivate suspended providers", async (t) => {
+  const { server, repo } = createServer();
+  t.after(() => server.close());
+
+  const providerRes = await server.inject({
+    method: "POST",
+    url: "/internal/providers",
+    headers: { "x-auth-user-id": "provider_01", "content-type": "application/json" },
+    payload: { displayName: "Test Provider", bio: "Bio", specialties: ["drama"] }
+  });
+  const provider = providerRes.json().provider;
+
+  await server.inject({
+    method: "GET",
+    url: `/internal/providers/${provider.id}/stripe-onboarding`,
+    headers: { "x-auth-user-id": "provider_01" }
+  });
+  await repo.updateProviderStatus(provider.id, "suspended");
+  const updatedProvider = await repo.getProvider(provider.id);
+  const accountId = updatedProvider!.stripeAccountId!;
+
+  const res = await server.inject({
+    method: "POST",
+    url: "/internal/stripe-webhook",
+    headers: { "stripe-signature": "sig", "content-type": "application/json" },
+    payload: {
+      type: "account.updated",
+      data: { object: { id: accountId, charges_enabled: true, payouts_enabled: true } }
+    }
+  });
+  assert.equal(res.statusCode, 200);
+  const refreshed = await repo.getProvider(provider.id);
+  assert.equal(refreshed!.status, "suspended");
   assert.equal(refreshed!.stripeOnboardingComplete, true);
 });
 

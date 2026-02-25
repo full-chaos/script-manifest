@@ -150,6 +150,7 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
     return { autoCompleted, slaBreachesDisputed };
   };
 
+  // lgtm [js/missing-rate-limiting] Background maintenance hook is scheduler-driven, not request-driven.
   server.addHook("onReady", async () => {
     await repository.init();
     if (maintenanceIntervalMs > 0) {
@@ -1078,7 +1079,9 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
 
   // ── Jobs & SLA Automation ──────────────────────────────────────────
 
-  server.post("/internal/jobs/sla-maintenance", async (req, reply) => {
+  server.post("/internal/jobs/sla-maintenance", {
+    config: { rateLimit: { max: 5, timeWindow: "1 minute" } }
+  }, async (req, reply) => {
     const authUserId = getAuthUserId(req.headers);
     if (!authUserId) {
       return reply.status(403).send({ error: "forbidden" });

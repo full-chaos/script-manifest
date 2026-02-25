@@ -55,6 +55,7 @@ export function registerCoverageRoutes(server: FastifyInstance, ctx: GatewayCont
     );
   });
 
+  // lgtm [js/missing-rate-limiting] Fastify route-level limiter config is applied below.
   server.get("/api/v1/coverage/admin/providers/review-queue", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } }
   }, async (req, reply) => {
@@ -66,6 +67,7 @@ export function registerCoverageRoutes(server: FastifyInstance, ctx: GatewayCont
     );
   });
 
+  // lgtm [js/missing-rate-limiting] Fastify route-level limiter config is applied below.
   server.post("/api/v1/coverage/admin/providers/:providerId/review", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } }
   }, async (req, reply) => {
@@ -82,6 +84,7 @@ export function registerCoverageRoutes(server: FastifyInstance, ctx: GatewayCont
     );
   });
 
+  // lgtm [js/missing-rate-limiting] Fastify route-level limiter config is applied below.
   server.get("/api/v1/coverage/providers/:providerId/earnings-statement", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } }
   }, async (req, reply) => {
@@ -191,6 +194,7 @@ export function registerCoverageRoutes(server: FastifyInstance, ctx: GatewayCont
     );
   });
 
+  // lgtm [js/missing-rate-limiting] Fastify route-level limiter config is applied below.
   server.get("/api/v1/coverage/orders/:orderId/delivery/upload-url", {
     config: { rateLimit: { max: 30, timeWindow: "1 minute" } }
   }, async (req, reply) => {
@@ -253,6 +257,7 @@ export function registerCoverageRoutes(server: FastifyInstance, ctx: GatewayCont
     );
   });
 
+  // lgtm [js/missing-rate-limiting] Fastify route-level limiter config is applied below.
   server.get("/api/v1/coverage/disputes/:disputeId/events", {
     config: { rateLimit: { max: 30, timeWindow: "1 minute" } }
   }, async (req, reply) => {
@@ -265,6 +270,7 @@ export function registerCoverageRoutes(server: FastifyInstance, ctx: GatewayCont
     );
   });
 
+  // lgtm [js/missing-rate-limiting] Fastify route-level limiter config is applied below.
   server.get("/api/v1/coverage/admin/payout-ledger", {
     config: { rateLimit: { max: 15, timeWindow: "1 minute" } }
   }, async (req, reply) => {
@@ -277,6 +283,7 @@ export function registerCoverageRoutes(server: FastifyInstance, ctx: GatewayCont
     );
   });
 
+  // lgtm [js/missing-rate-limiting] Fastify route-level limiter config is applied below.
   server.post("/api/v1/coverage/admin/jobs/sla-maintenance", {
     config: { rateLimit: { max: 10, timeWindow: "1 minute" } }
   }, async (req, reply) => {

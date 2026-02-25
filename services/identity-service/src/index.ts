@@ -1,4 +1,5 @@
 import Fastify, { type FastifyInstance } from "fastify";
+import rateLimit from "@fastify/rate-limit";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import { request } from "undici";
@@ -46,6 +47,12 @@ export function buildServer(options: IdentityServiceOptions = {}): FastifyInstan
 
   server.addHook("onReady", async () => {
     await repository.init();
+  });
+
+  server.register(rateLimit, {
+    max: 100,
+    timeWindow: "1 minute",
+    allowList: []
   });
 
   server.get("/health", async (_req, reply) => {

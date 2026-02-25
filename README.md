@@ -5,8 +5,9 @@ Revisiting the writer ecosystem: portfolio hosting, competition tracking, rankin
 ## Current Status
 
 - Phase 0 complete: product/legal foundation and architecture decisions.
-- Phases 1-4 implemented and documented.
-- Phases 5-7 are planned and open in tracking (`script-manifest-n92`, `script-manifest-n2h`, `script-manifest-nzi`).
+- Phases 1, 3, 4, 5, 6, and 7 implemented and documented.
+- Phase 2 is in review for closeout (`script-manifest-612`, `CHAOS-323/324/326/327/328/329/330/331`).
+- Design and infrastructure modernization backlog remains open (`CHAOS-382/384/390/393/394/395/396/397`).
 - Local development stack: Docker Compose with PostgreSQL, Redis, OpenSearch, MinIO, Redpanda, and Mailpit.
 
 Planning and phase documentation index:

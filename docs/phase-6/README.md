@@ -87,6 +87,7 @@ Gateway namespace:
 - `POST /api/v1/admin/programs/:programId/outcomes`
 - `POST /api/v1/admin/programs/:programId/crm-sync`
 - `GET /api/v1/admin/programs/:programId/crm-sync`
+- `POST /api/v1/admin/programs/jobs/run`
 - `GET /api/v1/admin/programs/:programId/analytics`
 
 ## Job and Event Plan
@@ -97,10 +98,10 @@ Gateway namespace:
 - Outcome and KPI aggregation job (daily)
 - CRM sync dispatcher (continuous/batched)
 - Events:
-  - `program_application_submitted`
-  - `program_application_decided`
-  - `program_session_scheduled`
-  - `program_session_attended`
+  - `program_application_decision`
+  - `program_application_sla_reminder`
+  - `program_session_reminder`
+  - `program_crm_sync_requested`
 
 ## Milestones
 
@@ -115,12 +116,14 @@ Implemented on `codex/phase-6-programs-kickoff`:
 
 - New deployable:
   - `services/programs-service`
+- Scheduler module:
+  - `services/programs-service/src/scheduler.ts` (SLA reminders, session reminders, cohort transitions, KPI snapshots, CRM dispatcher)
 - New gateway routes:
   - `services/api-gateway/src/routes/programs.ts`
 - New contracts:
   - `packages/contracts/src/index.ts` (program + application + cohorts + sessions + attendance + mentorship + analytics schemas)
 - New DB table provisioning:
-  - `packages/db/src/index.ts` (`ensureProgramsTables` with cohort/session/attendance/mentorship tables)
+  - `packages/db/src/index.ts` (`ensureProgramsTables` with cohort/session/attendance/mentorship tables plus outcomes, CRM queue, notification log, KPI snapshots)
 
 Internal service endpoints:
 
@@ -144,6 +147,7 @@ Internal service endpoints:
 - `POST /internal/admin/programs/:programId/outcomes`
 - `POST /internal/admin/programs/:programId/crm-sync`
 - `GET /internal/admin/programs/:programId/crm-sync`
+- `POST /internal/admin/programs/jobs/run`
 - `GET /internal/admin/programs/:programId/analytics`
 
 Gateway endpoints:
@@ -168,11 +172,14 @@ Gateway endpoints:
 - `POST /api/v1/admin/programs/:programId/outcomes`
 - `POST /api/v1/admin/programs/:programId/crm-sync`
 - `GET /api/v1/admin/programs/:programId/crm-sync`
+- `POST /api/v1/admin/programs/jobs/run`
 - `GET /api/v1/admin/programs/:programId/analytics`
 
 Infrastructure updates:
 - `compose.yml` now includes `programs-service`.
 - `.github/workflows/docker.yml` includes `programs-service` image builds.
+- Integration coverage:
+  - `tests/integration/compose/programs-partner-hardening-flow.test.ts` validates outcomes persistence, CRM queueing, and admin job execution paths against the compose stack.
 
 ## Exit Criteria
 

@@ -30,33 +30,36 @@ export async function closePool(databaseUrl?: string): Promise<void> {
 
 export async function ensureCoreTables(): Promise<void> {
   const db = getPool();
+  const advisoryLockId = 71234567;
+  await db.query("SELECT pg_advisory_lock($1)", [advisoryLockId]);
 
-  await db.query(`
-    CREATE TABLE IF NOT EXISTS app_users (
-      id TEXT PRIMARY KEY,
-      email TEXT UNIQUE NOT NULL,
-      password_hash TEXT NOT NULL,
-      password_salt TEXT NOT NULL,
-      display_name TEXT NOT NULL,
-      role TEXT NOT NULL DEFAULT 'writer',
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-  `);
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS app_users (
+        id TEXT PRIMARY KEY,
+        email TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        password_salt TEXT NOT NULL,
+        display_name TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'writer',
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
 
-  // Backfill role column for databases created before admin roles existed.
-  await db.query(`
-    ALTER TABLE app_users
-    ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'writer';
-  `);
+    // Backfill role column for databases created before admin roles existed.
+    await db.query(`
+      ALTER TABLE app_users
+      ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'writer';
+    `);
 
-  await db.query(`
-    CREATE TABLE IF NOT EXISTS app_sessions (
-      token TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
-      expires_at TIMESTAMPTZ NOT NULL,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-  `);
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS app_sessions (
+        token TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+        expires_at TIMESTAMPTZ NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
 
   await db.query(`
     CREATE TABLE IF NOT EXISTS writer_profiles (
@@ -182,10 +185,13 @@ export async function ensureCoreTables(): Promise<void> {
       ON script_access_requests(requester_user_id);
   `);
 
-  await db.query(`
-    CREATE INDEX IF NOT EXISTS idx_app_sessions_user_id
-      ON app_sessions(user_id);
-  `);
+    await db.query(`
+      CREATE INDEX IF NOT EXISTS idx_app_sessions_user_id
+        ON app_sessions(user_id);
+    `);
+  } finally {
+    await db.query("SELECT pg_advisory_unlock($1)", [advisoryLockId]);
+  }
 }
 
 export async function ensureFeedbackExchangeTables(): Promise<void> {
@@ -792,6 +798,119 @@ export async function ensureProgramsTables(): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_program_mentorship_matches_status
       ON program_mentorship_matches(program_id, status);
   `);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS program_application_forms (
+      program_id TEXT PRIMARY KEY REFERENCES programs(id) ON DELETE CASCADE,
+      fields_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+      updated_by_user_id TEXT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS program_scoring_rubrics (
+      program_id TEXT PRIMARY KEY REFERENCES programs(id) ON DELETE CASCADE,
+      criteria_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+      updated_by_user_id TEXT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS program_availability_windows (
+      id TEXT PRIMARY KEY,
+      program_id TEXT NOT NULL REFERENCES programs(id) ON DELETE CASCADE,
+      user_id TEXT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+      starts_at TIMESTAMPTZ NOT NULL,
+      ends_at TIMESTAMPTZ NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+  await db.query(`
+    CREATE INDEX IF NOT EXISTS idx_program_availability_windows_program_user
+      ON program_availability_windows(program_id, user_id, starts_at ASC);
+  `);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS program_session_integrations (
+      session_id TEXT PRIMARY KEY REFERENCES program_sessions(id) ON DELETE CASCADE,
+      provider TEXT NOT NULL DEFAULT '',
+      meeting_url TEXT NULL,
+      recording_url TEXT NULL,
+      reminder_offsets_minutes INTEGER[] NOT NULL DEFAULT ARRAY[]::INTEGER[],
+      updated_by_user_id TEXT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS program_outcomes (
+      id TEXT PRIMARY KEY,
+      program_id TEXT NOT NULL REFERENCES programs(id) ON DELETE CASCADE,
+      user_id TEXT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+      outcome_type TEXT NOT NULL,
+      notes TEXT NOT NULL DEFAULT '',
+      recorded_by_user_id TEXT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+  await db.query(`
+    CREATE INDEX IF NOT EXISTS idx_program_outcomes_program_created
+      ON program_outcomes(program_id, created_at DESC);
+  `);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS program_crm_sync_jobs (
+      id TEXT PRIMARY KEY,
+      program_id TEXT NOT NULL REFERENCES programs(id) ON DELETE CASCADE,
+      status TEXT NOT NULL DEFAULT 'queued'
+        CHECK (status IN ('queued', 'running', 'succeeded', 'failed', 'dead_letter')),
+      reason TEXT NOT NULL DEFAULT '',
+      payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+      attempts INTEGER NOT NULL DEFAULT 0,
+      max_attempts INTEGER NOT NULL DEFAULT 5 CHECK (max_attempts > 0),
+      next_attempt_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      last_error TEXT NOT NULL DEFAULT '',
+      triggered_by_user_id TEXT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+      processed_at TIMESTAMPTZ NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+  await db.query(`
+    CREATE INDEX IF NOT EXISTS idx_program_crm_sync_jobs_status_next_attempt
+      ON program_crm_sync_jobs(status, next_attempt_at ASC);
+  `);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS program_notification_log (
+      id TEXT PRIMARY KEY,
+      program_id TEXT NOT NULL REFERENCES programs(id) ON DELETE CASCADE,
+      notification_type TEXT NOT NULL,
+      dedupe_key TEXT NOT NULL UNIQUE,
+      payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+      sent_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+  await db.query(`
+    CREATE INDEX IF NOT EXISTS idx_program_notification_log_program_type
+      ON program_notification_log(program_id, notification_type, sent_at DESC);
+  `);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS program_kpi_snapshots (
+      program_id TEXT NOT NULL REFERENCES programs(id) ON DELETE CASCADE,
+      snapshot_date DATE NOT NULL,
+      metrics_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      PRIMARY KEY (program_id, snapshot_date)
+    );
+  `);
 }
 
 export async function ensurePartnerTables(): Promise<void> {
@@ -857,6 +976,10 @@ export async function ensurePartnerTables(): Promise<void> {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
+  `);
+  await db.query(`
+    ALTER TABLE partner_submissions
+      ADD COLUMN IF NOT EXISTS form_responses JSONB NOT NULL DEFAULT '{}'::jsonb;
   `);
 
   await db.query(`
@@ -960,6 +1083,36 @@ export async function ensurePartnerTables(): Promise<void> {
   await db.query(`
     CREATE INDEX IF NOT EXISTS idx_partner_sync_jobs_competition
       ON partner_sync_jobs(competition_id, created_at DESC);
+  `);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS partner_competition_intake_configs (
+      competition_id TEXT PRIMARY KEY REFERENCES partner_competitions(id) ON DELETE CASCADE,
+      form_fields_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+      fee_rules_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+      updated_by_user_id TEXT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS partner_entrant_messages (
+      id TEXT PRIMARY KEY,
+      competition_id TEXT NOT NULL REFERENCES partner_competitions(id) ON DELETE CASCADE,
+      sender_user_id TEXT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+      target_user_id TEXT NULL REFERENCES app_users(id) ON DELETE SET NULL,
+      message_kind TEXT NOT NULL CHECK (message_kind IN ('direct', 'broadcast', 'reminder')),
+      template_key TEXT NOT NULL DEFAULT '',
+      subject TEXT NOT NULL DEFAULT '',
+      body TEXT NOT NULL DEFAULT '',
+      metadata_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+  await db.query(`
+    CREATE INDEX IF NOT EXISTS idx_partner_entrant_messages_competition_created
+      ON partner_entrant_messages(competition_id, created_at DESC);
   `);
 }
 

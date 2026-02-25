@@ -16,6 +16,7 @@ type UploadSessionResponse = {
 };
 
 test("compose flow: upload session -> minio upload -> register -> viewer access", async () => {
+  const minioPort = process.env.INTEGRATION_MINIO_PORT ?? "9000";
   const session = await registerUser("upload-writer");
   const scriptId = makeUnique("script");
   const fileName = "integration-upload.pdf";
@@ -40,7 +41,7 @@ test("compose flow: upload session -> minio upload -> register -> viewer access"
     201
   );
 
-  assert.ok(uploadSession.uploadUrl.startsWith("http://localhost:9000/"));
+  assert.ok(uploadSession.uploadUrl.startsWith(`http://localhost:${minioPort}/`));
   assert.ok(uploadSession.objectKey.includes(scriptId));
 
   const uploadForm = new FormData();

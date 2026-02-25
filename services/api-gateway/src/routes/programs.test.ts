@@ -58,6 +58,37 @@ test("programs routes proxy application flow with auth context", async (t) => {
   assert.equal(urls[1], "http://programs-svc/internal/programs/program_1/applications/me");
 });
 
+test("programs routes proxy application-form lookups", async (t) => {
+  const urls: string[] = [];
+  const server = buildServer({
+    logger: false,
+    requestFn: (async (url) => {
+      urls.push(String(url));
+      return jsonResponse({
+        form: {
+          fields: [{ key: "goals", label: "Goals", type: "textarea", required: true }]
+        }
+      });
+    }) as typeof request,
+    programsServiceBase: "http://programs-svc"
+  });
+  t.after(async () => {
+    await server.close();
+  });
+
+  const form = await server.inject({
+    method: "GET",
+    url: "/api/v1/programs/program form/application-form"
+  });
+  assert.equal(form.statusCode, 200);
+  assert.equal(
+    urls[0],
+    "http://programs-svc/internal/programs/program%20form/application-form"
+  );
+  assert.equal(form.json().form.fields.length, 1);
+  assert.equal(form.json().form.fields[0]?.key, "goals");
+});
+
 test("admin programs routes enforce allowlist and proxy lifecycle endpoints", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
@@ -240,8 +271,15 @@ test("programs routes proxy advanced phase-6 admin workflows", async (t) => {
     industryAdminAllowlist: ["admin_01"],
     programsServiceBase: "http://programs-svc",
     requestFn: (async (url, options) => {
-      urls.push(String(url));
+      const currentUrl = String(url);
+      urls.push(currentUrl);
       headers.push((options?.headers as Record<string, string> | undefined) ?? {});
+      if (currentUrl.endsWith("/outcomes")) {
+        return jsonResponse({ ok: true }, 201);
+      }
+      if (currentUrl.includes("/crm-sync") && options?.method === "POST") {
+        return jsonResponse({ ok: true, job: { id: "crm_1" } }, 202);
+      }
       return jsonResponse({ ok: true, jobs: [{ id: "crm_1" }] }, 200);
     }) as typeof request
   });
@@ -302,7 +340,7 @@ test("programs routes proxy advanced phase-6 admin workflows", async (t) => {
     headers: { "x-admin-user-id": "admin_01" },
     payload: { userId: "writer_01", outcomeType: "staffed" }
   });
-  assert.equal(outcome.statusCode, 200);
+  assert.equal(outcome.statusCode, 201);
 
   const crmPost = await server.inject({
     method: "POST",
@@ -310,14 +348,22 @@ test("programs routes proxy advanced phase-6 admin workflows", async (t) => {
     headers: { "x-admin-user-id": "admin_01" },
     payload: { reason: "weekly" }
   });
-  assert.equal(crmPost.statusCode, 200);
+  assert.equal(crmPost.statusCode, 202);
 
   const crmGet = await server.inject({
     method: "GET",
-    url: "/api/v1/admin/programs/program_1/crm-sync",
+    url: "/api/v1/admin/programs/program_1/crm-sync?status=failed&limit=10&offset=5",
     headers: { "x-admin-user-id": "admin_01" }
   });
   assert.equal(crmGet.statusCode, 200);
+
+  const runJobs = await server.inject({
+    method: "POST",
+    url: "/api/v1/admin/programs/jobs/run",
+    headers: { "x-admin-user-id": "admin_01" },
+    payload: { job: "crm_sync_dispatcher", limit: 5 }
+  });
+  assert.equal(runJobs.statusCode, 200);
 
   assert.equal(urls[0], "http://programs-svc/internal/admin/programs/program_1/application-form");
   assert.equal(urls[1], "http://programs-svc/internal/admin/programs/program_1/scoring-rubric");
@@ -333,6 +379,10 @@ test("programs routes proxy advanced phase-6 admin workflows", async (t) => {
   );
   assert.equal(urls[6], "http://programs-svc/internal/admin/programs/program_1/outcomes");
   assert.equal(urls[7], "http://programs-svc/internal/admin/programs/program_1/crm-sync");
-  assert.equal(urls[8], "http://programs-svc/internal/admin/programs/program_1/crm-sync");
-  assert.equal(headers[8]?.["x-admin-user-id"], "admin_01");
+  assert.equal(
+    urls[8],
+    "http://programs-svc/internal/admin/programs/program_1/crm-sync?status=failed&limit=10&offset=5"
+  );
+  assert.equal(urls[9], "http://programs-svc/internal/admin/programs/jobs/run");
+  assert.equal(headers[9]?.["x-admin-user-id"], "admin_01");
 });

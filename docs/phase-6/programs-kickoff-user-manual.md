@@ -24,6 +24,7 @@ This manual covers the implemented Phase 6 APIs for program catalog, application
 - `POST /api/v1/admin/programs/:programId/outcomes`
 - `POST /api/v1/admin/programs/:programId/crm-sync`
 - `GET /api/v1/admin/programs/:programId/crm-sync`
+- `POST /api/v1/admin/programs/jobs/run`
 - `GET /api/v1/admin/programs/:programId/analytics`
 
 ## Writer Flow
@@ -228,6 +229,18 @@ curl -X POST "http://localhost:4000/api/v1/admin/programs/<program-id>/crm-sync"
   -H "content-type: application/json" \
   -d '{ "reason": "weekly_follow_up" }'
 
-curl "http://localhost:4000/api/v1/admin/programs/<program-id>/crm-sync" \
+curl "http://localhost:4000/api/v1/admin/programs/<program-id>/crm-sync?status=failed&limit=25&offset=0" \
   -H "x-admin-user-id: admin_01"
+```
+
+Run scheduler jobs on demand:
+
+```bash
+curl -X POST "http://localhost:4000/api/v1/admin/programs/jobs/run" \
+  -H "x-admin-user-id: admin_01" \
+  -H "content-type: application/json" \
+  -d '{
+    "job": "crm_sync_dispatcher",
+    "limit": 25
+  }'
 ```

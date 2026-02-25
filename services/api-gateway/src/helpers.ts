@@ -111,6 +111,24 @@ export async function resolveAdminUserId(
   return null;
 }
 
+export async function resolveUserId(
+  requestFn: RequestFn,
+  identityServiceBase: string,
+  headers: Record<string, unknown>
+): Promise<string | null> {
+  const headerUserId =
+    readHeaderValue(headers, "x-auth-user-id") ??
+    readHeaderValue(headers, "x-partner-user-id") ??
+    readHeaderValue(headers, "x-admin-user-id");
+  if (headerUserId) {
+    return headerUserId;
+  }
+
+  const authorization = readHeaderValue(headers, "authorization");
+  const authedUserId = await getUserIdFromAuth(requestFn, identityServiceBase, authorization);
+  return authedUserId;
+}
+
 export function readHeaderValue(headers: Record<string, unknown>, headerName: string): string | undefined {
   const rawValue = headers[headerName];
   if (typeof rawValue === "string" && rawValue.length > 0) {

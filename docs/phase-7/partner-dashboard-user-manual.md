@@ -9,16 +9,23 @@ This manual covers the implemented Phase 7 organizer workflows for competition o
 - `PUT /api/v1/partners/competitions/:competitionId/intake`
 - `POST /api/v1/partners/competitions/:competitionId/submissions`
 - `GET /api/v1/partners/competitions/:competitionId/submissions`
+- `POST /api/v1/partners/competitions/:competitionId/messages`
+- `GET /api/v1/partners/competitions/:competitionId/messages`
 - `POST /api/v1/partners/competitions/:competitionId/judges/assign`
 - `POST /api/v1/partners/competitions/:competitionId/judges/auto-assign`
+- `POST /api/v1/partners/competitions/:competitionId/jobs/run`
 - `POST /api/v1/partners/competitions/:competitionId/evaluations`
 - `POST /api/v1/partners/competitions/:competitionId/normalize`
 - `POST /api/v1/partners/competitions/:competitionId/publish-results`
 - `POST /api/v1/partners/competitions/:competitionId/draft-swaps`
 - `GET /api/v1/partners/competitions/:competitionId/analytics`
 - `POST /api/v1/partners/integrations/filmfreeway/sync`
+- `POST /api/v1/partners/integrations/filmfreeway/sync/jobs/claim`
+- `POST /api/v1/partners/integrations/filmfreeway/sync/jobs/:jobId/complete`
+- `POST /api/v1/partners/integrations/filmfreeway/sync/jobs/:jobId/fail`
+- `POST /api/v1/partners/integrations/filmfreeway/sync/run-next`
 
-All endpoints require an allowlisted organizer/admin identity through `x-admin-user-id` or an allowlisted bearer token resolved by identity-service.
+All endpoints require an authenticated actor identity. Gateway resolves actor ID from `x-auth-user-id`, `x-partner-user-id`, `x-admin-user-id`, or bearer token (`/internal/auth/me`) and forwards it to partner-service role checks.
 
 ## Organizer Flow
 
@@ -105,6 +112,19 @@ curl -X POST "http://localhost:4000/api/v1/partners/competitions/<competition-id
   }'
 ```
 
+Run competition background jobs manually:
+
+```bash
+curl -X POST "http://localhost:4000/api/v1/partners/competitions/<competition-id>/jobs/run" \
+  -H "x-auth-user-id: admin_01" \
+  -H "content-type: application/json" \
+  -d '{
+    "job": "judge_assignment_balancing",
+    "judgeUserIds": ["judge_01", "judge_02"],
+    "maxAssignmentsPerJudge": 4
+  }'
+```
+
 Submit evaluation:
 
 ```bash
@@ -174,4 +194,35 @@ curl -X POST "http://localhost:4000/api/v1/partners/integrations/filmfreeway/syn
     "competitionId": "<competition-id>",
     "direction": "import"
   }'
+```
+
+Send and query entrant messages:
+
+```bash
+curl -X POST "http://localhost:4000/api/v1/partners/competitions/<competition-id>/messages" \
+  -H "x-auth-user-id: admin_01" \
+  -H "content-type: application/json" \
+  -d '{
+    "messageKind": "broadcast",
+    "subject": "Quarterfinal timeline",
+    "body": "Quarterfinal results publish Friday."
+  }'
+
+curl "http://localhost:4000/api/v1/partners/competitions/<competition-id>/messages?targetUserId=writer_01&limit=25" \
+  -H "x-auth-user-id: admin_01"
+```
+
+Drive sync job lifecycle:
+
+```bash
+curl -X POST "http://localhost:4000/api/v1/partners/integrations/filmfreeway/sync/jobs/claim" \
+  -H "x-auth-user-id: admin_01"
+
+curl -X POST "http://localhost:4000/api/v1/partners/integrations/filmfreeway/sync/jobs/<job-id>/complete" \
+  -H "x-auth-user-id: admin_01" \
+  -H "content-type: application/json" \
+  -d '{ "detail": "Imported 47 entries" }'
+
+curl -X POST "http://localhost:4000/api/v1/partners/integrations/filmfreeway/sync/run-next" \
+  -H "x-auth-user-id: admin_01"
 ```

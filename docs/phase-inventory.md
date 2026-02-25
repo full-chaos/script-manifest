@@ -1,6 +1,6 @@
 # Phase Documentation Inventory
 
-Last updated: 2026-02-23
+Last updated: 2026-02-25
 Source of truth for scope: `docs/plan.md`
 
 ## Feature Set to Phase Mapping
@@ -27,16 +27,16 @@ Source of truth for scope: `docs/plan.md`
 | 3 | Backfilled summary and implementation references | `docs/phase-3/README.md` |
 | 4 | Backfilled summary and implementation references | `docs/phase-4/README.md` |
 | 5 | In progress (foundation + discovery/mandates slice) | `docs/phase-5/README.md`, `docs/phase-5/industry-vetting-and-access-user-manual.md`, `docs/phase-5/discovery-collaboration-mandates-user-manual.md` |
-| 6 | In progress kickoff planning | `docs/phase-6/README.md` |
-| 7 | In progress kickoff planning | `docs/phase-7/README.md` |
+| 6 | Documented and implemented | `docs/phase-6/README.md`, `docs/phase-6/programs-kickoff-user-manual.md` |
+| 7 | Documented and implemented | `docs/phase-7/README.md`, `docs/phase-7/partner-dashboard-user-manual.md` |
 
 ## Open Planning Features
 
 | Beads Feature | Title | Status |
 | --- | --- | --- |
 | `script-manifest-n92` | Phase 5: Industry portal and discovery dashboard | In Progress |
-| `script-manifest-n2h` | Phase 6: Programs and events platform | In Progress |
-| `script-manifest-nzi` | Phase 7: Partner dashboard for competition organizers | In Progress |
+| `script-manifest-n2h` | Phase 6: Programs and events platform | Completed |
+| `script-manifest-nzi` | Phase 7: Partner dashboard for competition organizers | Completed |
 
 ## Remaining Documentation Gaps
 

@@ -569,6 +569,46 @@ test("GET /api/v1/coverage/orders/:orderId/delivery requires auth", async (t) =>
   assert.equal(headers[0]?.["x-auth-user-id"], "writer_01");
 });
 
+test("GET /api/v1/coverage/orders/:orderId/delivery/upload-url requires auth", async (t) => {
+  const urls: string[] = [];
+  const headers: Record<string, string>[] = [];
+  const server = buildServer({
+    logger: false,
+    requestFn: (async (url, options) => {
+      const urlStr = String(url);
+      if (urlStr.includes("/internal/auth/me")) {
+        return jsonResponse({
+          user: { id: "writer_01", email: "writer@example.com", displayName: "Writer One" },
+          expiresAt: "2026-12-31T00:00:00.000Z"
+        });
+      }
+      urls.push(urlStr);
+      headers.push((options?.headers as Record<string, string> | undefined) ?? {});
+      return jsonResponse({ uploadUrl: "https://example.com/upload" });
+    }) as typeof request,
+    identityServiceBase: "http://identity-svc",
+    coverageMarketplaceBase: "http://coverage-svc"
+  });
+  t.after(async () => {
+    await server.close();
+  });
+
+  const forbidden = await server.inject({
+    method: "GET",
+    url: "/api/v1/coverage/orders/order_01/delivery/upload-url"
+  });
+  assert.equal(forbidden.statusCode, 401);
+
+  const ok = await server.inject({
+    method: "GET",
+    url: "/api/v1/coverage/orders/order_01/delivery/upload-url",
+    headers: { authorization: "Bearer sess_1" }
+  });
+  assert.equal(ok.statusCode, 200);
+  assert.equal(urls[0], "http://coverage-svc/internal/orders/order_01/delivery/upload-url");
+  assert.equal(headers[0]?.["x-auth-user-id"], "writer_01");
+});
+
 test("POST /api/v1/coverage/orders/:orderId/review requires auth", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
@@ -746,14 +786,164 @@ test("PATCH /api/v1/coverage/disputes/:disputeId requires allowlisted admin", as
   assert.equal(headers[0]?.["x-auth-user-id"], "admin_01");
 });
 
-test("POST /api/v1/coverage/stripe-webhook proxies without auth and forwards stripe-signature", async (t) => {
+test("GET /api/v1/coverage/admin/providers/review-queue requires allowlisted admin", async (t) => {
+  const urls: string[] = [];
+  const headers: Record<string, string>[] = [];
+  const server = buildServer({
+    logger: false,
+    coverageAdminAllowlist: ["admin_01"],
+    requestFn: (async (url, options) => {
+      urls.push(String(url));
+      headers.push((options?.headers as Record<string, string> | undefined) ?? {});
+      return jsonResponse({ entries: [] });
+    }) as typeof request,
+    coverageMarketplaceBase: "http://coverage-svc"
+  });
+  t.after(async () => {
+    await server.close();
+  });
+
+  const forbidden = await server.inject({
+    method: "GET",
+    url: "/api/v1/coverage/admin/providers/review-queue"
+  });
+  assert.equal(forbidden.statusCode, 403);
+
+  const ok = await server.inject({
+    method: "GET",
+    url: "/api/v1/coverage/admin/providers/review-queue",
+    headers: { "x-admin-user-id": "admin_01" }
+  });
+  assert.equal(ok.statusCode, 200);
+  assert.equal(urls[0], "http://coverage-svc/internal/admin/providers/review-queue");
+  assert.equal(headers[0]?.["x-auth-user-id"], "admin_01");
+});
+
+test("GET /api/v1/coverage/providers/:providerId/earnings-statement requires auth", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
   const server = buildServer({
     logger: false,
     requestFn: (async (url, options) => {
+      const urlStr = String(url);
+      if (urlStr.includes("/internal/auth/me")) {
+        return jsonResponse({
+          user: { id: "provider_01", email: "provider@example.com", displayName: "Provider One" },
+          expiresAt: "2026-12-31T00:00:00.000Z"
+        });
+      }
+      urls.push(urlStr);
+      headers.push((options?.headers as Record<string, string> | undefined) ?? {});
+      return jsonResponse({ month: "2026-02", rows: [] });
+    }) as typeof request,
+    identityServiceBase: "http://identity-svc",
+    coverageMarketplaceBase: "http://coverage-svc"
+  });
+  t.after(async () => {
+    await server.close();
+  });
+
+  const forbidden = await server.inject({
+    method: "GET",
+    url: "/api/v1/coverage/providers/provider_01/earnings-statement?month=2026-02"
+  });
+  assert.equal(forbidden.statusCode, 401);
+
+  const ok = await server.inject({
+    method: "GET",
+    url: "/api/v1/coverage/providers/provider_01/earnings-statement?month=2026-02",
+    headers: { authorization: "Bearer sess_provider" }
+  });
+  assert.equal(ok.statusCode, 200);
+  assert.equal(urls[0], "http://coverage-svc/internal/providers/provider_01/earnings-statement?month=2026-02");
+  assert.equal(headers[0]?.["x-auth-user-id"], "provider_01");
+});
+
+test("admin payout-ledger and SLA maintenance routes require allowlisted admin", async (t) => {
+  const urls: string[] = [];
+  const headers: Record<string, string>[] = [];
+  const server = buildServer({
+    logger: false,
+    coverageAdminAllowlist: ["admin_01"],
+    requestFn: (async (url, options) => {
       urls.push(String(url));
       headers.push((options?.headers as Record<string, string> | undefined) ?? {});
+      return jsonResponse({ ok: true });
+    }) as typeof request,
+    coverageMarketplaceBase: "http://coverage-svc"
+  });
+  t.after(async () => {
+    await server.close();
+  });
+
+  const forbiddenLedger = await server.inject({
+    method: "GET",
+    url: "/api/v1/coverage/admin/payout-ledger"
+  });
+  assert.equal(forbiddenLedger.statusCode, 403);
+
+  const ledgerOk = await server.inject({
+    method: "GET",
+    url: "/api/v1/coverage/admin/payout-ledger?month=2026-02",
+    headers: { "x-admin-user-id": "admin_01" }
+  });
+  assert.equal(ledgerOk.statusCode, 200);
+  assert.equal(urls[0], "http://coverage-svc/internal/admin/payout-ledger?month=2026-02");
+  assert.equal(headers[0]?.["x-auth-user-id"], "admin_01");
+
+  const jobOk = await server.inject({
+    method: "POST",
+    url: "/api/v1/coverage/admin/jobs/sla-maintenance",
+    headers: { "x-admin-user-id": "admin_01" }
+  });
+  assert.equal(jobOk.statusCode, 200);
+  assert.equal(urls[1], "http://coverage-svc/internal/jobs/sla-maintenance");
+  assert.equal(headers[1]?.["x-auth-user-id"], "admin_01");
+});
+
+test("GET /api/v1/coverage/disputes/:disputeId/events requires allowlisted admin", async (t) => {
+  const urls: string[] = [];
+  const headers: Record<string, string>[] = [];
+  const server = buildServer({
+    logger: false,
+    coverageAdminAllowlist: ["admin_01"],
+    requestFn: (async (url, options) => {
+      urls.push(String(url));
+      headers.push((options?.headers as Record<string, string> | undefined) ?? {});
+      return jsonResponse({ events: [] });
+    }) as typeof request,
+    coverageMarketplaceBase: "http://coverage-svc"
+  });
+  t.after(async () => {
+    await server.close();
+  });
+
+  const forbidden = await server.inject({
+    method: "GET",
+    url: "/api/v1/coverage/disputes/dispute_01/events"
+  });
+  assert.equal(forbidden.statusCode, 403);
+
+  const ok = await server.inject({
+    method: "GET",
+    url: "/api/v1/coverage/disputes/dispute_01/events",
+    headers: { "x-admin-user-id": "admin_01" }
+  });
+  assert.equal(ok.statusCode, 200);
+  assert.equal(urls[0], "http://coverage-svc/internal/disputes/dispute_01/events");
+  assert.equal(headers[0]?.["x-auth-user-id"], "admin_01");
+});
+
+test("POST /api/v1/coverage/stripe-webhook proxies without auth and forwards stripe-signature", async (t) => {
+  const urls: string[] = [];
+  const headers: Record<string, string>[] = [];
+  const bodies: unknown[] = [];
+  const server = buildServer({
+    logger: false,
+    requestFn: (async (url, options) => {
+      urls.push(String(url));
+      headers.push((options?.headers as Record<string, string> | undefined) ?? {});
+      bodies.push(options?.body);
       return jsonResponse({ received: true });
     }) as typeof request,
     coverageMarketplaceBase: "http://coverage-svc"
@@ -775,4 +965,76 @@ test("POST /api/v1/coverage/stripe-webhook proxies without auth and forwards str
   assert.equal(response.statusCode, 200);
   assert.equal(urls[0], "http://coverage-svc/internal/stripe-webhook");
   assert.equal(headers[0]?.["stripe-signature"], "t=1234567890,v1=abc123");
+  assert.equal(
+    bodies[0],
+    JSON.stringify({ type: "payment_intent.succeeded", data: {} })
+  );
+});
+
+test("POST /api/v1/coverage/stripe-webhook forwards raw string body", async (t) => {
+  const bodies: unknown[] = [];
+  const headers: Record<string, string>[] = [];
+  const server = buildServer({
+    logger: false,
+    requestFn: (async (_url, options) => {
+      bodies.push(options?.body);
+      headers.push((options?.headers as Record<string, string> | undefined) ?? {});
+      return jsonResponse({ received: true });
+    }) as typeof request,
+    coverageMarketplaceBase: "http://coverage-svc"
+  });
+  t.after(async () => {
+    await server.close();
+  });
+
+  const rawPayload = "{\"id\":\"evt_123\"}";
+  const response = await server.inject({
+    method: "POST",
+    url: "/api/v1/coverage/stripe-webhook",
+    headers: {
+      "content-type": "text/plain",
+      "stripe-signature": "t=1234567890,v1=rawstring"
+    },
+    payload: rawPayload
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(bodies[0], rawPayload);
+  assert.equal(headers[0]?.["stripe-signature"], "t=1234567890,v1=rawstring");
+  assert.equal(headers[0]?.["content-type"], "text/plain");
+});
+
+test("POST /api/v1/coverage/stripe-webhook forwards Buffer body when parser provides Buffer", async (t) => {
+  const bodies: unknown[] = [];
+  const server = buildServer({
+    logger: false,
+    requestFn: (async (_url, options) => {
+      bodies.push(options?.body);
+      return jsonResponse({ received: true });
+    }) as typeof request,
+    coverageMarketplaceBase: "http://coverage-svc"
+  });
+  server.addContentTypeParser(
+    "application/octet-stream",
+    { parseAs: "buffer" },
+    (_req, body, done) => done(null, body)
+  );
+  t.after(async () => {
+    await server.close();
+  });
+
+  const rawPayload = Buffer.from("{\"id\":\"evt_buffer\"}", "utf8");
+  const response = await server.inject({
+    method: "POST",
+    url: "/api/v1/coverage/stripe-webhook",
+    headers: {
+      "content-type": "application/octet-stream",
+      "stripe-signature": "t=1234567890,v1=buffer"
+    },
+    payload: rawPayload
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(Buffer.isBuffer(bodies[0]), true);
+  assert.equal((bodies[0] as Buffer).toString("utf8"), rawPayload.toString("utf8"));
 });

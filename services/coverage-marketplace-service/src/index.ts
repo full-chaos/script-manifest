@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import {
   CoverageProviderCreateRequestSchema,
   CoverageProviderUpdateRequestSchema,
+  CoverageProviderReviewRequestSchema,
   CoverageProviderFiltersSchema,
   CoverageServiceCreateRequestSchema,
   CoverageServiceUpdateRequestSchema,
@@ -18,6 +19,7 @@ import {
 import type { CoverageMarketplaceRepository } from "./repository.js";
 import { PgCoverageMarketplaceRepository } from "./pgRepository.js";
 import { type PaymentGateway, MemoryPaymentGateway } from "./paymentGateway.js";
+import { StripePaymentGateway } from "./stripePaymentGateway.js";
 
 export type CoverageMarketplaceServiceOptions = {
   logger?: boolean;
@@ -25,6 +27,41 @@ export type CoverageMarketplaceServiceOptions = {
   paymentGateway?: PaymentGateway;
   commissionRate?: number;
 };
+
+function createPaymentGatewayFromEnv(): PaymentGateway {
+  const secretKey = process.env.STRIPE_SECRET_KEY;
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  if (secretKey && webhookSecret) {
+    return new StripePaymentGateway(secretKey, webhookSecret);
+  }
+  return new MemoryPaymentGateway();
+}
+
+function monthBounds(month: string): { start: Date; end: Date } | null {
+  if (!/^\d{4}-\d{2}$/.test(month)) {
+    return null;
+  }
+  const [yearPart, monthPart] = month.split("-");
+  const year = Number(yearPart);
+  const monthIndex = Number(monthPart) - 1;
+  if (!Number.isInteger(year) || !Number.isInteger(monthIndex) || monthIndex < 0 || monthIndex > 11) {
+    return null;
+  }
+  const start = new Date(Date.UTC(year, monthIndex, 1, 0, 0, 0, 0));
+  const end = new Date(Date.UTC(year, monthIndex + 1, 1, 0, 0, 0, 0));
+  return { start, end };
+}
+
+function csvEscape(value: string | number | null | undefined): string {
+  if (value === null || value === undefined) {
+    return "";
+  }
+  const str = String(value);
+  if (str.includes(",") || str.includes("\"") || str.includes("\n")) {
+    return `"${str.replace(/"/g, "\"\"")}"`;
+  }
+  return str;
+}
 
 export function buildServer(options: CoverageMarketplaceServiceOptions = {}): FastifyInstance {
   const server = Fastify({
@@ -34,16 +71,94 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
   });
 
   const repository = options.repository ?? new PgCoverageMarketplaceRepository();
-  const paymentGateway = options.paymentGateway ?? new MemoryPaymentGateway();
+  const paymentGateway = options.paymentGateway ?? createPaymentGatewayFromEnv();
   const commissionRate = options.commissionRate ?? Number(process.env.PLATFORM_COMMISSION_RATE ?? "0.15");
+  const autoCompleteDays = Number(process.env.COVERAGE_AUTO_COMPLETE_DAYS ?? "7");
+  const maintenanceIntervalMs = Number(process.env.COVERAGE_SLA_MAINTENANCE_MS ?? "0");
+  const systemUserId = process.env.COVERAGE_SYSTEM_USER_ID ?? "system";
+  let maintenanceTimer: NodeJS.Timeout | null = null;
 
   const getAuthUserId = (headers: Record<string, unknown>): string | null => {
     const userId = headers["x-auth-user-id"];
     return typeof userId === "string" && userId.length > 0 ? userId : null;
   };
 
+  const runSlaMaintenance = async (actorUserId: string) => {
+    const now = Date.now();
+    const autoCompleteCutoff = now - autoCompleteDays * 86400000;
+    const deliveredOrders = await repository.listOrders({ status: "delivered", limit: 1000, offset: 0 });
+    let autoCompleted = 0;
+
+    for (const order of deliveredOrders) {
+      const deliveredAt = order.deliveredAt ? new Date(order.deliveredAt).getTime() : null;
+      if (!deliveredAt || deliveredAt > autoCompleteCutoff) {
+        continue;
+      }
+      const provider = await repository.getProvider(order.providerId);
+      if (!provider?.stripeAccountId) {
+        continue;
+      }
+      if (order.stripePaymentIntentId) {
+        await paymentGateway.capturePayment(order.stripePaymentIntentId);
+      }
+      const { transferId } = await paymentGateway.transferToProvider({
+        amountCents: order.providerPayoutCents,
+        stripeAccountId: provider.stripeAccountId,
+        transferGroup: order.id
+      });
+      await repository.updateOrderStatus(order.id, "completed", { stripeTransferId: transferId });
+      autoCompleted += 1;
+    }
+
+    const claimed = await repository.listOrders({ status: "claimed", limit: 1000, offset: 0 });
+    const inProgress = await repository.listOrders({ status: "in_progress", limit: 1000, offset: 0 });
+    let slaBreachesDisputed = 0;
+    for (const order of [...claimed, ...inProgress]) {
+      const deadline = order.slaDeadline ? new Date(order.slaDeadline).getTime() : null;
+      if (!deadline || deadline >= now) {
+        continue;
+      }
+      const existingDispute = await repository.getDisputeByOrder(order.id);
+      if (existingDispute && (existingDispute.status === "open" || existingDispute.status === "under_review")) {
+        continue;
+      }
+
+      const dispute = await repository.createDispute(order.id, actorUserId, {
+        reason: "non_delivery",
+        description: "Auto-opened after SLA deadline elapsed."
+      });
+      await repository.updateOrderStatus(order.id, "disputed");
+      await repository.createDisputeEvent({
+        disputeId: dispute.id,
+        actorUserId,
+        eventType: "sla_breach_auto_open",
+        note: "SLA deadline exceeded; dispute opened automatically.",
+        fromStatus: null,
+        toStatus: "open"
+      });
+      slaBreachesDisputed += 1;
+    }
+
+    return { autoCompleted, slaBreachesDisputed };
+  };
+
   server.addHook("onReady", async () => {
     await repository.init();
+    if (maintenanceIntervalMs > 0) {
+      maintenanceTimer = setInterval(() => {
+        void runSlaMaintenance(systemUserId).catch((error) => {
+          server.log.error({ error }, "sla maintenance run failed");
+        });
+      }, maintenanceIntervalMs);
+      server.log.info({ maintenanceIntervalMs }, "scheduled SLA maintenance job");
+    }
+  });
+
+  server.addHook("onClose", async () => {
+    if (maintenanceTimer) {
+      clearInterval(maintenanceTimer);
+      maintenanceTimer = null;
+    }
   });
 
   // ── Health ─────────────────────────────────────────────────────────
@@ -171,7 +286,12 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
 
     // Check account status
     const status = await paymentGateway.getAccountStatus(provider.stripeAccountId);
-    if (status.chargesEnabled && status.payoutsEnabled && !provider.stripeOnboardingComplete) {
+    if (
+      status.chargesEnabled &&
+      status.payoutsEnabled &&
+      !provider.stripeOnboardingComplete &&
+      provider.status === "pending_verification"
+    ) {
       // Update provider status
       await repository.updateProviderStripe(provider.id, provider.stripeAccountId, true);
     }
@@ -179,6 +299,67 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
     // Generate new onboarding link
     const { url } = await paymentGateway.createAccountLink(provider.stripeAccountId);
     return reply.send({ url });
+  });
+
+  server.get("/internal/admin/providers/review-queue", async (req, reply) => {
+    const authUserId = getAuthUserId(req.headers);
+    if (!authUserId) {
+      return reply.status(403).send({ error: "forbidden" });
+    }
+
+    const providers = await repository.listProviders({
+      status: "pending_verification",
+      limit: 100,
+      offset: 0
+    });
+
+    const entries = await Promise.all(
+      providers.map(async (provider) => {
+        const reviews = await repository.listProviderReviews(provider.id);
+        return {
+          provider,
+          latestReview: reviews[0] ?? null
+        };
+      })
+    );
+
+    return reply.send({ entries });
+  });
+
+  server.post("/internal/admin/providers/:providerId/review", async (req, reply) => {
+    const authUserId = getAuthUserId(req.headers);
+    if (!authUserId) {
+      return reply.status(403).send({ error: "forbidden" });
+    }
+
+    const { providerId } = req.params as { providerId: string };
+    const provider = await repository.getProvider(providerId);
+    if (!provider) {
+      return reply.status(404).send({ error: "provider_not_found" });
+    }
+
+    const parsed = CoverageProviderReviewRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
+    }
+    const input = parsed.data;
+    if ((input.decision === "rejected" || input.decision === "suspended") && !input.reason) {
+      return reply.status(400).send({ error: "reason_required" });
+    }
+
+    const review = await repository.createProviderReview(provider.id, authUserId, input);
+
+    let nextStatus: "pending_verification" | "active" | "suspended" | "deactivated" = provider.status;
+    if (input.decision === "approved") {
+      nextStatus = provider.stripeOnboardingComplete ? "active" : "pending_verification";
+    } else if (input.decision === "rejected") {
+      nextStatus = "deactivated";
+    } else if (input.decision === "suspended") {
+      nextStatus = "suspended";
+    }
+
+    const updatedProvider = await repository.updateProviderStatus(provider.id, nextStatus);
+    return reply.send({ provider: updatedProvider, review });
   });
 
   // ── Service Routes ─────────────────────────────────────────────────
@@ -431,6 +612,10 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
       return reply.status(400).send({ error: "provider_stripe_not_configured" });
     }
 
+    if (order.stripePaymentIntentId) {
+      await paymentGateway.capturePayment(order.stripePaymentIntentId);
+    }
+
     // Transfer payment to provider
     const { transferId } = await paymentGateway.transferToProvider({
       amountCents: order.providerPayoutCents,
@@ -502,6 +687,38 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
     }
 
     return reply.send({ delivery });
+  });
+
+  server.get("/internal/orders/:orderId/delivery/upload-url", async (req, reply) => {
+    const { orderId } = req.params as { orderId: string };
+    const authUserId = getAuthUserId(req.headers);
+    if (!authUserId) {
+      return reply.status(403).send({ error: "forbidden" });
+    }
+
+    const order = await repository.getOrder(orderId);
+    if (!order) {
+      return reply.status(404).send({ error: "order_not_found" });
+    }
+    const provider = await repository.getProvider(order.providerId);
+    if (!provider || provider.userId !== authUserId) {
+      return reply.status(403).send({ error: "forbidden" });
+    }
+
+    const bucket = process.env.COVERAGE_DELIVERY_BUCKET ?? "scripts";
+    const objectPrefix = process.env.COVERAGE_DELIVERY_PREFIX ?? "coverage-deliveries";
+    const uploadUrl = process.env.COVERAGE_DELIVERY_UPLOAD_URL ?? (process.env.MINIO_ENDPOINT ?? "http://minio:9000");
+    const key = `${objectPrefix}/${orderId}/${Date.now()}-coverage-report.pdf`;
+
+    return reply.send({
+      uploadUrl,
+      method: "POST",
+      uploadFields: {
+        key,
+        bucket,
+        "Content-Type": "application/pdf"
+      }
+    });
   });
 
   // ── Review Routes ──────────────────────────────────────────────────
@@ -587,13 +804,26 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
 
     // Update order status to disputed
     await repository.updateOrderStatus(orderId, "disputed");
+    await repository.createDisputeEvent({
+      disputeId: dispute.id,
+      actorUserId: authUserId,
+      eventType: "opened",
+      note: parsed.data.description,
+      fromStatus: null,
+      toStatus: "open"
+    });
 
     return reply.status(201).send({ dispute });
   });
 
   server.get("/internal/disputes", async (req, reply) => {
+    const authUserId = getAuthUserId(req.headers);
+    if (!authUserId) {
+      return reply.status(403).send({ error: "forbidden" });
+    }
+
     const { status } = req.query as { status?: string };
-    const validStatuses = ["open", "under_review", "resolved_refund", "resolved_no_refund", "dismissed"];
+    const validStatuses = ["open", "under_review", "resolved_refund", "resolved_no_refund", "resolved_partial"];
     const filterStatus = status && validStatuses.includes(status)
       ? status as Parameters<typeof repository.listDisputes>[0]
       : undefined;
@@ -601,8 +831,26 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
     return reply.send({ disputes });
   });
 
+  server.get("/internal/disputes/:disputeId/events", async (req, reply) => {
+    const authUserId = getAuthUserId(req.headers);
+    if (!authUserId) {
+      return reply.status(403).send({ error: "forbidden" });
+    }
+    const { disputeId } = req.params as { disputeId: string };
+    const dispute = await repository.getDispute(disputeId);
+    if (!dispute) {
+      return reply.status(404).send({ error: "dispute_not_found" });
+    }
+    const events = await repository.listDisputeEvents(disputeId);
+    return reply.send({ events });
+  });
+
   server.patch("/internal/disputes/:disputeId", async (req, reply) => {
     const { disputeId } = req.params as { disputeId: string };
+    const authUserId = getAuthUserId(req.headers);
+    if (!authUserId) {
+      return reply.status(403).send({ error: "forbidden" });
+    }
 
     const parsed = CoverageDisputeResolveRequestSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -619,16 +867,216 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
       return reply.status(409).send({ error: "dispute_not_resolvable" });
     }
 
-    // If refund, process it
-    if (parsed.data.status === "resolved_refund") {
-      const order = await repository.getOrder(dispute.orderId);
-      if (order && order.stripePaymentIntentId) {
-        await paymentGateway.refund(order.stripePaymentIntentId);
-        await repository.updateOrderStatus(order.id, "refunded");
-      }
+    const order = await repository.getOrder(dispute.orderId);
+    if (!order) {
+      return reply.send({ dispute: resolved });
     }
 
+    if (parsed.data.status === "resolved_partial" && !parsed.data.refundAmountCents) {
+      return reply.status(400).send({ error: "refund_amount_required_for_partial" });
+    }
+
+    if (parsed.data.status === "resolved_refund" || parsed.data.status === "resolved_partial") {
+      if (order.stripePaymentIntentId) {
+        await paymentGateway.refund(order.stripePaymentIntentId, parsed.data.refundAmountCents);
+        await repository.updateOrderStatus(order.id, "refunded");
+      }
+    } else if (parsed.data.status === "resolved_no_refund") {
+      const provider = await repository.getProvider(order.providerId);
+      if (!provider || !provider.stripeAccountId) {
+        return reply.status(400).send({ error: "provider_stripe_not_configured" });
+      }
+      if (order.stripePaymentIntentId) {
+        await paymentGateway.capturePayment(order.stripePaymentIntentId);
+      }
+      const { transferId } = await paymentGateway.transferToProvider({
+        amountCents: order.providerPayoutCents,
+        stripeAccountId: provider.stripeAccountId,
+        transferGroup: order.id
+      });
+      await repository.updateOrderStatus(order.id, "completed", { stripeTransferId: transferId });
+    }
+
+    await repository.createDisputeEvent({
+      disputeId: dispute.id,
+      actorUserId: authUserId,
+      eventType: "resolved",
+      note: parsed.data.adminNotes,
+      fromStatus: dispute.status,
+      toStatus: resolved.status
+    });
+
     return reply.send({ dispute: resolved });
+  });
+
+  // ── Provider Earnings & Ledger Routes ─────────────────────────────
+
+  server.get("/internal/providers/:providerId/earnings-statement", async (req, reply) => {
+    const authUserId = getAuthUserId(req.headers);
+    if (!authUserId) {
+      return reply.status(403).send({ error: "forbidden" });
+    }
+
+    const { providerId } = req.params as { providerId: string };
+    const provider = await repository.getProvider(providerId);
+    if (!provider) {
+      return reply.status(404).send({ error: "provider_not_found" });
+    }
+    if (provider.userId !== authUserId) {
+      return reply.status(403).send({ error: "forbidden" });
+    }
+
+    const query = req.query as { month?: string; format?: string };
+    const defaultMonth = new Date().toISOString().slice(0, 7);
+    const month = query.month ?? defaultMonth;
+    const bounds = monthBounds(month);
+    if (!bounds) {
+      return reply.status(400).send({ error: "invalid_month" });
+    }
+
+    const completed = await repository.listOrders({
+      providerId,
+      status: "completed",
+      limit: 1000,
+      offset: 0
+    });
+    const refunded = await repository.listOrders({
+      providerId,
+      status: "refunded",
+      limit: 1000,
+      offset: 0
+    });
+    const all = [...completed, ...refunded];
+    const rows = all
+      .filter((order) => {
+        const at = new Date(order.updatedAt).getTime();
+        return at >= bounds.start.getTime() && at < bounds.end.getTime();
+      })
+      .sort((a, b) => a.updatedAt.localeCompare(b.updatedAt))
+      .map((order) => ({
+        orderId: order.id,
+        status: order.status,
+        updatedAt: order.updatedAt,
+        grossCents: order.priceCents,
+        platformFeeCents: order.platformFeeCents,
+        providerPayoutCents: order.status === "completed" ? order.providerPayoutCents : 0,
+        transferId: order.stripeTransferId
+      }));
+
+    const summary = rows.reduce(
+      (acc, row) => {
+        acc.grossCents += row.grossCents;
+        acc.platformFeeCents += row.platformFeeCents;
+        acc.providerPayoutCents += row.providerPayoutCents;
+        return acc;
+      },
+      { grossCents: 0, platformFeeCents: 0, providerPayoutCents: 0 }
+    );
+
+    if (query.format === "csv") {
+      const header = [
+        "order_id",
+        "status",
+        "updated_at",
+        "gross_cents",
+        "platform_fee_cents",
+        "provider_payout_cents",
+        "transfer_id"
+      ].join(",");
+      const csvLines = rows.map((row) => [
+        csvEscape(row.orderId),
+        csvEscape(row.status),
+        csvEscape(row.updatedAt),
+        csvEscape(row.grossCents),
+        csvEscape(row.platformFeeCents),
+        csvEscape(row.providerPayoutCents),
+        csvEscape(row.transferId)
+      ].join(","));
+      const csv = [header, ...csvLines].join("\n");
+      reply.header("content-type", "text/csv; charset=utf-8");
+      return reply.send(csv);
+    }
+
+    return reply.send({ month, providerId, summary, rows });
+  });
+
+  server.get("/internal/admin/payout-ledger", async (req, reply) => {
+    const authUserId = getAuthUserId(req.headers);
+    if (!authUserId) {
+      return reply.status(403).send({ error: "forbidden" });
+    }
+
+    const query = req.query as { month?: string; format?: string };
+    const defaultMonth = new Date().toISOString().slice(0, 7);
+    const month = query.month ?? defaultMonth;
+    const bounds = monthBounds(month);
+    if (!bounds) {
+      return reply.status(400).send({ error: "invalid_month" });
+    }
+
+    const completed = await repository.listOrders({ status: "completed", limit: 2000, offset: 0 });
+    const refunded = await repository.listOrders({ status: "refunded", limit: 2000, offset: 0 });
+    const rows = [...completed, ...refunded]
+      .filter((order) => {
+        const at = new Date(order.updatedAt).getTime();
+        return at >= bounds.start.getTime() && at < bounds.end.getTime();
+      })
+      .sort((a, b) => a.updatedAt.localeCompare(b.updatedAt))
+      .map((order) => ({
+        orderId: order.id,
+        providerId: order.providerId,
+        writerUserId: order.writerUserId,
+        status: order.status,
+        updatedAt: order.updatedAt,
+        grossCents: order.priceCents,
+        platformFeeCents: order.platformFeeCents,
+        providerPayoutCents: order.status === "completed" ? order.providerPayoutCents : 0,
+        transferId: order.stripeTransferId,
+        paymentIntentId: order.stripePaymentIntentId
+      }));
+
+    if (query.format === "csv") {
+      const header = [
+        "order_id",
+        "provider_id",
+        "writer_user_id",
+        "status",
+        "updated_at",
+        "gross_cents",
+        "platform_fee_cents",
+        "provider_payout_cents",
+        "transfer_id",
+        "payment_intent_id"
+      ].join(",");
+      const csvLines = rows.map((row) => [
+        csvEscape(row.orderId),
+        csvEscape(row.providerId),
+        csvEscape(row.writerUserId),
+        csvEscape(row.status),
+        csvEscape(row.updatedAt),
+        csvEscape(row.grossCents),
+        csvEscape(row.platformFeeCents),
+        csvEscape(row.providerPayoutCents),
+        csvEscape(row.transferId),
+        csvEscape(row.paymentIntentId)
+      ].join(","));
+      const csv = [header, ...csvLines].join("\n");
+      reply.header("content-type", "text/csv; charset=utf-8");
+      return reply.send(csv);
+    }
+
+    return reply.send({ month, rows });
+  });
+
+  // ── Jobs & SLA Automation ──────────────────────────────────────────
+
+  server.post("/internal/jobs/sla-maintenance", async (req, reply) => {
+    const authUserId = getAuthUserId(req.headers);
+    if (!authUserId) {
+      return reply.status(403).send({ error: "forbidden" });
+    }
+    const result = await runSlaMaintenance(authUserId);
+    return reply.send(result);
   });
 
   // ── Webhook Route ──────────────────────────────────────────────────
@@ -639,10 +1087,19 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
       return reply.status(400).send({ error: "missing_signature" });
     }
 
+    let payload: string;
+    if (typeof req.body === "string") {
+      payload = req.body;
+    } else if (Buffer.isBuffer(req.body)) {
+      payload = req.body.toString("utf8");
+    } else {
+      payload = JSON.stringify(req.body ?? {});
+    }
+
     let event: any;
     try {
       event = paymentGateway.constructWebhookEvent(
-        JSON.stringify(req.body),
+        payload,
         signature
       );
     } catch (error) {
@@ -693,7 +1150,11 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
             payoutsEnabled = webhookPayoutsEnabled ?? accountStatus.payoutsEnabled;
           }
           const onboardingComplete = Boolean(chargesEnabled && payoutsEnabled);
-          await repository.updateProviderStripe(provider.id, accountId, onboardingComplete);
+          if (provider.status === "pending_verification") {
+            await repository.updateProviderStripe(provider.id, accountId, onboardingComplete);
+          } else {
+            await repository.updateProviderStripe(provider.id, accountId, onboardingComplete);
+          }
         }
       }
     }
@@ -712,7 +1173,7 @@ function warnMissingEnv(recommended: string[]): void {
 }
 
 export async function startServer(): Promise<void> {
-  warnMissingEnv(["DATABASE_URL", "STRIPE_SECRET_KEY"]);
+  warnMissingEnv(["DATABASE_URL", "STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"]);
   const port = Number(process.env.PORT ?? 4008);
   const server = buildServer();
   await server.listen({ port, host: "0.0.0.0" });

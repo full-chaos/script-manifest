@@ -8,6 +8,8 @@ import type {
   CoverageProviderCreateRequest,
   CoverageProviderUpdateRequest,
   CoverageProviderFilters,
+  CoverageProviderReview,
+  CoverageProviderReviewRequest,
   CoverageService,
   CoverageServiceCreateRequest,
   CoverageServiceUpdateRequest,
@@ -21,6 +23,7 @@ import type {
   CoverageDispute,
   CoverageDisputeCreateRequest,
   CoverageDisputeResolveRequest,
+  CoverageDisputeEvent,
   CoverageDisputeStatus
 } from "@script-manifest/contracts";
 import type { CoverageMarketplaceRepository } from "./repository.js";
@@ -105,10 +108,15 @@ export class PgCoverageMarketplaceRepository implements CoverageMarketplaceRepos
 
   async updateProviderStripe(providerId: string, stripeAccountId: string, onboardingComplete: boolean): Promise<CoverageProvider | null> {
     const db = getPool();
-    const statusUpdate = onboardingComplete ? ", status = 'active'" : "";
     const result = await db.query<ProviderRow>(
       `UPDATE coverage_providers
-       SET stripe_account_id = $2, stripe_onboarding_complete = $3${statusUpdate}, updated_at = NOW()
+       SET stripe_account_id = $2,
+           stripe_onboarding_complete = $3,
+           status = CASE
+             WHEN $3 = TRUE AND status = 'pending_verification' THEN 'active'
+             ELSE status
+           END,
+           updated_at = NOW()
        WHERE id = $1
        RETURNING *`,
       [providerId, stripeAccountId, onboardingComplete]
@@ -156,6 +164,27 @@ export class PgCoverageMarketplaceRepository implements CoverageMarketplaceRepos
 
     const result = await db.query<ProviderRow>(query, values);
     return result.rows.map(mapProvider);
+  }
+
+  async createProviderReview(providerId: string, reviewedByUserId: string, input: CoverageProviderReviewRequest): Promise<CoverageProviderReview> {
+    const db = getPool();
+    const id = `cprv_${randomUUID()}`;
+    const result = await db.query<ProviderReviewRow>(
+      `INSERT INTO coverage_provider_reviews (id, provider_id, reviewed_by_user_id, decision, reason, checklist)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING *`,
+      [id, providerId, reviewedByUserId, input.decision, input.reason ?? null, input.checklist ?? []]
+    );
+    return mapProviderReview(result.rows[0]!);
+  }
+
+  async listProviderReviews(providerId: string): Promise<CoverageProviderReview[]> {
+    const db = getPool();
+    const result = await db.query<ProviderReviewRow>(
+      `SELECT * FROM coverage_provider_reviews WHERE provider_id = $1 ORDER BY created_at DESC`,
+      [providerId]
+    );
+    return result.rows.map(mapProviderReview);
   }
 
   // ── Services ─────────────────────────────────────────────────────────
@@ -522,6 +551,42 @@ export class PgCoverageMarketplaceRepository implements CoverageMarketplaceRepos
     );
     return result.rows[0] ? mapDispute(result.rows[0]) : null;
   }
+
+  async createDisputeEvent(params: {
+    disputeId: string;
+    actorUserId: string;
+    eventType: string;
+    note?: string | null;
+    fromStatus?: CoverageDisputeStatus | null;
+    toStatus?: CoverageDisputeStatus | null;
+  }): Promise<CoverageDisputeEvent> {
+    const db = getPool();
+    const id = `cdie_${randomUUID()}`;
+    const result = await db.query<DisputeEventRow>(
+      `INSERT INTO coverage_dispute_events (id, dispute_id, actor_user_id, event_type, note, from_status, to_status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING *`,
+      [
+        id,
+        params.disputeId,
+        params.actorUserId,
+        params.eventType,
+        params.note ?? null,
+        params.fromStatus ?? null,
+        params.toStatus ?? null
+      ]
+    );
+    return mapDisputeEvent(result.rows[0]!);
+  }
+
+  async listDisputeEvents(disputeId: string): Promise<CoverageDisputeEvent[]> {
+    const db = getPool();
+    const result = await db.query<DisputeEventRow>(
+      `SELECT * FROM coverage_dispute_events WHERE dispute_id = $1 ORDER BY created_at ASC`,
+      [disputeId]
+    );
+    return result.rows.map(mapDisputeEvent);
+  }
 }
 
 // ── Row types & mappers ────────────────────────────────────────────────
@@ -555,6 +620,28 @@ function mapProvider(row: ProviderRow): CoverageProvider {
     totalOrdersCompleted: row.total_orders_completed,
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString()
+  };
+}
+
+type ProviderReviewRow = {
+  id: string;
+  provider_id: string;
+  reviewed_by_user_id: string;
+  decision: "approved" | "rejected" | "suspended";
+  reason: string | null;
+  checklist: string[];
+  created_at: Date;
+};
+
+function mapProviderReview(row: ProviderReviewRow): CoverageProviderReview {
+  return {
+    id: row.id,
+    providerId: row.provider_id,
+    reviewedByUserId: row.reviewed_by_user_id,
+    decision: row.decision,
+    reason: row.reason,
+    checklist: row.checklist ?? [],
+    createdAt: row.created_at.toISOString()
   };
 }
 
@@ -694,6 +781,17 @@ type DisputeRow = {
   updated_at: Date;
 };
 
+type DisputeEventRow = {
+  id: string;
+  dispute_id: string;
+  actor_user_id: string;
+  event_type: string;
+  note: string | null;
+  from_status: CoverageDisputeStatus | null;
+  to_status: CoverageDisputeStatus | null;
+  created_at: Date;
+};
+
 function mapDispute(row: DisputeRow): CoverageDispute {
   return {
     id: row.id,
@@ -707,5 +805,18 @@ function mapDispute(row: DisputeRow): CoverageDispute {
     resolvedAt: row.resolved_at?.toISOString() ?? null,
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString()
+  };
+}
+
+function mapDisputeEvent(row: DisputeEventRow): CoverageDisputeEvent {
+  return {
+    id: row.id,
+    disputeId: row.dispute_id,
+    actorUserId: row.actor_user_id,
+    eventType: row.event_type,
+    note: row.note,
+    fromStatus: row.from_status,
+    toStatus: row.to_status,
+    createdAt: row.created_at.toISOString()
   };
 }

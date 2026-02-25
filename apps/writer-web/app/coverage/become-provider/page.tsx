@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import type { CoverageProvider } from "@script-manifest/contracts";
+import type { CoverageProvider, CoverageProviderStatus } from "@script-manifest/contracts";
 import { SkeletonCard } from "../../components/skeleton";
 import { useToast } from "../../components/toast";
 import { getAuthHeaders, readStoredSession } from "../../lib/authSession";
@@ -87,24 +87,73 @@ export default function BecomeProviderPage() {
     setGettingOnboardingLink(true);
     try {
       const response = await fetch(`/api/v1/coverage/providers/${encodeURIComponent(provider.id)}/stripe-onboarding`, {
-        method: "POST",
+        method: "GET",
         headers: getAuthHeaders()
       });
 
-      const body = (await response.json()) as { onboardingUrl?: string; error?: string };
+      const body = (await response.json()) as { url?: string; error?: string };
       if (!response.ok) {
         toast.error(body.error ?? "Failed to get onboarding link.");
         return;
       }
 
-      if (body.onboardingUrl) {
-        window.location.href = body.onboardingUrl;
+      if (!body.url) {
+        toast.error("Onboarding link is unavailable right now. Please try again.");
+        return;
       }
+
+      window.location.href = body.url;
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to get onboarding link.");
     } finally {
       setGettingOnboardingLink(false);
     }
+  }
+
+  function formatProviderStatus(status: CoverageProviderStatus): string {
+    const labels: Record<CoverageProviderStatus, string> = {
+      pending_verification: "Pending verification",
+      active: "Active",
+      suspended: "Suspended",
+      deactivated: "Deactivated"
+    };
+    return labels[status];
+  }
+
+  function getStatusNotice(currentProvider: CoverageProvider): { title: string; message: string; tone: "amber" | "red" | "ink" } | null {
+    if (currentProvider.status === "pending_verification") {
+      if (!currentProvider.stripeOnboardingComplete) {
+        return {
+          tone: "amber",
+          title: "Action required: complete Stripe setup",
+          message: "Finish Stripe onboarding to verify your payout account and enable provider activation."
+        };
+      }
+
+      return {
+        tone: "amber",
+        title: "Verification in progress",
+        message: "Your Stripe setup is complete. Our team is reviewing your provider profile before activation."
+      };
+    }
+
+    if (currentProvider.status === "suspended") {
+      return {
+        tone: "red",
+        title: "Account suspended",
+        message: "Your provider account is currently suspended. You cannot accept new orders. Contact support for next steps."
+      };
+    }
+
+    if (currentProvider.status === "deactivated") {
+      return {
+        tone: "ink",
+        title: "Account deactivated",
+        message: "Your provider profile is deactivated and hidden from the marketplace. Contact support to discuss reactivation."
+      };
+    }
+
+    return null;
   }
 
   if (loading) {
@@ -130,6 +179,8 @@ export default function BecomeProviderPage() {
   }
 
   if (provider) {
+    const statusNotice = getStatusNotice(provider);
+
     return (
       <section className="space-y-4">
         <article className="hero-card hero-card--violet animate-in">
@@ -142,9 +193,11 @@ export default function BecomeProviderPage() {
                 ? "border-green-300 bg-green-50 text-green-700"
                 : provider.status === "pending_verification"
                 ? "border-amber-300 bg-amber-50 text-amber-700"
-                : "border-ink-500/20 bg-ink-500/10 text-ink-500"
+                : provider.status === "suspended"
+                ? "border-red-300 bg-red-50 text-red-700"
+                : "border-ink-500/20 bg-ink-500/10 text-ink-700"
             }`}>
-              {provider.status.replace(/_/g, " ")}
+              {formatProviderStatus(provider.status)}
             </span>
             {provider.stripeOnboardingComplete ? (
               <span className="inline-flex items-center rounded-full border border-green-300 bg-green-50 px-2.5 py-0.5 text-xs font-semibold text-green-700">
@@ -164,7 +217,7 @@ export default function BecomeProviderPage() {
             <a href="/coverage/dashboard" className="btn btn-primary no-underline">
               Go to Dashboard
             </a>
-            {!provider.stripeOnboardingComplete ? (
+            {provider.status === "pending_verification" && !provider.stripeOnboardingComplete ? (
               <button
                 type="button"
                 className="btn btn-secondary"
@@ -177,13 +230,32 @@ export default function BecomeProviderPage() {
           </div>
         </article>
 
-        {!provider.stripeOnboardingComplete ? (
+        {statusNotice ? (
           <article className="panel stack animate-in animate-in-delay-2">
-            <div className="rounded-lg border border-amber-300 bg-amber-50 p-4">
-              <strong className="text-sm font-semibold text-amber-900">Action Required</strong>
-              <p className="mt-1 text-sm text-amber-700">
-                You must complete Stripe onboarding to receive payments for your services.
-                Click &quot;Complete Stripe Setup&quot; above to continue.
+            <div className={`rounded-lg border p-4 ${
+              statusNotice.tone === "amber"
+                ? "border-amber-300 bg-amber-50"
+                : statusNotice.tone === "red"
+                ? "border-red-300 bg-red-50"
+                : "border-ink-500/20 bg-ink-500/5"
+            }`}>
+              <strong className={`text-sm font-semibold ${
+                statusNotice.tone === "amber"
+                  ? "text-amber-900"
+                  : statusNotice.tone === "red"
+                  ? "text-red-900"
+                  : "text-ink-900"
+              }`}>
+                {statusNotice.title}
+              </strong>
+              <p className={`mt-1 text-sm ${
+                statusNotice.tone === "amber"
+                  ? "text-amber-700"
+                  : statusNotice.tone === "red"
+                  ? "text-red-700"
+                  : "text-ink-700"
+              }`}>
+                {statusNotice.message}
               </p>
             </div>
           </article>

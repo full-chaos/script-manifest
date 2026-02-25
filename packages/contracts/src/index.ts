@@ -1680,6 +1680,31 @@ export const CoverageProviderUpdateRequestSchema = z.object({
 });
 export type CoverageProviderUpdateRequest = z.infer<typeof CoverageProviderUpdateRequestSchema>;
 
+export const CoverageProviderReviewDecisionSchema = z.enum([
+  "approved",
+  "rejected",
+  "suspended"
+]);
+export type CoverageProviderReviewDecision = z.infer<typeof CoverageProviderReviewDecisionSchema>;
+
+export const CoverageProviderReviewRequestSchema = z.object({
+  decision: CoverageProviderReviewDecisionSchema,
+  reason: z.string().max(5000).optional(),
+  checklist: z.array(z.string().min(1).max(200)).max(30).default([])
+});
+export type CoverageProviderReviewRequest = z.infer<typeof CoverageProviderReviewRequestSchema>;
+
+export const CoverageProviderReviewSchema = z.object({
+  id: z.string().min(1),
+  providerId: z.string().min(1),
+  reviewedByUserId: z.string().min(1),
+  decision: CoverageProviderReviewDecisionSchema,
+  reason: z.string().nullable(),
+  checklist: z.array(z.string()).default([]),
+  createdAt: z.string()
+});
+export type CoverageProviderReview = z.infer<typeof CoverageProviderReviewSchema>;
+
 export const CoverageServiceSchema = z.object({
   id: z.string().min(1),
   providerId: z.string().min(1),
@@ -1822,6 +1847,18 @@ export const CoverageDisputeResolveRequestSchema = z.object({
   refundAmountCents: z.number().int().nonnegative().optional()
 });
 export type CoverageDisputeResolveRequest = z.infer<typeof CoverageDisputeResolveRequestSchema>;
+
+export const CoverageDisputeEventSchema = z.object({
+  id: z.string().min(1),
+  disputeId: z.string().min(1),
+  actorUserId: z.string().min(1),
+  eventType: z.string().min(1),
+  note: z.string().nullable(),
+  fromStatus: CoverageDisputeStatusSchema.nullable(),
+  toStatus: CoverageDisputeStatusSchema.nullable(),
+  createdAt: z.string()
+});
+export type CoverageDisputeEvent = z.infer<typeof CoverageDisputeEventSchema>;
 
 export const CoverageServiceFiltersSchema = z.object({
   tier: CoverageTierSchema.optional(),

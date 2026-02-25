@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useParams } from "next/navigation";
-import type { CoverageOrder, CoverageDelivery, CoverageOrderStatus } from "@script-manifest/contracts";
+import type { CoverageOrder, CoverageDelivery, CoverageOrderStatus, CoverageProvider } from "@script-manifest/contracts";
 import { EmptyState } from "../../../components/emptyState";
 import { EmptyIllustration } from "../../../components/illustrations";
 import { SkeletonCard } from "../../../components/skeleton";
@@ -18,6 +18,7 @@ export default function OrderDetailPage() {
   const [loading, setLoading] = useState(false);
   const [order, setOrder] = useState<CoverageOrder | null>(null);
   const [delivery, setDelivery] = useState<CoverageDelivery | null>(null);
+  const [provider, setProvider] = useState<CoverageProvider | null>(null);
 
   // Review form
   const [reviewModalOpen, setReviewModalOpen] = useState(false);
@@ -39,15 +40,54 @@ export default function OrderDetailPage() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch(`/api/v1/coverage/orders/${encodeURIComponent(orderId)}`, {
+      const orderResponse = await fetch(`/api/v1/coverage/orders/${encodeURIComponent(orderId)}`, {
         headers: getAuthHeaders(),
         cache: "no-store"
       });
 
-      if (response.ok) {
-        const body = (await response.json()) as { order?: CoverageOrder; delivery?: CoverageDelivery };
-        setOrder(body.order ?? null);
-        setDelivery(body.delivery ?? null);
+      if (!orderResponse.ok) {
+        setOrder(null);
+        setProvider(null);
+        setDelivery(null);
+        return;
+      }
+
+      const orderBody = (await orderResponse.json()) as { order?: CoverageOrder };
+      const nextOrder = orderBody.order ?? null;
+      setOrder(nextOrder);
+
+      if (!nextOrder) {
+        setProvider(null);
+        setDelivery(null);
+        return;
+      }
+
+      const [providerResponse, deliveryResponse] = await Promise.all([
+        fetch(`/api/v1/coverage/providers/${encodeURIComponent(nextOrder.providerId)}`, {
+          headers: getAuthHeaders(),
+          cache: "no-store"
+        }),
+        fetch(`/api/v1/coverage/orders/${encodeURIComponent(orderId)}/delivery`, {
+          headers: getAuthHeaders(),
+          cache: "no-store"
+        })
+      ]);
+
+      if (providerResponse.ok) {
+        const providerBody = (await providerResponse.json()) as { provider?: CoverageProvider };
+        setProvider(providerBody.provider ?? null);
+      } else {
+        setProvider(null);
+      }
+
+      if (deliveryResponse.ok) {
+        const deliveryBody = (await deliveryResponse.json()) as { delivery?: CoverageDelivery };
+        setDelivery(deliveryBody.delivery ?? null);
+      } else if (deliveryResponse.status === 404) {
+        setDelivery(null);
+      } else {
+        setDelivery(null);
+        toast.error("Failed to load coverage delivery.");
       }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to load order details.");
@@ -245,7 +285,7 @@ export default function OrderDetailPage() {
   }
 
   const isWriter = order.writerUserId === signedInUserId;
-  const isProvider = order.providerId === signedInUserId;
+  const isProvider = provider?.userId === signedInUserId;
 
   return (
     <section className="space-y-4">

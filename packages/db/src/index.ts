@@ -1289,6 +1289,8 @@ export async function ensureCoverageMarketplaceTables(): Promise<void> {
   await db.query(`CREATE INDEX IF NOT EXISTS idx_coverage_orders_writer ON coverage_orders(writer_user_id)`);
   await db.query(`CREATE INDEX IF NOT EXISTS idx_coverage_orders_provider ON coverage_orders(provider_id)`);
   await db.query(`CREATE INDEX IF NOT EXISTS idx_coverage_orders_status ON coverage_orders(status)`);
+  await db.query(`CREATE INDEX IF NOT EXISTS idx_coverage_orders_delivered_at ON coverage_orders(delivered_at)`);
+  await db.query(`CREATE INDEX IF NOT EXISTS idx_coverage_orders_sla_deadline ON coverage_orders(sla_deadline)`);
 
   await db.query(`
     CREATE TABLE IF NOT EXISTS coverage_deliveries (
@@ -1336,4 +1338,34 @@ export async function ensureCoverageMarketplaceTables(): Promise<void> {
   `);
   await db.query(`CREATE INDEX IF NOT EXISTS idx_coverage_disputes_status ON coverage_disputes(status)`);
   await db.query(`CREATE INDEX IF NOT EXISTS idx_coverage_disputes_order ON coverage_disputes(order_id)`);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS coverage_provider_reviews (
+      id TEXT PRIMARY KEY,
+      provider_id TEXT NOT NULL REFERENCES coverage_providers(id),
+      reviewed_by_user_id TEXT NOT NULL,
+      decision TEXT NOT NULL CHECK (decision IN ('approved', 'rejected', 'suspended')),
+      reason TEXT,
+      checklist TEXT[] NOT NULL DEFAULT '{}',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await db.query(`CREATE INDEX IF NOT EXISTS idx_coverage_provider_reviews_provider ON coverage_provider_reviews(provider_id)`);
+  await db.query(`CREATE INDEX IF NOT EXISTS idx_coverage_provider_reviews_created ON coverage_provider_reviews(created_at DESC)`);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS coverage_dispute_events (
+      id TEXT PRIMARY KEY,
+      dispute_id TEXT NOT NULL REFERENCES coverage_disputes(id),
+      actor_user_id TEXT NOT NULL,
+      event_type TEXT NOT NULL,
+      note TEXT,
+      from_status TEXT
+        CHECK (from_status IS NULL OR from_status IN ('open', 'under_review', 'resolved_refund', 'resolved_no_refund', 'resolved_partial')),
+      to_status TEXT
+        CHECK (to_status IS NULL OR to_status IN ('open', 'under_review', 'resolved_refund', 'resolved_no_refund', 'resolved_partial')),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await db.query(`CREATE INDEX IF NOT EXISTS idx_coverage_dispute_events_dispute ON coverage_dispute_events(dispute_id)`);
 }

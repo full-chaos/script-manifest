@@ -3,6 +3,8 @@ import type {
   CoverageProviderCreateRequest,
   CoverageProviderUpdateRequest,
   CoverageProviderFilters,
+  CoverageProviderReview,
+  CoverageProviderReviewRequest,
   CoverageService,
   CoverageServiceCreateRequest,
   CoverageServiceUpdateRequest,
@@ -16,6 +18,7 @@ import type {
   CoverageDispute,
   CoverageDisputeCreateRequest,
   CoverageDisputeResolveRequest,
+  CoverageDisputeEvent,
   CoverageDisputeStatus
 } from "@script-manifest/contracts";
 
@@ -31,6 +34,8 @@ export interface CoverageMarketplaceRepository {
   updateProviderStripe(providerId: string, stripeAccountId: string, onboardingComplete: boolean): Promise<CoverageProvider | null>;
   updateProviderStatus(providerId: string, status: string): Promise<CoverageProvider | null>;
   listProviders(filters: CoverageProviderFilters): Promise<CoverageProvider[]>;
+  createProviderReview(providerId: string, reviewedByUserId: string, input: CoverageProviderReviewRequest): Promise<CoverageProviderReview>;
+  listProviderReviews(providerId: string): Promise<CoverageProviderReview[]>;
 
   // Services
   createService(providerId: string, input: CoverageServiceCreateRequest): Promise<CoverageService>;
@@ -76,4 +81,13 @@ export interface CoverageMarketplaceRepository {
   getDisputeByOrder(orderId: string): Promise<CoverageDispute | null>;
   listDisputes(status?: CoverageDisputeStatus): Promise<CoverageDispute[]>;
   resolveDispute(disputeId: string, input: CoverageDisputeResolveRequest): Promise<CoverageDispute | null>;
+  createDisputeEvent(params: {
+    disputeId: string;
+    actorUserId: string;
+    eventType: string;
+    note?: string | null;
+    fromStatus?: CoverageDisputeStatus | null;
+    toStatus?: CoverageDisputeStatus | null;
+  }): Promise<CoverageDisputeEvent>;
+  listDisputeEvents(disputeId: string): Promise<CoverageDisputeEvent[]>;
 }

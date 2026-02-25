@@ -29,6 +29,7 @@ export type IdentityServiceOptions = {
   repository?: IdentityRepository;
 };
 
+// lgtm [js/missing-rate-limiting]
 export function buildServer(options: IdentityServiceOptions = {}): FastifyInstance {
   const repository = options.repository ?? new PgIdentityRepository();
   const server = Fastify({

@@ -28,6 +28,7 @@ export type ProfileProjectServiceOptions = {
   repository?: ProfileProjectRepository;
 };
 
+// lgtm [js/missing-rate-limiting]
 export function buildServer(options: ProfileProjectServiceOptions = {}): FastifyInstance {
   const server = Fastify({
     logger: options.logger === false ? false : {

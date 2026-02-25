@@ -55,7 +55,9 @@ export function registerCoverageRoutes(server: FastifyInstance, ctx: GatewayCont
     );
   });
 
-  server.get("/api/v1/coverage/admin/providers/review-queue", async (req, reply) => {
+  server.get("/api/v1/coverage/admin/providers/review-queue", {
+    config: { rateLimit: { max: 20, timeWindow: "1 minute" } }
+  }, async (req, reply) => {
     const adminId = await resolveAdminUserId(ctx.requestFn, ctx.identityServiceBase, req.headers, ctx.coverageAdminAllowlist);
     if (!adminId) return reply.status(403).send({ error: "forbidden" });
     return proxyJsonRequest(reply, ctx.requestFn,
@@ -64,7 +66,9 @@ export function registerCoverageRoutes(server: FastifyInstance, ctx: GatewayCont
     );
   });
 
-  server.post("/api/v1/coverage/admin/providers/:providerId/review", async (req, reply) => {
+  server.post("/api/v1/coverage/admin/providers/:providerId/review", {
+    config: { rateLimit: { max: 20, timeWindow: "1 minute" } }
+  }, async (req, reply) => {
     const adminId = await resolveAdminUserId(ctx.requestFn, ctx.identityServiceBase, req.headers, ctx.coverageAdminAllowlist);
     if (!adminId) return reply.status(403).send({ error: "forbidden" });
     const { providerId } = req.params as { providerId: string };
@@ -78,7 +82,9 @@ export function registerCoverageRoutes(server: FastifyInstance, ctx: GatewayCont
     );
   });
 
-  server.get("/api/v1/coverage/providers/:providerId/earnings-statement", async (req, reply) => {
+  server.get("/api/v1/coverage/providers/:providerId/earnings-statement", {
+    config: { rateLimit: { max: 20, timeWindow: "1 minute" } }
+  }, async (req, reply) => {
     const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
     if (!userId) return reply.status(401).send({ error: "unauthorized" });
     const { providerId } = req.params as { providerId: string };
@@ -185,7 +191,9 @@ export function registerCoverageRoutes(server: FastifyInstance, ctx: GatewayCont
     );
   });
 
-  server.get("/api/v1/coverage/orders/:orderId/delivery/upload-url", async (req, reply) => {
+  server.get("/api/v1/coverage/orders/:orderId/delivery/upload-url", {
+    config: { rateLimit: { max: 30, timeWindow: "1 minute" } }
+  }, async (req, reply) => {
     const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
     if (!userId) return reply.status(401).send({ error: "unauthorized" });
     const { orderId } = req.params as { orderId: string };
@@ -245,7 +253,9 @@ export function registerCoverageRoutes(server: FastifyInstance, ctx: GatewayCont
     );
   });
 
-  server.get("/api/v1/coverage/disputes/:disputeId/events", async (req, reply) => {
+  server.get("/api/v1/coverage/disputes/:disputeId/events", {
+    config: { rateLimit: { max: 30, timeWindow: "1 minute" } }
+  }, async (req, reply) => {
     const adminId = await resolveAdminUserId(ctx.requestFn, ctx.identityServiceBase, req.headers, ctx.coverageAdminAllowlist);
     if (!adminId) return reply.status(403).send({ error: "forbidden" });
     const { disputeId } = req.params as { disputeId: string };
@@ -255,7 +265,9 @@ export function registerCoverageRoutes(server: FastifyInstance, ctx: GatewayCont
     );
   });
 
-  server.get("/api/v1/coverage/admin/payout-ledger", async (req, reply) => {
+  server.get("/api/v1/coverage/admin/payout-ledger", {
+    config: { rateLimit: { max: 15, timeWindow: "1 minute" } }
+  }, async (req, reply) => {
     const adminId = await resolveAdminUserId(ctx.requestFn, ctx.identityServiceBase, req.headers, ctx.coverageAdminAllowlist);
     if (!adminId) return reply.status(403).send({ error: "forbidden" });
     const qs = buildQuerySuffix(req.query);
@@ -265,7 +277,9 @@ export function registerCoverageRoutes(server: FastifyInstance, ctx: GatewayCont
     );
   });
 
-  server.post("/api/v1/coverage/admin/jobs/sla-maintenance", async (req, reply) => {
+  server.post("/api/v1/coverage/admin/jobs/sla-maintenance", {
+    config: { rateLimit: { max: 10, timeWindow: "1 minute" } }
+  }, async (req, reply) => {
     const adminId = await resolveAdminUserId(ctx.requestFn, ctx.identityServiceBase, req.headers, ctx.coverageAdminAllowlist);
     if (!adminId) return reply.status(403).send({ error: "forbidden" });
     return proxyJsonRequest(reply, ctx.requestFn,

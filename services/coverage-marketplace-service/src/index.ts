@@ -1,4 +1,5 @@
 import Fastify, { type FastifyInstance } from "fastify";
+import rateLimit from "@fastify/rate-limit";
 import { pathToFileURL } from "node:url";
 import { randomUUID } from "node:crypto";
 import {
@@ -82,6 +83,13 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
     const userId = headers["x-auth-user-id"];
     return typeof userId === "string" && userId.length > 0 ? userId : null;
   };
+
+  server.register(rateLimit, {
+    global: true,
+    max: Number(process.env.RATE_LIMIT_MAX ?? "120"),
+    timeWindow: process.env.RATE_LIMIT_WINDOW ?? "1 minute",
+    allowList: []
+  });
 
   const runSlaMaintenance = async (actorUserId: string) => {
     const now = Date.now();

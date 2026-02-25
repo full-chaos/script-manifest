@@ -56,33 +56,44 @@ export function buildServer(options: IdentityServiceOptions = {}): FastifyInstan
     allowList: []
   });
 
-  server.get("/health", async (_req, reply) => {
-    const checks: Record<string, boolean> = {};
-    try {
-      const result = await repository.healthCheck();
-      checks.database = result.database;
-    } catch {
-      checks.database = false;
+  server.get("/health", {
+    config: { rateLimit: { max: 60, timeWindow: "1 minute" } },
+    handler: async (_req, reply) => {
+      const checks: Record<string, boolean> = {};
+      try {
+        const result = await repository.healthCheck();
+        checks.database = result.database;
+      } catch {
+        checks.database = false;
+      }
+      const ok = Object.values(checks).every(Boolean);
+      return reply.status(ok ? 200 : 503).send({ service: "identity-service", ok, checks });
     }
-    const ok = Object.values(checks).every(Boolean);
-    return reply.status(ok ? 200 : 503).send({ service: "identity-service", ok, checks });
   });
 
-  server.get("/health/live", async () => ({ ok: true }));
-
-  server.get("/health/ready", async (_req, reply) => {
-    const checks: Record<string, boolean> = {};
-    try {
-      const result = await repository.healthCheck();
-      checks.database = result.database;
-    } catch {
-      checks.database = false;
-    }
-    const ok = Object.values(checks).every(Boolean);
-    return reply.status(ok ? 200 : 503).send({ service: "identity-service", ok, checks });
+  server.get("/health/live", {
+    config: { rateLimit: { max: 60, timeWindow: "1 minute" } },
+    handler: async () => ({ ok: true })
   });
 
-  server.post("/internal/auth/register", async (req, reply) => {
+  server.get("/health/ready", {
+    config: { rateLimit: { max: 60, timeWindow: "1 minute" } },
+    handler: async (_req, reply) => {
+      const checks: Record<string, boolean> = {};
+      try {
+        const result = await repository.healthCheck();
+        checks.database = result.database;
+      } catch {
+        checks.database = false;
+      }
+      const ok = Object.values(checks).every(Boolean);
+      return reply.status(ok ? 200 : 503).send({ service: "identity-service", ok, checks });
+    }
+  });
+
+  server.post("/internal/auth/register", {
+    config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
     const parsedBody = AuthRegisterRequestSchema.safeParse(req.body);
     if (!parsedBody.success) {
       return reply.status(400).send({
@@ -108,10 +119,13 @@ export function buildServer(options: IdentityServiceOptions = {}): FastifyInstan
       }
     });
 
-    return reply.status(201).send(payload);
+      return reply.status(201).send(payload);
+    }
   });
 
-  server.post("/internal/auth/login", async (req, reply) => {
+  server.post("/internal/auth/login", {
+    config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
     const parsedBody = AuthLoginRequestSchema.safeParse(req.body);
     if (!parsedBody.success) {
       return reply.status(400).send({
@@ -144,10 +158,13 @@ export function buildServer(options: IdentityServiceOptions = {}): FastifyInstan
       }
     });
 
-    return reply.send(payload);
+      return reply.send(payload);
+    }
   });
 
-  server.post("/internal/auth/oauth/:provider/start", async (req, reply) => {
+  server.post("/internal/auth/oauth/:provider/start", {
+    config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
     const provider = parseProvider(req.params);
     if (!provider) {
       return reply.status(400).send({ error: "unsupported_provider" });
@@ -230,10 +247,13 @@ export function buildServer(options: IdentityServiceOptions = {}): FastifyInstan
       expiresAt
     });
 
-    return reply.status(201).send(payload);
+      return reply.status(201).send(payload);
+    }
   });
 
-  server.post("/internal/auth/oauth/:provider/complete", async (req, reply) => {
+  server.post("/internal/auth/oauth/:provider/complete", {
+    config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
     const provider = parseProvider(req.params);
     if (!provider) {
       return reply.status(400).send({ error: "unsupported_provider" });
@@ -253,10 +273,13 @@ export function buildServer(options: IdentityServiceOptions = {}): FastifyInstan
       return reply.status(result.statusCode).send({ error: result.error });
     }
 
-    return reply.send(result.payload);
+      return reply.send(result.payload);
+    }
   });
 
-  server.get("/internal/auth/oauth/:provider/callback", async (req, reply) => {
+  server.get("/internal/auth/oauth/:provider/callback", {
+    config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
     const provider = parseProvider(req.params);
     if (!provider) {
       return reply.status(400).send({ error: "unsupported_provider" });
@@ -276,10 +299,13 @@ export function buildServer(options: IdentityServiceOptions = {}): FastifyInstan
       return reply.status(result.statusCode).send({ error: result.error });
     }
 
-    return reply.send(result.payload);
+      return reply.send(result.payload);
+    }
   });
 
-  server.get("/internal/auth/me", async (req, reply) => {
+  server.get("/internal/auth/me", {
+    config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
     const token = readBearerToken(req.headers.authorization);
     if (!token) {
       return reply.status(401).send({ error: "missing_bearer_token" });
@@ -300,17 +326,21 @@ export function buildServer(options: IdentityServiceOptions = {}): FastifyInstan
       expiresAt: data.session.expiresAt
     });
 
-    return reply.send(payload);
+      return reply.send(payload);
+    }
   });
 
-  server.post("/internal/auth/logout", async (req, reply) => {
+  server.post("/internal/auth/logout", {
+    config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
     const token = readBearerToken(req.headers.authorization);
     if (!token) {
       return reply.status(401).send({ error: "missing_bearer_token" });
     }
 
-    await repository.deleteSession(token);
-    return reply.status(204).send();
+      await repository.deleteSession(token);
+      return reply.status(204).send();
+    }
   });
 
   return server;

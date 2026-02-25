@@ -56,33 +56,44 @@ export function buildServer(options: ProfileProjectServiceOptions = {}): Fastify
     allowList: []
   });
 
-  server.get("/health", async (_req, reply) => {
-    const checks: Record<string, boolean> = {};
-    try {
-      const result = await repository.healthCheck();
-      checks.database = result.database;
-    } catch {
-      checks.database = false;
+  server.get("/health", {
+    config: { rateLimit: { max: 60, timeWindow: "1 minute" } },
+    handler: async (_req, reply) => {
+      const checks: Record<string, boolean> = {};
+      try {
+        const result = await repository.healthCheck();
+        checks.database = result.database;
+      } catch {
+        checks.database = false;
+      }
+      const ok = Object.values(checks).every(Boolean);
+      return reply.status(ok ? 200 : 503).send({ service: "profile-project-service", ok, checks });
     }
-    const ok = Object.values(checks).every(Boolean);
-    return reply.status(ok ? 200 : 503).send({ service: "profile-project-service", ok, checks });
   });
 
-  server.get("/health/live", async () => ({ ok: true }));
-
-  server.get("/health/ready", async (_req, reply) => {
-    const checks: Record<string, boolean> = {};
-    try {
-      const result = await repository.healthCheck();
-      checks.database = result.database;
-    } catch {
-      checks.database = false;
-    }
-    const ok = Object.values(checks).every(Boolean);
-    return reply.status(ok ? 200 : 503).send({ service: "profile-project-service", ok, checks });
+  server.get("/health/live", {
+    config: { rateLimit: { max: 60, timeWindow: "1 minute" } },
+    handler: async () => ({ ok: true })
   });
 
-  server.get("/internal/profiles/:writerId", async (req, reply) => {
+  server.get("/health/ready", {
+    config: { rateLimit: { max: 60, timeWindow: "1 minute" } },
+    handler: async (_req, reply) => {
+      const checks: Record<string, boolean> = {};
+      try {
+        const result = await repository.healthCheck();
+        checks.database = result.database;
+      } catch {
+        checks.database = false;
+      }
+      const ok = Object.values(checks).every(Boolean);
+      return reply.status(ok ? 200 : 503).send({ service: "profile-project-service", ok, checks });
+    }
+  });
+
+  server.get("/internal/profiles/:writerId", {
+    config: { rateLimit: { max: 40, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
     const { writerId } = req.params as { writerId: string };
     const authUserId = getAuthUserId(req.headers);
     const profile = await repository.getProfile(writerId);
@@ -95,10 +106,13 @@ export function buildServer(options: ProfileProjectServiceOptions = {}): Fastify
       return reply.status(404).send({ error: "profile_not_found" });
     }
 
-    return reply.send({ profile });
+      return reply.send({ profile });
+    }
   });
 
-  server.put("/internal/profiles/:writerId", async (req, reply) => {
+  server.put("/internal/profiles/:writerId", {
+    config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
     const { writerId } = req.params as { writerId: string };
     const authUserId = getAuthUserId(req.headers);
     
@@ -117,10 +131,13 @@ export function buildServer(options: ProfileProjectServiceOptions = {}): Fastify
       return reply.status(404).send({ error: "profile_not_found" });
     }
 
-    return reply.send({ profile });
+      return reply.send({ profile });
+    }
   });
 
-  server.post("/internal/projects", async (req, reply) => {
+  server.post("/internal/projects", {
+    config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
     const authUserId = getAuthUserId(req.headers);
     if (!authUserId) {
       return reply.status(403).send({ error: "forbidden" });
@@ -139,30 +156,39 @@ export function buildServer(options: ProfileProjectServiceOptions = {}): Fastify
       return reply.status(404).send({ error: "owner_not_found" });
     }
 
-    return reply.status(201).send({ project });
+      return reply.status(201).send({ project });
+    }
   });
 
-  server.get("/internal/projects", async (req, reply) => {
+  server.get("/internal/projects", {
+    config: { rateLimit: { max: 40, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
     const parsed = ProjectFiltersSchema.safeParse(req.query);
     if (!parsed.success) {
       return reply.status(400).send({ error: "invalid_query", details: parsed.error.flatten() });
     }
 
-    const projects = await repository.listProjects(parsed.data);
-    return reply.send({ projects });
+      const projects = await repository.listProjects(parsed.data);
+      return reply.send({ projects });
+    }
   });
 
-  server.get("/internal/projects/:projectId", async (req, reply) => {
+  server.get("/internal/projects/:projectId", {
+    config: { rateLimit: { max: 40, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
     const { projectId } = req.params as { projectId: string };
     const project = await repository.getProject(projectId);
     if (!project) {
       return reply.status(404).send({ error: "project_not_found" });
     }
 
-    return reply.send({ project });
+      return reply.send({ project });
+    }
   });
 
-  server.put("/internal/projects/:projectId", async (req, reply) => {
+  server.put("/internal/projects/:projectId", {
+    config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
     const { projectId } = req.params as { projectId: string };
     const authUserId = getAuthUserId(req.headers);
     
@@ -186,10 +212,13 @@ export function buildServer(options: ProfileProjectServiceOptions = {}): Fastify
       return reply.status(404).send({ error: "project_not_found" });
     }
 
-    return reply.send({ project: updated });
+      return reply.send({ project: updated });
+    }
   });
 
-  server.delete("/internal/projects/:projectId", async (req, reply) => {
+  server.delete("/internal/projects/:projectId", {
+    config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
     const { projectId } = req.params as { projectId: string };
     const authUserId = getAuthUserId(req.headers);
     
@@ -208,21 +237,27 @@ export function buildServer(options: ProfileProjectServiceOptions = {}): Fastify
       return reply.status(404).send({ error: "project_not_found" });
     }
 
-    return reply.send({ deleted: true });
+      return reply.send({ deleted: true });
+    }
   });
 
-  server.get("/internal/projects/:projectId/co-writers", async (req, reply) => {
+  server.get("/internal/projects/:projectId/co-writers", {
+    config: { rateLimit: { max: 40, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
     const { projectId } = req.params as { projectId: string };
     const project = await repository.getProject(projectId);
     if (!project) {
       return reply.status(404).send({ error: "project_not_found" });
     }
 
-    const coWriters = await repository.listCoWriters(projectId);
-    return reply.send({ coWriters });
+      const coWriters = await repository.listCoWriters(projectId);
+      return reply.send({ coWriters });
+    }
   });
 
-  server.post("/internal/projects/:projectId/co-writers", async (req, reply) => {
+  server.post("/internal/projects/:projectId/co-writers", {
+    config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
     const { projectId } = req.params as { projectId: string };
     const authUserId = getAuthUserId(req.headers);
     
@@ -255,10 +290,13 @@ export function buildServer(options: ProfileProjectServiceOptions = {}): Fastify
       return reply.status(404).send({ error: "co_writer_not_found" });
     }
 
-    return reply.status(201).send({ coWriter });
+      return reply.status(201).send({ coWriter });
+    }
   });
 
-  server.delete("/internal/projects/:projectId/co-writers/:coWriterUserId", async (req, reply) => {
+  server.delete("/internal/projects/:projectId/co-writers/:coWriterUserId", {
+    config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
     const { projectId, coWriterUserId } = req.params as {
       projectId: string;
       coWriterUserId: string;
@@ -280,21 +318,27 @@ export function buildServer(options: ProfileProjectServiceOptions = {}): Fastify
       return reply.status(404).send({ error: "co_writer_not_found" });
     }
 
-    return reply.send({ deleted: true });
+      return reply.send({ deleted: true });
+    }
   });
 
-  server.get("/internal/projects/:projectId/drafts", async (req, reply) => {
+  server.get("/internal/projects/:projectId/drafts", {
+    config: { rateLimit: { max: 40, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
     const { projectId } = req.params as { projectId: string };
     const project = await repository.getProject(projectId);
     if (!project) {
       return reply.status(404).send({ error: "project_not_found" });
     }
 
-    const drafts = await repository.listDrafts(projectId);
-    return reply.send({ drafts });
+      const drafts = await repository.listDrafts(projectId);
+      return reply.send({ drafts });
+    }
   });
 
-  server.post("/internal/projects/:projectId/drafts", async (req, reply) => {
+  server.post("/internal/projects/:projectId/drafts", {
+    config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
     const { projectId } = req.params as { projectId: string };
     const authUserId = getAuthUserId(req.headers);
     if (!authUserId) {
@@ -322,10 +366,13 @@ export function buildServer(options: ProfileProjectServiceOptions = {}): Fastify
       return reply.status(404).send({ error: "project_not_found" });
     }
 
-    return reply.status(201).send({ draft });
+      return reply.status(201).send({ draft });
+    }
   });
 
-  server.patch("/internal/projects/:projectId/drafts/:draftId", async (req, reply) => {
+  server.patch("/internal/projects/:projectId/drafts/:draftId", {
+    config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
     const { projectId, draftId } = req.params as { projectId: string; draftId: string };
     const authUserId = getAuthUserId(req.headers);
     
@@ -349,10 +396,13 @@ export function buildServer(options: ProfileProjectServiceOptions = {}): Fastify
       return reply.status(404).send({ error: "draft_not_found" });
     }
 
-    return reply.send({ draft });
+      return reply.send({ draft });
+    }
   });
 
-  server.post("/internal/projects/:projectId/drafts/:draftId/primary", async (req, reply) => {
+  server.post("/internal/projects/:projectId/drafts/:draftId/primary", {
+    config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
     const { projectId, draftId } = req.params as { projectId: string; draftId: string };
     const authUserId = getAuthUserId(req.headers);
     if (!authUserId) {
@@ -372,10 +422,13 @@ export function buildServer(options: ProfileProjectServiceOptions = {}): Fastify
       return reply.status(404).send({ error: "draft_not_found" });
     }
 
-    return reply.send({ draft });
+      return reply.send({ draft });
+    }
   });
 
-  server.post("/internal/scripts/:scriptId/access-requests", async (req, reply) => {
+  server.post("/internal/scripts/:scriptId/access-requests", {
+    config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
     const { scriptId } = req.params as { scriptId: string };
     const authUserId = getAuthUserId(req.headers);
     const parseResult = ScriptAccessRequestCreateRequestSchema.safeParse(req.body);
@@ -427,10 +480,13 @@ export function buildServer(options: ProfileProjectServiceOptions = {}): Fastify
       return reply.status(502).send({ error: "notification_publish_failed" });
     }
 
-    return reply.status(202).send({ accepted: true, eventId, accessRequest });
+      return reply.status(202).send({ accepted: true, eventId, accessRequest });
+    }
   });
 
-  server.get("/internal/scripts/:scriptId/access-requests", async (req, reply) => {
+  server.get("/internal/scripts/:scriptId/access-requests", {
+    config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
     const { scriptId } = req.params as { scriptId: string };
     const parseResult = ScriptAccessRequestFiltersSchema.safeParse(req.query);
     if (!parseResult.success) {
@@ -448,12 +504,13 @@ export function buildServer(options: ProfileProjectServiceOptions = {}): Fastify
         )
       : accessRequests;
 
-    return reply.send({ accessRequests: visibleAccessRequests });
+      return reply.send({ accessRequests: visibleAccessRequests });
+    }
   });
 
-  server.post(
-    "/internal/scripts/:scriptId/access-requests/:requestId/approve",
-    async (req, reply) => {
+  server.post("/internal/scripts/:scriptId/access-requests/:requestId/approve", {
+    config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
       const { scriptId, requestId } = req.params as { scriptId: string; requestId: string };
       const authUserId = getAuthUserId(req.headers);
       if (!authUserId) {
@@ -499,11 +556,11 @@ export function buildServer(options: ProfileProjectServiceOptions = {}): Fastify
 
       return reply.send({ accessRequest });
     }
-  );
+  });
 
-  server.post(
-    "/internal/scripts/:scriptId/access-requests/:requestId/reject",
-    async (req, reply) => {
+  server.post("/internal/scripts/:scriptId/access-requests/:requestId/reject", {
+    config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
       const { scriptId, requestId } = req.params as { scriptId: string; requestId: string };
       const authUserId = getAuthUserId(req.headers);
       if (!authUserId) {
@@ -531,7 +588,7 @@ export function buildServer(options: ProfileProjectServiceOptions = {}): Fastify
 
       return reply.send({ accessRequest });
     }
-  );
+  });
 
   return server;
 }

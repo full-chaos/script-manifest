@@ -50,6 +50,7 @@ export function buildServer(options: ProfileProjectServiceOptions = {}): Fastify
   });
 
   server.register(rateLimit, {
+    global: true,
     max: 100,
     timeWindow: "1 minute",
     allowList: []

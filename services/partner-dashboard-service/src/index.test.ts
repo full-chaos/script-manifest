@@ -108,6 +108,11 @@ class MemoryPartnerRepository implements PartnerDashboardRepository {
     return this.intakeConfigs.get(competitionId) ?? null;
   }
 
+  // Test helper for assertions that need audit metadata not exposed by repository interface.
+  getCompetitionIntakeConfigAuditForTest(competitionId: string): PartnerCompetitionIntakeConfigAudit | null {
+    return this.intakeConfigs.get(competitionId) ?? null;
+  }
+
   async upsertCompetitionIntakeConfig(
     competitionId: string,
     actorUserId: string,
@@ -638,7 +643,8 @@ test("partner dashboard service enforces auth, validation, and missing-resource 
 });
 
 test("partner dashboard service supports rbac, intake rules, and balanced assignment", async (t) => {
-  const server = buildServer({ logger: false, repository: new MemoryPartnerRepository() });
+  const repository = new MemoryPartnerRepository();
+  const server = buildServer({ logger: false, repository });
   t.after(async () => {
     await server.close();
   });
@@ -651,16 +657,58 @@ test("partner dashboard service supports rbac, intake rules, and balanced assign
   });
   assert.equal(membership.statusCode, 200);
 
+  const forbiddenIntake = await server.inject({
+    method: "PUT",
+    url: "/internal/partners/competitions/competition_1/intake",
+    headers: { "x-admin-user-id": "judge_01" },
+    payload: {
+      formFields: [{ key: "bio", label: "Bio", type: "textarea", required: true }],
+      feeRules: { baseFeeCents: 5000, lateFeeCents: 1000 }
+    }
+  });
+  assert.equal(forbiddenIntake.statusCode, 403);
+
+  const promoteEditor = await server.inject({
+    method: "PUT",
+    url: "/internal/partners/competitions/competition_1/memberships/judge_01",
+    headers: { "x-admin-user-id": "admin_01" },
+    payload: { role: "editor" }
+  });
+  assert.equal(promoteEditor.statusCode, 200);
+
   const intake = await server.inject({
     method: "PUT",
     url: "/internal/partners/competitions/competition_1/intake",
-    headers: { "x-admin-user-id": "admin_01" },
+    headers: { "x-admin-user-id": "judge_01" },
     payload: {
       formFields: [{ key: "bio", label: "Bio", type: "textarea", required: true }],
       feeRules: { baseFeeCents: 5500, lateFeeCents: 1500 }
     }
   });
   assert.equal(intake.statusCode, 200);
+  const firstIntakeAudit = repository.getCompetitionIntakeConfigAuditForTest("competition_1");
+  assert.ok(firstIntakeAudit);
+  assert.equal(firstIntakeAudit.updatedByUserId, "judge_01");
+  assert.equal(firstIntakeAudit.feeRules.baseFeeCents, 5500);
+  assert.equal(typeof firstIntakeAudit.createdAt, "string");
+  assert.equal(typeof firstIntakeAudit.updatedAt, "string");
+
+  const intakeUpdate = await server.inject({
+    method: "PUT",
+    url: "/internal/partners/competitions/competition_1/intake",
+    headers: { "x-admin-user-id": "admin_01" },
+    payload: {
+      formFields: [{ key: "bio", label: "Bio", type: "textarea", required: true }],
+      feeRules: { baseFeeCents: 6200, lateFeeCents: 1800 }
+    }
+  });
+  assert.equal(intakeUpdate.statusCode, 200);
+  const secondIntakeAudit = repository.getCompetitionIntakeConfigAuditForTest("competition_1");
+  assert.ok(secondIntakeAudit);
+  assert.equal(secondIntakeAudit.createdAt, firstIntakeAudit.createdAt);
+  assert.equal(secondIntakeAudit.updatedAt >= firstIntakeAudit.updatedAt, true);
+  assert.equal(secondIntakeAudit.updatedByUserId, "admin_01");
+  assert.equal(secondIntakeAudit.feeRules.baseFeeCents, 6200);
 
   const submission = await server.inject({
     method: "POST",
@@ -674,7 +722,7 @@ test("partner dashboard service supports rbac, intake rules, and balanced assign
     }
   });
   assert.equal(submission.statusCode, 201);
-  assert.equal(submission.json().submission.entryFeeCents, 5500);
+  assert.equal(submission.json().submission.entryFeeCents, 6200);
 
   const autoAssign = await server.inject({
     method: "POST",
@@ -687,6 +735,85 @@ test("partner dashboard service supports rbac, intake rules, and balanced assign
   });
   assert.equal(autoAssign.statusCode, 200);
   assert.equal(autoAssign.json().assignedCount >= 1, true);
+});
+
+test("partner dashboard competition job runner executes balancing, normalization, and reminders", async (t) => {
+  const server = buildServer({ logger: false, repository: new MemoryPartnerRepository() });
+  t.after(async () => {
+    await server.close();
+  });
+
+  const balancing = await server.inject({
+    method: "POST",
+    url: "/internal/partners/competitions/competition_1/jobs/run",
+    headers: { "x-admin-user-id": "admin_01" },
+    payload: {
+      job: "judge_assignment_balancing",
+      judgeUserIds: ["judge_01", "judge_02"],
+      maxAssignmentsPerJudge: 2
+    }
+  });
+  assert.equal(balancing.statusCode, 200);
+  assert.equal(balancing.json().job, "judge_assignment_balancing");
+
+  const normalize = await server.inject({
+    method: "POST",
+    url: "/internal/partners/competitions/competition_1/jobs/run",
+    headers: { "x-admin-user-id": "admin_01" },
+    payload: {
+      job: "normalization_recompute",
+      round: "default"
+    }
+  });
+  assert.equal(normalize.statusCode, 200);
+  assert.equal(normalize.json().job, "normalization_recompute");
+
+  const reminders = await server.inject({
+    method: "POST",
+    url: "/internal/partners/competitions/competition_1/jobs/run",
+    headers: { "x-admin-user-id": "admin_01" },
+    payload: {
+      job: "entrant_reminders",
+      reminderSubject: "Reminder",
+      reminderBody: "Reminder body"
+    }
+  });
+  assert.equal(reminders.statusCode, 200);
+  assert.equal(reminders.json().job, "entrant_reminders");
+  assert.ok(reminders.json().sentCount >= 1);
+
+  const reminderMessages = await server.inject({
+    method: "GET",
+    url: "/internal/partners/competitions/competition_1/messages?targetUserId=writer_01&limit=20",
+    headers: { "x-admin-user-id": "admin_01" }
+  });
+  assert.equal(reminderMessages.statusCode, 200);
+  const reminderList = reminderMessages.json() as { messages: PartnerEntrantMessage[] };
+  const reminder = reminderList.messages.find((entry) => entry.messageKind === "reminder");
+  assert.ok(reminder);
+  assert.equal(reminder.senderUserId, "admin_01");
+  assert.equal(reminder.templateKey, "entrant_reminder");
+  assert.equal(reminder.metadata["job"], "entrant_reminders");
+});
+
+test("partner dashboard jobs/run validates balancing payload when judge ids are missing", async (t) => {
+  const server = buildServer({ logger: false, repository: new MemoryPartnerRepository() });
+  t.after(async () => {
+    await server.close();
+  });
+
+  const balancing = await server.inject({
+    method: "POST",
+    url: "/internal/partners/competitions/competition_1/jobs/run",
+    headers: { "x-admin-user-id": "admin_01" },
+    payload: {
+      job: "judge_assignment_balancing",
+      maxAssignmentsPerJudge: 2
+    }
+  });
+  assert.equal(balancing.statusCode, 400);
+  assert.equal(balancing.json().error, "invalid_payload");
+  assert.equal(balancing.json().detail, "judgeUserIds is required");
 });
 
 test("partner dashboard entrant messaging routes persist and return audit fields", async (t) => {
@@ -709,7 +836,23 @@ test("partner dashboard entrant messaging routes persist and return audit fields
   });
   assert.equal(sent.statusCode, 201);
   assert.equal(sent.json().message.senderUserId, "admin_01");
+  assert.equal(sent.json().message.messageKind, "direct");
+  assert.equal(sent.json().message.targetUserId, "writer_01");
+  assert.equal(sent.json().message.metadata.source, "ops");
   assert.equal(typeof sent.json().message.createdAt, "string");
+
+  const broadcast = await server.inject({
+    method: "POST",
+    url: "/internal/partners/competitions/competition_1/messages",
+    headers: { "x-admin-user-id": "admin_01" },
+    payload: {
+      messageKind: "broadcast",
+      subject: "All entrants",
+      body: "A status update was posted.",
+      metadata: { source: "ops" }
+    }
+  });
+  assert.equal(broadcast.statusCode, 201);
 
   const listed = await server.inject({
     method: "GET",
@@ -717,7 +860,10 @@ test("partner dashboard entrant messaging routes persist and return audit fields
     headers: { "x-admin-user-id": "admin_01" }
   });
   assert.equal(listed.statusCode, 200);
-  assert.equal(listed.json().messages.length, 1);
+  const listPayload = listed.json() as { messages: PartnerEntrantMessage[] };
+  assert.equal(listPayload.messages.length, 2);
+  assert.equal(listPayload.messages[0]?.messageKind, "broadcast");
+  assert.equal(listPayload.messages[1]?.messageKind, "direct");
 });
 
 test("partner dashboard entrant messaging validates direct target", async (t) => {
@@ -737,6 +883,34 @@ test("partner dashboard entrant messaging validates direct target", async (t) =>
     }
   });
   assert.equal(sent.statusCode, 400);
+});
+
+test("partner dashboard entrant messaging enforces sender RBAC", async (t) => {
+  const server = buildServer({ logger: false, repository: new MemoryPartnerRepository() });
+  t.after(async () => {
+    await server.close();
+  });
+
+  const membership = await server.inject({
+    method: "PUT",
+    url: "/internal/partners/competitions/competition_1/memberships/judge_01",
+    headers: { "x-admin-user-id": "admin_01" },
+    payload: { role: "judge" }
+  });
+  assert.equal(membership.statusCode, 200);
+
+  const sent = await server.inject({
+    method: "POST",
+    url: "/internal/partners/competitions/competition_1/messages",
+    headers: { "x-admin-user-id": "judge_01" },
+    payload: {
+      targetUserId: "writer_01",
+      messageKind: "direct",
+      subject: "Unauthorized",
+      body: "Body"
+    }
+  });
+  assert.equal(sent.statusCode, 403);
 });
 
 test("partner dashboard filmfreeway sync supports claim, complete, and fail transitions", async (t) => {
@@ -770,6 +944,14 @@ test("partner dashboard filmfreeway sync supports claim, complete, and fail tran
   assert.equal(completeOne.statusCode, 200);
   assert.equal(completeOne.json().job.status, "succeeded");
 
+  const completeOneAgain = await server.inject({
+    method: "POST",
+    url: `/internal/partners/integrations/filmfreeway/sync/jobs/${claimOne.json().job.jobId}/complete`,
+    headers: { "x-admin-user-id": "admin_01" },
+    payload: { detail: "duplicate complete" }
+  });
+  assert.equal(completeOneAgain.statusCode, 404);
+
   const queueTwo = await server.inject({
     method: "POST",
     url: "/internal/partners/integrations/filmfreeway/sync",
@@ -793,6 +975,14 @@ test("partner dashboard filmfreeway sync supports claim, complete, and fail tran
   });
   assert.equal(failTwo.statusCode, 200);
   assert.equal(failTwo.json().job.status, "failed");
+
+  const claimEmpty = await server.inject({
+    method: "POST",
+    url: "/internal/partners/integrations/filmfreeway/sync/jobs/claim",
+    headers: { "x-admin-user-id": "admin_01" }
+  });
+  assert.equal(claimEmpty.statusCode, 404);
+  assert.equal(claimEmpty.json().error, "job_not_found");
 });
 
 test("partner dashboard manual sync run endpoint uses configured runner", async (t) => {
@@ -826,6 +1016,82 @@ test("partner dashboard manual sync run endpoint uses configured runner", async 
   assert.equal(runNext.json().job.status, "succeeded");
   assert.equal(runNext.json().job.detail, "runner_complete");
   assert.equal(seenJobs.length, 1);
+});
+
+test("partner dashboard manual sync run endpoint handles missing and failing runners", async (t) => {
+  const noRunnerServer = buildServer({ logger: false, repository: new MemoryPartnerRepository() });
+  t.after(async () => {
+    await noRunnerServer.close();
+  });
+
+  const noRunner = await noRunnerServer.inject({
+    method: "POST",
+    url: "/internal/partners/integrations/filmfreeway/sync/run-next",
+    headers: { "x-admin-user-id": "admin_01" }
+  });
+  assert.equal(noRunner.statusCode, 501);
+  assert.equal(noRunner.json().error, "sync_runner_not_configured");
+
+  const failingServer = buildServer({
+    logger: false,
+    repository: new MemoryPartnerRepository(),
+    filmFreewaySyncRunner: async () => {
+      throw new Error("boom");
+    }
+  });
+  t.after(async () => {
+    await failingServer.close();
+  });
+
+  const queued = await failingServer.inject({
+    method: "POST",
+    url: "/internal/partners/integrations/filmfreeway/sync",
+    headers: { "x-admin-user-id": "admin_01" },
+    payload: { competitionId: "competition_1", direction: "import" }
+  });
+  assert.equal(queued.statusCode, 202);
+
+  const runNext = await failingServer.inject({
+    method: "POST",
+    url: "/internal/partners/integrations/filmfreeway/sync/run-next",
+    headers: { "x-admin-user-id": "admin_01" }
+  });
+  assert.equal(runNext.statusCode, 200);
+  assert.equal(runNext.json().job.status, "failed");
+  assert.equal(runNext.json().job.detail, "runner_exception");
+});
+
+test("partner dashboard manual sync run endpoint returns conflict when repository state changes", async (t) => {
+  class ConflictingCompletionRepository extends MemoryPartnerRepository {
+    override async completeFilmFreewaySyncJob(_jobId: string): Promise<PartnerSyncJob | null> {
+      return null;
+    }
+  }
+
+  const server = buildServer({
+    logger: false,
+    repository: new ConflictingCompletionRepository(),
+    filmFreewaySyncRunner: async () => ({ status: "succeeded", detail: "done" })
+  });
+  t.after(async () => {
+    await server.close();
+  });
+
+  const queued = await server.inject({
+    method: "POST",
+    url: "/internal/partners/integrations/filmfreeway/sync",
+    headers: { "x-admin-user-id": "admin_01" },
+    payload: { competitionId: "competition_1", direction: "import" }
+  });
+  assert.equal(queued.statusCode, 202);
+
+  const runNext = await server.inject({
+    method: "POST",
+    url: "/internal/partners/integrations/filmfreeway/sync/run-next",
+    headers: { "x-admin-user-id": "admin_01" }
+  });
+  assert.equal(runNext.statusCode, 409);
+  assert.equal(runNext.json().error, "job_state_conflict");
 });
 
 test("partner dashboard publish-results triggers ranking incremental recompute per writer", async (t) => {
@@ -877,10 +1143,10 @@ test("partner dashboard publish-results triggers ranking incremental recompute p
   });
   assert.equal(publish.statusCode, 200);
 
-  assert.equal(observed.length, 2);
-  assert.equal(observed[0]?.url, "http://ranking-svc/internal/recompute/incremental");
-  assert.match(observed[0]?.body ?? "", /"writerId":"writer_01"/);
-  assert.match(observed[1]?.body ?? "", /"writerId":"writer_02"/);
+  const rankingCalls = observed.filter((entry) => entry.url === "http://ranking-svc/internal/recompute/incremental");
+  assert.equal(rankingCalls.length, 2);
+  assert.match(rankingCalls[0]?.body ?? "", /"writerId":"writer_01"/);
+  assert.match(rankingCalls[1]?.body ?? "", /"writerId":"writer_02"/);
 });
 
 test("partner dashboard publish-results tolerates ranking hook failure", async (t) => {
@@ -913,4 +1179,166 @@ test("partner dashboard publish-results tolerates ranking hook failure", async (
     }
   });
   assert.equal(publish.statusCode, 200);
+});
+
+test("partner dashboard swallows notification failures for submission, message, normalize, and draft swap", async (t) => {
+  const observedNotificationCalls: string[] = [];
+  const requestFn = (async (url: string | URL) => {
+    observedNotificationCalls.push(String(url));
+    return {
+      statusCode: 500,
+      body: {
+        json: async () => ({ error: "notification_down" }),
+        text: async () => JSON.stringify({ error: "notification_down" })
+      }
+    };
+  }) as any;
+
+  const server = buildServer({
+    logger: false,
+    repository: new MemoryPartnerRepository(),
+    requestFn,
+    notificationServiceBase: "http://notification-svc"
+  });
+  t.after(async () => {
+    await server.close();
+  });
+
+  const submission = await server.inject({
+    method: "POST",
+    url: "/internal/partners/competitions/competition_1/submissions",
+    headers: { "x-admin-user-id": "admin_01" },
+    payload: {
+      writerUserId: "writer_02",
+      projectId: "project_02",
+      scriptId: "script_02",
+      formResponses: {}
+    }
+  });
+  assert.equal(submission.statusCode, 201);
+
+  const message = await server.inject({
+    method: "POST",
+    url: "/internal/partners/competitions/competition_1/messages",
+    headers: { "x-admin-user-id": "admin_01" },
+    payload: {
+      targetUserId: "writer_02",
+      messageKind: "direct",
+      subject: "Update",
+      body: "Body"
+    }
+  });
+  assert.equal(message.statusCode, 201);
+
+  const normalize = await server.inject({
+    method: "POST",
+    url: "/internal/partners/competitions/competition_1/normalize",
+    headers: { "x-admin-user-id": "admin_01" },
+    payload: { round: "default" }
+  });
+  assert.equal(normalize.statusCode, 200);
+
+  const swap = await server.inject({
+    method: "POST",
+    url: "/internal/partners/competitions/competition_1/draft-swaps",
+    headers: { "x-admin-user-id": "admin_01" },
+    payload: {
+      submissionId: "submission_1",
+      replacementScriptId: "script_03"
+    }
+  });
+  assert.equal(swap.statusCode, 200);
+
+  const notificationCalls = observedNotificationCalls.filter((url) => url === "http://notification-svc/internal/events");
+  assert.equal(notificationCalls.length, 4);
+});
+
+test("partner dashboard emits notification events for phase-7 workflows", async (t) => {
+  const observedBodies: string[] = [];
+  const observedUrls: string[] = [];
+  const requestFn = (async (url: string | URL, options?: { body?: unknown }) => {
+    observedUrls.push(String(url));
+    observedBodies.push(String(options?.body ?? ""));
+    return {
+      statusCode: 202,
+      body: {
+        json: async () => ({ accepted: true }),
+        text: async () => JSON.stringify({ accepted: true })
+      }
+    };
+  }) as any;
+
+  const server = buildServer({
+    logger: false,
+    repository: new MemoryPartnerRepository(),
+    requestFn,
+    rankingServiceBase: "http://ranking-svc",
+    notificationServiceBase: "http://notification-svc"
+  });
+  t.after(async () => {
+    await server.close();
+  });
+
+  const created = await server.inject({
+    method: "POST",
+    url: "/internal/partners/competitions/competition_1/submissions",
+    headers: { "x-admin-user-id": "admin_01" },
+    payload: {
+      writerUserId: "writer_02",
+      projectId: "project_02",
+      scriptId: "script_02",
+      formResponses: {}
+    }
+  });
+  assert.equal(created.statusCode, 201);
+
+  const message = await server.inject({
+    method: "POST",
+    url: "/internal/partners/competitions/competition_1/messages",
+    headers: { "x-admin-user-id": "admin_01" },
+    payload: {
+      targetUserId: "writer_02",
+      messageKind: "direct",
+      subject: "Heads up",
+      body: "We received your script."
+    }
+  });
+  assert.equal(message.statusCode, 201);
+
+  const normalize = await server.inject({
+    method: "POST",
+    url: "/internal/partners/competitions/competition_1/normalize",
+    headers: { "x-admin-user-id": "admin_01" },
+    payload: { round: "default" }
+  });
+  assert.equal(normalize.statusCode, 200);
+
+  const publish = await server.inject({
+    method: "POST",
+    url: "/internal/partners/competitions/competition_1/publish-results",
+    headers: { "x-admin-user-id": "admin_01" },
+    payload: {
+      results: [{ submissionId: "submission_1", placementStatus: "winner" }]
+    }
+  });
+  assert.equal(publish.statusCode, 200);
+
+  const swap = await server.inject({
+    method: "POST",
+    url: "/internal/partners/competitions/competition_1/draft-swaps",
+    headers: { "x-admin-user-id": "admin_01" },
+    payload: {
+      submissionId: "submission_1",
+      replacementScriptId: "script_03"
+    }
+  });
+  assert.equal(swap.statusCode, 200);
+
+  const notificationCalls = observedUrls.filter((url) => url === "http://notification-svc/internal/events");
+  assert.ok(notificationCalls.length >= 5);
+  assert.ok(observedBodies.some((body) => body.includes("\"eventType\":\"partner_submission_received\"")));
+  assert.ok(observedBodies.some((body) => body.includes("\"eventType\":\"partner_entrant_message_sent\"")));
+  assert.ok(observedBodies.some((body) => body.includes("\"eventType\":\"partner_score_normalized\"")));
+  assert.ok(observedBodies.some((body) => body.includes("\"eventType\":\"partner_results_published\"")));
+  assert.ok(observedBodies.some((body) => body.includes("\"eventType\":\"partner_draft_swap_processed\"")));
 });

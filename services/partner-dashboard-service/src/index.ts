@@ -25,6 +25,7 @@ export type PartnerDashboardServiceOptions = {
   repository?: PartnerDashboardRepository;
   requestFn?: typeof undiciRequest;
   rankingServiceBase?: string;
+  notificationServiceBase?: string;
   filmFreewaySyncRunner?: (job: PartnerSyncJob) => Promise<{ status?: "succeeded" | "failed"; detail?: string } | void>;
   onFilmFreewaySyncQueued?: (job: PartnerSyncJob) => Promise<void> | void;
 };
@@ -46,6 +47,10 @@ export function buildServer(options: PartnerDashboardServiceOptions = {}): Fasti
   const repositoryReady = repository.init();
   const requestFn = options.requestFn ?? undiciRequest;
   const rankingServiceBase = options.rankingServiceBase ?? process.env.RANKING_SERVICE_URL ?? "http://localhost:4007";
+  const notificationServiceBase =
+    options.notificationServiceBase ??
+    process.env.NOTIFICATION_SERVICE_URL ??
+    "http://localhost:4010";
 
   const MembershipUpsertSchema = z.object({
     role: z.enum(["owner", "admin", "editor", "judge", "viewer"])
@@ -105,6 +110,44 @@ export function buildServer(options: PartnerDashboardServiceOptions = {}): Fasti
   const SyncJobFailSchema = z.object({
     detail: z.string().min(1).max(4000)
   });
+
+  const CompetitionJobRunSchema = z.object({
+    job: z.enum(["judge_assignment_balancing", "normalization_recompute", "entrant_reminders"]),
+    judgeUserIds: z.array(z.string().min(1)).max(200).optional(),
+    maxAssignmentsPerJudge: z.number().int().positive().max(500).default(5),
+    round: z.string().min(1).max(120).default("default"),
+    reminderTemplateKey: z.string().max(200).default("entrant_reminder"),
+    reminderSubject: z.string().max(500).default("Competition status update"),
+    reminderBody: z.string().max(5000).default("Please review your latest competition update.")
+  });
+
+  const publishNotification = async (input: {
+    eventType: string;
+    actorUserId?: string;
+    targetUserId: string;
+    resourceType: string;
+    resourceId: string;
+    payload: Record<string, unknown>;
+  }): Promise<void> => {
+    const response = await requestFn(`${notificationServiceBase}/internal/events`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        eventId: `event_${randomUUID()}`,
+        eventType: input.eventType,
+        occurredAt: new Date().toISOString(),
+        actorUserId: input.actorUserId,
+        targetUserId: input.targetUserId,
+        resourceType: input.resourceType,
+        resourceId: input.resourceId,
+        payload: input.payload
+      })
+    });
+    if (response.statusCode >= 400) {
+      const body = await response.body.text();
+      throw new Error(`notification_failed:${response.statusCode}:${body}`);
+    }
+  };
 
   const hasRole = async (
     competitionId: string,
@@ -270,6 +313,21 @@ export function buildServer(options: PartnerDashboardServiceOptions = {}): Fasti
       if (!submission) {
         return reply.status(404).send({ error: "competition_or_writer_or_project_not_found" });
       }
+      try {
+        await publishNotification({
+          eventType: "partner_submission_received",
+          actorUserId,
+          targetUserId: submission.writerUserId,
+          resourceType: "partner_submission",
+          resourceId: submission.id,
+          payload: {
+            competitionId,
+            entryFeeCents: submission.entryFeeCents
+          }
+        });
+      } catch (error) {
+        req.log.warn({ error, competitionId, submissionId: submission.id }, "submission notification failed");
+      }
       return reply.status(201).send({ submission });
     }
   });
@@ -321,6 +379,22 @@ export function buildServer(options: PartnerDashboardServiceOptions = {}): Fasti
       const message = await repository.createEntrantMessage(competitionId, actorUserId, parsed.data);
       if (!message) {
         return reply.status(404).send({ error: "competition_or_users_not_found" });
+      }
+      try {
+        await publishNotification({
+          eventType: "partner_entrant_message_sent",
+          actorUserId,
+          targetUserId: message.targetUserId ?? actorUserId,
+          resourceType: "partner_message",
+          resourceId: message.id,
+          payload: {
+            competitionId,
+            messageKind: message.messageKind,
+            templateKey: message.templateKey
+          }
+        });
+      } catch (error) {
+        req.log.warn({ error, competitionId, messageId: message.id }, "entrant message notification failed");
       }
       return reply.status(201).send({ message });
     }
@@ -459,6 +533,106 @@ export function buildServer(options: PartnerDashboardServiceOptions = {}): Fasti
     }
   });
 
+  server.post("/internal/partners/competitions/:competitionId/jobs/run", {
+    config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
+      await repositoryReady;
+      const actorUserId = readHeader(req.headers, "x-admin-user-id");
+      if (!actorUserId) {
+        return reply.status(403).send({ error: "forbidden" });
+      }
+      const { competitionId } = req.params as { competitionId: string };
+      if (!(await ensureCompetitionExists(competitionId))) {
+        return reply.status(404).send({ error: "competition_not_found" });
+      }
+      if (!(await hasRole(competitionId, actorUserId, ["owner", "admin", "editor"]))) {
+        return reply.status(403).send({ error: "forbidden" });
+      }
+
+      const parsed = CompetitionJobRunSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
+      }
+
+      if (parsed.data.job === "judge_assignment_balancing") {
+        const persistedSubmissions = await repository.listCompetitionSubmissions(competitionId);
+        if (!persistedSubmissions) {
+          return reply.status(404).send({ error: "competition_not_found" });
+        }
+        const judgeUserIds = parsed.data.judgeUserIds ?? [];
+        if (judgeUserIds.length < 1) {
+          return reply.status(400).send({ error: "invalid_payload", detail: "judgeUserIds is required" });
+        }
+
+        const selected = persistedSubmissions.map((submission) => String(submission.id));
+        const judgeCounts = new Map<string, number>();
+        for (const judgeUserId of judgeUserIds) {
+          judgeCounts.set(judgeUserId, 0);
+        }
+        let assignedCount = 0;
+        const assignments: Array<{ submissionId: string; judgeUserId: string }> = [];
+        for (const submissionId of selected) {
+          for (const judgeUserId of judgeUserIds) {
+            const currentCount = judgeCounts.get(judgeUserId) ?? 0;
+            if (currentCount < parsed.data.maxAssignmentsPerJudge) {
+              judgeCounts.set(judgeUserId, currentCount + 1);
+              assignments.push({ submissionId, judgeUserId });
+              const result = await repository.assignJudges(competitionId, actorUserId, {
+                judgeUserId,
+                submissionIds: [submissionId]
+              });
+              assignedCount += result?.assignedCount ?? 0;
+              break;
+            }
+          }
+        }
+        return reply.send({
+          job: parsed.data.job,
+          assignedCount,
+          assignments
+        });
+      }
+
+      if (parsed.data.job === "normalization_recompute") {
+        const result = await repository.runNormalization(competitionId, actorUserId, {
+          round: parsed.data.round
+        });
+        if (!result) {
+          return reply.status(404).send({ error: "competition_or_admin_not_found" });
+        }
+        return reply.send({
+          job: parsed.data.job,
+          runId: result.runId,
+          evaluatedCount: result.evaluatedCount
+        });
+      }
+
+      const submissions = await repository.listCompetitionSubmissions(competitionId);
+      if (!submissions) {
+        return reply.status(404).send({ error: "competition_not_found" });
+      }
+      let sentCount = 0;
+      for (const submission of submissions) {
+        const message = await repository.createEntrantMessage(competitionId, actorUserId, {
+          targetUserId: submission.writerUserId,
+          messageKind: "reminder",
+          templateKey: parsed.data.reminderTemplateKey,
+          subject: parsed.data.reminderSubject,
+          body: parsed.data.reminderBody,
+          metadata: { submissionId: submission.id, job: "entrant_reminders" }
+        });
+        if (!message) {
+          continue;
+        }
+        sentCount += 1;
+      }
+      return reply.send({
+        job: parsed.data.job,
+        sentCount
+      });
+    }
+  });
+
   server.post("/internal/partners/competitions/:competitionId/evaluations", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
@@ -509,6 +683,22 @@ export function buildServer(options: PartnerDashboardServiceOptions = {}): Fasti
       if (!result) {
         return reply.status(404).send({ error: "competition_or_admin_not_found" });
       }
+      try {
+        await publishNotification({
+          eventType: "partner_score_normalized",
+          actorUserId: adminUserId,
+          targetUserId: adminUserId,
+          resourceType: "partner_competition",
+          resourceId: competitionId,
+          payload: {
+            runId: result.runId,
+            evaluatedCount: result.evaluatedCount,
+            round: parsed.data.round
+          }
+        });
+      } catch (error) {
+        req.log.warn({ error, competitionId, runId: result.runId }, "normalization notification failed");
+      }
       return reply.send(result);
     }
   });
@@ -544,6 +734,20 @@ export function buildServer(options: PartnerDashboardServiceOptions = {}): Fasti
       );
 
       for (const writerId of writerUserIds) {
+        try {
+          await publishNotification({
+            eventType: "partner_results_published",
+            actorUserId: adminUserId,
+            targetUserId: writerId,
+            resourceType: "partner_competition",
+            resourceId: competitionId,
+            payload: {
+              publishedCount: result.publishedCount
+            }
+          });
+        } catch (error) {
+          req.log.warn({ error, writerId, competitionId }, "results notification failed");
+        }
         try {
           const rankingResponse = await requestFn(`${rankingServiceBase}/internal/recompute/incremental`, {
             method: "POST",
@@ -593,6 +797,24 @@ export function buildServer(options: PartnerDashboardServiceOptions = {}): Fasti
       const result = await repository.processDraftSwap(competitionId, adminUserId, parsed.data);
       if (!result) {
         return reply.status(404).send({ error: "competition_or_submission_or_admin_not_found" });
+      }
+      try {
+        const submissions = await repository.listCompetitionSubmissions(competitionId);
+        const submission = submissions?.find((item) => item.id === result.submissionId);
+        await publishNotification({
+          eventType: "partner_draft_swap_processed",
+          actorUserId: adminUserId,
+          targetUserId: submission?.writerUserId ?? adminUserId,
+          resourceType: "partner_submission",
+          resourceId: result.submissionId,
+          payload: {
+            competitionId,
+            replacementScriptId: result.replacementScriptId,
+            feeCents: result.feeCents
+          }
+        });
+      } catch (error) {
+        req.log.warn({ error, competitionId, submissionId: result.submissionId }, "draft swap notification failed");
       }
       return reply.send(result);
     }

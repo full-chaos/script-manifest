@@ -237,6 +237,43 @@ services:
       test: ["CMD-SHELL", "curl -sf http://localhost:4007/health || exit 1"]
       <<: *healthcheck
 
+  programs-service:
+    <<: *service-defaults
+    image: ghcr.io/full-chaos/script-manifest/programs-service:${IMAGE_TAG:-latest}
+    environment:
+      PORT: "4012"
+      NODE_ENV: production
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-manifest}:${POSTGRES_PASSWORD:?}@postgres:5432/${POSTGRES_DB:-manifest}"
+      NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      notification-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:4012/health || exit 1"]
+      <<: *healthcheck
+
+  partner-dashboard-service:
+    <<: *service-defaults
+    image: ghcr.io/full-chaos/script-manifest/partner-dashboard-service:${IMAGE_TAG:-latest}
+    environment:
+      PORT: "4013"
+      NODE_ENV: production
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-manifest}:${POSTGRES_PASSWORD:?}@postgres:5432/${POSTGRES_DB:-manifest}"
+      RANKING_SERVICE_URL: "http://ranking-service:4007"
+      NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ranking-service:
+        condition: service_healthy
+      notification-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:4013/health || exit 1"]
+      <<: *healthcheck
+
   api-gateway:
     <<: *service-defaults
     image: ghcr.io/full-chaos/script-manifest/api-gateway:${IMAGE_TAG:-latest}
@@ -252,6 +289,8 @@ services:
       SCRIPT_STORAGE_SERVICE_URL: "http://script-storage-service:4011"
       FEEDBACK_EXCHANGE_SERVICE_URL: "http://feedback-exchange-service:4006"
       RANKING_SERVICE_URL: "http://ranking-service:4007"
+      PROGRAMS_SERVICE_URL: "http://programs-service:4012"
+      PARTNER_DASHBOARD_SERVICE_URL: "http://partner-dashboard-service:4013"
     depends_on:
       identity-service:
         condition: service_healthy
@@ -264,6 +303,10 @@ services:
       feedback-exchange-service:
         condition: service_healthy
       ranking-service:
+        condition: service_healthy
+      programs-service:
+        condition: service_healthy
+      partner-dashboard-service:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:4000/health/live || exit 1"]

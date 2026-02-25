@@ -18,6 +18,8 @@ SERVICES=(
   feedback-exchange-service
   ranking-service
   coverage-marketplace-service
+  programs-service
+  partner-dashboard-service
   industry-portal-service
   script-storage-service
   api-gateway
@@ -36,10 +38,33 @@ HEALTH_ENDPOINTS=(
   "http://localhost:4009/health"
   "http://localhost:4010/health"
   "http://localhost:4011/health"
+  "http://localhost:4012/health"
+  "http://localhost:4013/health"
 )
 
 run_compose() {
   docker compose -f "$COMPOSE_FILE" "$@"
+}
+
+build_node_dev_image() {
+  echo "Building shared node dev image..."
+  docker build \
+    -f "$REPO_ROOT/infra/docker/node-dev.Dockerfile" \
+    -t script-manifest-node-dev:local \
+    "$REPO_ROOT"
+}
+
+pick_available_port() {
+  local candidate="$1"
+  if ! command -v lsof >/dev/null 2>&1; then
+    echo "$candidate"
+    return 0
+  fi
+
+  while lsof -nP -iTCP:"$candidate" -sTCP:LISTEN >/dev/null 2>&1; do
+    candidate=$((candidate + 1))
+  done
+  echo "$candidate"
 }
 
 wait_for_service_health() {
@@ -98,7 +123,27 @@ wait_for_http() {
 
 up() {
   echo "Starting compose integration stack..."
-  run_compose up -d "${SERVICES[@]}"
+  if [[ -z "${POSTGRES_PORT:-}" ]]; then
+    POSTGRES_PORT="$(pick_available_port 55432)"
+  fi
+  if [[ -z "${REDIS_PORT:-}" ]]; then
+    REDIS_PORT="$(pick_available_port 56379)"
+  fi
+  if [[ -z "${MINIO_PORT:-}" ]]; then
+    MINIO_PORT="$(pick_available_port 59000)"
+  fi
+  if [[ -z "${MINIO_CONSOLE_PORT:-}" ]]; then
+    MINIO_CONSOLE_PORT="$(pick_available_port 59001)"
+  fi
+  if [[ -z "${OPENSEARCH_HTTP_PORT:-}" ]]; then
+    OPENSEARCH_HTTP_PORT="$(pick_available_port 59200)"
+  fi
+  if [[ -z "${OPENSEARCH_PERF_PORT:-}" ]]; then
+    OPENSEARCH_PERF_PORT="$(pick_available_port 59600)"
+  fi
+  export POSTGRES_PORT REDIS_PORT MINIO_PORT MINIO_CONSOLE_PORT OPENSEARCH_HTTP_PORT OPENSEARCH_PERF_PORT
+  build_node_dev_image
+  run_compose up -d --no-build "${SERVICES[@]}"
 
   for service in "${SERVICES[@]}"; do
     wait_for_service_health "$service"
@@ -124,7 +169,12 @@ reset() {
 test_stack() {
   trap 'down' EXIT
   reset
-  (cd "$REPO_ROOT" && pnpm run test:integration)
+  (
+    cd "$REPO_ROOT" && \
+      INTEGRATION_DATABASE_URL="postgresql://manifest:manifest@localhost:${POSTGRES_PORT}/manifest" \
+      INTEGRATION_MINIO_PORT="${MINIO_PORT}" \
+      pnpm run test:integration
+  )
 }
 
 case "${1:-}" in

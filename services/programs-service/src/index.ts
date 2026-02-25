@@ -14,12 +14,18 @@ import {
 } from "@script-manifest/contracts";
 import { z } from "zod";
 import { PgProgramsRepository, type ProgramsRepository } from "./repository.js";
+import {
+  runProgramsSchedulerJob,
+  startProgramsScheduler,
+  type ProgramsSchedulerJobName
+} from "./scheduler.js";
 
 export type ProgramsServiceOptions = {
   logger?: boolean;
   repository?: ProgramsRepository;
   requestFn?: typeof undiciRequest;
   notificationServiceBase?: string;
+  schedulerEnabled?: boolean;
 };
 
 function readHeader(headers: Record<string, unknown>, name: string): string | null {
@@ -42,13 +48,10 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
     options.notificationServiceBase ??
     process.env.NOTIFICATION_SERVICE_URL ??
     "http://localhost:4010";
-  const formByProgram = new Map<string, { fields: Array<Record<string, unknown>>; updatedByUserId: string; updatedAt: string }>();
-  const rubricByProgram = new Map<string, { criteria: Array<Record<string, unknown>>; updatedByUserId: string; updatedAt: string }>();
-  const availabilityByProgram = new Map<string, Array<{ userId: string; startsAt: string; endsAt: string }>>();
-  const sessionAttendees = new Map<string, string[]>();
-  const sessionIntegration = new Map<string, { provider: string; meetingUrl: string | null; recordingUrl: string | null; reminderOffsetsMinutes: number[] }>();
-  const outcomesByProgram = new Map<string, Array<Record<string, unknown>>>();
-  const crmSyncJobsByProgram = new Map<string, Array<Record<string, unknown>>>();
+  const schedulerEnabled =
+    options.schedulerEnabled ??
+    (process.env.PROGRAMS_SCHEDULER_ENABLED ?? "true").toLowerCase() !== "false";
+  let stopScheduler: () => void = () => undefined;
 
   const ProgramApplicationFormSchema = z.object({
     fields: z.array(
@@ -146,6 +149,22 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
     }
   });
 
+  server.addHook("onReady", async () => {
+    await repositoryReady;
+    stopScheduler = startProgramsScheduler(
+      {
+        repository,
+        requestFn,
+        notificationServiceBase,
+        logger: server.log
+      },
+      {
+        enabled: schedulerEnabled,
+        intervalMs: Number(process.env.PROGRAMS_SCHEDULER_INTERVAL_MS ?? 60_000)
+      }
+    );
+  });
+
   server.get("/internal/programs", {
     config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
@@ -167,11 +186,7 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
     handler: async (req, reply) => {
       await repositoryReady;
       const { programId } = req.params as { programId: string };
-      const form = formByProgram.get(programId) ?? {
-        fields: [],
-        updatedByUserId: "",
-        updatedAt: new Date(0).toISOString()
-      };
+      const form = await repository.getProgramApplicationForm(programId);
       return reply.send({ form });
     }
   });
@@ -248,18 +263,30 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
         return reply.status(404).send({ error: "application_not_found" });
       }
       try {
-        await requestFn(`${notificationServiceBase}/internal/notifications/program-application-decision`, {
+        const response = await requestFn(`${notificationServiceBase}/internal/events`, {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
-            programId,
-            applicationId: application.id,
-            userId: application.userId,
-            status: application.status,
-            score: application.score,
-            decisionNotes: application.decisionNotes
+            eventId: `event_${randomUUID()}`,
+            eventType: "program_application_decision",
+            occurredAt: new Date().toISOString(),
+            actorUserId: reviewerUserId,
+            targetUserId: application.userId,
+            resourceType: "program_application",
+            resourceId: application.id,
+            payload: {
+              programId,
+              applicationId: application.id,
+              userId: application.userId,
+              status: application.status,
+              score: application.score,
+              decisionNotes: application.decisionNotes
+            }
           })
         });
+        if (response.statusCode >= 400) {
+          throw new Error(`notification_failed:${response.statusCode}`);
+        }
       } catch {
         // decision writes should succeed even when notification fanout is degraded
       }
@@ -280,12 +307,14 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
         return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
       }
       const { programId } = req.params as { programId: string };
-      const form = {
-        fields: parsed.data.fields.map((field) => ({ ...field })),
-        updatedByUserId: adminUserId,
-        updatedAt: new Date().toISOString()
-      };
-      formByProgram.set(programId, form);
+      const form = await repository.upsertProgramApplicationForm(
+        programId,
+        adminUserId,
+        parsed.data.fields.map((field) => ({ ...field }))
+      );
+      if (!form) {
+        return reply.status(404).send({ error: "program_or_admin_not_found" });
+      }
       return reply.send({ form });
     }
   });
@@ -303,12 +332,14 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
         return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
       }
       const { programId } = req.params as { programId: string };
-      const rubric = {
-        criteria: parsed.data.criteria.map((criterion) => ({ ...criterion })),
-        updatedByUserId: adminUserId,
-        updatedAt: new Date().toISOString()
-      };
-      rubricByProgram.set(programId, rubric);
+      const rubric = await repository.upsertProgramScoringRubric(
+        programId,
+        adminUserId,
+        parsed.data.criteria.map((criterion) => ({ ...criterion }))
+      );
+      if (!rubric) {
+        return reply.status(404).send({ error: "program_or_admin_not_found" });
+      }
       return reply.send({ rubric });
     }
   });
@@ -322,11 +353,7 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
         return reply.status(403).send({ error: "forbidden" });
       }
       const { programId } = req.params as { programId: string };
-      const rubric = rubricByProgram.get(programId) ?? {
-        criteria: [],
-        updatedByUserId: "",
-        updatedAt: new Date(0).toISOString()
-      };
+      const rubric = await repository.getProgramScoringRubric(programId);
       return reply.send({ rubric });
     }
   });
@@ -379,11 +406,14 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
         return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
       }
       const { programId } = req.params as { programId: string };
-      availabilityByProgram.set(
+      const windows = await repository.replaceAvailabilityWindows(
         programId,
         parsed.data.windows.map((window) => ({ ...window }))
       );
-      return reply.send({ windows: availabilityByProgram.get(programId) ?? [] });
+      if (!windows) {
+        return reply.status(404).send({ error: "program_or_users_not_found" });
+      }
+      return reply.send({ windows });
     }
   });
 
@@ -400,7 +430,7 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
         return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
       }
       const { programId } = req.params as { programId: string };
-      const windows = availabilityByProgram.get(programId) ?? [];
+      const windows = await repository.listAvailabilityWindows(programId);
       const targetWindows = parsed.data.attendeeUserIds.map((userId) =>
         windows.filter((window) => window.userId === userId)
       );
@@ -471,13 +501,6 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
       if (!session) {
         return reply.status(404).send({ error: "program_or_admin_or_cohort_not_found" });
       }
-      sessionAttendees.set(session.id, [...parsed.data.attendeeUserIds]);
-      sessionIntegration.set(session.id, {
-        provider: parsed.data.provider,
-        meetingUrl: parsed.data.meetingUrl ?? null,
-        recordingUrl: null,
-        reminderOffsetsMinutes: []
-      });
       return reply.status(201).send({ session });
     }
   });
@@ -516,28 +539,16 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
-      const { sessionId } = req.params as { programId: string; sessionId: string };
-      if (!sessionAttendees.has(sessionId)) {
-        return reply.status(404).send({ error: "session_not_found" });
-      }
+      const { programId, sessionId } = req.params as { programId: string; sessionId: string };
       const parsed = ProgramSessionIntegrationUpdateSchema.safeParse(req.body);
       if (!parsed.success) {
         return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
       }
-      const current = sessionIntegration.get(sessionId) ?? {
-        provider: "",
-        meetingUrl: null,
-        recordingUrl: null,
-        reminderOffsetsMinutes: []
-      };
-      const updated = {
-        provider: parsed.data.provider ?? current.provider,
-        meetingUrl: parsed.data.meetingUrl ?? current.meetingUrl,
-        recordingUrl: parsed.data.recordingUrl ?? current.recordingUrl,
-        reminderOffsetsMinutes: parsed.data.reminderOffsetsMinutes ?? current.reminderOffsetsMinutes
-      };
-      sessionIntegration.set(sessionId, updated);
-      return reply.send({ integration: updated });
+      const integration = await repository.updateProgramSessionIntegration(programId, sessionId, adminUserId, parsed.data);
+      if (!integration) {
+        return reply.status(404).send({ error: "session_or_program_or_admin_not_found" });
+      }
+      return reply.send({ integration });
     }
   });
 
@@ -549,14 +560,15 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
-      const { sessionId } = req.params as { programId: string; sessionId: string };
-      const attendees = sessionAttendees.get(sessionId);
-      if (!attendees) {
+      const { programId, sessionId } = req.params as { programId: string; sessionId: string };
+      const integration = await repository.getProgramSessionIntegration(programId, sessionId);
+      const attendees = await repository.listSessionAttendeeUserIds(programId, sessionId);
+      if (!integration || !attendees) {
         return reply.status(404).send({ error: "session_not_found" });
       }
       return reply.status(202).send({
         queued: attendees.length,
-        reminderOffsetsMinutes: sessionIntegration.get(sessionId)?.reminderOffsetsMinutes ?? []
+        reminderOffsetsMinutes: integration.reminderOffsetsMinutes
       });
     }
   });
@@ -595,18 +607,10 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
       if (!parsed.success) {
         return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
       }
-      const outcome = {
-        id: `program_outcome_${randomUUID()}`,
-        programId,
-        userId: parsed.data.userId,
-        outcomeType: parsed.data.outcomeType,
-        notes: parsed.data.notes,
-        recordedByUserId: adminUserId,
-        createdAt: new Date().toISOString()
-      };
-      const existing = outcomesByProgram.get(programId) ?? [];
-      existing.push(outcome);
-      outcomesByProgram.set(programId, existing);
+      const outcome = await repository.createProgramOutcome(programId, adminUserId, parsed.data);
+      if (!outcome) {
+        return reply.status(404).send({ error: "program_or_user_or_admin_not_found" });
+      }
       return reply.status(201).send({ outcome });
     }
   });
@@ -624,18 +628,13 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
       if (!parsed.success) {
         return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
       }
-      const job = {
-        id: `program_crm_sync_${randomUUID()}`,
-        programId,
-        status: "queued",
+      const job = await repository.queueProgramCrmSyncJob(programId, adminUserId, {
         reason: parsed.data.reason,
-        payload: parsed.data.payload ?? {},
-        triggeredByUserId: adminUserId,
-        createdAt: new Date().toISOString()
-      };
-      const jobs = crmSyncJobsByProgram.get(programId) ?? [];
-      jobs.push(job);
-      crmSyncJobsByProgram.set(programId, jobs);
+        payload: parsed.data.payload ?? {}
+      });
+      if (!job) {
+        return reply.status(404).send({ error: "program_or_admin_not_found" });
+      }
       return reply.status(202).send({ job });
     }
   });
@@ -649,7 +648,59 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
         return reply.status(403).send({ error: "forbidden" });
       }
       const { programId } = req.params as { programId: string };
-      return reply.send({ jobs: crmSyncJobsByProgram.get(programId) ?? [] });
+      const query = req.query as { status?: string; limit?: string | number; offset?: string | number };
+      const validStatuses = new Set(["queued", "running", "succeeded", "failed", "dead_letter"]);
+      const status = typeof query.status === "string" && validStatuses.has(query.status)
+        ? query.status as "queued" | "running" | "succeeded" | "failed" | "dead_letter"
+        : undefined;
+      const limit = query.limit !== undefined ? Number(query.limit) : undefined;
+      const offset = query.offset !== undefined ? Number(query.offset) : undefined;
+      const jobs = await repository.listProgramCrmSyncJobs(programId, {
+        status,
+        limit: Number.isFinite(limit) ? limit : undefined,
+        offset: Number.isFinite(offset) ? offset : undefined
+      });
+      return reply.send({ jobs });
+    }
+  });
+
+  const ProgramSchedulerRunSchema = z.object({
+    job: z.enum([
+      "application_sla_reminder",
+      "session_reminder",
+      "cohort_transition",
+      "kpi_aggregation",
+      "crm_sync_dispatcher"
+    ]),
+    limit: z.number().int().positive().max(1000).optional(),
+    ageMinutes: z.number().int().positive().max(60 * 24 * 30).optional(),
+    horizonMinutes: z.number().int().positive().max(60 * 24 * 30).optional(),
+    lookbackMinutes: z.number().int().positive().max(60 * 24 * 7).optional()
+  });
+
+  server.post("/internal/admin/programs/jobs/run", {
+    config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
+      await repositoryReady;
+      const adminUserId = readHeader(req.headers, "x-admin-user-id");
+      if (!adminUserId) {
+        return reply.status(403).send({ error: "forbidden" });
+      }
+      const parsed = ProgramSchedulerRunSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
+      }
+      const schedulerResult = await runProgramsSchedulerJob(
+        { repository, requestFn, notificationServiceBase, logger: server.log },
+        parsed.data.job as ProgramsSchedulerJobName,
+        {
+          limit: parsed.data.limit,
+          ageMinutes: parsed.data.ageMinutes,
+          horizonMinutes: parsed.data.horizonMinutes,
+          lookbackMinutes: parsed.data.lookbackMinutes
+        }
+      );
+      return reply.send({ result: schedulerResult });
     }
   });
 
@@ -668,6 +719,10 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
       }
       return reply.send({ summary });
     }
+  });
+
+  server.addHook("onClose", async () => {
+    stopScheduler();
   });
 
   return server;

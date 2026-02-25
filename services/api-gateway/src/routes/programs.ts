@@ -503,6 +503,7 @@ export function registerProgramsRoutes(server: FastifyInstance, ctx: GatewayCont
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       const { programId } = req.params as { programId: string };
+      const querySuffix = buildQuerySuffix(req.query);
       const adminUserId = await resolveAdminUserId(
         ctx.requestFn,
         ctx.identityServiceBase,
@@ -515,10 +516,38 @@ export function registerProgramsRoutes(server: FastifyInstance, ctx: GatewayCont
       return proxyJsonRequest(
         reply,
         ctx.requestFn,
-        `${ctx.programsServiceBase}/internal/admin/programs/${encodeURIComponent(programId)}/crm-sync`,
+        `${ctx.programsServiceBase}/internal/admin/programs/${encodeURIComponent(programId)}/crm-sync${querySuffix}`,
         {
           method: "GET",
           headers: { "x-admin-user-id": adminUserId }
+        }
+      );
+    }
+  });
+
+  server.post("/api/v1/admin/programs/jobs/run", {
+    config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
+      const adminUserId = await resolveAdminUserId(
+        ctx.requestFn,
+        ctx.identityServiceBase,
+        req.headers as Record<string, unknown>,
+        ctx.industryAdminAllowlist
+      );
+      if (!adminUserId) {
+        return reply.status(403).send({ error: "forbidden" });
+      }
+      return proxyJsonRequest(
+        reply,
+        ctx.requestFn,
+        `${ctx.programsServiceBase}/internal/admin/programs/jobs/run`,
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "x-admin-user-id": adminUserId
+          },
+          body: JSON.stringify(req.body ?? {})
         }
       );
     }

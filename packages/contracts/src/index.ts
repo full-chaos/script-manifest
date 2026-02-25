@@ -233,13 +233,22 @@ export const NotificationEventTypeSchema = z.enum([
   "script_access_requested",
   "script_access_approved",
   "script_downloaded",
+  "program_application_decision",
+  "program_application_sla_reminder",
+  "program_session_reminder",
+  "program_crm_sync_requested",
   "feedback_listing_claimed",
   "feedback_review_submitted",
   "feedback_dispute_opened",
   "feedback_dispute_resolved",
   "ranking_badge_awarded",
   "ranking_tier_changed",
-  "ranking_appeal_resolved"
+  "ranking_appeal_resolved",
+  "partner_submission_received",
+  "partner_score_normalized",
+  "partner_results_published",
+  "partner_draft_swap_processed",
+  "partner_entrant_message_sent"
 ]);
 
 export type NotificationEventType = z.infer<typeof NotificationEventTypeSchema>;
@@ -249,6 +258,12 @@ export const NotificationResourceTypeSchema = z.enum([
   "profile",
   "project",
   "script",
+  "program_application",
+  "program_session",
+  "program_crm_job",
+  "partner_competition",
+  "partner_submission",
+  "partner_message",
   "system",
   "feedback_listing",
   "feedback_review",

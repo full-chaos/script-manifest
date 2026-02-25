@@ -78,14 +78,21 @@ Gateway namespace:
 - `PUT /api/v1/partners/competitions/:competitionId/intake`
 - `POST /api/v1/partners/competitions/:competitionId/submissions`
 - `GET /api/v1/partners/competitions/:competitionId/submissions`
+- `POST /api/v1/partners/competitions/:competitionId/messages`
+- `GET /api/v1/partners/competitions/:competitionId/messages`
 - `POST /api/v1/partners/competitions/:competitionId/judges/assign`
 - `POST /api/v1/partners/competitions/:competitionId/judges/auto-assign`
+- `POST /api/v1/partners/competitions/:competitionId/jobs/run`
 - `POST /api/v1/partners/competitions/:competitionId/evaluations`
 - `POST /api/v1/partners/competitions/:competitionId/normalize`
 - `POST /api/v1/partners/competitions/:competitionId/publish-results`
 - `POST /api/v1/partners/competitions/:competitionId/draft-swaps`
 - `GET /api/v1/partners/competitions/:competitionId/analytics`
 - `POST /api/v1/partners/integrations/filmfreeway/sync`
+- `POST /api/v1/partners/integrations/filmfreeway/sync/jobs/claim`
+- `POST /api/v1/partners/integrations/filmfreeway/sync/jobs/:jobId/complete`
+- `POST /api/v1/partners/integrations/filmfreeway/sync/jobs/:jobId/fail`
+- `POST /api/v1/partners/integrations/filmfreeway/sync/run-next`
 
 ## Job and Event Plan
 
@@ -122,6 +129,9 @@ Implemented on `codex/phase-7-partner-dashboard-complete`:
 - Runtime wiring:
   - `compose.yml` (`partner-dashboard-service` and gateway env wiring)
   - `.github/workflows/docker.yml` (partner image build)
+  - `services/api-gateway/src/routes/partners.ts` now resolves authenticated actor identity (`x-auth-user-id`, `x-partner-user-id`, or bearer token) and forwards actor headers to partner service.
+- Integration coverage:
+  - `tests/integration/compose/programs-partner-hardening-flow.test.ts` validates memberships, intake persistence, judging/evaluation/normalization/publication paths, entrant messaging, and sync job lifecycle.
 
 Internal service endpoints:
 
@@ -130,14 +140,21 @@ Internal service endpoints:
 - `PUT /internal/partners/competitions/:competitionId/intake`
 - `POST /internal/partners/competitions/:competitionId/submissions`
 - `GET /internal/partners/competitions/:competitionId/submissions`
+- `POST /internal/partners/competitions/:competitionId/messages`
+- `GET /internal/partners/competitions/:competitionId/messages`
 - `POST /internal/partners/competitions/:competitionId/judges/assign`
 - `POST /internal/partners/competitions/:competitionId/judges/auto-assign`
+- `POST /internal/partners/competitions/:competitionId/jobs/run`
 - `POST /internal/partners/competitions/:competitionId/evaluations`
 - `POST /internal/partners/competitions/:competitionId/normalize`
 - `POST /internal/partners/competitions/:competitionId/publish-results`
 - `POST /internal/partners/competitions/:competitionId/draft-swaps`
 - `GET /internal/partners/competitions/:competitionId/analytics`
 - `POST /internal/partners/integrations/filmfreeway/sync`
+- `POST /internal/partners/integrations/filmfreeway/sync/jobs/claim`
+- `POST /internal/partners/integrations/filmfreeway/sync/jobs/:jobId/complete`
+- `POST /internal/partners/integrations/filmfreeway/sync/jobs/:jobId/fail`
+- `POST /internal/partners/integrations/filmfreeway/sync/run-next`
 
 Gateway endpoints:
 
@@ -146,14 +163,21 @@ Gateway endpoints:
 - `PUT /api/v1/partners/competitions/:competitionId/intake`
 - `POST /api/v1/partners/competitions/:competitionId/submissions`
 - `GET /api/v1/partners/competitions/:competitionId/submissions`
+- `POST /api/v1/partners/competitions/:competitionId/messages`
+- `GET /api/v1/partners/competitions/:competitionId/messages`
 - `POST /api/v1/partners/competitions/:competitionId/judges/assign`
 - `POST /api/v1/partners/competitions/:competitionId/judges/auto-assign`
+- `POST /api/v1/partners/competitions/:competitionId/jobs/run`
 - `POST /api/v1/partners/competitions/:competitionId/evaluations`
 - `POST /api/v1/partners/competitions/:competitionId/normalize`
 - `POST /api/v1/partners/competitions/:competitionId/publish-results`
 - `POST /api/v1/partners/competitions/:competitionId/draft-swaps`
 - `GET /api/v1/partners/competitions/:competitionId/analytics`
 - `POST /api/v1/partners/integrations/filmfreeway/sync`
+- `POST /api/v1/partners/integrations/filmfreeway/sync/jobs/claim`
+- `POST /api/v1/partners/integrations/filmfreeway/sync/jobs/:jobId/complete`
+- `POST /api/v1/partners/integrations/filmfreeway/sync/jobs/:jobId/fail`
+- `POST /api/v1/partners/integrations/filmfreeway/sync/run-next`
 
 ## Exit Criteria
 

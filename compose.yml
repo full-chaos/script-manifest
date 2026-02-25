@@ -13,7 +13,7 @@ services:
       POSTGRES_USER: manifest
       POSTGRES_PASSWORD: manifest
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -26,7 +26,7 @@ services:
     image: redis:7
     container_name: manifest-redis
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT:-6379}:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -42,8 +42,8 @@ services:
       OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
       OPENSEARCH_INITIAL_ADMIN_PASSWORD: Manifest123!
     ports:
-      - "9200:9200"
-      - "9600:9600"
+      - "${OPENSEARCH_HTTP_PORT:-9200}:9200"
+      - "${OPENSEARCH_PERF_PORT:-9600}:9600"
     ulimits:
       memlock:
         soft: -1
@@ -73,8 +73,8 @@ services:
       MINIO_ROOT_PASSWORD: manifest123
       MINIO_API_CORS_ALLOW_ORIGIN: "http://localhost:3000"
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "${MINIO_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
     volumes:
       - minio_data:/data
     healthcheck:
@@ -137,7 +137,7 @@ services:
       DATABASE_URL: "postgresql://manifest:manifest@postgres:5432/manifest"
       NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
     command: >
-      sh -lc "flock /workspace/.pnpm-install.lock -c 'pnpm install --frozen-lockfile=false' && pnpm --filter @script-manifest/profile-project-service dev"
+      sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/profile-project-service dev"
     ports:
       - "4001:4001"
     depends_on:
@@ -164,7 +164,7 @@ services:
       GOOGLE_CLIENT_ID: ""
       GOOGLE_CLIENT_SECRET: ""
     command: >
-      sh -lc "flock /workspace/.pnpm-install.lock -c 'pnpm install --frozen-lockfile=false' && pnpm --filter @script-manifest/identity-service dev"
+      sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/identity-service dev"
     ports:
       - "4005:4005"
     depends_on:
@@ -186,7 +186,7 @@ services:
     environment:
       PORT: "4010"
     command: >
-      sh -lc "flock /workspace/.pnpm-install.lock -c 'pnpm install --frozen-lockfile=false' && pnpm --filter @script-manifest/notification-service dev"
+      sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/notification-service dev"
     ports:
       - "4010:4010"
     healthcheck:
@@ -207,7 +207,7 @@ services:
       OPENSEARCH_URL: "http://opensearch:9200"
       OPENSEARCH_INDEX: "competitions_v1"
     command: >
-      sh -lc "flock /workspace/.pnpm-install.lock -c 'pnpm install --frozen-lockfile=false' && pnpm --filter @script-manifest/search-indexer-service dev"
+      sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/search-indexer-service dev"
     ports:
       - "4003:4003"
     depends_on:
@@ -231,7 +231,7 @@ services:
       SEARCH_INDEXER_URL: "http://search-indexer-service:4003"
       NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
     command: >
-      sh -lc "flock /workspace/.pnpm-install.lock -c 'pnpm install --frozen-lockfile=false' && pnpm --filter @script-manifest/competition-directory-service dev"
+      sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/competition-directory-service dev"
     ports:
       - "4002:4002"
     depends_on:
@@ -256,8 +256,8 @@ services:
       PORT: "4011"
       STORAGE_BUCKET: "scripts"
       # Browser-reachable URL for upload forms (localhost for dev)
-      STORAGE_UPLOAD_BASE_URL: "http://localhost:9000"
-      STORAGE_PUBLIC_BASE_URL: "http://localhost:9000"
+      STORAGE_UPLOAD_BASE_URL: "http://localhost:${MINIO_PORT:-9000}"
+      STORAGE_PUBLIC_BASE_URL: "http://localhost:${MINIO_PORT:-9000}"
       # Internal Docker network URL for S3 client operations
       STORAGE_S3_ENDPOINT: "http://minio:9000"
       STORAGE_S3_REGION: "us-east-1"
@@ -265,7 +265,7 @@ services:
       STORAGE_S3_SECRET_KEY: "manifest123"
       STORAGE_S3_FORCE_PATH_STYLE: "true"
     command: >
-      sh -lc "flock /workspace/.pnpm-install.lock -c 'pnpm install --frozen-lockfile=false' && pnpm --filter @script-manifest/script-storage-service dev"
+      sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/script-storage-service dev"
     ports:
       - "4011:4011"
     depends_on:
@@ -287,7 +287,7 @@ services:
     environment:
       PORT: "4004"
     command: >
-      sh -lc "flock /workspace/.pnpm-install.lock -c 'pnpm install --frozen-lockfile=false' && pnpm --filter @script-manifest/submission-tracking-service dev"
+      sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/submission-tracking-service dev"
     ports:
       - "4004:4004"
     healthcheck:
@@ -308,7 +308,7 @@ services:
       DATABASE_URL: "postgresql://manifest:manifest@postgres:5432/manifest"
       NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
     command: >
-      sh -lc "flock /workspace/.pnpm-install.lock -c 'pnpm install --frozen-lockfile=false' && pnpm --filter @script-manifest/feedback-exchange-service dev"
+      sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/feedback-exchange-service dev"
     ports:
       - "4006:4006"
     depends_on:
@@ -337,7 +337,7 @@ services:
       COMPETITION_DIRECTORY_SERVICE_URL: "http://competition-directory-service:4002"
       PROFILE_SERVICE_URL: "http://profile-project-service:4001"
     command: >
-      sh -lc "flock /workspace/.pnpm-install.lock -c 'pnpm install --frozen-lockfile=false' && pnpm --filter @script-manifest/ranking-service dev"
+      sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/ranking-service dev"
     ports:
       - "4007:4007"
     depends_on:
@@ -375,7 +375,7 @@ services:
       STORAGE_S3_SECRET_KEY: "manifest123"
       STORAGE_BUCKET: "coverage-reports"
     command: >
-      sh -lc "flock /workspace/.pnpm-install.lock -c 'pnpm install --frozen-lockfile=false' && pnpm --filter @script-manifest/coverage-marketplace-service dev"
+      sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/coverage-marketplace-service dev"
     ports:
       - "4008:4008"
     depends_on:
@@ -402,7 +402,7 @@ services:
       PORT: "4009"
       DATABASE_URL: "postgresql://manifest:manifest@postgres:5432/manifest"
     command: >
-      sh -lc "flock /workspace/.pnpm-install.lock -c 'pnpm install --frozen-lockfile=false' && pnpm --filter @script-manifest/industry-portal-service dev"
+      sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/industry-portal-service dev"
     ports:
       - "4009:4009"
     depends_on:
@@ -425,7 +425,7 @@ services:
       PORT: "4012"
       DATABASE_URL: "postgresql://manifest:manifest@postgres:5432/manifest"
     command: >
-      sh -lc "flock /workspace/.pnpm-install.lock -c 'pnpm install --frozen-lockfile=false' && pnpm --filter @script-manifest/programs-service dev"
+      sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/programs-service dev"
     ports:
       - "4012:4012"
     depends_on:
@@ -448,7 +448,7 @@ services:
       PORT: "4013"
       DATABASE_URL: "postgresql://manifest:manifest@postgres:5432/manifest"
     command: >
-      sh -lc "flock /workspace/.pnpm-install.lock -c 'pnpm install --frozen-lockfile=false' && pnpm --filter @script-manifest/partner-dashboard-service dev"
+      sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/partner-dashboard-service dev"
     ports:
       - "4013:4013"
     depends_on:
@@ -483,7 +483,7 @@ services:
       COVERAGE_ADMIN_ALLOWLIST: "admin_01,user_admin_01"
       INDUSTRY_ADMIN_ALLOWLIST: "admin_01,user_admin_01"
     command: >
-      sh -lc "flock /workspace/.pnpm-install.lock -c 'pnpm install --frozen-lockfile=false' && pnpm --filter @script-manifest/api-gateway dev"
+      sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/api-gateway dev"
     ports:
       - "4000:4000"
     depends_on:
@@ -527,7 +527,7 @@ services:
       SCRIPT_UPLOAD_INTERNAL_BASE_URL: "http://minio:9000"
       WRITER_DEMO_USER_ID: "writer_01"
     command: >
-      sh -lc "flock /workspace/.pnpm-install.lock -c 'pnpm install --frozen-lockfile=false' && pnpm --filter @script-manifest/writer-web dev"
+      sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/writer-web dev"
     ports:
       - "3100:3000"
     depends_on:

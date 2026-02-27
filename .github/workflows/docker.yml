@@ -23,6 +23,9 @@ jobs:
           - name: competition-directory-service
             dockerfile: infra/docker/service.Dockerfile
             context: .
+          - name: coverage-marketplace-service
+            dockerfile: infra/docker/service.Dockerfile
+            context: .
           - name: feedback-exchange-service
             dockerfile: infra/docker/service.Dockerfile
             context: .

@@ -426,6 +426,8 @@ services:
     environment:
       PORT: "4009"
       DATABASE_URL: "postgresql://manifest:manifest@postgres:5432/manifest"
+      SCRIPT_STORAGE_SERVICE_URL: "http://script-storage-service:4011"
+      NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
     command: >
       sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/industry-portal-service dev"
     ports:
@@ -433,6 +435,10 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      script-storage-service:
+        condition: service_healthy
+      notification-service:
+        condition: service_started
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:4009/health || exit 1"]
       interval: 10s
@@ -449,6 +455,7 @@ services:
     environment:
       PORT: "4012"
       DATABASE_URL: "postgresql://manifest:manifest@postgres:5432/manifest"
+      NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
     command: >
       sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/programs-service dev"
     ports:
@@ -456,6 +463,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      notification-service:
+        condition: service_started
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:4012/health || exit 1"]
       interval: 10s
@@ -472,6 +481,8 @@ services:
     environment:
       PORT: "4013"
       DATABASE_URL: "postgresql://manifest:manifest@postgres:5432/manifest"
+      RANKING_SERVICE_URL: "http://ranking-service:4007"
+      NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
     command: >
       sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/partner-dashboard-service dev"
     ports:
@@ -479,6 +490,10 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      ranking-service:
+        condition: service_healthy
+      notification-service:
+        condition: service_started
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:4013/health || exit 1"]
       interval: 10s
@@ -507,6 +522,7 @@ services:
       PARTNER_DASHBOARD_SERVICE_URL: "http://partner-dashboard-service:4013"
       COVERAGE_ADMIN_ALLOWLIST: "admin_01,user_admin_01"
       INDUSTRY_ADMIN_ALLOWLIST: "admin_01,user_admin_01"
+      COMPETITION_ADMIN_ALLOWLIST: "admin_01,user_admin_01"
     command: >
       sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/api-gateway dev"
     ports:

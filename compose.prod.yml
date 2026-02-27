@@ -291,6 +291,12 @@ services:
       RANKING_SERVICE_URL: "http://ranking-service:4007"
       PROGRAMS_SERVICE_URL: "http://programs-service:4012"
       PARTNER_DASHBOARD_SERVICE_URL: "http://partner-dashboard-service:4013"
+      COVERAGE_MARKETPLACE_SERVICE_URL: "http://coverage-marketplace-service:4008"
+      INDUSTRY_PORTAL_SERVICE_URL: "http://industry-portal-service:4009"
+      COMPETITION_ADMIN_ALLOWLIST: ${COMPETITION_ADMIN_ALLOWLIST:-}
+      COVERAGE_ADMIN_ALLOWLIST: ${COVERAGE_ADMIN_ALLOWLIST:-}
+      INDUSTRY_ADMIN_ALLOWLIST: ${INDUSTRY_ADMIN_ALLOWLIST:-}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
     depends_on:
       identity-service:
         condition: service_healthy
@@ -308,8 +314,62 @@ services:
         condition: service_healthy
       partner-dashboard-service:
         condition: service_healthy
+      coverage-marketplace-service:
+        condition: service_healthy
+      industry-portal-service:
+        condition: service_healthy
+      script-storage-service:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:4000/health/live || exit 1"]
+      <<: *healthcheck
+
+  coverage-marketplace-service:
+    <<: *service-defaults
+    image: ghcr.io/full-chaos/script-manifest/coverage-marketplace-service:${IMAGE_TAG:-latest}
+    environment:
+      PORT: "4008"
+      NODE_ENV: production
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-manifest}:${POSTGRES_PASSWORD:?}@postgres:5432/${POSTGRES_DB:-manifest}"
+      NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:?STRIPE_SECRET_KEY is required}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:?STRIPE_WEBHOOK_SECRET is required}
+      PLATFORM_COMMISSION_RATE: ${PLATFORM_COMMISSION_RATE:-0.15}
+      MINIO_ENDPOINT: "http://minio:9000"
+      STORAGE_S3_ENDPOINT: "http://minio:9000"
+      STORAGE_S3_ACCESS_KEY: ${MINIO_ROOT_USER:-manifest}
+      STORAGE_S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:?}
+      STORAGE_BUCKET: "coverage-reports"
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      notification-service:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:4008/health || exit 1"]
+      <<: *healthcheck
+
+  industry-portal-service:
+    <<: *service-defaults
+    image: ghcr.io/full-chaos/script-manifest/industry-portal-service:${IMAGE_TAG:-latest}
+    environment:
+      PORT: "4009"
+      NODE_ENV: production
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-manifest}:${POSTGRES_PASSWORD:?}@postgres:5432/${POSTGRES_DB:-manifest}"
+      SCRIPT_STORAGE_SERVICE_URL: "http://script-storage-service:4011"
+      NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      script-storage-service:
+        condition: service_healthy
+      notification-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:4009/health || exit 1"]
       <<: *healthcheck
 
   # ── Frontend ─────────────────────────────────────────────────────────

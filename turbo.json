@@ -1,6 +1,5 @@
 {
   "$schema": "https://turbo.build/schema.json",
-  "_comment": "Remote cache: set TURBO_TOKEN and TURBO_TEAM GitHub Actions secrets (see https://turbo.build/repo/docs/core-concepts/remote-caching). Without these secrets CI runs start cold on every run.",
   "tasks": {
     "build": {
       "dependsOn": ["^build"],

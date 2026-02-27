@@ -65,8 +65,8 @@ services:
       start_period: 30s
 
   minio:
-    # Pinned: MinIO RELEASE.2025-02-18T16-58-05Z (stable, Feb 2025)
-    image: minio/minio:RELEASE.2025-02-18T16-58-05Z
+    # Pinned: MinIO RELEASE.2025-09-07T16-13-09Z (stable, Sep 2025)
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
     container_name: manifest-minio
     command: server /data --console-address ":9001"
     environment:

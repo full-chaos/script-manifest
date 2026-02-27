@@ -3,6 +3,7 @@ import cors from "@fastify/cors";
 import { randomUUID } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import { request } from "undici";
+import { validateRequiredEnv } from "@script-manifest/service-utils";
 import { type GatewayContext, type RequestFn, parseAllowlist } from "./helpers.js";
 import { registerRateLimit } from "./plugins/rateLimit.js";
 import { registerRequestId } from "./plugins/requestId.js";
@@ -107,6 +108,22 @@ export function buildServer(options: ApiGatewayOptions = {}): FastifyInstance {
 export { buildQuerySuffix } from "./helpers.js";
 
 export async function startServer(): Promise<void> {
+  validateRequiredEnv([
+    "IDENTITY_SERVICE_URL",
+    "PROFILE_SERVICE_URL",
+    "COMPETITION_DIRECTORY_SERVICE_URL",
+    "SUBMISSION_TRACKING_SERVICE_URL",
+    "SCRIPT_STORAGE_SERVICE_URL",
+    "FEEDBACK_EXCHANGE_SERVICE_URL",
+    "RANKING_SERVICE_URL",
+    "COVERAGE_MARKETPLACE_SERVICE_URL",
+    "INDUSTRY_PORTAL_SERVICE_URL",
+    "PROGRAMS_SERVICE_URL",
+    "PARTNER_DASHBOARD_SERVICE_URL",
+    "COMPETITION_ADMIN_ALLOWLIST",
+    "COVERAGE_ADMIN_ALLOWLIST",
+    "INDUSTRY_ADMIN_ALLOWLIST",
+  ]);
   const port = Number(process.env.PORT ?? 4000);
   const server = buildServer({
     identityServiceBase: process.env.IDENTITY_SERVICE_URL,

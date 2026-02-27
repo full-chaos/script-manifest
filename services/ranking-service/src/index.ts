@@ -1,6 +1,7 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import { pathToFileURL } from "node:url";
 import { randomUUID } from "node:crypto";
+import { validateRequiredEnv } from "@script-manifest/service-utils";
 import {
   CompetitionPrestigeUpsertRequestSchema,
   RankedLeaderboardFiltersSchema,
@@ -423,6 +424,7 @@ export function buildServer(options: RankingServiceOptions = {}): FastifyInstanc
 // ── Start ──
 
 export async function startServer(): Promise<void> {
+  validateRequiredEnv(["DATABASE_URL"]);
   const server = buildServer();
   const repo = new PgRankingRepository();
   await repo.init();

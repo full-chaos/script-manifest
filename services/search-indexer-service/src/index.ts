@@ -2,6 +2,7 @@ import Fastify, { type FastifyInstance } from "fastify";
 import { randomUUID } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import { request } from "undici";
+import { validateRequiredEnv } from "@script-manifest/service-utils";
 import {
   CompetitionIndexBulkRequestSchema,
   CompetitionIndexDocumentSchema,
@@ -134,15 +135,8 @@ export function buildServer(options: SearchIndexerOptions = {}): FastifyInstance
   return server;
 }
 
-function warnMissingEnv(recommended: string[]): void {
-  const missing = recommended.filter((key) => !process.env[key]);
-  if (missing.length > 0) {
-    console.warn(`[search-indexer-service] Missing recommended env vars: ${missing.join(", ")}`);
-  }
-}
-
 export async function startServer(): Promise<void> {
-  warnMissingEnv(["OPENSEARCH_URL"]);
+  validateRequiredEnv(["OPENSEARCH_NODE"]);
   const port = Number(process.env.PORT ?? 4003);
   const server = buildServer({
     openSearchBase: process.env.OPENSEARCH_URL,

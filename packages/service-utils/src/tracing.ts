@@ -24,15 +24,21 @@ import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
  * const sdk = setupTracing("identity-service");
  * process.once("SIGTERM", () => sdk.shutdown());
  */
-export function setupTracing(serviceName: string): NodeSDK {
+export function setupTracing(serviceName: string): NodeSDK | undefined {
+  // Only enable tracing when an OTLP endpoint is explicitly configured.
+  // This prevents services from hanging or crashing when no collector is available
+  // (e.g. in CI integration tests or local dev without Jaeger).
+  const endpoint = process.env.OTEL_EXPORTER_OTLP_ENDPOINT;
+  if (!endpoint) {
+    return undefined;
+  }
+
   const sdk = new NodeSDK({
     resource: new Resource({
       [ATTR_SERVICE_NAME]: serviceName,
     }),
     traceExporter: new OTLPTraceExporter({
-      url:
-        process.env.OTEL_EXPORTER_OTLP_ENDPOINT ??
-        "http://localhost:4318/v1/traces",
+      url: endpoint,
     }),
     instrumentations: [getNodeAutoInstrumentations()],
   });

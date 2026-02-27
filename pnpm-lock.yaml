@@ -123,6 +123,18 @@ importers:
         specifier: ^4.19.2
         version: 4.21.0
 
+  packages/service-utils:
+    devDependencies:
+      '@types/node':
+        specifier: ^25.3.2
+        version: 25.3.2
+      tsx:
+        specifier: ^4.19.2
+        version: 4.21.0
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
   services/api-gateway:
     dependencies:
       '@fastify/cors':
@@ -134,6 +146,9 @@ importers:
       '@script-manifest/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@script-manifest/service-utils':
+        specifier: workspace:*
+        version: link:../../packages/service-utils
       archiver:
         specifier: ^7.0.1
         version: 7.0.1
@@ -193,6 +208,9 @@ importers:
       '@script-manifest/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@script-manifest/service-utils':
+        specifier: workspace:*
+        version: link:../../packages/service-utils
       fastify:
         specifier: ^5.2.0
         version: 5.7.4
@@ -224,6 +242,9 @@ importers:
       '@script-manifest/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@script-manifest/service-utils':
+        specifier: workspace:*
+        version: link:../../packages/service-utils
       fastify:
         specifier: ^5.2.0
         version: 5.7.4
@@ -255,6 +276,9 @@ importers:
       '@script-manifest/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@script-manifest/service-utils':
+        specifier: workspace:*
+        version: link:../../packages/service-utils
       fastify:
         specifier: ^5.1.0
         version: 5.7.4
@@ -364,6 +388,9 @@ importers:
       '@script-manifest/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@script-manifest/service-utils':
+        specifier: workspace:*
+        version: link:../../packages/service-utils
       fastify:
         specifier: ^5.1.0
         version: 5.7.4
@@ -423,6 +450,9 @@ importers:
       '@script-manifest/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@script-manifest/service-utils':
+        specifier: workspace:*
+        version: link:../../packages/service-utils
       fastify:
         specifier: ^5.2.0
         version: 5.7.4
@@ -454,6 +484,9 @@ importers:
       '@script-manifest/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@script-manifest/service-utils':
+        specifier: workspace:*
+        version: link:../../packages/service-utils
       fastify:
         specifier: ^5.1.0
         version: 5.7.4
@@ -473,6 +506,9 @@ importers:
       '@script-manifest/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@script-manifest/service-utils':
+        specifier: workspace:*
+        version: link:../../packages/service-utils
       fastify:
         specifier: ^5.1.0
         version: 5.7.4
@@ -1855,6 +1891,9 @@ packages:
 
   '@types/node@22.19.9':
     resolution: {integrity: sha512-PD03/U8g1F9T9MI+1OBisaIARhSzeidsUjQaf51fOxrfjeiKN9bLVO06lHuHYjxdnqLWJijJHfqXPSJri2EM2A==}
+
+  '@types/node@25.3.2':
+    resolution: {integrity: sha512-RpV6r/ij22zRRdyBPcxDeKAzH43phWVKEjL2iksqo1Vz3CuBUrgmPpPhALKiRfU7OMCmeeO9vECBMsV0hMTG8Q==}
 
   '@types/pg@8.16.0':
     resolution: {integrity: sha512-RmhMd/wD+CF8Dfo+cVIy3RR5cl8CyfXQ0tGgW6XBL8L4LM/UTEbNXYRbLwU6w+CgrKBNbrQWt4FUtTfaU5jSYQ==}
@@ -4031,6 +4070,9 @@ packages:
   undici-types@6.21.0:
     resolution: {integrity: sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ==}
 
+  undici-types@7.18.2:
+    resolution: {integrity: sha512-AsuCzffGHJybSaRrmr5eHr81mwJU3kjw6M+uprWvCXiNeN9SOGwQ3Jn8jb8m3Z6izVgknn1R0FTCEAP2QrLY/w==}
+
   undici@7.20.0:
     resolution: {integrity: sha512-MJZrkjyd7DeC+uPZh+5/YaMDxFiiEEaDgbUSVMXayofAkDWF1088CDo+2RPg7B1BuS1qf1vgNE7xqwPxE0DuSQ==}
     engines: {node: '>=20.18.1'}
@@ -5829,6 +5871,10 @@ snapshots:
   '@types/node@22.19.9':
     dependencies:
       undici-types: 6.21.0
+
+  '@types/node@25.3.2':
+    dependencies:
+      undici-types: 7.18.2
 
   '@types/pg@8.16.0':
     dependencies:
@@ -8383,6 +8429,8 @@ snapshots:
       which-boxed-primitive: 1.1.1
 
   undici-types@6.21.0: {}
+
+  undici-types@7.18.2: {}
 
   undici@7.20.0: {}
 

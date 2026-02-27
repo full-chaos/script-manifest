@@ -2,6 +2,7 @@ import Fastify, { type FastifyInstance } from "fastify";
 import rateLimit from "@fastify/rate-limit";
 import { pathToFileURL } from "node:url";
 import { randomUUID } from "node:crypto";
+import { validateRequiredEnv } from "@script-manifest/service-utils";
 import {
   CoverageProviderCreateRequestSchema,
   CoverageProviderUpdateRequestSchema,
@@ -1176,15 +1177,8 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
   return server;
 }
 
-function warnMissingEnv(recommended: string[]): void {
-  const missing = recommended.filter((key) => !process.env[key]);
-  if (missing.length > 0) {
-    console.warn(`[coverage-marketplace-service] Missing recommended env vars: ${missing.join(", ")}`);
-  }
-}
-
 export async function startServer(): Promise<void> {
-  warnMissingEnv(["DATABASE_URL", "STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"]);
+  validateRequiredEnv(["DATABASE_URL", "STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"]);
   const port = Number(process.env.PORT ?? 4008);
   const server = buildServer();
   await server.listen({ port, host: "0.0.0.0" });

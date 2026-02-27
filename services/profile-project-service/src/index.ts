@@ -1,6 +1,7 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import rateLimit from "@fastify/rate-limit";
 import { pathToFileURL } from "node:url";
+import { validateRequiredEnv } from "@script-manifest/service-utils";
 import {
   ProjectCoWriterCreateRequestSchema,
   ProjectCreateInternalSchema,
@@ -594,15 +595,8 @@ export function buildServer(options: ProfileProjectServiceOptions = {}): Fastify
   return server;
 }
 
-function warnMissingEnv(recommended: string[]): void {
-  const missing = recommended.filter((key) => !process.env[key]);
-  if (missing.length > 0) {
-    console.warn(`[profile-project-service] Missing recommended env vars: ${missing.join(", ")}`);
-  }
-}
-
 export async function startServer(): Promise<void> {
-  warnMissingEnv(["DATABASE_URL"]);
+  validateRequiredEnv(["DATABASE_URL"]);
   const port = Number(process.env.PORT ?? 4001);
   const server = buildServer();
   await server.listen({ port, host: "0.0.0.0" });

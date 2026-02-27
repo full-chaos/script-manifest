@@ -10,6 +10,13 @@ on:
 permissions:
   contents: read
 
+# Turborepo remote cache credentials (Vercel Remote Cache).
+# Set TURBO_TOKEN and TURBO_TEAM as GitHub Actions repository secrets to
+# enable cross-run caching. Without these secrets CI runs start cold every time.
+env:
+  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+  TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
+
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true

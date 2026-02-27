@@ -1,4 +1,5 @@
 import Fastify, { type FastifyInstance } from "fastify";
+import cors from "@fastify/cors";
 import { randomUUID } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import { request } from "undici";
@@ -49,6 +50,12 @@ export function buildServer(options: ApiGatewayOptions = {}): FastifyInstance {
   });
 
   registerRequestId(server);
+  void server.register(cors, {
+    origin: process.env.CORS_ALLOWED_ORIGINS?.split(",") ?? ["http://localhost:3000"],
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "x-request-id"],
+    credentials: true,
+  });
   void registerRateLimit(server);
 
   const ctx: GatewayContext = {

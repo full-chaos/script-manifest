@@ -638,6 +638,71 @@ test("api-gateway leaderboard proxies to ranking-service", async (t) => {
   assert.equal(response.json().leaderboard[0].writerId, "writer_01");
 });
 
+test("api-gateway responds with CORS headers for cross-origin requests", async (t) => {
+  const server = buildServer({
+    logger: false,
+    requestFn: (async () => {
+      return {
+        statusCode: 200,
+        body: { json: async () => ({}), text: async () => "{}" }
+      } as Awaited<ReturnType<typeof request>>;
+    }) as typeof request
+  });
+  t.after(async () => {
+    await server.close();
+  });
+
+  const response = await server.inject({
+    method: "GET",
+    url: "/health",
+    headers: {
+      origin: "http://localhost:3000"
+    }
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.ok(
+    response.headers["access-control-allow-origin"],
+    "access-control-allow-origin header should be present"
+  );
+  assert.equal(response.headers["access-control-allow-credentials"], "true");
+});
+
+test("api-gateway responds to OPTIONS preflight with CORS headers", async (t) => {
+  const server = buildServer({
+    logger: false,
+    requestFn: (async () => {
+      return {
+        statusCode: 200,
+        body: { json: async () => ({}), text: async () => "{}" }
+      } as Awaited<ReturnType<typeof request>>;
+    }) as typeof request
+  });
+  t.after(async () => {
+    await server.close();
+  });
+
+  const response = await server.inject({
+    method: "OPTIONS",
+    url: "/api/v1/auth/login",
+    headers: {
+      origin: "http://localhost:3000",
+      "access-control-request-method": "POST",
+      "access-control-request-headers": "Content-Type, Authorization"
+    }
+  });
+
+  assert.equal(response.statusCode, 204);
+  assert.ok(
+    response.headers["access-control-allow-origin"],
+    "access-control-allow-origin header should be present on preflight"
+  );
+  assert.ok(
+    response.headers["access-control-allow-methods"],
+    "access-control-allow-methods header should be present on preflight"
+  );
+});
+
 test("api-gateway admin prestige upsert requires allowlisted admin", async (t) => {
   const urls: string[] = [];
   const server = buildServer({

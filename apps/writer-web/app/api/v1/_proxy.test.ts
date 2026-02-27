@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { proxyRequest } from "./_proxy";
 
 describe("proxyRequest", () => {
-  it("forwards query params, auth headers, and admin headers", async () => {
+  it("forwards query params and auth headers, but NOT x-admin-user-id", async () => {
     const originalFetch = globalThis.fetch;
     const calls: Array<{ url: string; init?: RequestInit }> = [];
     process.env.API_GATEWAY_URL = "http://gateway";
@@ -33,9 +33,10 @@ describe("proxyRequest", () => {
       expect(
         (call?.init?.headers as Headers | undefined)?.get("authorization")
       ).toBe("Bearer sess_1");
+      // x-admin-user-id must NOT be forwarded from the browser — security hardening
       expect(
         (call?.init?.headers as Headers | undefined)?.get("x-admin-user-id")
-      ).toBe("admin_01");
+      ).toBeNull();
     } finally {
       globalThis.fetch = originalFetch;
     }

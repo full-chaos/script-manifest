@@ -224,8 +224,13 @@ jobs:
         run: pnpm build --filter='./packages/*'
 
       - name: Run root coverage
+        id: coverage
         continue-on-error: true
         run: pnpm run test:coverage
+
+      - name: Report coverage status
+        if: steps.coverage.outcome == 'failure'
+        run: echo "::warning::Coverage collection failed — see step above for details"
 
       - name: Upload service coverage artifact
         if: always()

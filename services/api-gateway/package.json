@@ -11,6 +11,7 @@
     "lint": "echo 'lint not configured'"
   },
   "dependencies": {
+    "@fastify/cors": "^11.2.0",
     "@fastify/rate-limit": "^10.2.1",
     "@script-manifest/contracts": "workspace:*",
     "archiver": "^7.0.1",

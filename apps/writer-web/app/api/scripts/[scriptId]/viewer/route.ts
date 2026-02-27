@@ -6,7 +6,10 @@ export const runtime = "nodejs";
 const apiGatewayBase = process.env.API_GATEWAY_URL ?? "http://localhost:4000";
 const scriptStorageServiceBase =
   process.env.SCRIPT_STORAGE_SERVICE_URL ?? "http://localhost:4011";
-const defaultViewerUserId = process.env.WRITER_DEMO_USER_ID ?? "writer_01";
+
+if (!process.env.WRITER_DEMO_USER_ID && process.env.NODE_ENV === "production") {
+  throw new Error("WRITER_DEMO_USER_ID must be set in production");
+}
 
 export async function GET(
   request: Request,
@@ -52,7 +55,17 @@ export async function GET(
   }
 
   // Fallback: direct to script-storage with query param (demo/unauthenticated)
+  // Read at request time so tests can set the env var before calling the handler.
+  const defaultViewerUserId = process.env.WRITER_DEMO_USER_ID;
   const viewerUserId = url.searchParams.get("viewerUserId") ?? defaultViewerUserId;
+
+  if (!viewerUserId) {
+    return NextResponse.json(
+      { error: "unauthorized", detail: "WRITER_DEMO_USER_ID is not configured" },
+      { status: 401 }
+    );
+  }
+
   const upstreamUrl = new URL(
     `/internal/scripts/${encodeURIComponent(scriptId)}/view`,
     scriptStorageServiceBase

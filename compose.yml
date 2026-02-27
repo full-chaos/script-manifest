@@ -65,7 +65,8 @@ services:
       start_period: 30s
 
   minio:
-    image: minio/minio:latest
+    # Pinned: MinIO RELEASE.2025-02-18T16-58-05Z (stable, Feb 2025)
+    image: minio/minio:RELEASE.2025-02-18T16-58-05Z
     container_name: manifest-minio
     command: server /data --console-address ":9001"
     environment:
@@ -88,7 +89,8 @@ services:
       retries: 5
 
   redpanda:
-    image: redpandadata/redpanda:latest
+    # Pinned: Redpanda v24.3.1 (stable, Jan 2025)
+    image: redpandadata/redpanda:v24.3.1
     container_name: manifest-redpanda
     command:
       - redpanda

@@ -20,6 +20,7 @@ import {
   PgIdentityRepository,
   verifyPassword
 } from "./repository.js";
+import { registerMetrics } from "@script-manifest/service-utils";
 
 // Dummy credentials for constant-time verification when user doesn't exist
 const DUMMY_SALT = "0000000000000000000000000000000000000000000000000000000000000000";
@@ -349,9 +350,19 @@ export function buildServer(options: IdentityServiceOptions = {}): FastifyInstan
 }
 
 export async function startServer(): Promise<void> {
+  const { setupTracing } = await import("@script-manifest/service-utils/tracing");
+  const tracingSdk = setupTracing("identity-service");
+  if (tracingSdk) {
+    process.once("SIGTERM", () => {
+      tracingSdk.shutdown().catch((err) => console.error("OTel SDK shutdown error", err));
+    });
+  }
+
   validateRequiredEnv(["DATABASE_URL"]);
   const port = Number(process.env.PORT ?? 4005);
   const server = buildServer();
+  // Register Prometheus metrics endpoint (only in production server startup, not tests).
+  await registerMetrics(server);
   await server.listen({ port, host: "0.0.0.0" });
 }
 

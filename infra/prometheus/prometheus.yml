@@ -1,0 +1,78 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: "api-gateway"
+    static_configs:
+      - targets: ["api-gateway:4000"]
+    metrics_path: /metrics
+
+  - job_name: "identity-service"
+    static_configs:
+      - targets: ["identity-service:4005"]
+    metrics_path: /metrics
+
+  - job_name: "profile-project-service"
+    static_configs:
+      - targets: ["profile-project-service:4001"]
+    metrics_path: /metrics
+
+  # To enable metrics on other services, add @script-manifest/service-utils as a
+  # dependency and call registerMetrics(server) in buildServer(), then add a
+  # scrape target here.
+
+  - job_name: "competition-directory-service"
+    static_configs:
+      - targets: ["competition-directory-service:4002"]
+    metrics_path: /metrics
+
+  - job_name: "search-indexer-service"
+    static_configs:
+      - targets: ["search-indexer-service:4003"]
+    metrics_path: /metrics
+
+  - job_name: "submission-tracking-service"
+    static_configs:
+      - targets: ["submission-tracking-service:4004"]
+    metrics_path: /metrics
+
+  - job_name: "feedback-exchange-service"
+    static_configs:
+      - targets: ["feedback-exchange-service:4006"]
+    metrics_path: /metrics
+
+  - job_name: "ranking-service"
+    static_configs:
+      - targets: ["ranking-service:4007"]
+    metrics_path: /metrics
+
+  - job_name: "coverage-marketplace-service"
+    static_configs:
+      - targets: ["coverage-marketplace-service:4008"]
+    metrics_path: /metrics
+
+  - job_name: "notification-service"
+    static_configs:
+      - targets: ["notification-service:4010"]
+    metrics_path: /metrics
+
+  - job_name: "script-storage-service"
+    static_configs:
+      - targets: ["script-storage-service:4011"]
+    metrics_path: /metrics
+
+  - job_name: "industry-portal-service"
+    static_configs:
+      - targets: ["industry-portal-service:4009"]
+    metrics_path: /metrics
+
+  - job_name: "programs-service"
+    static_configs:
+      - targets: ["programs-service:4012"]
+    metrics_path: /metrics
+
+  - job_name: "partner-dashboard-service"
+    static_configs:
+      - targets: ["partner-dashboard-service:4013"]
+    metrics_path: /metrics

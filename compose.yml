@@ -128,6 +128,29 @@ services:
       - "1025:1025"
       - "8025:8025"
 
+  # Jaeger — distributed tracing UI and OTLP collector (CHAOS-616)
+  # UI:       http://localhost:16686
+  # Traces:   OTLP/HTTP on port 4318 (used by all services via OTEL_EXPORTER_OTLP_ENDPOINT)
+  jaeger:
+    image: jaegertracing/all-in-one:1.54
+    container_name: manifest-jaeger
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "16686:16686"  # Jaeger UI
+      - "4318:4318"    # OTLP HTTP receiver (services send traces here)
+
+  # Prometheus — metrics collection (CHAOS-617)
+  # UI: http://localhost:9090
+  # Scrapes /metrics from all services that have registerMetrics() enabled.
+  prometheus:
+    image: prom/prometheus:v2.50.0
+    container_name: manifest-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+
   profile-project-service:
     <<: *node-dev
     container_name: manifest-profile-project-service

@@ -21,6 +21,7 @@ import { registerIndustryRoutes } from "./routes/industry.js";
 import { registerProgramsRoutes } from "./routes/programs.js";
 import { registerPartnerRoutes } from "./routes/partners.js";
 import { registerHealthRoutes } from "./routes/health.js";
+import { registerMetrics } from "@script-manifest/service-utils";
 
 export type ApiGatewayOptions = {
   logger?: boolean;
@@ -108,6 +109,17 @@ export function buildServer(options: ApiGatewayOptions = {}): FastifyInstance {
 export { buildQuerySuffix } from "./helpers.js";
 
 export async function startServer(): Promise<void> {
+  // Setup distributed tracing when OTEL_EXPORTER_OTLP_ENDPOINT is set.
+  // Call setupTracing() BEFORE creating the Fastify server so that
+  // auto-instrumentation can patch http/https at startup.
+  const { setupTracing } = await import("@script-manifest/service-utils/tracing");
+  const tracingSdk = setupTracing("api-gateway");
+  if (tracingSdk) {
+    process.once("SIGTERM", () => {
+      tracingSdk.shutdown().catch((err) => console.error("OTel SDK shutdown error", err));
+    });
+  }
+
   validateRequiredEnv([
     "IDENTITY_SERVICE_URL",
     "PROFILE_SERVICE_URL",
@@ -124,6 +136,7 @@ export async function startServer(): Promise<void> {
     "COVERAGE_ADMIN_ALLOWLIST",
     "INDUSTRY_ADMIN_ALLOWLIST",
   ]);
+
   const port = Number(process.env.PORT ?? 4000);
   const server = buildServer({
     identityServiceBase: process.env.IDENTITY_SERVICE_URL,
@@ -142,6 +155,8 @@ export async function startServer(): Promise<void> {
     industryAdminAllowlist: parseAllowlist(process.env.INDUSTRY_ADMIN_ALLOWLIST ?? "")
   });
 
+  // Register Prometheus metrics endpoint (only in production server startup, not tests).
+  await registerMetrics(server);
   await server.listen({ port, host: "0.0.0.0" });
 }
 

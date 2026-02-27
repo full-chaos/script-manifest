@@ -110,14 +110,18 @@ export { buildQuerySuffix } from "./helpers.js";
 
 export async function startServer(): Promise<void> {
   // Setup distributed tracing when OTEL_EXPORTER_OTLP_ENDPOINT is set.
-  // Call setupTracing() BEFORE creating the Fastify server so that
-  // auto-instrumentation can patch http/https at startup.
-  const { setupTracing } = await import("@script-manifest/service-utils/tracing");
-  const tracingSdk = setupTracing("api-gateway");
-  if (tracingSdk) {
-    process.once("SIGTERM", () => {
-      tracingSdk.shutdown().catch((err) => console.error("OTel SDK shutdown error", err));
-    });
+  // Guard the dynamic import behind the env-var check so that the heavy
+  // @opentelemetry/auto-instrumentations-node dependency tree is never
+  // loaded when tracing is disabled (avoids inotify/watcher exhaustion
+  // under tsx watch in Docker Compose).
+  if (process.env.OTEL_EXPORTER_OTLP_ENDPOINT) {
+    const { setupTracing } = await import("@script-manifest/service-utils/tracing");
+    const tracingSdk = setupTracing("api-gateway");
+    if (tracingSdk) {
+      process.once("SIGTERM", () => {
+        tracingSdk.shutdown().catch((err) => console.error("OTel SDK shutdown error", err));
+      });
+    }
   }
 
   validateRequiredEnv([

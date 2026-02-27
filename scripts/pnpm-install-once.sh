@@ -54,9 +54,10 @@ if [[ "$needs_install" == "1" ]]; then
   done
 fi
 
-if [[ "${FORCE_PNPM_INSTALL:-0}" == "1" || ! -f "$BUILD_MARKER_FILE" || "$WORKSPACE/packages/contracts/src/index.ts" -nt "$BUILD_MARKER_FILE" || "$WORKSPACE/packages/db/src/index.ts" -nt "$BUILD_MARKER_FILE" ]]; then
+if [[ "${FORCE_PNPM_INSTALL:-0}" == "1" || ! -f "$BUILD_MARKER_FILE" || "$WORKSPACE/packages/contracts/src/index.ts" -nt "$BUILD_MARKER_FILE" || "$WORKSPACE/packages/db/src/index.ts" -nt "$BUILD_MARKER_FILE" || "$WORKSPACE/packages/service-utils/src/index.ts" -nt "$BUILD_MARKER_FILE" ]]; then
   pnpm --filter @script-manifest/contracts build
   pnpm --filter @script-manifest/db build
+  pnpm --filter @script-manifest/service-utils build
   mkdir -p "$(dirname "$BUILD_MARKER_FILE")"
   touch "$BUILD_MARKER_FILE"
 fi

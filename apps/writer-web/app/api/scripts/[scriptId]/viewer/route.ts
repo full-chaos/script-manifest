@@ -7,10 +7,6 @@ const apiGatewayBase = process.env.API_GATEWAY_URL ?? "http://localhost:4000";
 const scriptStorageServiceBase =
   process.env.SCRIPT_STORAGE_SERVICE_URL ?? "http://localhost:4011";
 
-if (!process.env.WRITER_DEMO_USER_ID && process.env.NODE_ENV === "production") {
-  throw new Error("WRITER_DEMO_USER_ID must be set in production");
-}
-
 export async function GET(
   request: Request,
   context: { params: Promise<{ scriptId: string }> }

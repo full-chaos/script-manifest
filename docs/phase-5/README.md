@@ -1,6 +1,6 @@
 # Phase 5: Industry Portal and Discovery Dashboard
 
-Status: Complete (feature `script-manifest-n92`)
+Status: Complete
 External ref: `CHAOS-352`
 
 ## Objective
@@ -21,12 +21,6 @@ In scope:
 Out of scope for this phase:
 - Fully autonomous recommendation engine
 - Fully automated vetting (manual verification remains required)
-
-## Beads Breakdown
-
-- `script-manifest-n92.1`: Industry account verification and access control
-- `script-manifest-n92.2`: Discovery search and team collaboration workspace
-- `script-manifest-n92.3`: Mandate workflows and recommendation operations
 
 ## Architecture and Technology Choices
 
@@ -95,12 +89,12 @@ Gateway namespace:
 
 ## Milestones
 
-1. Access and vetting foundation (`script-manifest-n92.1`)
-2. Search + collaboration workspace (`script-manifest-n92.2`)
-3. Mandates + recommendation ops (`script-manifest-n92.3`)
+1. Access and vetting foundation
+2. Search + collaboration workspace
+3. Mandates + recommendation ops
 4. Hardening, analytics validation, and user docs
 
-## Current Implementation (n92.1 + n92.2/n92.3 Slice)
+## Current Implementation
 
 Implemented in `codex/phase-5-industry-portal-foundation`:
 

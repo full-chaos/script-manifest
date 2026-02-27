@@ -87,7 +87,7 @@ Shared Zod schemas + TypeScript types in `packages/contracts/`. All API request/
 - **NEVER commit or push directly to `main`.** All changes go through feature branches + PRs.
 - Branch format: `codex/phase-<n>-<short-feature-slug>`
 - Create from latest: `git fetch origin && git checkout main && git pull --ff-only`
-- Task tracking: Beads (`bd`) as local source of truth, mirrored to [Linear project](https://linear.app/fullchaos/project/script-manifest-15384341055a) via `linear` CLI
+- Task tracking: [Linear project](https://linear.app/fullchaos/project/script-manifest-15384341055a) via `linear` CLI
 
 ## Known Gotchas
 

@@ -30,28 +30,15 @@ Source of truth for scope: `docs/plan.md`
 | 6 | Documented and implemented | `docs/phase-6/README.md`, `docs/phase-6/programs-kickoff-user-manual.md` |
 | 7 | Documented and implemented | `docs/phase-7/README.md`, `docs/phase-7/partner-dashboard-user-manual.md` |
 
-## Phase Feature Status (Beads)
-
-| Beads Feature | Title | Status |
-| --- | --- | --- |
-| `script-manifest-612` | Phase 2: Paid Coverage Marketplace | In Progress |
-| `script-manifest-2h1` | Phase 0: Product and Legal Foundation | Closed |
-| `script-manifest-ego` | Phase 1: MVP Hub - Profiles, Hosting, and Competition Directory | Closed |
-| `script-manifest-94s` | Phase 3: Full Ranking algorithm and leaderboard | Closed |
-| `script-manifest-g0b` | Phase 4: Peer to peer feedback exchange | Closed |
-| `script-manifest-n92` | Phase 5: Industry portal and discovery dashboard | Closed |
-| `script-manifest-n2h` | Phase 6: Programs and events platform | Completed |
-| `script-manifest-nzi` | Phase 7: Partner dashboard for competition organizers | Completed |
-
 ## Open Cross-Cutting Backlog (Not Core Phase Features)
 
-- `script-manifest-bil` / `CHAOS-382`: Tier 3 design overhaul (rich media + visual storytelling).
-- `script-manifest-bil.4` / `CHAOS-390`: Dark mode and theme toggle.
-- `script-manifest-8hw` / `CHAOS-393`: Supabase evaluation.
-- `script-manifest-qri` / `CHAOS-394`: managed Fastify hosting evaluation.
-- `script-manifest-311` / `CHAOS-395`: OpenSearch replacement with PostgreSQL FTS.
-- `script-manifest-7z4` / `CHAOS-396`: MinIO replacement.
-- `script-manifest-gy0` / `CHAOS-397`: Redpanda replacement.
+- `CHAOS-382`: Tier 3 design overhaul (rich media + visual storytelling).
+- `CHAOS-390`: Dark mode and theme toggle.
+- `CHAOS-393`: Supabase evaluation.
+- `CHAOS-394`: managed Fastify hosting evaluation.
+- `CHAOS-395`: OpenSearch replacement with PostgreSQL FTS.
+- `CHAOS-396`: MinIO replacement.
+- `CHAOS-397`: Redpanda replacement.
 
 ## Automation Testing Pyramid Snapshot (2026-02-25)
 

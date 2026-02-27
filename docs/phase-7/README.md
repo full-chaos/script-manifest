@@ -1,6 +1,6 @@
 # Phase 7: Partner Dashboard for Competition Organizers
 
-Status: Completed (feature `script-manifest-nzi`)
+Status: Completed
 External ref: `CHAOS-372`
 
 ## Objective
@@ -22,12 +22,6 @@ In scope:
 Out of scope for this phase:
 - Full replacement of all third-party festival tooling on day one
 - Fully self-serve partner API monetization (deferred to post-launch hardening)
-
-## Beads Breakdown
-
-- `script-manifest-nzi.1`: Organizer workspace and submission operations
-- `script-manifest-nzi.2`: Judging workflow and scoring normalization
-- `script-manifest-nzi.3`: Results publishing, integrations, and organizer analytics
 
 ## Architecture and Technology Choices
 
@@ -109,9 +103,9 @@ Gateway namespace:
 
 ## Milestones
 
-1. Organizer workspace and submission ops (`script-manifest-nzi.1`)
-2. Judge workflow and normalization (`script-manifest-nzi.2`)
-3. Publication + integration + analytics (`script-manifest-nzi.3`)
+1. Organizer workspace and submission ops
+2. Judge workflow and normalization
+3. Publication + integration + analytics
 4. Operational readiness and partner onboarding playbook
 
 ## Final Implementation

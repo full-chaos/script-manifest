@@ -1,6 +1,6 @@
 # Phase 6: Programs and Events Platform
 
-Status: Completed (feature `script-manifest-n2h`)
+Status: Completed
 External ref: `CHAOS-362`
 
 ## Objective
@@ -21,12 +21,6 @@ In scope:
 Out of scope for this phase:
 - Fully automated mentor matching decisions without human override
 - Replacing CRM; only synchronization and workflow integration
-
-## Beads Breakdown
-
-- `script-manifest-n2h.1`: Applications and cohort operations
-- `script-manifest-n2h.2`: Scheduling and live session infrastructure
-- `script-manifest-n2h.3`: Program analytics and outcome tracking
 
 ## Architecture and Technology Choices
 
@@ -105,9 +99,9 @@ Gateway namespace:
 
 ## Milestones
 
-1. Application and cohort operations (`script-manifest-n2h.1`)
-2. Scheduling/live session infrastructure (`script-manifest-n2h.2`)
-3. Program analytics and outcomes (`script-manifest-n2h.3`)
+1. Application and cohort operations
+2. Scheduling/live session infrastructure
+3. Program analytics and outcomes
 4. Runbook hardening and launch checklists by program type
 
 ## Final Implementation

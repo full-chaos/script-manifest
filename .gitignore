@@ -28,15 +28,6 @@ test-results/
 __pycache__/
 .pytest_cache/
 
-# Beads local db/runtime
-.beads/*.db
-.beads/*.db-shm
-.beads/*.db-wal
-.beads/daemon.*
-.beads/last-touched
-.beads/.jsonl.lock
-.beads/interactions.jsonl
-
 # Docker volumes (if bind-mounted later)
 *.log
 

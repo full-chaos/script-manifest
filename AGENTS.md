@@ -1,10 +1,6 @@
 # Agent Workflow
 
-This repository uses two tracking layers:
-- Local source of truth: `bd` (Beads) for feature/task/subtask planning.
-- External collaboration: Linear (`fullchaos` workspace, `Script Manifest` project).
-
-Use Beads first, then mirror work to Linear.
+Linear (`fullchaos` workspace, `Script Manifest` project) is the sole tracking system.
 
 ## Project Constants
 
@@ -12,45 +8,6 @@ Use Beads first, then mirror work to Linear.
 export LINEAR_TEAM="CHAOS"
 export LINEAR_PROJECT="Script Manifest"
 export LINEAR_PROJECT_URL="https://linear.app/fullchaos/project/script-manifest-15384341055a"
-```
-
-## Beads: Local Feature/Task/Subtask Database
-
-Initialize once per clone:
-
-```bash
-bd init
-bd status
-```
-
-Create hierarchy:
-
-```bash
-# 1) Feature
-FEATURE_ID=$(bd create "Phase X: <feature title>" --type feature --priority 2 --silent)
-
-# 2) Task under feature
-TASK_ID=$(bd create "<task title>" --type task --parent "$FEATURE_ID" --priority 2 --silent)
-
-# 3) Subtask under task (subtasks are task-type children)
-SUBTASK_ID=$(bd create "<subtask title>" --type task --parent "$TASK_ID" --priority 3 --labels subtask --silent)
-```
-
-Dependency examples:
-
-```bash
-# <blocked-id> depends on <blocker-id>
-bd dep add <blocked-id> <blocker-id>
-bd dep tree "$FEATURE_ID"
-```
-
-Execution cadence:
-
-```bash
-bd ready
-bd update <id> --status in_progress
-bd close <id>
-bd sync
 ```
 
 ## Linear: Create Issues with `linear` CLI
@@ -80,8 +37,7 @@ linear i create "[Feature] <feature title>" \
   --team CHAOS \
   --project "Script Manifest" \
   --labels feature \
-  --priority 2 \
-  --description "Tracking in Beads: $FEATURE_ID"
+  --priority 2
 ```
 
 Create task/subtask issues (use `--parent` for hierarchy):
@@ -91,27 +47,17 @@ linear i create "[Task] <task title>" \
   --team CHAOS \
   --project "Script Manifest" \
   --labels task \
-  --parent CHAOS-<feature-number> \
-  --description "Tracking in Beads: $TASK_ID"
+  --parent CHAOS-<feature-number>
 
 linear i create "[Subtask] <subtask title>" \
   --team CHAOS \
   --project "Script Manifest" \
   --labels subtask \
-  --parent CHAOS-<task-number> \
-  --description "Tracking in Beads: $SUBTASK_ID"
-```
-
-Back-link Linear issue IDs into Beads:
-
-```bash
-bd update "$TASK_ID" --external-ref "CHAOS-<number>"
-bd update "$SUBTASK_ID" --external-ref "CHAOS-<number>"
+  --parent CHAOS-<task-number>
 ```
 
 ## Operating Rules
 
-- Always create and structure work in Beads first (`feature -> task -> subtask`).
 - Mirror work that needs team visibility into Linear issues.
 - Add every mirrored issue to the `Script Manifest` project in Linear.
 - **NEVER commit or push directly to `main`.** ALL changes go through feature branches + PRs.
@@ -121,8 +67,7 @@ bd update "$SUBTASK_ID" --external-ref "CHAOS-<number>"
   - Create branch: `git checkout -b codex/phase-<n>-<short-feature-slug>`.
   - Keep all commits for that feature on its dedicated branch until merged.
   - Open a PR for review before merging.
-- Keep status aligned in both systems when work starts/completes.
-- Keep Beads IDs and Linear issue IDs cross-linked (`external-ref` + issue description).
+- Keep Linear issue status aligned when work starts/completes.
 
 ## Landing the Plane (Session Completion)
 
@@ -136,7 +81,6 @@ bd update "$SUBTASK_ID" --external-ref "CHAOS-<number>"
 4. **PUSH TO REMOTE** - This is MANDATORY:
    ```bash
    git pull --rebase
-   bd sync
    git push
    git status  # MUST show "up to date with origin"
    ```

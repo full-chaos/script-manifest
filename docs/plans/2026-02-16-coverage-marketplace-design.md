@@ -2,8 +2,6 @@
 
 **Date**: 2026-02-16
 **Status**: Approved
-**Bead**: script-manifest-612
-
 ## Overview
 
 A marketplace where writers purchase professional script coverage from vetted providers. First revenue-generating feature. Introduces Stripe Connect for real payments with escrow, provider payouts, and platform commission.

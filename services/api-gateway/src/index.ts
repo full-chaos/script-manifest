@@ -66,15 +66,15 @@ export function buildServer(options: ApiGatewayOptions = {}): FastifyInstance {
     partnerDashboardServiceBase: options.partnerDashboardServiceBase ?? "http://localhost:4013",
     competitionAdminAllowlist: new Set(
       options.competitionAdminAllowlist ??
-        parseAllowlist(process.env.COMPETITION_ADMIN_ALLOWLIST ?? "admin_01,user_admin_01")
+        parseAllowlist(process.env.COMPETITION_ADMIN_ALLOWLIST ?? "")
     ),
     coverageAdminAllowlist: new Set(
       options.coverageAdminAllowlist ??
-        parseAllowlist(process.env.COVERAGE_ADMIN_ALLOWLIST ?? "admin_01,user_admin_01")
+        parseAllowlist(process.env.COVERAGE_ADMIN_ALLOWLIST ?? "")
     ),
     industryAdminAllowlist: new Set(
       options.industryAdminAllowlist ??
-        parseAllowlist(process.env.INDUSTRY_ADMIN_ALLOWLIST ?? "admin_01,user_admin_01")
+        parseAllowlist(process.env.INDUSTRY_ADMIN_ALLOWLIST ?? "")
     )
   };
 

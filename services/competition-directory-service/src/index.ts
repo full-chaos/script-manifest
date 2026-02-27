@@ -32,7 +32,7 @@ export function buildServer(options: CompetitionDirectoryOptions = {}): FastifyI
   const searchIndexerBase = options.searchIndexerBase ?? "http://localhost:4003";
   const notificationServiceBase = options.notificationServiceBase ?? "http://localhost:4010";
   const adminAllowlist = parseAllowlist(
-    process.env.COMPETITION_ADMIN_ALLOWLIST ?? "admin_01,user_admin_01"
+    process.env.COMPETITION_ADMIN_ALLOWLIST ?? ""
   );
 
   const seedCompetition = CompetitionSchema.parse({

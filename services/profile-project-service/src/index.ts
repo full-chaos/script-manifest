@@ -1,7 +1,7 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import rateLimit from "@fastify/rate-limit";
 import { pathToFileURL } from "node:url";
-import { validateRequiredEnv } from "@script-manifest/service-utils";
+import { validateRequiredEnv, bootstrapService } from "@script-manifest/service-utils";
 import {
   ProjectCoWriterCreateRequestSchema,
   ProjectCreateInternalSchema,
@@ -597,6 +597,7 @@ export function buildServer(options: ProfileProjectServiceOptions = {}): Fastify
 }
 
 export async function startServer(): Promise<void> {
+  const boot = bootstrapService("profile-project-service");
   if (process.env.OTEL_EXPORTER_OTLP_ENDPOINT) {
     const { setupTracing } = await import("@script-manifest/service-utils/tracing");
     const tracingSdk = setupTracing("profile-project-service");
@@ -605,14 +606,18 @@ export async function startServer(): Promise<void> {
         tracingSdk.shutdown().catch((err) => console.error("OTel SDK shutdown error", err));
       });
     }
+    boot.phase("tracing initialized");
   }
 
   validateRequiredEnv(["DATABASE_URL"]);
+  boot.phase("env validated");
   const port = Number(process.env.PORT ?? 4001);
   const server = buildServer();
+  boot.phase("server built");
   // Register Prometheus metrics endpoint (only in production server startup, not tests).
   await registerMetrics(server);
   await server.listen({ port, host: "0.0.0.0" });
+  boot.ready(port);
 }
 
 function isMainModule(metaUrl: string): boolean {

@@ -17,7 +17,7 @@ function jsonResponse(payload: unknown, statusCode = 200): RequestResult {
 
 test("GET /api/v1/submissions proxies query params to submission tracking service", async (t) => {
   const urls: string[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url) => {
       urls.push(String(url));
@@ -44,7 +44,7 @@ test("GET /api/v1/submissions proxies query params to submission tracking servic
 test("POST /api/v1/submissions proxies with auth user id when authenticated", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url, options) => {
       const urlStr = String(url);
@@ -81,7 +81,7 @@ test("POST /api/v1/submissions proxies with auth user id when authenticated", as
 test("PATCH /api/v1/submissions/:submissionId/project proxies with auth header", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url, options) => {
       const urlStr = String(url);
@@ -117,7 +117,7 @@ test("PATCH /api/v1/submissions/:submissionId/project proxies with auth header",
 test("GET /api/v1/placements proxies query params and auth user id", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url, options) => {
       const urlStr = String(url);
@@ -152,7 +152,7 @@ test("GET /api/v1/placements proxies query params and auth user id", async (t) =
 test("GET /api/v1/submissions/:submissionId/placements proxies to submission placements", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url, options) => {
       const urlStr = String(url);
@@ -187,7 +187,7 @@ test("GET /api/v1/submissions/:submissionId/placements proxies to submission pla
 test("POST /api/v1/submissions/:submissionId/placements proxies and triggers ranking recompute", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url, options) => {
       const urlStr = String(url);
@@ -231,7 +231,7 @@ test("POST /api/v1/submissions/:submissionId/placements proxies and triggers ran
 test("GET /api/v1/placements/:placementId proxies to individual placement with auth", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url, options) => {
       const urlStr = String(url);
@@ -266,7 +266,7 @@ test("GET /api/v1/placements/:placementId proxies to individual placement with a
 test("POST /api/v1/placements/:placementId/verify proxies and triggers ranking recompute", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url, options) => {
       const urlStr = String(url);

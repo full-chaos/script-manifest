@@ -1,7 +1,7 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import { pathToFileURL } from "node:url";
 import { randomUUID } from "node:crypto";
-import { validateRequiredEnv } from "@script-manifest/service-utils";
+import { validateRequiredEnv, bootstrapService } from "@script-manifest/service-utils";
 import {
   CompetitionPrestigeUpsertRequestSchema,
   RankedLeaderboardFiltersSchema,
@@ -424,13 +424,17 @@ export function buildServer(options: RankingServiceOptions = {}): FastifyInstanc
 // ── Start ──
 
 export async function startServer(): Promise<void> {
+  const boot = bootstrapService("ranking-service");
   validateRequiredEnv(["DATABASE_URL"]);
+  boot.phase("env validated");
   const server = buildServer();
   const repo = new PgRankingRepository();
   await repo.init();
+  boot.phase("server built");
 
   const port = Number(process.env.PORT ?? 4007);
   await server.listen({ port, host: "0.0.0.0" });
+  boot.ready(port);
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {

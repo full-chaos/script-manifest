@@ -7,7 +7,7 @@ import {
 import { createPresignedPost } from "@aws-sdk/s3-presigned-post";
 import { randomUUID } from "node:crypto";
 import { pathToFileURL } from "node:url";
-import { validateRequiredEnv } from "@script-manifest/service-utils";
+import { validateRequiredEnv, bootstrapService } from "@script-manifest/service-utils";
 import {
   ScriptFileRegistrationSchema,
   ScriptRegisterRequestSchema,
@@ -310,12 +310,14 @@ export function buildServer(options: ScriptStorageServiceOptions = {}): FastifyI
 }
 
 export async function startServer(): Promise<void> {
+  const boot = bootstrapService("script-storage-service");
   validateRequiredEnv([
     "STORAGE_BUCKET",
     "STORAGE_S3_ENDPOINT",
     "STORAGE_S3_ACCESS_KEY",
     "STORAGE_S3_SECRET_KEY",
   ]);
+  boot.phase("env validated");
   const port = Number(process.env.PORT ?? 4011);
   const server = buildServer({
     storageBucket: process.env.STORAGE_BUCKET,
@@ -327,8 +329,10 @@ export async function startServer(): Promise<void> {
     s3SecretAccessKey: process.env.STORAGE_S3_SECRET_KEY,
     s3ForcePathStyle: process.env.STORAGE_S3_FORCE_PATH_STYLE !== "false"
   });
+  boot.phase("server built");
 
   await server.listen({ port, host: "0.0.0.0" });
+  boot.ready(port);
 }
 
 function normalizeFilename(filename: string): string {

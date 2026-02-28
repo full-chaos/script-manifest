@@ -107,6 +107,7 @@ services:
       DATABASE_URL: "postgresql://${POSTGRES_USER:-manifest}:${POSTGRES_PASSWORD:?}@postgres:5432/${POSTGRES_DB:-manifest}"
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      IDENTITY_SERVICE_PUBLIC_URL: ${IDENTITY_SERVICE_PUBLIC_URL:-http://identity-service:4005}
     depends_on:
       postgres:
         condition: service_healthy

@@ -18,7 +18,7 @@ function jsonResponse(payload: unknown, statusCode = 200): RequestResult {
 test("GET /api/v1/profiles/:writerId proxies to profile service with optional auth header", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url, options) => {
       const urlStr = String(url);
@@ -53,7 +53,7 @@ test("GET /api/v1/profiles/:writerId proxies to profile service with optional au
 test("GET /api/v1/profiles/:writerId proxies without auth header when unauthenticated", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url, options) => {
       urls.push(String(url));
@@ -79,7 +79,7 @@ test("GET /api/v1/profiles/:writerId proxies without auth header when unauthenti
 test("PUT /api/v1/profiles/:writerId proxies to profile service with auth header and body", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url, options) => {
       const urlStr = String(url);
@@ -115,7 +115,7 @@ test("PUT /api/v1/profiles/:writerId proxies to profile service with auth header
 
 test("GET /api/v1/profiles/:writerId URL-encodes writerId with special characters", async (t) => {
   const urls: string[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url) => {
       urls.push(String(url));

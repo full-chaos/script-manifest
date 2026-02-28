@@ -98,7 +98,7 @@ function buildMockRequestFn() {
 }
 
 test("export/csv returns 401 when not authenticated", async (t) => {
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async () => {
       return jsonResponse({ error: "unauthorized" }, 401);
@@ -119,7 +119,7 @@ test("export/csv returns 401 when not authenticated", async (t) => {
 });
 
 test("export/zip returns 401 when not authenticated", async (t) => {
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async () => {
       return jsonResponse({ error: "unauthorized" }, 401);
@@ -140,7 +140,7 @@ test("export/zip returns 401 when not authenticated", async (t) => {
 });
 
 test("export/csv returns CSV with expected headers and data", async (t) => {
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: buildMockRequestFn(),
     identityServiceBase: "http://identity-svc",
@@ -192,7 +192,7 @@ test("export/csv returns CSV with expected headers and data", async (t) => {
 });
 
 test("export/csv escapes double quotes in values", async (t) => {
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url: string | URL) => {
       const urlStr = String(url);
@@ -244,7 +244,7 @@ test("export/csv escapes double quotes in values", async (t) => {
 });
 
 test("export/zip returns a ZIP archive with correct content type", async (t) => {
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: buildMockRequestFn(),
     identityServiceBase: "http://identity-svc",
@@ -276,12 +276,12 @@ test("export/zip returns a ZIP archive with correct content type", async (t) => 
 
 test("export/csv fetches data for the authenticated user", async (t) => {
   const fetchedUrls: string[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url: string | URL) => {
       const urlStr = String(url);
       fetchedUrls.push(urlStr);
-
+  
       if (urlStr.includes("/internal/auth/me")) {
         return jsonResponse({
           user: { id: "writer_42", email: "w@example.com", displayName: "Writer 42" },

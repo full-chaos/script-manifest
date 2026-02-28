@@ -18,7 +18,7 @@ function jsonResponse(payload: unknown, statusCode = 200): RequestResult {
 test("industry account create proxies authenticated context", async (t) => {
   const urls: string[] = [];
   const authHeaders: string[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url, options) => {
       const urlStr = String(url);
@@ -28,7 +28,7 @@ test("industry account create proxies authenticated context", async (t) => {
           expiresAt: "2026-12-31T00:00:00.000Z"
         });
       }
-
+  
       urls.push(urlStr);
       authHeaders.push(
         (options?.headers as Record<string, string> | undefined)?.["x-auth-user-id"] ?? ""
@@ -61,7 +61,7 @@ test("industry account create proxies authenticated context", async (t) => {
 test("industry verify route requires allowlisted admin", async (t) => {
   const urls: string[] = [];
   const adminHeaders: string[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     industryAdminAllowlist: ["admin_writer"],
     requestFn: (async (url, options) => {
@@ -98,7 +98,7 @@ test("industry verify route requires allowlisted admin", async (t) => {
 
 test("industry entitlement check proxies query params", async (t) => {
   const urls: string[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url) => {
       urls.push(String(url));
@@ -131,7 +131,7 @@ test("industry entitlement check proxies query params", async (t) => {
 test("industry talent search resolves auth and forwards query", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url, options) => {
       const urlStr = String(url);
@@ -169,7 +169,7 @@ test("industry talent search resolves auth and forwards query", async (t) => {
 test("industry list routes proxy writer auth context", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url, options) => {
       const urlStr = String(url);
@@ -205,7 +205,7 @@ test("industry list routes proxy writer auth context", async (t) => {
 test("industry mandate create route requires allowlisted admin", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     industryAdminAllowlist: ["admin_writer"],
     requestFn: (async (url, options) => {
@@ -257,7 +257,7 @@ test("industry mandate create route requires allowlisted admin", async (t) => {
 test("industry collaboration and digest routes proxy authenticated user headers", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url, options) => {
       const urlStr = String(url);
@@ -311,7 +311,7 @@ test("industry collaboration and digest routes proxy authenticated user headers"
 test("industry mandate review and index rebuild routes require admin", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     industryAdminAllowlist: ["admin_writer"],
     requestFn: (async (url, options) => {
@@ -354,7 +354,7 @@ test("industry mandate review and index rebuild routes require admin", async (t)
 test("industry script download route proxies authenticated context", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url, options) => {
       const urlStr = String(url);

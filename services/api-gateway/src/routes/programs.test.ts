@@ -18,7 +18,7 @@ function jsonResponse(payload: unknown, statusCode = 200): RequestResult {
 test("programs routes proxy application flow with auth context", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url, options) => {
       const urlStr = String(url);
@@ -60,7 +60,7 @@ test("programs routes proxy application flow with auth context", async (t) => {
 
 test("programs routes proxy application-form lookups", async (t) => {
   const urls: string[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url) => {
       urls.push(String(url));
@@ -92,7 +92,7 @@ test("programs routes proxy application-form lookups", async (t) => {
 test("admin programs routes enforce allowlist and proxy lifecycle endpoints", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     industryAdminAllowlist: ["admin_01"],
     requestFn: (async (url, options) => {
@@ -189,7 +189,7 @@ test("admin programs routes enforce allowlist and proxy lifecycle endpoints", as
 
 test("programs routes reject requests when user auth cannot be resolved", async (t) => {
   const urls: string[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url) => {
       const urlStr = String(url);
@@ -221,7 +221,7 @@ test("programs routes reject requests when user auth cannot be resolved", async 
 test("programs routes proxy query filters and support bearer-based admin resolution", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     industryAdminAllowlist: ["admin_01"],
     requestFn: (async (url, options) => {
@@ -266,7 +266,7 @@ test("programs routes proxy query filters and support bearer-based admin resolut
 test("programs routes proxy advanced phase-6 admin workflows", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     industryAdminAllowlist: ["admin_01"],
     programsServiceBase: "http://programs-svc",

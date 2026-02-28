@@ -18,7 +18,7 @@ function jsonResponse(payload: unknown, statusCode = 200): RequestResult {
 test("GET /api/v1/feedback/tokens/balance requires auth and proxies to user balance", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url, options) => {
       const urlStr = String(url);
@@ -61,7 +61,7 @@ test("GET /api/v1/feedback/tokens/balance requires auth and proxies to user bala
 test("GET /api/v1/feedback/tokens/transactions requires auth and proxies to user transactions", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url, options) => {
       const urlStr = String(url);
@@ -101,7 +101,7 @@ test("GET /api/v1/feedback/tokens/transactions requires auth and proxies to user
 test("POST /api/v1/feedback/tokens/grant-signup requires auth and proxies with user id", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url, options) => {
       const urlStr = String(url);
@@ -143,7 +143,7 @@ test("POST /api/v1/feedback/tokens/grant-signup requires auth and proxies with u
 test("POST /api/v1/feedback/listings requires auth and proxies to feedback exchange", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url, options) => {
       const urlStr = String(url);
@@ -184,7 +184,7 @@ test("POST /api/v1/feedback/listings requires auth and proxies to feedback excha
 
 test("GET /api/v1/feedback/listings proxies query params without auth requirement", async (t) => {
   const urls: string[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url) => {
       urls.push(String(url));
@@ -207,7 +207,7 @@ test("GET /api/v1/feedback/listings proxies query params without auth requiremen
 
 test("GET /api/v1/feedback/listings/:listingId proxies without auth", async (t) => {
   const urls: string[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url) => {
       urls.push(String(url));
@@ -231,7 +231,7 @@ test("GET /api/v1/feedback/listings/:listingId proxies without auth", async (t) 
 test("POST /api/v1/feedback/listings/:listingId/claim requires auth and auto-approves script access", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url, options) => {
       const urlStr = String(url);
@@ -283,7 +283,7 @@ test("POST /api/v1/feedback/listings/:listingId/claim requires auth and auto-app
 test("POST /api/v1/feedback/listings/:listingId/cancel requires auth", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url, options) => {
       const urlStr = String(url);
@@ -325,7 +325,7 @@ test("POST /api/v1/feedback/listings/:listingId/cancel requires auth", async (t)
 test("GET /api/v1/feedback/reviews requires auth and forwards query params", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url, options) => {
       const urlStr = String(url);
@@ -365,7 +365,7 @@ test("GET /api/v1/feedback/reviews requires auth and forwards query params", asy
 test("GET /api/v1/feedback/reviews/:reviewId proxies and passes auth header if present", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url, options) => {
       const urlStr = String(url);
@@ -400,7 +400,7 @@ test("GET /api/v1/feedback/reviews/:reviewId proxies and passes auth header if p
 test("POST /api/v1/feedback/reviews/:reviewId/submit requires auth", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url, options) => {
       const urlStr = String(url);
@@ -442,7 +442,7 @@ test("POST /api/v1/feedback/reviews/:reviewId/submit requires auth", async (t) =
 test("POST /api/v1/feedback/reviews/:reviewId/rate requires auth", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url, options) => {
       const urlStr = String(url);
@@ -483,7 +483,7 @@ test("POST /api/v1/feedback/reviews/:reviewId/rate requires auth", async (t) => 
 
 test("GET /api/v1/feedback/reviews/:reviewId/rating proxies without auth", async (t) => {
   const urls: string[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url) => {
       urls.push(String(url));
@@ -507,7 +507,7 @@ test("GET /api/v1/feedback/reviews/:reviewId/rating proxies without auth", async
 test("POST /api/v1/feedback/reviews/:reviewId/dispute requires auth", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url, options) => {
       const urlStr = String(url);
@@ -548,7 +548,7 @@ test("POST /api/v1/feedback/reviews/:reviewId/dispute requires auth", async (t) 
 
 test("GET /api/v1/feedback/reputation/:userId proxies without auth", async (t) => {
   const urls: string[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url) => {
       urls.push(String(url));
@@ -572,7 +572,7 @@ test("GET /api/v1/feedback/reputation/:userId proxies without auth", async (t) =
 test("GET /api/v1/feedback/disputes requires auth and proxies query params", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url, options) => {
       const urlStr = String(url);
@@ -612,7 +612,7 @@ test("GET /api/v1/feedback/disputes requires auth and proxies query params", asy
 test("POST /api/v1/feedback/disputes/:disputeId/resolve requires auth", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url, options) => {
       const urlStr = String(url);

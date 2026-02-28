@@ -1,7 +1,7 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import { pathToFileURL } from "node:url";
 import { randomUUID } from "node:crypto";
-import { validateRequiredEnv } from "@script-manifest/service-utils";
+import { validateRequiredEnv, bootstrapService } from "@script-manifest/service-utils";
 import {
   FeedbackListingCreateRequestSchema,
   FeedbackListingFiltersSchema,
@@ -524,10 +524,14 @@ export function buildServer(options: FeedbackExchangeServiceOptions = {}): Fasti
 }
 
 export async function startServer(): Promise<void> {
+  const boot = bootstrapService("feedback-exchange-service");
   validateRequiredEnv(["DATABASE_URL"]);
+  boot.phase("env validated");
   const port = Number(process.env.PORT ?? 4006);
   const server = buildServer();
+  boot.phase("server built");
   await server.listen({ port, host: "0.0.0.0" });
+  boot.ready(port);
 }
 
 function isMainModule(metaUrl: string): boolean {

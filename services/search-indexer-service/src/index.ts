@@ -2,7 +2,7 @@ import Fastify, { type FastifyInstance } from "fastify";
 import { randomUUID } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import { request } from "undici";
-import { validateRequiredEnv } from "@script-manifest/service-utils";
+import { validateRequiredEnv, bootstrapService } from "@script-manifest/service-utils";
 import {
   CompetitionIndexBulkRequestSchema,
   CompetitionIndexDocumentSchema,
@@ -136,13 +136,17 @@ export function buildServer(options: SearchIndexerOptions = {}): FastifyInstance
 }
 
 export async function startServer(): Promise<void> {
+  const boot = bootstrapService("search-indexer-service");
   validateRequiredEnv(["OPENSEARCH_URL"]);
+  boot.phase("env validated");
   const port = Number(process.env.PORT ?? 4003);
   const server = buildServer({
     openSearchBase: process.env.OPENSEARCH_URL,
     openSearchIndex: process.env.OPENSEARCH_INDEX
   });
+  boot.phase("server built");
   await server.listen({ port, host: "0.0.0.0" });
+  boot.ready(port);
 }
 
 async function ensureIndex(

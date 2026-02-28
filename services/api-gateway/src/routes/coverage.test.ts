@@ -18,7 +18,7 @@ function jsonResponse(payload: unknown, statusCode = 200): RequestResult {
 test("POST /api/v1/coverage/providers requires auth and proxies with user id", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url, options) => {
       const urlStr = String(url);
@@ -60,7 +60,7 @@ test("POST /api/v1/coverage/providers requires auth and proxies with user id", a
 
 test("GET /api/v1/coverage/providers proxies query params without auth", async (t) => {
   const urls: string[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url) => {
       urls.push(String(url));
@@ -83,7 +83,7 @@ test("GET /api/v1/coverage/providers proxies query params without auth", async (
 
 test("GET /api/v1/coverage/providers/:providerId proxies to specific provider", async (t) => {
   const urls: string[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url) => {
       urls.push(String(url));
@@ -107,7 +107,7 @@ test("GET /api/v1/coverage/providers/:providerId proxies to specific provider", 
 test("PATCH /api/v1/coverage/providers/:providerId requires auth and proxies with user id", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url, options) => {
       const urlStr = String(url);
@@ -149,7 +149,7 @@ test("PATCH /api/v1/coverage/providers/:providerId requires auth and proxies wit
 test("GET /api/v1/coverage/providers/:providerId/stripe-onboarding requires auth", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url, options) => {
       const urlStr = String(url);
@@ -189,7 +189,7 @@ test("GET /api/v1/coverage/providers/:providerId/stripe-onboarding requires auth
 test("POST /api/v1/coverage/providers/:providerId/services requires auth", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url, options) => {
       const urlStr = String(url);
@@ -230,7 +230,7 @@ test("POST /api/v1/coverage/providers/:providerId/services requires auth", async
 
 test("GET /api/v1/coverage/providers/:providerId/services proxies without auth", async (t) => {
   const urls: string[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url) => {
       urls.push(String(url));
@@ -253,7 +253,7 @@ test("GET /api/v1/coverage/providers/:providerId/services proxies without auth",
 
 test("GET /api/v1/coverage/services proxies query params without auth", async (t) => {
   const urls: string[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url) => {
       urls.push(String(url));
@@ -277,7 +277,7 @@ test("GET /api/v1/coverage/services proxies query params without auth", async (t
 test("PATCH /api/v1/coverage/services/:serviceId requires auth", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url, options) => {
       const urlStr = String(url);
@@ -319,7 +319,7 @@ test("PATCH /api/v1/coverage/services/:serviceId requires auth", async (t) => {
 test("POST /api/v1/coverage/orders requires auth and proxies with user id", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url, options) => {
       const urlStr = String(url);
@@ -361,7 +361,7 @@ test("POST /api/v1/coverage/orders requires auth and proxies with user id", asyn
 test("GET /api/v1/coverage/orders requires auth and proxies query params", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url, options) => {
       const urlStr = String(url);
@@ -401,7 +401,7 @@ test("GET /api/v1/coverage/orders requires auth and proxies query params", async
 test("GET /api/v1/coverage/orders/:orderId requires auth and proxies to specific order", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url, options) => {
       const urlStr = String(url);
@@ -441,7 +441,7 @@ test("GET /api/v1/coverage/orders/:orderId requires auth and proxies to specific
 test("order action routes (claim, complete, cancel) require auth and proxy to action endpoint", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url, options) => {
       const urlStr = String(url);
@@ -489,7 +489,7 @@ test("order action routes (claim, complete, cancel) require auth and proxy to ac
 test("POST /api/v1/coverage/orders/:orderId/deliver requires auth and sends body", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url, options) => {
       const urlStr = String(url);
@@ -532,7 +532,7 @@ test("POST /api/v1/coverage/orders/:orderId/deliver requires auth and sends body
 test("GET /api/v1/coverage/orders/:orderId/delivery requires auth", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url, options) => {
       const urlStr = String(url);
@@ -572,7 +572,7 @@ test("GET /api/v1/coverage/orders/:orderId/delivery requires auth", async (t) =>
 test("GET /api/v1/coverage/orders/:orderId/delivery/upload-url requires auth", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url, options) => {
       const urlStr = String(url);
@@ -612,7 +612,7 @@ test("GET /api/v1/coverage/orders/:orderId/delivery/upload-url requires auth", a
 test("POST /api/v1/coverage/orders/:orderId/review requires auth", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url, options) => {
       const urlStr = String(url);
@@ -653,7 +653,7 @@ test("POST /api/v1/coverage/orders/:orderId/review requires auth", async (t) => 
 
 test("GET /api/v1/coverage/providers/:providerId/reviews proxies without auth", async (t) => {
   const urls: string[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url) => {
       urls.push(String(url));
@@ -677,7 +677,7 @@ test("GET /api/v1/coverage/providers/:providerId/reviews proxies without auth", 
 test("POST /api/v1/coverage/orders/:orderId/dispute requires auth", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url, options) => {
       const urlStr = String(url);
@@ -719,7 +719,7 @@ test("POST /api/v1/coverage/orders/:orderId/dispute requires auth", async (t) =>
 test("GET /api/v1/coverage/disputes requires allowlisted admin", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     coverageAdminAllowlist: ["admin_01"],
     requestFn: (async (url, options) => {
@@ -753,7 +753,7 @@ test("GET /api/v1/coverage/disputes requires allowlisted admin", async (t) => {
 test("PATCH /api/v1/coverage/disputes/:disputeId requires allowlisted admin", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     coverageAdminAllowlist: ["admin_01"],
     requestFn: (async (url, options) => {
@@ -789,7 +789,7 @@ test("PATCH /api/v1/coverage/disputes/:disputeId requires allowlisted admin", as
 test("GET /api/v1/coverage/admin/providers/review-queue requires allowlisted admin", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     coverageAdminAllowlist: ["admin_01"],
     requestFn: (async (url, options) => {
@@ -822,7 +822,7 @@ test("GET /api/v1/coverage/admin/providers/review-queue requires allowlisted adm
 test("GET /api/v1/coverage/providers/:providerId/earnings-statement requires auth", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url, options) => {
       const urlStr = String(url);
@@ -862,7 +862,7 @@ test("GET /api/v1/coverage/providers/:providerId/earnings-statement requires aut
 test("admin payout-ledger and SLA maintenance routes require allowlisted admin", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     coverageAdminAllowlist: ["admin_01"],
     requestFn: (async (url, options) => {
@@ -904,7 +904,7 @@ test("admin payout-ledger and SLA maintenance routes require allowlisted admin",
 test("GET /api/v1/coverage/disputes/:disputeId/events requires allowlisted admin", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     coverageAdminAllowlist: ["admin_01"],
     requestFn: (async (url, options) => {
@@ -938,7 +938,7 @@ test("POST /api/v1/coverage/stripe-webhook proxies without auth and forwards str
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
   const bodies: unknown[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url, options) => {
       urls.push(String(url));
@@ -974,7 +974,7 @@ test("POST /api/v1/coverage/stripe-webhook proxies without auth and forwards str
 test("POST /api/v1/coverage/stripe-webhook forwards raw string body", async (t) => {
   const bodies: unknown[] = [];
   const headers: Record<string, string>[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (_url, options) => {
       bodies.push(options?.body);
@@ -1006,7 +1006,7 @@ test("POST /api/v1/coverage/stripe-webhook forwards raw string body", async (t) 
 
 test("POST /api/v1/coverage/stripe-webhook forwards Buffer body when parser provides Buffer", async (t) => {
   const bodies: unknown[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (_url, options) => {
       bodies.push(options?.body);

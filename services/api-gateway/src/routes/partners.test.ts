@@ -18,7 +18,7 @@ function jsonResponse(payload: unknown, statusCode = 200): RequestResult {
 test("partner routes require authenticated actor and proxy organizer workflows", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     partnerDashboardServiceBase: "http://partner-svc",
     requestFn: (async (url, options) => {
@@ -133,7 +133,7 @@ test("partner routes require authenticated actor and proxy organizer workflows",
 test("partner routes support bearer-based actor resolution and query forwarding", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     identityServiceBase: "http://identity-svc",
     partnerDashboardServiceBase: "http://partner-svc",
@@ -169,7 +169,7 @@ test("partner routes support bearer-based actor resolution and query forwarding"
 
 test("partner routes proxy publish and sync lifecycle endpoints", async (t) => {
   const urls: string[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     partnerDashboardServiceBase: "http://partner-svc",
     requestFn: (async (url) => {
@@ -239,7 +239,7 @@ test("partner routes proxy submissions, judging, evaluation, normalize, draft sw
   const urls: string[] = [];
   const methods: string[] = [];
   const headers: Record<string, string>[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     partnerDashboardServiceBase: "http://partner-svc",
     requestFn: (async (url, options) => {
@@ -340,7 +340,7 @@ test("partner routes proxy submissions, judging, evaluation, normalize, draft sw
 });
 
 test("partner routes preserve upstream partner error statuses and payloads", async (t) => {
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     partnerDashboardServiceBase: "http://partner-svc",
     requestFn: (async (url) => {

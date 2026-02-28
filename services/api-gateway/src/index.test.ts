@@ -17,7 +17,7 @@ function jsonResponse(payload: unknown, statusCode = 200): RequestResult {
 
 test("api-gateway proxies submissions list with query params", async (t) => {
   const urls: string[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url) => {
       urls.push(String(url));
@@ -43,7 +43,7 @@ test("api-gateway proxies submissions list with query params", async (t) => {
 test("api-gateway proxies auth register", async (t) => {
   const urls: string[] = [];
   let requestBody = "";
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url, options) => {
       urls.push(String(url));
@@ -77,7 +77,7 @@ test("api-gateway proxies auth register", async (t) => {
 
 test("api-gateway proxies authenticated me endpoint", async (t) => {
   const authHeaders: Array<string | undefined> = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (_url, options) => {
       authHeaders.push((options?.headers as Record<string, string> | undefined)?.authorization);
@@ -106,7 +106,7 @@ test("api-gateway proxies authenticated me endpoint", async (t) => {
 
 test("api-gateway proxies project list with query params", async (t) => {
   const urls: string[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url) => {
       urls.push(String(url));
@@ -131,7 +131,7 @@ test("api-gateway proxies project list with query params", async (t) => {
 test("api-gateway proxies competition deadline reminder", async (t) => {
   const urls: string[] = [];
   let requestBody = "";
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url, options) => {
       urls.push(String(url));
@@ -165,7 +165,7 @@ test("api-gateway proxies competition deadline reminder", async (t) => {
 test("api-gateway proxies submission creation with auth", async (t) => {
   let requestBody = "";
   let authUserIdHeader = "";
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url, options) => {
       const urlStr = String(url);
@@ -205,7 +205,7 @@ test("api-gateway proxies submission creation with auth", async (t) => {
 test("api-gateway proxies script upload session creation", async (t) => {
   const urls: string[] = [];
   let requestBody = "";
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url, options) => {
       urls.push(String(url));
@@ -244,7 +244,7 @@ test("api-gateway proxies script upload session creation", async (t) => {
 test("api-gateway proxies script registration", async (t) => {
   const urls: string[] = [];
   let requestBody = "";
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url, options) => {
       urls.push(String(url));
@@ -289,7 +289,7 @@ test("api-gateway proxies script registration", async (t) => {
 test("api-gateway proxies project co-writer endpoints", async (t) => {
   const urls: string[] = [];
   const methods: Array<string | undefined> = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url, options) => {
       const urlStr = String(url);
@@ -332,7 +332,7 @@ test("api-gateway proxies project co-writer endpoints", async (t) => {
 test("api-gateway proxies submission project reassignment with auth", async (t) => {
   const urls: string[] = [];
   let body = "";
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url, options) => {
       const urlStr = String(url);
@@ -368,7 +368,7 @@ test("api-gateway proxies submission project reassignment with auth", async (t) 
 test("api-gateway proxies oauth scaffold endpoints", async (t) => {
   const urls: string[] = [];
   const methods: Array<string | undefined> = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url, options) => {
       urls.push(String(url));
@@ -413,7 +413,7 @@ test("api-gateway proxies access-request workflow endpoints with auth header", a
   const authUserIds: string[] = [];
   const methods: Array<string | undefined> = [];
 
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url, options) => {
       const urlStr = String(url);
@@ -486,7 +486,7 @@ test("api-gateway proxies placement listing/detail/verify endpoints", async (t) 
   const urls: string[] = [];
   const methods: Array<string | undefined> = [];
 
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url, options) => {
       const urlStr = String(url);
@@ -558,7 +558,7 @@ test("api-gateway proxies placement listing/detail/verify endpoints", async (t) 
 test("api-gateway competition admin curation requires allowlisted admin", async (t) => {
   const urls: string[] = [];
   const adminHeaders: string[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     competitionAdminAllowlist: ["admin_writer"],
     requestFn: (async (url, options) => {
@@ -611,7 +611,7 @@ test("api-gateway competition admin curation requires allowlisted admin", async 
 
 test("api-gateway leaderboard proxies to ranking-service", async (t) => {
   const urls: string[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url) => {
       urls.push(String(url));
@@ -639,7 +639,7 @@ test("api-gateway leaderboard proxies to ranking-service", async (t) => {
 });
 
 test("api-gateway responds with CORS headers for cross-origin requests", async (t) => {
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async () => {
       return {
@@ -669,7 +669,7 @@ test("api-gateway responds with CORS headers for cross-origin requests", async (
 });
 
 test("api-gateway responds to OPTIONS preflight with CORS headers", async (t) => {
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async () => {
       return {
@@ -705,7 +705,7 @@ test("api-gateway responds to OPTIONS preflight with CORS headers", async (t) =>
 
 test("api-gateway admin prestige upsert requires allowlisted admin", async (t) => {
   const urls: string[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     competitionAdminAllowlist: ["admin_writer"],
     requestFn: (async (url) => {

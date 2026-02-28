@@ -17,7 +17,7 @@ function jsonResponse(payload: unknown, statusCode = 200): RequestResult {
 
 test("GET /api/v1/leaderboard proxies query params to ranking service", async (t) => {
   const urls: string[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url) => {
       urls.push(String(url));
@@ -40,7 +40,7 @@ test("GET /api/v1/leaderboard proxies query params to ranking service", async (t
 
 test("GET /api/v1/rankings/writers/:writerId proxies to writer score endpoint", async (t) => {
   const urls: string[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url) => {
       urls.push(String(url));
@@ -63,7 +63,7 @@ test("GET /api/v1/rankings/writers/:writerId proxies to writer score endpoint", 
 
 test("GET /api/v1/rankings/writers/:writerId/badges proxies to writer badges endpoint", async (t) => {
   const urls: string[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url) => {
       urls.push(String(url));
@@ -86,7 +86,7 @@ test("GET /api/v1/rankings/writers/:writerId/badges proxies to writer badges end
 
 test("GET /api/v1/rankings/methodology proxies to methodology endpoint", async (t) => {
   const urls: string[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url) => {
       urls.push(String(url));
@@ -110,7 +110,7 @@ test("GET /api/v1/rankings/methodology proxies to methodology endpoint", async (
 test("POST /api/v1/rankings/appeals requires auth and proxies with user id", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url, options) => {
       const urlStr = String(url);
@@ -154,7 +154,7 @@ test("POST /api/v1/rankings/appeals requires auth and proxies with user id", asy
 
 test("GET /api/v1/admin/rankings/prestige requires allowlisted admin", async (t) => {
   const urls: string[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     competitionAdminAllowlist: ["admin_01"],
     requestFn: (async (url) => {
@@ -186,7 +186,7 @@ test("GET /api/v1/admin/rankings/prestige requires allowlisted admin", async (t)
 test("PUT /api/v1/admin/rankings/prestige/:competitionId requires allowlisted admin", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     competitionAdminAllowlist: ["admin_01"],
     requestFn: (async (url, options) => {
@@ -221,7 +221,7 @@ test("PUT /api/v1/admin/rankings/prestige/:competitionId requires allowlisted ad
 test("POST /api/v1/admin/rankings/recompute requires allowlisted admin", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     competitionAdminAllowlist: ["admin_01"],
     requestFn: (async (url, options) => {
@@ -254,7 +254,7 @@ test("POST /api/v1/admin/rankings/recompute requires allowlisted admin", async (
 
 test("GET /api/v1/admin/rankings/appeals requires admin and forwards query params", async (t) => {
   const urls: string[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     competitionAdminAllowlist: ["admin_01"],
     requestFn: (async (url) => {
@@ -285,7 +285,7 @@ test("GET /api/v1/admin/rankings/appeals requires admin and forwards query param
 test("POST /api/v1/admin/rankings/appeals/:appealId/resolve requires admin", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     competitionAdminAllowlist: ["admin_01"],
     requestFn: (async (url, options) => {
@@ -319,7 +319,7 @@ test("POST /api/v1/admin/rankings/appeals/:appealId/resolve requires admin", asy
 
 test("GET /api/v1/admin/rankings/flags requires admin and proxies query params", async (t) => {
   const urls: string[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     competitionAdminAllowlist: ["admin_01"],
     requestFn: (async (url) => {
@@ -350,7 +350,7 @@ test("GET /api/v1/admin/rankings/flags requires admin and proxies query params",
 test("POST /api/v1/admin/rankings/flags/:flagId/resolve requires admin", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     competitionAdminAllowlist: ["admin_01"],
     requestFn: (async (url, options) => {

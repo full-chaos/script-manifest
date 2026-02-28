@@ -42,7 +42,7 @@ export type ApiGatewayOptions = {
   industryAdminAllowlist?: string[];
 };
 
-export function buildServer(options: ApiGatewayOptions = {}): FastifyInstance {
+export async function buildServer(options: ApiGatewayOptions = {}): Promise<FastifyInstance> {
   const server = Fastify({
     logger: options.logger === false ? false : {
       level: process.env.LOG_LEVEL ?? "info",
@@ -52,13 +52,13 @@ export function buildServer(options: ApiGatewayOptions = {}): FastifyInstance {
   });
 
   registerRequestId(server);
-  void server.register(cors, {
+  await server.register(cors, {
     origin: process.env.CORS_ALLOWED_ORIGINS?.split(",") ?? ["http://localhost:3000"],
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization", "x-request-id"],
     credentials: true,
   });
-  void registerRateLimit(server);
+  await registerRateLimit(server);
 
   const ctx: GatewayContext = {
     requestFn: options.requestFn ?? request,
@@ -146,7 +146,7 @@ export async function startServer(): Promise<void> {
   boot.phase("env validated");
 
   const port = Number(process.env.PORT ?? 4000);
-  const server = buildServer({
+  const server = await buildServer({
     identityServiceBase: process.env.IDENTITY_SERVICE_URL,
     profileServiceBase: process.env.PROFILE_SERVICE_URL,
     competitionDirectoryBase: process.env.COMPETITION_DIRECTORY_SERVICE_URL,
@@ -166,6 +166,7 @@ export async function startServer(): Promise<void> {
 
   // Register Prometheus metrics endpoint (only in production server startup, not tests).
   await registerMetrics(server);
+  boot.phase("metrics registered");
   await server.listen({ port, host: "0.0.0.0" });
   boot.ready(port);
 }

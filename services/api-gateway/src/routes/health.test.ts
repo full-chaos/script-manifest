@@ -17,7 +17,7 @@ function jsonResponse(payload: unknown, statusCode = 200): RequestResult {
 
 test("GET /health returns ok when all downstream services are healthy", async (t) => {
   const checkedUrls: string[] = [];
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url) => {
       checkedUrls.push(String(url));
@@ -60,7 +60,7 @@ test("GET /health returns ok when all downstream services are healthy", async (t
 });
 
 test("GET /health returns 503 when one downstream service is unhealthy", async (t) => {
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url) => {
       const urlStr = String(url);
@@ -91,7 +91,7 @@ test("GET /health returns 503 when one downstream service is unhealthy", async (
 });
 
 test("GET /health/live always returns 200 regardless of downstream state", async (t) => {
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async () => {
       throw new Error("should not be called");
@@ -109,7 +109,7 @@ test("GET /health/live always returns 200 regardless of downstream state", async
 });
 
 test("GET /health/ready returns 200 when all downstream services are healthy", async (t) => {
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async () => {
       return jsonResponse({ ok: true }, 200);
@@ -135,7 +135,7 @@ test("GET /health/ready returns 200 when all downstream services are healthy", a
 });
 
 test("GET /health/ready returns 503 when a downstream service throws", async (t) => {
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: (async (url) => {
       const urlStr = String(url);

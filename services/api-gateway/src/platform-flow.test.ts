@@ -249,7 +249,7 @@ function buildPlatformRequestFn() {
 }
 
 test("platform flow through api gateway: auth + profile + project + submissions", async (t) => {
-  const server = buildServer({
+  const server = await buildServer({
     logger: false,
     requestFn: buildPlatformRequestFn(),
     identityServiceBase: "http://identity-svc",

@@ -1,6 +1,7 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import { randomUUID } from "node:crypto";
 import { pathToFileURL } from "node:url";
+import { bootstrapService } from "@script-manifest/service-utils";
 import {
   PlacementFiltersSchema,
   PlacementListItemSchema,
@@ -316,9 +317,12 @@ function toPlacementListItem(placement: Placement, submission: Submission): Plac
 }
 
 export async function startServer(): Promise<void> {
+  const boot = bootstrapService("submission-tracking-service");
   const port = Number(process.env.PORT ?? 4004);
   const server = buildServer();
+  boot.phase("server built");
   await server.listen({ port, host: "0.0.0.0" });
+  boot.ready(port);
 }
 
 function isMainModule(metaUrl: string): boolean {

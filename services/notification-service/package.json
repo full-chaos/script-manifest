@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@script-manifest/contracts": "workspace:*",
+    "@script-manifest/service-utils": "workspace:*",
     "fastify": "^5.1.0"
   },
   "devDependencies": {

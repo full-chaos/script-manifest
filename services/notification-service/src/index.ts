@@ -1,6 +1,7 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import { randomUUID } from "node:crypto";
 import { pathToFileURL } from "node:url";
+import { bootstrapService } from "@script-manifest/service-utils";
 import {
   NotificationEventEnvelope,
   NotificationEventEnvelopeSchema
@@ -59,9 +60,12 @@ export function buildServer(options: NotificationServiceOptions = {}): FastifyIn
 }
 
 export async function startServer(): Promise<void> {
+  const boot = bootstrapService("notification-service");
   const port = Number(process.env.PORT ?? 4010);
   const server = buildServer();
+  boot.phase("server built");
   await server.listen({ port, host: "0.0.0.0" });
+  boot.ready(port);
 }
 
 function isMainModule(metaUrl: string): boolean {

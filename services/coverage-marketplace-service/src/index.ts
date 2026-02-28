@@ -2,7 +2,7 @@ import Fastify, { type FastifyInstance } from "fastify";
 import rateLimit from "@fastify/rate-limit";
 import { pathToFileURL } from "node:url";
 import { randomUUID } from "node:crypto";
-import { validateRequiredEnv } from "@script-manifest/service-utils";
+import { validateRequiredEnv, bootstrapService } from "@script-manifest/service-utils";
 import {
   CoverageProviderCreateRequestSchema,
   CoverageProviderUpdateRequestSchema,
@@ -1178,10 +1178,14 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
 }
 
 export async function startServer(): Promise<void> {
+  const boot = bootstrapService("coverage-marketplace-service");
   validateRequiredEnv(["DATABASE_URL", "STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"]);
+  boot.phase("env validated");
   const port = Number(process.env.PORT ?? 4008);
   const server = buildServer();
+  boot.phase("server built");
   await server.listen({ port, host: "0.0.0.0" });
+  boot.ready(port);
 }
 
 function isMainModule(metaUrl: string): boolean {

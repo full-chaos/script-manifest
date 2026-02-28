@@ -3,7 +3,7 @@ import cors from "@fastify/cors";
 import { randomUUID } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import { request } from "undici";
-import { validateRequiredEnv } from "@script-manifest/service-utils";
+import { validateRequiredEnv, bootstrapService } from "@script-manifest/service-utils";
 import { type GatewayContext, type RequestFn, parseAllowlist } from "./helpers.js";
 import { registerRateLimit } from "./plugins/rateLimit.js";
 import { registerRequestId } from "./plugins/requestId.js";
@@ -109,6 +109,8 @@ export function buildServer(options: ApiGatewayOptions = {}): FastifyInstance {
 export { buildQuerySuffix } from "./helpers.js";
 
 export async function startServer(): Promise<void> {
+  const boot = bootstrapService("api-gateway");
+
   // Setup distributed tracing when OTEL_EXPORTER_OTLP_ENDPOINT is set.
   // Guard the dynamic import behind the env-var check so that the heavy
   // @opentelemetry/auto-instrumentations-node dependency tree is never
@@ -122,6 +124,7 @@ export async function startServer(): Promise<void> {
         tracingSdk.shutdown().catch((err) => console.error("OTel SDK shutdown error", err));
       });
     }
+    boot.phase("tracing initialized");
   }
 
   validateRequiredEnv([
@@ -140,6 +143,7 @@ export async function startServer(): Promise<void> {
     "COVERAGE_ADMIN_ALLOWLIST",
     "INDUSTRY_ADMIN_ALLOWLIST",
   ]);
+  boot.phase("env validated");
 
   const port = Number(process.env.PORT ?? 4000);
   const server = buildServer({
@@ -158,10 +162,12 @@ export async function startServer(): Promise<void> {
     coverageAdminAllowlist: parseAllowlist(process.env.COVERAGE_ADMIN_ALLOWLIST ?? ""),
     industryAdminAllowlist: parseAllowlist(process.env.INDUSTRY_ADMIN_ALLOWLIST ?? "")
   });
+  boot.phase("server built");
 
   // Register Prometheus metrics endpoint (only in production server startup, not tests).
   await registerMetrics(server);
   await server.listen({ port, host: "0.0.0.0" });
+  boot.ready(port);
 }
 
 function isMainModule(metaUrl: string): boolean {

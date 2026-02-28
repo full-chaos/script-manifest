@@ -14,7 +14,7 @@
     "@script-manifest/contracts": "workspace:*",
     "@script-manifest/service-utils": "workspace:*",
     "fastify": "^5.1.0",
-    "undici": "^7.2.0"
+    "undici": "^7.22.0"
   },
   "devDependencies": {
     "@types/node": "^22.8.1",

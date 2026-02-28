@@ -136,7 +136,7 @@ export function buildServer(options: SearchIndexerOptions = {}): FastifyInstance
 }
 
 export async function startServer(): Promise<void> {
-  validateRequiredEnv(["OPENSEARCH_NODE"]);
+  validateRequiredEnv(["OPENSEARCH_URL"]);
   const port = Number(process.env.PORT ?? 4003);
   const server = buildServer({
     openSearchBase: process.env.OPENSEARCH_URL,

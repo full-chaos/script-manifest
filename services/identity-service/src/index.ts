@@ -350,12 +350,14 @@ export function buildServer(options: IdentityServiceOptions = {}): FastifyInstan
 }
 
 export async function startServer(): Promise<void> {
-  const { setupTracing } = await import("@script-manifest/service-utils/tracing");
-  const tracingSdk = setupTracing("identity-service");
-  if (tracingSdk) {
-    process.once("SIGTERM", () => {
-      tracingSdk.shutdown().catch((err) => console.error("OTel SDK shutdown error", err));
-    });
+  if (process.env.OTEL_EXPORTER_OTLP_ENDPOINT) {
+    const { setupTracing } = await import("@script-manifest/service-utils/tracing");
+    const tracingSdk = setupTracing("identity-service");
+    if (tracingSdk) {
+      process.once("SIGTERM", () => {
+        tracingSdk.shutdown().catch((err) => console.error("OTel SDK shutdown error", err));
+      });
+    }
   }
 
   validateRequiredEnv(["DATABASE_URL"]);

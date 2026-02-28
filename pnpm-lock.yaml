@@ -178,8 +178,8 @@ importers:
         specifier: ^5.1.0
         version: 5.7.4
       undici:
-        specifier: ^7.2.0
-        version: 7.20.0
+        specifier: ^7.22.0
+        version: 7.22.0
     devDependencies:
       '@types/archiver':
         specifier: ^6.0.3
@@ -206,8 +206,8 @@ importers:
         specifier: ^5.1.0
         version: 5.7.4
       undici:
-        specifier: ^7.2.0
-        version: 7.20.0
+        specifier: ^7.22.0
+        version: 7.22.0
       zod:
         specifier: ^3.23.8
         version: 3.25.76
@@ -243,8 +243,8 @@ importers:
         specifier: ^17.0.0
         version: 17.7.0
       undici:
-        specifier: ^7.3.0
-        version: 7.20.0
+        specifier: ^7.22.0
+        version: 7.22.0
       zod:
         specifier: ^3.24.1
         version: 3.25.76
@@ -274,8 +274,8 @@ importers:
         specifier: ^5.2.0
         version: 5.7.4
       undici:
-        specifier: ^7.3.0
-        version: 7.20.0
+        specifier: ^7.22.0
+        version: 7.22.0
       zod:
         specifier: ^3.24.1
         version: 3.25.76
@@ -308,8 +308,8 @@ importers:
         specifier: ^5.1.0
         version: 5.7.4
       undici:
-        specifier: ^7.2.0
-        version: 7.20.0
+        specifier: ^7.22.0
+        version: 7.22.0
     devDependencies:
       '@types/node':
         specifier: ^22.8.1
@@ -339,8 +339,8 @@ importers:
         specifier: ^5.1.0
         version: 5.7.4
       undici:
-        specifier: ^7.2.0
-        version: 7.20.0
+        specifier: ^7.22.0
+        version: 7.22.0
       zod:
         specifier: ^3.23.8
         version: 3.25.76
@@ -395,8 +395,8 @@ importers:
         specifier: ^5.1.0
         version: 5.7.4
       undici:
-        specifier: ^7.2.0
-        version: 7.20.0
+        specifier: ^7.22.0
+        version: 7.22.0
       zod:
         specifier: ^3.24.1
         version: 3.25.76
@@ -429,8 +429,8 @@ importers:
         specifier: ^5.1.0
         version: 5.7.4
       undici:
-        specifier: ^7.2.0
-        version: 7.20.0
+        specifier: ^7.22.0
+        version: 7.22.0
       zod:
         specifier: ^3.23.8
         version: 3.25.76
@@ -463,8 +463,8 @@ importers:
         specifier: ^5.1.0
         version: 5.7.4
       undici:
-        specifier: ^7.2.0
-        version: 7.20.0
+        specifier: ^7.22.0
+        version: 7.22.0
       zod:
         specifier: ^3.24.1
         version: 3.25.76
@@ -494,8 +494,8 @@ importers:
         specifier: ^5.2.0
         version: 5.7.4
       undici:
-        specifier: ^7.3.0
-        version: 7.20.0
+        specifier: ^7.22.0
+        version: 7.22.0
       zod:
         specifier: ^3.24.1
         version: 3.25.76
@@ -550,8 +550,8 @@ importers:
         specifier: ^5.1.0
         version: 5.7.4
       undici:
-        specifier: ^7.2.0
-        version: 7.20.0
+        specifier: ^7.22.0
+        version: 7.22.0
     devDependencies:
       '@types/node':
         specifier: ^22.8.1
@@ -4716,8 +4716,8 @@ packages:
   undici-types@7.18.2:
     resolution: {integrity: sha512-AsuCzffGHJybSaRrmr5eHr81mwJU3kjw6M+uprWvCXiNeN9SOGwQ3Jn8jb8m3Z6izVgknn1R0FTCEAP2QrLY/w==}
 
-  undici@7.20.0:
-    resolution: {integrity: sha512-MJZrkjyd7DeC+uPZh+5/YaMDxFiiEEaDgbUSVMXayofAkDWF1088CDo+2RPg7B1BuS1qf1vgNE7xqwPxE0DuSQ==}
+  undici@7.22.0:
+    resolution: {integrity: sha512-RqslV2Us5BrllB+JeiZnK4peryVTndy9Dnqq62S3yYRRTj0tFQCwEniUy2167skdGOy3vqRzEvl1Dm4sV2ReDg==}
     engines: {node: '>=20.18.1'}
 
   unrs-resolver@1.11.1:
@@ -9928,7 +9928,7 @@ snapshots:
 
   undici-types@7.18.2: {}
 
-  undici@7.20.0: {}
+  undici@7.22.0: {}
 
   unrs-resolver@1.11.1:
     dependencies:

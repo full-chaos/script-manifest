@@ -23,12 +23,29 @@ import type { FastifyInstance } from "fastify";
  */
 export async function registerMetrics(server: FastifyInstance): Promise<void> {
   // fastify-metrics is a CommonJS module; use createRequire for ESM compatibility.
+  // When tsx or other transpilers inline this code into the consuming service,
+  // import.meta.url points to the consumer — not to service-utils.  Resolve
+  // from the service-utils package path so pnpm's strict node_modules works.
   const { createRequire } = await import("node:module");
-  const require = createRequire(import.meta.url);
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const metricsPlugin = require("fastify-metrics") as {
-    default: Parameters<FastifyInstance["register"]>[0];
-  };
+  const { fileURLToPath } = await import("node:url");
+  const { dirname, join } = await import("node:path");
+
+  // Try import.meta.url first (works in compiled builds), fall back to
+  // resolving from the service-utils package directory (works under tsx).
+  let metricsPlugin: { default: Parameters<FastifyInstance["register"]>[0] };
+  try {
+    const req = createRequire(import.meta.url);
+    metricsPlugin = req("fastify-metrics") as typeof metricsPlugin;
+  } catch {
+    // import.meta.url resolved to the consuming service — walk up to find
+    // service-utils's own node_modules.
+    const serviceUtilsPkg = join(
+      dirname(fileURLToPath(import.meta.url)),
+      "..",  // from src/ up to package root
+    );
+    const req = createRequire(join(serviceUtilsPkg, "index.js"));
+    metricsPlugin = req("fastify-metrics") as typeof metricsPlugin;
+  }
 
   await server.register(metricsPlugin.default, {
     endpoint: "/metrics",

@@ -1,5 +1,13 @@
 import type { FastifyInstance } from "fastify";
 import {
+  ProjectCoWriterCreateRequestSchema,
+  ProjectCreateRequestSchema,
+  ProjectDraftCreateRequestSchema,
+  ProjectDraftPrimaryRequestSchema,
+  ProjectDraftUpdateRequestSchema,
+  ProjectUpdateRequestSchema
+} from "@script-manifest/contracts";
+import {
   type GatewayContext,
   addAuthUserIdHeader,
   buildQuerySuffix,
@@ -25,6 +33,13 @@ export function registerProjectRoutes(server: FastifyInstance, ctx: GatewayConte
     if (!userId) {
       return reply.status(401).send({ error: "unauthorized", detail: "Could not resolve user from auth token" });
     }
+    const parsed = ProjectCreateRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.status(400).send({
+        error: "invalid_payload",
+        details: parsed.error.flatten()
+      });
+    }
 
     return proxyJsonRequest(reply, ctx.requestFn, `${ctx.profileServiceBase}/internal/projects`, {
       method: "POST",
@@ -32,7 +47,7 @@ export function registerProjectRoutes(server: FastifyInstance, ctx: GatewayConte
         { "content-type": "application/json" },
         userId
       ),
-      body: JSON.stringify(req.body ?? {})
+      body: JSON.stringify(parsed.data)
     });
   });
 
@@ -54,6 +69,13 @@ export function registerProjectRoutes(server: FastifyInstance, ctx: GatewayConte
     if (!userId) {
       return reply.status(401).send({ error: "unauthorized", detail: "Could not resolve user from auth token" });
     }
+    const parsed = ProjectUpdateRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.status(400).send({
+        error: "invalid_payload",
+        details: parsed.error.flatten()
+      });
+    }
 
     return proxyJsonRequest(
       reply,
@@ -65,7 +87,7 @@ export function registerProjectRoutes(server: FastifyInstance, ctx: GatewayConte
           { "content-type": "application/json" },
           userId
         ),
-        body: JSON.stringify(req.body ?? {})
+        body: JSON.stringify(parsed.data)
       }
     );
   });
@@ -106,6 +128,13 @@ export function registerProjectRoutes(server: FastifyInstance, ctx: GatewayConte
     if (!userId) {
       return reply.status(401).send({ error: "unauthorized", detail: "Could not resolve user from auth token" });
     }
+    const parsed = ProjectCoWriterCreateRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.status(400).send({
+        error: "invalid_payload",
+        details: parsed.error.flatten()
+      });
+    }
 
     return proxyJsonRequest(
       reply,
@@ -117,7 +146,7 @@ export function registerProjectRoutes(server: FastifyInstance, ctx: GatewayConte
           { "content-type": "application/json" },
           userId
         ),
-        body: JSON.stringify(req.body ?? {})
+        body: JSON.stringify(parsed.data)
       }
     );
   });
@@ -161,6 +190,13 @@ export function registerProjectRoutes(server: FastifyInstance, ctx: GatewayConte
     if (!userId) {
       return reply.status(401).send({ error: "unauthorized", detail: "Could not resolve user from auth token" });
     }
+    const parsed = ProjectDraftCreateRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.status(400).send({
+        error: "invalid_payload",
+        details: parsed.error.flatten()
+      });
+    }
 
     return proxyJsonRequest(
       reply,
@@ -172,7 +208,7 @@ export function registerProjectRoutes(server: FastifyInstance, ctx: GatewayConte
           { "content-type": "application/json" },
           userId
         ),
-        body: JSON.stringify(req.body ?? {})
+        body: JSON.stringify(parsed.data)
       }
     );
   });
@@ -182,6 +218,13 @@ export function registerProjectRoutes(server: FastifyInstance, ctx: GatewayConte
     const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
     if (!userId) {
       return reply.status(401).send({ error: "unauthorized", detail: "Could not resolve user from auth token" });
+    }
+    const parsed = ProjectDraftUpdateRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.status(400).send({
+        error: "invalid_payload",
+        details: parsed.error.flatten()
+      });
     }
 
     return proxyJsonRequest(
@@ -194,7 +237,7 @@ export function registerProjectRoutes(server: FastifyInstance, ctx: GatewayConte
           { "content-type": "application/json" },
           userId
         ),
-        body: JSON.stringify(req.body ?? {})
+        body: JSON.stringify(parsed.data)
       }
     );
   });
@@ -204,6 +247,13 @@ export function registerProjectRoutes(server: FastifyInstance, ctx: GatewayConte
     const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
     if (!userId) {
       return reply.status(401).send({ error: "unauthorized", detail: "Could not resolve user from auth token" });
+    }
+    const parsed = ProjectDraftPrimaryRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.status(400).send({
+        error: "invalid_payload",
+        details: parsed.error.flatten()
+      });
     }
 
     return proxyJsonRequest(
@@ -216,7 +266,7 @@ export function registerProjectRoutes(server: FastifyInstance, ctx: GatewayConte
           { "content-type": "application/json" },
           userId
         ),
-        body: JSON.stringify(req.body ?? {})
+        body: JSON.stringify(parsed.data)
       }
     );
   });

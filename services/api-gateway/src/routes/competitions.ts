@@ -1,4 +1,5 @@
 import type { FastifyInstance } from "fastify";
+import { CompetitionUpsertRequestSchema } from "@script-manifest/contracts";
 import {
   type GatewayContext,
   buildQuerySuffix,
@@ -21,6 +22,7 @@ export function registerCompetitionRoutes(server: FastifyInstance, ctx: GatewayC
 
   server.post("/api/v1/competitions/:competitionId/deadline-reminders", async (req, reply) => {
     const { competitionId } = req.params as { competitionId: string };
+    // TODO: add validation schema
     return proxyJsonRequest(
       reply,
       ctx.requestFn,
@@ -43,6 +45,13 @@ export function registerCompetitionRoutes(server: FastifyInstance, ctx: GatewayC
     if (!adminUserId) {
       return reply.status(403).send({ error: "forbidden" });
     }
+    const parsed = CompetitionUpsertRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.status(400).send({
+        error: "invalid_payload",
+        details: parsed.error.flatten()
+      });
+    }
 
     return proxyJsonRequest(reply, ctx.requestFn, `${ctx.competitionDirectoryBase}/internal/admin/competitions`, {
       method: "POST",
@@ -50,7 +59,7 @@ export function registerCompetitionRoutes(server: FastifyInstance, ctx: GatewayC
         "content-type": "application/json",
         "x-admin-user-id": adminUserId
       },
-      body: JSON.stringify(req.body ?? {})
+      body: JSON.stringify(parsed.data)
     });
   });
 
@@ -65,6 +74,13 @@ export function registerCompetitionRoutes(server: FastifyInstance, ctx: GatewayC
     if (!adminUserId) {
       return reply.status(403).send({ error: "forbidden" });
     }
+    const parsed = CompetitionUpsertRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.status(400).send({
+        error: "invalid_payload",
+        details: parsed.error.flatten()
+      });
+    }
 
     return proxyJsonRequest(
       reply,
@@ -76,7 +92,7 @@ export function registerCompetitionRoutes(server: FastifyInstance, ctx: GatewayC
           "content-type": "application/json",
           "x-admin-user-id": adminUserId
         },
-        body: JSON.stringify(req.body ?? {})
+        body: JSON.stringify(parsed.data)
       }
     );
   });

@@ -8,7 +8,7 @@ import { createPresignedPost } from "@aws-sdk/s3-presigned-post";
 import { randomUUID } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import { Counter } from "prom-client";
-import { validateRequiredEnv, bootstrapService, setupErrorReporting } from "@script-manifest/service-utils";
+import { bootstrapService, registerMetrics, setupErrorReporting, validateRequiredEnv } from "@script-manifest/service-utils";
 import {
   ScriptFileRegistrationSchema,
   ScriptRegisterRequestSchema,
@@ -320,6 +320,16 @@ export function buildServer(options: ScriptStorageServiceOptions = {}): FastifyI
 export async function startServer(): Promise<void> {
   const boot = bootstrapService("script-storage-service");
   setupErrorReporting("script-storage-service");
+  if (process.env.OTEL_EXPORTER_OTLP_ENDPOINT) {
+    const { setupTracing } = await import("@script-manifest/service-utils/tracing");
+    const tracingSdk = setupTracing("script-storage-service");
+    if (tracingSdk) {
+      process.once("SIGTERM", () => {
+        tracingSdk.shutdown().catch((err) => console.error("OTel SDK shutdown error", err));
+      });
+    }
+    boot.phase("tracing initialized");
+  }
   validateRequiredEnv([
     "STORAGE_BUCKET",
     "STORAGE_S3_ENDPOINT",
@@ -339,7 +349,8 @@ export async function startServer(): Promise<void> {
     s3ForcePathStyle: process.env.STORAGE_S3_FORCE_PATH_STYLE !== "false"
   });
   boot.phase("server built");
-
+  // Register Prometheus metrics endpoint (only in production server startup, not tests).
+  await registerMetrics(server);
   await server.listen({ port, host: "0.0.0.0" });
   boot.ready(port);
 }

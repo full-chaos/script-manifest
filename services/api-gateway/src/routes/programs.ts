@@ -1,5 +1,13 @@
 import type { FastifyInstance } from "fastify";
 import {
+  ProgramApplicationCreateRequestSchema,
+  ProgramApplicationReviewRequestSchema,
+  ProgramCohortCreateRequestSchema,
+  ProgramMentorshipMatchCreateRequestSchema,
+  ProgramSessionAttendanceUpsertRequestSchema,
+  ProgramSessionCreateRequestSchema
+} from "@script-manifest/contracts";
+import {
   addAuthUserIdHeader,
   buildQuerySuffix,
   getUserIdFromAuth,
@@ -30,6 +38,10 @@ export function registerProgramsRoutes(server: FastifyInstance, ctx: GatewayCont
       if (!userId) {
         return reply.status(401).send({ error: "unauthorized", detail: "Could not resolve user from auth token" });
       }
+      const parsed = ProgramApplicationCreateRequestSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
+      }
       return proxyJsonRequest(
         reply,
         ctx.requestFn,
@@ -37,7 +49,7 @@ export function registerProgramsRoutes(server: FastifyInstance, ctx: GatewayCont
         {
           method: "POST",
           headers: addAuthUserIdHeader({ "content-type": "application/json" }, userId),
-          body: JSON.stringify(req.body ?? {})
+          body: JSON.stringify(parsed.data)
         }
       );
     }
@@ -114,6 +126,10 @@ export function registerProgramsRoutes(server: FastifyInstance, ctx: GatewayCont
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
+      const parsed = ProgramApplicationReviewRequestSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
+      }
       return proxyJsonRequest(
         reply,
         ctx.requestFn,
@@ -124,7 +140,7 @@ export function registerProgramsRoutes(server: FastifyInstance, ctx: GatewayCont
             "content-type": "application/json",
             "x-admin-user-id": adminUserId
           },
-          body: JSON.stringify(req.body ?? {})
+          body: JSON.stringify(parsed.data)
         }
       );
     }
@@ -143,6 +159,7 @@ export function registerProgramsRoutes(server: FastifyInstance, ctx: GatewayCont
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
+      // TODO: add validation schema
       return proxyJsonRequest(
         reply,
         ctx.requestFn,
@@ -172,6 +189,7 @@ export function registerProgramsRoutes(server: FastifyInstance, ctx: GatewayCont
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
+      // TODO: add validation schema
       return proxyJsonRequest(
         reply,
         ctx.requestFn,
@@ -226,6 +244,10 @@ export function registerProgramsRoutes(server: FastifyInstance, ctx: GatewayCont
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
+      const parsed = ProgramCohortCreateRequestSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
+      }
       return proxyJsonRequest(
         reply,
         ctx.requestFn,
@@ -236,7 +258,7 @@ export function registerProgramsRoutes(server: FastifyInstance, ctx: GatewayCont
             "content-type": "application/json",
             "x-admin-user-id": adminUserId
           },
-          body: JSON.stringify(req.body ?? {})
+          body: JSON.stringify(parsed.data)
         }
       );
     }
@@ -255,6 +277,7 @@ export function registerProgramsRoutes(server: FastifyInstance, ctx: GatewayCont
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
+      // TODO: add validation schema
       return proxyJsonRequest(
         reply,
         ctx.requestFn,
@@ -284,6 +307,7 @@ export function registerProgramsRoutes(server: FastifyInstance, ctx: GatewayCont
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
+      // TODO: add validation schema
       return proxyJsonRequest(
         reply,
         ctx.requestFn,
@@ -313,6 +337,10 @@ export function registerProgramsRoutes(server: FastifyInstance, ctx: GatewayCont
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
+      const parsed = ProgramSessionCreateRequestSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
+      }
       return proxyJsonRequest(
         reply,
         ctx.requestFn,
@@ -323,7 +351,7 @@ export function registerProgramsRoutes(server: FastifyInstance, ctx: GatewayCont
             "content-type": "application/json",
             "x-admin-user-id": adminUserId
           },
-          body: JSON.stringify(req.body ?? {})
+          body: JSON.stringify(parsed.data)
         }
       );
     }
@@ -342,6 +370,10 @@ export function registerProgramsRoutes(server: FastifyInstance, ctx: GatewayCont
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
+      const parsed = ProgramSessionAttendanceUpsertRequestSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
+      }
       return proxyJsonRequest(
         reply,
         ctx.requestFn,
@@ -352,7 +384,7 @@ export function registerProgramsRoutes(server: FastifyInstance, ctx: GatewayCont
             "content-type": "application/json",
             "x-admin-user-id": adminUserId
           },
-          body: JSON.stringify(req.body ?? {})
+          body: JSON.stringify(parsed.data)
         }
       );
     }
@@ -371,6 +403,7 @@ export function registerProgramsRoutes(server: FastifyInstance, ctx: GatewayCont
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
+      // TODO: add validation schema
       return proxyJsonRequest(
         reply,
         ctx.requestFn,
@@ -400,6 +433,7 @@ export function registerProgramsRoutes(server: FastifyInstance, ctx: GatewayCont
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
+      // TODO: add validation schema
       return proxyJsonRequest(
         reply,
         ctx.requestFn,
@@ -425,6 +459,10 @@ export function registerProgramsRoutes(server: FastifyInstance, ctx: GatewayCont
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
+      const parsed = ProgramMentorshipMatchCreateRequestSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
+      }
       return proxyJsonRequest(
         reply,
         ctx.requestFn,
@@ -435,7 +473,7 @@ export function registerProgramsRoutes(server: FastifyInstance, ctx: GatewayCont
             "content-type": "application/json",
             "x-admin-user-id": adminUserId
           },
-          body: JSON.stringify(req.body ?? {})
+          body: JSON.stringify(parsed.data)
         }
       );
     }
@@ -454,6 +492,7 @@ export function registerProgramsRoutes(server: FastifyInstance, ctx: GatewayCont
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
+      // TODO: add validation schema
       return proxyJsonRequest(
         reply,
         ctx.requestFn,
@@ -483,6 +522,7 @@ export function registerProgramsRoutes(server: FastifyInstance, ctx: GatewayCont
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
+      // TODO: add validation schema
       return proxyJsonRequest(
         reply,
         ctx.requestFn,
@@ -537,6 +577,7 @@ export function registerProgramsRoutes(server: FastifyInstance, ctx: GatewayCont
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
+      // TODO: add validation schema
       return proxyJsonRequest(
         reply,
         ctx.requestFn,

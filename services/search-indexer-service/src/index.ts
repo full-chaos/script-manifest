@@ -2,7 +2,7 @@ import Fastify, { type FastifyInstance } from "fastify";
 import { randomUUID } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import { request } from "undici";
-import { validateRequiredEnv, bootstrapService, setupErrorReporting } from "@script-manifest/service-utils";
+import { bootstrapService, registerMetrics, setupErrorReporting, validateRequiredEnv } from "@script-manifest/service-utils";
 import {
   CompetitionIndexBulkRequestSchema,
   CompetitionIndexDocumentSchema,
@@ -138,6 +138,16 @@ export function buildServer(options: SearchIndexerOptions = {}): FastifyInstance
 export async function startServer(): Promise<void> {
   const boot = bootstrapService("search-indexer-service");
   setupErrorReporting("search-indexer-service");
+  if (process.env.OTEL_EXPORTER_OTLP_ENDPOINT) {
+    const { setupTracing } = await import("@script-manifest/service-utils/tracing");
+    const tracingSdk = setupTracing("search-indexer-service");
+    if (tracingSdk) {
+      process.once("SIGTERM", () => {
+        tracingSdk.shutdown().catch((err) => console.error("OTel SDK shutdown error", err));
+      });
+    }
+    boot.phase("tracing initialized");
+  }
   validateRequiredEnv(["OPENSEARCH_URL"]);
   boot.phase("env validated");
   const port = Number(process.env.PORT ?? 4003);
@@ -146,6 +156,8 @@ export async function startServer(): Promise<void> {
     openSearchIndex: process.env.OPENSEARCH_INDEX
   });
   boot.phase("server built");
+  // Register Prometheus metrics endpoint (only in production server startup, not tests).
+  await registerMetrics(server);
   await server.listen({ port, host: "0.0.0.0" });
   boot.ready(port);
 }

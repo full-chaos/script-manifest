@@ -2,7 +2,7 @@ import Fastify, { type FastifyInstance } from "fastify";
 import { pathToFileURL } from "node:url";
 import { randomUUID } from "node:crypto";
 import { Counter } from "prom-client";
-import { validateRequiredEnv, bootstrapService, setupErrorReporting } from "@script-manifest/service-utils";
+import { bootstrapService, registerMetrics, setupErrorReporting, validateRequiredEnv } from "@script-manifest/service-utils";
 import {
   FeedbackListingCreateRequestSchema,
   FeedbackListingFiltersSchema,
@@ -533,11 +533,23 @@ export function buildServer(options: FeedbackExchangeServiceOptions = {}): Fasti
 export async function startServer(): Promise<void> {
   const boot = bootstrapService("feedback-exchange-service");
   setupErrorReporting("feedback-exchange-service");
+  if (process.env.OTEL_EXPORTER_OTLP_ENDPOINT) {
+    const { setupTracing } = await import("@script-manifest/service-utils/tracing");
+    const tracingSdk = setupTracing("feedback-exchange-service");
+    if (tracingSdk) {
+      process.once("SIGTERM", () => {
+        tracingSdk.shutdown().catch((err) => console.error("OTel SDK shutdown error", err));
+      });
+    }
+    boot.phase("tracing initialized");
+  }
   validateRequiredEnv(["DATABASE_URL"]);
   boot.phase("env validated");
   const port = Number(process.env.PORT ?? 4006);
   const server = buildServer();
   boot.phase("server built");
+  // Register Prometheus metrics endpoint (only in production server startup, not tests).
+  await registerMetrics(server);
   await server.listen({ port, host: "0.0.0.0" });
   boot.ready(port);
 }

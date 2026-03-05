@@ -1,5 +1,20 @@
 import type { FastifyInstance } from "fastify";
 import {
+  IndustryAccountCreateRequestSchema,
+  IndustryAccountVerificationRequestSchema,
+  IndustryEntitlementUpsertRequestSchema,
+  IndustryListCreateRequestSchema,
+  IndustryListItemCreateRequestSchema,
+  IndustryListShareTeamRequestSchema,
+  IndustryMandateCreateRequestSchema,
+  IndustryMandateSubmissionCreateRequestSchema,
+  IndustryMandateSubmissionReviewRequestSchema,
+  IndustryNoteCreateRequestSchema,
+  IndustryTeamCreateRequestSchema,
+  IndustryTeamMemberUpsertRequestSchema,
+  IndustryWeeklyDigestRunRequestSchema
+} from "@script-manifest/contracts";
+import {
   type GatewayContext,
   addAuthUserIdHeader,
   buildQuerySuffix,
@@ -16,6 +31,10 @@ export function registerIndustryRoutes(server: FastifyInstance, ctx: GatewayCont
       if (!userId) {
         return reply.status(401).send({ error: "unauthorized", detail: "Could not resolve user from auth token" });
       }
+      const parsed = IndustryAccountCreateRequestSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
+      }
 
       return proxyJsonRequest(
         reply,
@@ -27,7 +46,7 @@ export function registerIndustryRoutes(server: FastifyInstance, ctx: GatewayCont
             { "content-type": "application/json" },
             userId
           ),
-          body: JSON.stringify(req.body ?? {})
+          body: JSON.stringify(parsed.data)
         }
       );
     }
@@ -61,6 +80,10 @@ export function registerIndustryRoutes(server: FastifyInstance, ctx: GatewayCont
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
+      const parsed = IndustryAccountVerificationRequestSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
+      }
 
       return proxyJsonRequest(
         reply,
@@ -72,7 +95,7 @@ export function registerIndustryRoutes(server: FastifyInstance, ctx: GatewayCont
             "content-type": "application/json",
             "x-admin-user-id": adminUserId
           },
-          body: JSON.stringify(req.body ?? {})
+          body: JSON.stringify(parsed.data)
         }
       );
     }
@@ -86,6 +109,10 @@ export function registerIndustryRoutes(server: FastifyInstance, ctx: GatewayCont
       if (!userId) {
         return reply.status(401).send({ error: "unauthorized", detail: "Could not resolve user from auth token" });
       }
+      const parsed = IndustryEntitlementUpsertRequestSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
+      }
 
       return proxyJsonRequest(
         reply,
@@ -97,7 +124,7 @@ export function registerIndustryRoutes(server: FastifyInstance, ctx: GatewayCont
             { "content-type": "application/json" },
             userId
           ),
-          body: JSON.stringify(req.body ?? {})
+          body: JSON.stringify(parsed.data)
         }
       );
     }
@@ -166,6 +193,10 @@ export function registerIndustryRoutes(server: FastifyInstance, ctx: GatewayCont
       if (!userId) {
         return reply.status(401).send({ error: "unauthorized", detail: "Could not resolve user from auth token" });
       }
+      const parsed = IndustryListCreateRequestSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
+      }
 
       return proxyJsonRequest(
         reply,
@@ -174,7 +205,7 @@ export function registerIndustryRoutes(server: FastifyInstance, ctx: GatewayCont
         {
           method: "POST",
           headers: addAuthUserIdHeader({ "content-type": "application/json" }, userId),
-          body: JSON.stringify(req.body ?? {})
+          body: JSON.stringify(parsed.data)
         }
       );
     }
@@ -188,6 +219,10 @@ export function registerIndustryRoutes(server: FastifyInstance, ctx: GatewayCont
       if (!userId) {
         return reply.status(401).send({ error: "unauthorized", detail: "Could not resolve user from auth token" });
       }
+      const parsed = IndustryListItemCreateRequestSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
+      }
 
       return proxyJsonRequest(
         reply,
@@ -196,7 +231,7 @@ export function registerIndustryRoutes(server: FastifyInstance, ctx: GatewayCont
         {
           method: "POST",
           headers: addAuthUserIdHeader({ "content-type": "application/json" }, userId),
-          body: JSON.stringify(req.body ?? {})
+          body: JSON.stringify(parsed.data)
         }
       );
     }
@@ -210,6 +245,10 @@ export function registerIndustryRoutes(server: FastifyInstance, ctx: GatewayCont
       if (!userId) {
         return reply.status(401).send({ error: "unauthorized", detail: "Could not resolve user from auth token" });
       }
+      const parsed = IndustryNoteCreateRequestSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
+      }
 
       return proxyJsonRequest(
         reply,
@@ -218,7 +257,7 @@ export function registerIndustryRoutes(server: FastifyInstance, ctx: GatewayCont
         {
           method: "POST",
           headers: addAuthUserIdHeader({ "content-type": "application/json" }, userId),
-          body: JSON.stringify(req.body ?? {})
+          body: JSON.stringify(parsed.data)
         }
       );
     }
@@ -251,6 +290,10 @@ export function registerIndustryRoutes(server: FastifyInstance, ctx: GatewayCont
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
+      const parsed = IndustryMandateCreateRequestSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
+      }
 
       return proxyJsonRequest(
         reply,
@@ -262,7 +305,7 @@ export function registerIndustryRoutes(server: FastifyInstance, ctx: GatewayCont
             "content-type": "application/json",
             "x-admin-user-id": adminUserId
           },
-          body: JSON.stringify(req.body ?? {})
+          body: JSON.stringify(parsed.data)
         }
       );
     }
@@ -276,6 +319,10 @@ export function registerIndustryRoutes(server: FastifyInstance, ctx: GatewayCont
       if (!userId) {
         return reply.status(401).send({ error: "unauthorized", detail: "Could not resolve user from auth token" });
       }
+      const parsed = IndustryMandateSubmissionCreateRequestSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
+      }
 
       return proxyJsonRequest(
         reply,
@@ -284,7 +331,7 @@ export function registerIndustryRoutes(server: FastifyInstance, ctx: GatewayCont
         {
           method: "POST",
           headers: addAuthUserIdHeader({ "content-type": "application/json" }, userId),
-          body: JSON.stringify(req.body ?? {})
+          body: JSON.stringify(parsed.data)
         }
       );
     }
@@ -329,6 +376,10 @@ export function registerIndustryRoutes(server: FastifyInstance, ctx: GatewayCont
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
+      const parsed = IndustryMandateSubmissionReviewRequestSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
+      }
       return proxyJsonRequest(
         reply,
         ctx.requestFn,
@@ -339,7 +390,7 @@ export function registerIndustryRoutes(server: FastifyInstance, ctx: GatewayCont
             "content-type": "application/json",
             "x-admin-user-id": adminUserId
           },
-          body: JSON.stringify(req.body ?? {})
+          body: JSON.stringify(parsed.data)
         }
       );
     }
@@ -357,6 +408,7 @@ export function registerIndustryRoutes(server: FastifyInstance, ctx: GatewayCont
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
+      // TODO: add validation schema
       return proxyJsonRequest(
         reply,
         ctx.requestFn,
@@ -377,6 +429,10 @@ export function registerIndustryRoutes(server: FastifyInstance, ctx: GatewayCont
       if (!userId) {
         return reply.status(401).send({ error: "unauthorized", detail: "Could not resolve user from auth token" });
       }
+      const parsed = IndustryListShareTeamRequestSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
+      }
       return proxyJsonRequest(
         reply,
         ctx.requestFn,
@@ -384,7 +440,7 @@ export function registerIndustryRoutes(server: FastifyInstance, ctx: GatewayCont
         {
           method: "POST",
           headers: addAuthUserIdHeader({ "content-type": "application/json" }, userId),
-          body: JSON.stringify(req.body ?? {})
+          body: JSON.stringify(parsed.data)
         }
       );
     }
@@ -416,6 +472,10 @@ export function registerIndustryRoutes(server: FastifyInstance, ctx: GatewayCont
       if (!userId) {
         return reply.status(401).send({ error: "unauthorized", detail: "Could not resolve user from auth token" });
       }
+      const parsed = IndustryTeamCreateRequestSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
+      }
       return proxyJsonRequest(
         reply,
         ctx.requestFn,
@@ -423,7 +483,7 @@ export function registerIndustryRoutes(server: FastifyInstance, ctx: GatewayCont
         {
           method: "POST",
           headers: addAuthUserIdHeader({ "content-type": "application/json" }, userId),
-          body: JSON.stringify(req.body ?? {})
+          body: JSON.stringify(parsed.data)
         }
       );
     }
@@ -437,6 +497,10 @@ export function registerIndustryRoutes(server: FastifyInstance, ctx: GatewayCont
       if (!userId) {
         return reply.status(401).send({ error: "unauthorized", detail: "Could not resolve user from auth token" });
       }
+      const parsed = IndustryTeamMemberUpsertRequestSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
+      }
       return proxyJsonRequest(
         reply,
         ctx.requestFn,
@@ -444,7 +508,7 @@ export function registerIndustryRoutes(server: FastifyInstance, ctx: GatewayCont
         {
           method: "PUT",
           headers: addAuthUserIdHeader({ "content-type": "application/json" }, userId),
-          body: JSON.stringify(req.body ?? {})
+          body: JSON.stringify(parsed.data)
         }
       );
     }
@@ -477,6 +541,10 @@ export function registerIndustryRoutes(server: FastifyInstance, ctx: GatewayCont
       if (!userId) {
         return reply.status(401).send({ error: "unauthorized", detail: "Could not resolve user from auth token" });
       }
+      const parsed = IndustryWeeklyDigestRunRequestSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
+      }
       return proxyJsonRequest(
         reply,
         ctx.requestFn,
@@ -484,7 +552,7 @@ export function registerIndustryRoutes(server: FastifyInstance, ctx: GatewayCont
         {
           method: "POST",
           headers: addAuthUserIdHeader({ "content-type": "application/json" }, userId),
-          body: JSON.stringify(req.body ?? {})
+          body: JSON.stringify(parsed.data)
         }
       );
     }
@@ -538,6 +606,7 @@ export function registerIndustryRoutes(server: FastifyInstance, ctx: GatewayCont
       if (!userId) {
         return reply.status(401).send({ error: "unauthorized", detail: "Could not resolve user from auth token" });
       }
+      // TODO: add validation schema
       return proxyJsonRequest(
         reply,
         ctx.requestFn,

@@ -1,5 +1,11 @@
 import type { FastifyInstance } from "fastify";
 import {
+  ScriptAccessRequestCreateRequestSchema,
+  ScriptAccessRequestDecisionRequestSchema,
+  ScriptRegisterRequestSchema,
+  ScriptUploadSessionRequestSchema
+} from "@script-manifest/contracts";
+import {
   type GatewayContext,
   addAuthUserIdHeader,
   buildQuerySuffix,
@@ -9,6 +15,13 @@ import {
 
 export function registerScriptRoutes(server: FastifyInstance, ctx: GatewayContext): void {
   server.post("/api/v1/scripts/upload-session", async (req, reply) => {
+    const parsed = ScriptUploadSessionRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.status(400).send({
+        error: "invalid_payload",
+        details: parsed.error.flatten()
+      });
+    }
     return proxyJsonRequest(
       reply,
       ctx.requestFn,
@@ -16,22 +29,36 @@ export function registerScriptRoutes(server: FastifyInstance, ctx: GatewayContex
       {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(req.body ?? {})
+        body: JSON.stringify(parsed.data)
       }
     );
   });
 
   server.post("/api/v1/scripts/register", async (req, reply) => {
+    const parsed = ScriptRegisterRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.status(400).send({
+        error: "invalid_payload",
+        details: parsed.error.flatten()
+      });
+    }
     return proxyJsonRequest(reply, ctx.requestFn, `${ctx.scriptStorageBase}/internal/scripts/register`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify(req.body ?? {})
+      body: JSON.stringify(parsed.data)
     });
   });
 
   server.post("/api/v1/scripts/:scriptId/access-requests", async (req, reply) => {
     const { scriptId } = req.params as { scriptId: string };
     const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
+    const parsed = ScriptAccessRequestCreateRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.status(400).send({
+        error: "invalid_payload",
+        details: parsed.error.flatten()
+      });
+    }
     return proxyJsonRequest(
       reply,
       ctx.requestFn,
@@ -39,7 +66,7 @@ export function registerScriptRoutes(server: FastifyInstance, ctx: GatewayContex
       {
         method: "POST",
         headers: addAuthUserIdHeader({ "content-type": "application/json" }, userId),
-        body: JSON.stringify(req.body ?? {})
+        body: JSON.stringify(parsed.data)
       }
     );
   });
@@ -62,6 +89,13 @@ export function registerScriptRoutes(server: FastifyInstance, ctx: GatewayContex
   server.post("/api/v1/scripts/:scriptId/access-requests/:requestId/approve", async (req, reply) => {
     const { scriptId, requestId } = req.params as { scriptId: string; requestId: string };
     const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
+    const parsed = ScriptAccessRequestDecisionRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.status(400).send({
+        error: "invalid_payload",
+        details: parsed.error.flatten()
+      });
+    }
     return proxyJsonRequest(
       reply,
       ctx.requestFn,
@@ -69,7 +103,7 @@ export function registerScriptRoutes(server: FastifyInstance, ctx: GatewayContex
       {
         method: "POST",
         headers: addAuthUserIdHeader({ "content-type": "application/json" }, userId),
-        body: JSON.stringify(req.body ?? {})
+        body: JSON.stringify(parsed.data)
       }
     );
   });
@@ -77,6 +111,13 @@ export function registerScriptRoutes(server: FastifyInstance, ctx: GatewayContex
   server.post("/api/v1/scripts/:scriptId/access-requests/:requestId/reject", async (req, reply) => {
     const { scriptId, requestId } = req.params as { scriptId: string; requestId: string };
     const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
+    const parsed = ScriptAccessRequestDecisionRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.status(400).send({
+        error: "invalid_payload",
+        details: parsed.error.flatten()
+      });
+    }
     return proxyJsonRequest(
       reply,
       ctx.requestFn,
@@ -84,7 +125,7 @@ export function registerScriptRoutes(server: FastifyInstance, ctx: GatewayContex
       {
         method: "POST",
         headers: addAuthUserIdHeader({ "content-type": "application/json" }, userId),
-        body: JSON.stringify(req.body ?? {})
+        body: JSON.stringify(parsed.data)
       }
     );
   });
@@ -109,6 +150,7 @@ export function registerScriptRoutes(server: FastifyInstance, ctx: GatewayContex
     if (!userId) {
       return reply.status(401).send({ error: "unauthorized" });
     }
+    // TODO: add validation schema
     return proxyJsonRequest(
       reply,
       ctx.requestFn,
@@ -124,6 +166,7 @@ export function registerScriptRoutes(server: FastifyInstance, ctx: GatewayContex
   server.patch("/api/v1/scripts/:scriptId/visibility", async (req, reply) => {
     const { scriptId } = req.params as { scriptId: string };
     const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
+    // TODO: add validation schema
     return proxyJsonRequest(
       reply,
       ctx.requestFn,

@@ -1,5 +1,11 @@
 import type { FastifyInstance } from "fastify";
 import {
+  PlacementCreateRequestSchema,
+  PlacementVerificationUpdateRequestSchema,
+  SubmissionCreateRequestSchema,
+  SubmissionProjectReassignmentRequestSchema
+} from "@script-manifest/contracts";
+import {
   type GatewayContext,
   addAuthUserIdHeader,
   buildQuerySuffix,
@@ -22,6 +28,13 @@ export function registerSubmissionRoutes(server: FastifyInstance, ctx: GatewayCo
 
   server.post("/api/v1/submissions", async (req, reply) => {
     const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
+    const parsed = SubmissionCreateRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.status(400).send({
+        error: "invalid_payload",
+        details: parsed.error.flatten()
+      });
+    }
 
     return proxyJsonRequest(reply, ctx.requestFn, `${ctx.submissionTrackingBase}/internal/submissions`, {
       method: "POST",
@@ -29,13 +42,20 @@ export function registerSubmissionRoutes(server: FastifyInstance, ctx: GatewayCo
         { "content-type": "application/json" },
         userId
       ),
-      body: JSON.stringify(req.body ?? {})
+      body: JSON.stringify(parsed.data)
     });
   });
 
   server.patch("/api/v1/submissions/:submissionId/project", async (req, reply) => {
     const { submissionId } = req.params as { submissionId: string };
     const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
+    const parsed = SubmissionProjectReassignmentRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.status(400).send({
+        error: "invalid_payload",
+        details: parsed.error.flatten()
+      });
+    }
 
     return proxyJsonRequest(
       reply,
@@ -47,7 +67,7 @@ export function registerSubmissionRoutes(server: FastifyInstance, ctx: GatewayCo
           { "content-type": "application/json" },
           userId
         ),
-        body: JSON.stringify(req.body ?? {})
+        body: JSON.stringify(parsed.data)
       }
     );
   });
@@ -83,6 +103,13 @@ export function registerSubmissionRoutes(server: FastifyInstance, ctx: GatewayCo
   server.post("/api/v1/submissions/:submissionId/placements", async (req, reply) => {
     const { submissionId } = req.params as { submissionId: string };
     const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
+    const parsed = PlacementCreateRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.status(400).send({
+        error: "invalid_payload",
+        details: parsed.error.flatten()
+      });
+    }
     const result = await proxyJsonRequest(
       reply,
       ctx.requestFn,
@@ -90,7 +117,7 @@ export function registerSubmissionRoutes(server: FastifyInstance, ctx: GatewayCo
       {
         method: "POST",
         headers: addAuthUserIdHeader({ "content-type": "application/json" }, userId),
-        body: JSON.stringify(req.body ?? {})
+        body: JSON.stringify(parsed.data)
       }
     );
 
@@ -122,6 +149,13 @@ export function registerSubmissionRoutes(server: FastifyInstance, ctx: GatewayCo
   server.post("/api/v1/placements/:placementId/verify", async (req, reply) => {
     const { placementId } = req.params as { placementId: string };
     const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
+    const parsed = PlacementVerificationUpdateRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.status(400).send({
+        error: "invalid_payload",
+        details: parsed.error.flatten()
+      });
+    }
     const result = await proxyJsonRequest(
       reply,
       ctx.requestFn,
@@ -129,7 +163,7 @@ export function registerSubmissionRoutes(server: FastifyInstance, ctx: GatewayCo
       {
         method: "POST",
         headers: addAuthUserIdHeader({ "content-type": "application/json" }, userId),
-        body: JSON.stringify(req.body ?? {})
+        body: JSON.stringify(parsed.data)
       }
     );
 

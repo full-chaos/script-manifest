@@ -3,6 +3,7 @@ import { Cormorant_Garamond, Manrope } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./components/providers";
 import { SiteHeader } from "./components/siteHeader";
+import { BugReportWidget } from "./components/bugReportWidget";
 
 const displayFont = Cormorant_Garamond({
   subsets: ["latin"],
@@ -48,6 +49,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               {children}
             </main>
           </div>
+          <BugReportWidget />
         </Providers>
       </body>
     </html>

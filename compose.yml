@@ -6,6 +6,7 @@ x-node-dev: &node-dev
 
 services:
   postgres:
+    # Intentionally pinned to major version 16 (tracks stable 16.x patches)
     image: postgres:16
     container_name: manifest-postgres
     environment:
@@ -24,6 +25,7 @@ services:
       retries: 5
 
   redis:
+    # Intentionally pinned to major version 7 (tracks stable 7.x patches)
     image: redis:7
     container_name: manifest-redis
     ports:
@@ -111,7 +113,8 @@ services:
       - "8082:8082"
 
   redpanda-console:
-    image: docker.redpanda.com/redpandadata/console:latest
+    # Pinned: Redpanda Console v2.7.2
+    image: docker.redpanda.com/redpandadata/console:v2.7.2
     container_name: manifest-redpanda-console
 
     depends_on:
@@ -144,7 +147,8 @@ services:
   # BugSink - Sentry-compatible error tracking (CHAOS-768)
   # UI: http://localhost:8800
   bugsink:
-    image: bugsink/bugsink:latest
+    # Pinned: BugSink 0.6.2
+    image: bugsink/bugsink:0.6.2
     container_name: manifest-bugsink
     ports:
       - "8800:8000"

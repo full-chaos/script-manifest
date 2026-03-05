@@ -1,7 +1,8 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import { pathToFileURL } from "node:url";
 import { randomUUID } from "node:crypto";
-import { validateRequiredEnv, bootstrapService } from "@script-manifest/service-utils";
+import { Counter } from "prom-client";
+import { validateRequiredEnv, bootstrapService, setupErrorReporting } from "@script-manifest/service-utils";
 import {
   CompetitionPrestigeUpsertRequestSchema,
   RankedLeaderboardFiltersSchema,
@@ -36,6 +37,12 @@ import {
 } from "./scoring.js";
 import { request as undiciRequest } from "undici";
 import { z } from "zod";
+
+const rankingsCounter = new Counter({
+  name: "rankings_computed_total",
+  help: "Total number of ranking computations",
+  labelNames: ["type"] as const,
+});
 
 type RequestFn = typeof undiciRequest;
 type PublishNotificationEvent = typeof publishNotificationEvent;
@@ -319,6 +326,7 @@ export function buildServer(options: RankingServiceOptions = {}): FastifyInstanc
       flagsCreated++;
     }
 
+    rankingsCounter.inc({ type: "full" });
     return {
       recomputedAt: now,
       writerCount: totalWriters,
@@ -334,6 +342,7 @@ export function buildServer(options: RankingServiceOptions = {}): FastifyInstanc
     const body = z.object({ writerId: z.string().min(1) }).safeParse(req.body);
     if (!body.success) return reply.status(400).send({ error: "invalid_payload" });
     // For now, incremental just returns accepted — full recompute handles scoring
+    rankingsCounter.inc({ type: "incremental" });
     return reply.status(202).send({ accepted: true, writerId: body.data.writerId });
   });
 
@@ -425,6 +434,7 @@ export function buildServer(options: RankingServiceOptions = {}): FastifyInstanc
 
 export async function startServer(): Promise<void> {
   const boot = bootstrapService("ranking-service");
+  setupErrorReporting("ranking-service");
   validateRequiredEnv(["DATABASE_URL"]);
   boot.phase("env validated");
   const server = buildServer();

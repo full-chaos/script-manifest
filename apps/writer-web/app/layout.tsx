@@ -4,6 +4,7 @@ import "./globals.css";
 import { Providers } from "./components/providers";
 import { SiteHeader } from "./components/siteHeader";
 import { BugReportWidget } from "./components/bugReportWidget";
+import { WebVitals } from "./components/WebVitals";
 
 const displayFont = Cormorant_Garamond({
   subsets: ["latin"],
@@ -36,6 +37,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body className={`${displayFont.variable} ${bodyFont.variable} font-body`}>
+        <WebVitals />
         <a
           href="#main-content"
           className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-white focus:px-3 focus:py-2 focus:text-sm focus:font-semibold"

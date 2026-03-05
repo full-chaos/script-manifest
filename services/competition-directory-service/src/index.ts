@@ -2,7 +2,7 @@ import Fastify, { type FastifyInstance, type FastifyReply } from "fastify";
 import { randomUUID } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import { request } from "undici";
-import { bootstrapService } from "@script-manifest/service-utils";
+import { bootstrapService, setupErrorReporting } from "@script-manifest/service-utils";
 import {
   CompetitionFiltersSchema,
   CompetitionSchema,
@@ -231,6 +231,7 @@ export function buildServer(options: CompetitionDirectoryOptions = {}): FastifyI
 
 export async function startServer(): Promise<void> {
   const boot = bootstrapService("competition-directory-service");
+  setupErrorReporting("competition-directory-service");
   const port = Number(process.env.PORT ?? 4002);
   const server = buildServer({
     searchIndexerBase: process.env.SEARCH_INDEXER_URL,

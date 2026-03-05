@@ -1,7 +1,8 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import { pathToFileURL } from "node:url";
 import { randomUUID } from "node:crypto";
-import { validateRequiredEnv, bootstrapService } from "@script-manifest/service-utils";
+import { Counter } from "prom-client";
+import { validateRequiredEnv, bootstrapService, setupErrorReporting } from "@script-manifest/service-utils";
 import {
   FeedbackListingCreateRequestSchema,
   FeedbackListingFiltersSchema,
@@ -15,6 +16,11 @@ import {
   type FeedbackExchangeRepository,
   PgFeedbackExchangeRepository
 } from "./repository.js";
+
+const feedbackCounter = new Counter({
+  name: "feedback_submitted_total",
+  help: "Total number of feedback reviews submitted",
+});
 
 type PublishNotificationEvent = typeof publishNotificationEvent;
 
@@ -316,6 +322,7 @@ export function buildServer(options: FeedbackExchangeServiceOptions = {}): Fasti
       server.log.warn({ error }, "failed to publish review submitted event");
     }
 
+    feedbackCounter.inc();
     return reply.send({ review: submitted });
   });
 
@@ -525,6 +532,7 @@ export function buildServer(options: FeedbackExchangeServiceOptions = {}): Fasti
 
 export async function startServer(): Promise<void> {
   const boot = bootstrapService("feedback-exchange-service");
+  setupErrorReporting("feedback-exchange-service");
   validateRequiredEnv(["DATABASE_URL"]);
   boot.phase("env validated");
   const port = Number(process.env.PORT ?? 4006);

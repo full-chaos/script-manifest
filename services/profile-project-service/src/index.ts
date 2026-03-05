@@ -1,7 +1,7 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import rateLimit from "@fastify/rate-limit";
 import { pathToFileURL } from "node:url";
-import { validateRequiredEnv, bootstrapService } from "@script-manifest/service-utils";
+import { validateRequiredEnv, bootstrapService, setupErrorReporting } from "@script-manifest/service-utils";
 import {
   ProjectCoWriterCreateRequestSchema,
   ProjectCreateInternalSchema,
@@ -598,6 +598,7 @@ export function buildServer(options: ProfileProjectServiceOptions = {}): Fastify
 
 export async function startServer(): Promise<void> {
   const boot = bootstrapService("profile-project-service");
+  setupErrorReporting("profile-project-service");
   if (process.env.OTEL_EXPORTER_OTLP_ENDPOINT) {
     const { setupTracing } = await import("@script-manifest/service-utils/tracing");
     const tracingSdk = setupTracing("profile-project-service");

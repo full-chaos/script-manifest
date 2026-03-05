@@ -3,7 +3,8 @@ import rateLimit from "@fastify/rate-limit";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import { request } from "undici";
-import { validateRequiredEnv, bootstrapService } from "@script-manifest/service-utils";
+import { Counter } from "prom-client";
+import { validateRequiredEnv, bootstrapService, setupErrorReporting } from "@script-manifest/service-utils";
 import {
   AuthLoginRequestSchema,
   AuthMeResponseSchema,
@@ -21,6 +22,12 @@ import {
   verifyPassword
 } from "./repository.js";
 import { registerMetrics } from "@script-manifest/service-utils";
+
+const loginCounter = new Counter({
+  name: "identity_logins_total",
+  help: "Total number of successful logins",
+  labelNames: ["method"] as const,
+});
 
 // Dummy credentials for constant-time verification when user doesn't exist
 const DUMMY_SALT = "0000000000000000000000000000000000000000000000000000000000000000";
@@ -161,6 +168,7 @@ export function buildServer(options: IdentityServiceOptions = {}): FastifyInstan
       }
     });
 
+      loginCounter.inc({ method: "password" });
       return reply.send(payload);
     }
   });
@@ -351,6 +359,7 @@ export function buildServer(options: IdentityServiceOptions = {}): FastifyInstan
 
 export async function startServer(): Promise<void> {
   const boot = bootstrapService("identity-service");
+  setupErrorReporting("identity-service");
   if (process.env.OTEL_EXPORTER_OTLP_ENDPOINT) {
     const { setupTracing } = await import("@script-manifest/service-utils/tracing");
     const tracingSdk = setupTracing("identity-service");
@@ -566,6 +575,7 @@ async function completeOAuthSession(
     }
   });
 
+  loginCounter.inc({ method: provider });
   return { payload };
 }
 

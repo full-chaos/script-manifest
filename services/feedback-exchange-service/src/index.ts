@@ -1,7 +1,8 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import { pathToFileURL } from "node:url";
 import { randomUUID } from "node:crypto";
-import { Counter, bootstrapService, registerMetrics, setupErrorReporting, validateRequiredEnv } from "@script-manifest/service-utils";
+import { Counter } from "prom-client";
+import { bootstrapService, registerMetrics, setupErrorReporting, validateRequiredEnv } from "@script-manifest/service-utils";
 import {
   FeedbackListingCreateRequestSchema,
   FeedbackListingFiltersSchema,

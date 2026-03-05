@@ -17,5 +17,3 @@ RUN for attempt in 1 2 3 4 5; do \
     exit 1
 
 WORKDIR /workspace
-# Note: workspace volume must be readable by node user (uid=1000)
-USER node

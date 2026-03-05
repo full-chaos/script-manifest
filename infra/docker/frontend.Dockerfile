@@ -66,5 +66,7 @@ COPY --from=builder /app/apps/writer-web/.next/standalone/ ./
 COPY --from=builder /app/apps/writer-web/.next/static/ ./apps/writer-web/.next/static/
 COPY --from=builder /app/apps/writer-web/public/ ./apps/writer-web/public/
 
+USER node
+
 EXPOSE 3000
 CMD ["node", "apps/writer-web/server.js"]

@@ -1,9 +1,15 @@
 name: "Script Manifest CodeQL Config"
 
-# Exclude queries that produce false positives for Fastify's plugin-based
-# rate limiting (config.rateLimit).  CodeQL only recognises Express-style
-# express-rate-limit middleware and therefore flags every authenticated
-# Fastify route as "missing rate limiting".
+# CodeQL's js/missing-rate-limiting query only recognises the old unscoped
+# package name "fastify-rate-limit".  This project uses @fastify/rate-limit
+# (the modern scoped name), which is registered globally in
+# services/api-gateway/src/plugins/rateLimit.ts and provides per-route
+# overrides via Fastify's config.rateLimit route option.
+#
+# Until the upstream model is fixed (github/codeql FastifyRateLimiter class
+# in MissingRateLimiting.qll), exclude this query to avoid false positives.
+#
+# See: https://github.com/github/codeql/blob/main/javascript/ql/lib/semmle/javascript/security/dataflow/MissingRateLimiting.qll
 query-filters:
   - exclude:
       id: js/missing-rate-limiting

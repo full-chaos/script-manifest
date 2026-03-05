@@ -7,7 +7,8 @@ import {
 import { createPresignedPost } from "@aws-sdk/s3-presigned-post";
 import { randomUUID } from "node:crypto";
 import { pathToFileURL } from "node:url";
-import { validateRequiredEnv, bootstrapService } from "@script-manifest/service-utils";
+import { Counter } from "prom-client";
+import { validateRequiredEnv, bootstrapService, setupErrorReporting } from "@script-manifest/service-utils";
 import {
   ScriptFileRegistrationSchema,
   ScriptRegisterRequestSchema,
@@ -20,6 +21,12 @@ import {
   type ScriptFileRegistration,
   type ScriptVisibility
 } from "@script-manifest/contracts";
+
+const scriptsUploadedCounter = new Counter({
+  name: "scripts_uploaded_total",
+  help: "Total number of successfully registered scripts",
+  labelNames: ["type"] as const,
+});
 
 type ScriptRecord = ScriptFileRegistration & {
   visibility: ScriptVisibility;
@@ -194,6 +201,7 @@ export function buildServer(options: ScriptStorageServiceOptions = {}): FastifyI
       script
     });
 
+    scriptsUploadedCounter.inc({ type: "registered" });
     return reply.status(201).send(responsePayload);
   });
 
@@ -311,6 +319,7 @@ export function buildServer(options: ScriptStorageServiceOptions = {}): FastifyI
 
 export async function startServer(): Promise<void> {
   const boot = bootstrapService("script-storage-service");
+  setupErrorReporting("script-storage-service");
   validateRequiredEnv([
     "STORAGE_BUCKET",
     "STORAGE_S3_ENDPOINT",

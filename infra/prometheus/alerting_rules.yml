@@ -1,0 +1,45 @@
+groups:
+  - name: ServiceHealth
+    rules:
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        annotations:
+          summary: "Service {{ $labels.job }} is down"
+          description: "Prometheus target for {{ $labels.job }} has been unreachable for over 1 minute (value: {{ $value }})."
+
+  - name: HTTPErrors
+    rules:
+      - alert: HighErrorRate
+        expr: |
+          (
+            sum by (job) (rate(http_request_duration_seconds_count{status_code=~"5.."}[5m]))
+            /
+            sum by (job) (rate(http_request_duration_seconds_count[5m]))
+          ) > 0.05
+        for: 5m
+        annotations:
+          summary: "High 5xx error rate on {{ $labels.job }}"
+          description: "5xx responses exceed 5% of total requests for {{ $labels.job }} over the last 5 minutes (value: {{ $value }})."
+
+  - name: Latency
+    rules:
+      - alert: HighP99Latency
+        expr: |
+          histogram_quantile(
+            0.99,
+            sum by (le, job) (rate(http_request_duration_seconds_bucket[5m]))
+          ) > 2
+        for: 5m
+        annotations:
+          summary: "High p99 latency on {{ $labels.job }}"
+          description: "p99 request duration for {{ $labels.job }} is above 2 seconds for over 5 minutes (value: {{ $value }})."
+
+  - name: Resources
+    rules:
+      - alert: HighMemoryUsage
+        expr: process_resident_memory_bytes > 524288000
+        for: 5m
+        annotations:
+          summary: "High memory usage on {{ $labels.job }}"
+          description: "Resident memory usage for {{ $labels.job }} is above 500MB for over 5 minutes (value: {{ $value }})."

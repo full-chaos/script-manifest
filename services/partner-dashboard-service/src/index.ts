@@ -3,7 +3,7 @@ import rateLimit from "@fastify/rate-limit";
 import { randomUUID } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import { request as undiciRequest } from "undici";
-import { bootstrapService } from "@script-manifest/service-utils";
+import { bootstrapService, setupErrorReporting } from "@script-manifest/service-utils";
 import {
   PartnerCompetitionCreateRequestSchema,
   PartnerDraftSwapRequestSchema,
@@ -984,6 +984,7 @@ export function buildServer(options: PartnerDashboardServiceOptions = {}): Fasti
 
 export async function startServer(): Promise<void> {
   const boot = bootstrapService("partner-dashboard-service");
+  setupErrorReporting("partner-dashboard-service");
   const port = Number(process.env.PORT ?? 4013);
   const server = buildServer();
   boot.phase("server built");

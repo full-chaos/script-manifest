@@ -3,7 +3,7 @@ import cors from "@fastify/cors";
 import { randomUUID } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import { request } from "undici";
-import { validateRequiredEnv, bootstrapService } from "@script-manifest/service-utils";
+import { validateRequiredEnv, bootstrapService, setupErrorReporting } from "@script-manifest/service-utils";
 import { type GatewayContext, type RequestFn, parseAllowlist } from "./helpers.js";
 import helmet from "@fastify/helmet";
 import { registerRateLimit } from "./plugins/rateLimit.js";
@@ -115,6 +115,7 @@ export { buildQuerySuffix } from "./helpers.js";
 
 export async function startServer(): Promise<void> {
   const boot = bootstrapService("api-gateway");
+  setupErrorReporting("api-gateway");
 
   // Setup distributed tracing when OTEL_EXPORTER_OTLP_ENDPOINT is set.
   // Guard the dynamic import behind the env-var check so that the heavy

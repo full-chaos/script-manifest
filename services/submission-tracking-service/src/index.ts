@@ -1,7 +1,8 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import { randomUUID } from "node:crypto";
 import { pathToFileURL } from "node:url";
-import { bootstrapService } from "@script-manifest/service-utils";
+import { Counter } from "prom-client";
+import { bootstrapService, setupErrorReporting } from "@script-manifest/service-utils";
 import {
   PlacementFiltersSchema,
   PlacementListItemSchema,
@@ -16,6 +17,11 @@ import {
   type PlacementListItem,
   type Submission
 } from "@script-manifest/contracts";
+
+const submissionsCounter = new Counter({
+  name: "submissions_created_total",
+  help: "Total number of submissions created",
+});
 
 export type SubmissionTrackingOptions = {
   logger?: boolean;
@@ -81,6 +87,7 @@ export function buildServer(options: SubmissionTrackingOptions = {}): FastifyIns
     });
     submissions.set(submission.id, submission);
 
+    submissionsCounter.inc();
     return reply.status(201).send({ submission });
   });
 
@@ -318,6 +325,7 @@ function toPlacementListItem(placement: Placement, submission: Submission): Plac
 
 export async function startServer(): Promise<void> {
   const boot = bootstrapService("submission-tracking-service");
+  setupErrorReporting("submission-tracking-service");
   const port = Number(process.env.PORT ?? 4004);
   const server = buildServer();
   boot.phase("server built");

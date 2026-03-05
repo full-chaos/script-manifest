@@ -3,7 +3,7 @@ import rateLimit from "@fastify/rate-limit";
 import { randomUUID } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import { request as undiciRequest } from "undici";
-import { bootstrapService } from "@script-manifest/service-utils";
+import { bootstrapService, setupErrorReporting } from "@script-manifest/service-utils";
 import {
   ProgramApplicationCreateRequestSchema,
   ProgramApplicationReviewRequestSchema,
@@ -731,6 +731,7 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
 
 export async function startServer(): Promise<void> {
   const boot = bootstrapService("programs-service");
+  setupErrorReporting("programs-service");
   const port = Number(process.env.PORT ?? 4012);
   const server = buildServer();
   boot.phase("server built");

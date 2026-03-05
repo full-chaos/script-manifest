@@ -2,7 +2,8 @@ import Fastify, { type FastifyInstance } from "fastify";
 import rateLimit from "@fastify/rate-limit";
 import { pathToFileURL } from "node:url";
 import { randomUUID } from "node:crypto";
-import { validateRequiredEnv, bootstrapService } from "@script-manifest/service-utils";
+import { Counter } from "prom-client";
+import { validateRequiredEnv, bootstrapService, setupErrorReporting } from "@script-manifest/service-utils";
 import {
   CoverageProviderCreateRequestSchema,
   CoverageProviderUpdateRequestSchema,
@@ -22,6 +23,12 @@ import type { CoverageMarketplaceRepository } from "./repository.js";
 import { PgCoverageMarketplaceRepository } from "./pgRepository.js";
 import { type PaymentGateway, MemoryPaymentGateway } from "./paymentGateway.js";
 import { StripePaymentGateway } from "./stripePaymentGateway.js";
+
+const coverageOrdersCounter = new Counter({
+  name: "coverage_orders_total",
+  help: "Total number of coverage orders by status",
+  labelNames: ["status"] as const,
+});
 
 export type CoverageMarketplaceServiceOptions = {
   logger?: boolean;
@@ -493,6 +500,7 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
       stripePaymentIntentId: intentId
     });
 
+    coverageOrdersCounter.inc({ status: "created" });
     return reply.status(201).send({ order, clientSecret });
   });
 
@@ -1179,6 +1187,7 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
 
 export async function startServer(): Promise<void> {
   const boot = bootstrapService("coverage-marketplace-service");
+  setupErrorReporting("coverage-marketplace-service");
   validateRequiredEnv(["DATABASE_URL", "STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"]);
   boot.phase("env validated");
   const port = Number(process.env.PORT ?? 4008);

@@ -22,20 +22,20 @@ pnpm --filter @script-manifest/<name> typecheck # Single package typecheck
 
 ## Service Map
 
-| Service | Port | Package | Storage |
-|---------|------|---------|---------|
-| api-gateway | 4000 | @script-manifest/api-gateway | — |
-| profile-project | 4001 | @script-manifest/profile-project-service | PostgreSQL |
-| competition-directory | 4002 | @script-manifest/competition-directory-service | In-memory |
-| search-indexer | 4003 | @script-manifest/search-indexer-service | OpenSearch |
-| submission-tracking | 4004 | @script-manifest/submission-tracking-service | In-memory |
-| identity | 4005 | @script-manifest/identity-service | PostgreSQL |
-| feedback-exchange | 4006 | @script-manifest/feedback-exchange-service | PostgreSQL |
-| ranking | 4007 | @script-manifest/ranking-service | PostgreSQL |
-| coverage-marketplace | 4008 | @script-manifest/coverage-marketplace-service | PostgreSQL+Stripe |
-| notification | 4010 | @script-manifest/notification-service | In-memory |
-| script-storage | 4011 | @script-manifest/script-storage-service | MinIO |
-| writer-web | 3000 | @script-manifest/writer-web | — |
+| Service               | Port | Package                                        | Storage           |
+| --------------------- | ---- | ---------------------------------------------- | ----------------- |
+| api-gateway           | 4000 | @script-manifest/api-gateway                   | —                 |
+| profile-project       | 4001 | @script-manifest/profile-project-service       | PostgreSQL        |
+| competition-directory | 4002 | @script-manifest/competition-directory-service | In-memory         |
+| search-indexer        | 4003 | @script-manifest/search-indexer-service        | OpenSearch        |
+| submission-tracking   | 4004 | @script-manifest/submission-tracking-service   | In-memory         |
+| identity              | 4005 | @script-manifest/identity-service              | PostgreSQL        |
+| feedback-exchange     | 4006 | @script-manifest/feedback-exchange-service     | PostgreSQL        |
+| ranking               | 4007 | @script-manifest/ranking-service               | PostgreSQL        |
+| coverage-marketplace  | 4008 | @script-manifest/coverage-marketplace-service  | PostgreSQL+Stripe |
+| notification          | 4010 | @script-manifest/notification-service          | In-memory         |
+| script-storage        | 4011 | @script-manifest/script-storage-service        | MinIO             |
+| writer-web            | 3000 | @script-manifest/writer-web                    | —                 |
 
 ## Architecture Patterns
 
@@ -44,7 +44,7 @@ pnpm --filter @script-manifest/<name> typecheck # Single package typecheck
 Every Fastify service uses `buildServer(options)` with dependency injection:
 
 ```typescript
-export function buildServer(options: XServiceOptions = {}): FastifyInstance
+export function buildServer(options: XServiceOptions = {}): FastifyInstance;
 ```
 
 Tests: `buildServer({ logger: false, repository: new MemoryRepo() })` + `server.inject()`.
@@ -52,6 +52,7 @@ Tests: `buildServer({ logger: false, repository: new MemoryRepo() })` + `server.
 ### Repository Pattern
 
 DB-backed services (identity, profile-project, feedback-exchange, ranking, coverage-marketplace) define a repository interface with:
+
 - `PgXRepository` for production (PostgreSQL via `@script-manifest/db`)
 - `MemoryXRepository` for tests (in-memory implementations within test files)
 
@@ -85,7 +86,7 @@ Shared Zod schemas + TypeScript types in `packages/contracts/`. All API request/
 ## Git Workflow
 
 - **NEVER commit or push directly to `main`.** All changes go through feature branches + PRs.
-- Branch format: `codex/phase-<n>-<short-feature-slug>`
+- Branch format: `<change-type:feat,chore,sec,fix,docs>/<issue>-<short description>`
 - Create from latest: `git fetch origin && git checkout main && git pull --ff-only`
 - Task tracking: [Linear project](https://linear.app/fullchaos/project/script-manifest-15384341055a) via `linear` CLI
 
@@ -122,6 +123,7 @@ linear issues get CHAOS-123
 ### Claude Code Skills
 
 Available workflow skills (install with `linear skills install --all`):
+
 - `/prd` - Create agent-friendly tickets with PRDs and sub-issues
 - `/triage` - Analyze and prioritize backlog
 - `/cycle-plan` - Plan cycles using velocity analytics

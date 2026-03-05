@@ -22,7 +22,9 @@ import {
 
 export function registerCoverageRoutes(server: FastifyInstance, ctx: GatewayContext): void {
   // Provider routes
-  server.post("/api/v1/coverage/providers", async (req, reply) => {
+  server.post("/api/v1/coverage/providers", {
+    config: { rateLimit: { max: 30, timeWindow: "1 minute" } }
+  }, async (req, reply) => {
     const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
     if (!userId) return reply.status(401).send({ error: "unauthorized" });
     const parsed = CoverageProviderCreateRequestSchema.safeParse(req.body);
@@ -51,7 +53,9 @@ export function registerCoverageRoutes(server: FastifyInstance, ctx: GatewayCont
     );
   });
 
-  server.patch("/api/v1/coverage/providers/:providerId", async (req, reply) => {
+  server.patch("/api/v1/coverage/providers/:providerId", {
+    config: { rateLimit: { max: 30, timeWindow: "1 minute" } }
+  }, async (req, reply) => {
     const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
     if (!userId) return reply.status(401).send({ error: "unauthorized" });
     const { providerId } = req.params as { providerId: string };
@@ -65,7 +69,9 @@ export function registerCoverageRoutes(server: FastifyInstance, ctx: GatewayCont
     );
   });
 
-  server.get("/api/v1/coverage/providers/:providerId/stripe-onboarding", async (req, reply) => {
+  server.get("/api/v1/coverage/providers/:providerId/stripe-onboarding", {
+    config: { rateLimit: { max: 60, timeWindow: "1 minute" } }
+  }, async (req, reply) => {
     const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
     if (!userId) return reply.status(401).send({ error: "unauthorized" });
     const { providerId } = req.params as { providerId: string };
@@ -123,7 +129,9 @@ export function registerCoverageRoutes(server: FastifyInstance, ctx: GatewayCont
   });
 
   // Service routes
-  server.post("/api/v1/coverage/providers/:providerId/services", async (req, reply) => {
+  server.post("/api/v1/coverage/providers/:providerId/services", {
+    config: { rateLimit: { max: 30, timeWindow: "1 minute" } }
+  }, async (req, reply) => {
     const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
     if (!userId) return reply.status(401).send({ error: "unauthorized" });
     const { providerId } = req.params as { providerId: string };
@@ -153,7 +161,9 @@ export function registerCoverageRoutes(server: FastifyInstance, ctx: GatewayCont
     );
   });
 
-  server.patch("/api/v1/coverage/services/:serviceId", async (req, reply) => {
+  server.patch("/api/v1/coverage/services/:serviceId", {
+    config: { rateLimit: { max: 30, timeWindow: "1 minute" } }
+  }, async (req, reply) => {
     const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
     if (!userId) return reply.status(401).send({ error: "unauthorized" });
     const { serviceId } = req.params as { serviceId: string };
@@ -168,7 +178,9 @@ export function registerCoverageRoutes(server: FastifyInstance, ctx: GatewayCont
   });
 
   // Order routes
-  server.post("/api/v1/coverage/orders", async (req, reply) => {
+  server.post("/api/v1/coverage/orders", {
+    config: { rateLimit: { max: 30, timeWindow: "1 minute" } }
+  }, async (req, reply) => {
     const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
     if (!userId) return reply.status(401).send({ error: "unauthorized" });
     const parsed = CoverageOrderCreateRequestSchema.safeParse(req.body);
@@ -181,7 +193,9 @@ export function registerCoverageRoutes(server: FastifyInstance, ctx: GatewayCont
     );
   });
 
-  server.get("/api/v1/coverage/orders", async (req, reply) => {
+  server.get("/api/v1/coverage/orders", {
+    config: { rateLimit: { max: 60, timeWindow: "1 minute" } }
+  }, async (req, reply) => {
     const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
     if (!userId) return reply.status(401).send({ error: "unauthorized" });
     const qs = buildQuerySuffix(req.query);
@@ -191,7 +205,9 @@ export function registerCoverageRoutes(server: FastifyInstance, ctx: GatewayCont
     );
   });
 
-  server.get("/api/v1/coverage/orders/:orderId", async (req, reply) => {
+  server.get("/api/v1/coverage/orders/:orderId", {
+    config: { rateLimit: { max: 60, timeWindow: "1 minute" } }
+  }, async (req, reply) => {
     const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
     if (!userId) return reply.status(401).send({ error: "unauthorized" });
     const { orderId } = req.params as { orderId: string };
@@ -203,7 +219,9 @@ export function registerCoverageRoutes(server: FastifyInstance, ctx: GatewayCont
 
   // Order action routes (claim, deliver, complete, cancel)
   for (const action of ["claim", "deliver", "complete", "cancel"] as const) {
-    server.post(`/api/v1/coverage/orders/:orderId/${action}`, async (req, reply) => {
+    server.post(`/api/v1/coverage/orders/:orderId/${action}`, {
+      config: { rateLimit: { max: 30, timeWindow: "1 minute" } }
+    }, async (req, reply) => {
       const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
       if (!userId) return reply.status(401).send({ error: "unauthorized" });
       const { orderId } = req.params as { orderId: string };
@@ -225,7 +243,9 @@ export function registerCoverageRoutes(server: FastifyInstance, ctx: GatewayCont
   }
 
   // Delivery route
-  server.get("/api/v1/coverage/orders/:orderId/delivery", async (req, reply) => {
+  server.get("/api/v1/coverage/orders/:orderId/delivery", {
+    config: { rateLimit: { max: 60, timeWindow: "1 minute" } }
+  }, async (req, reply) => {
     const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
     if (!userId) return reply.status(401).send({ error: "unauthorized" });
     const { orderId } = req.params as { orderId: string };
@@ -249,7 +269,9 @@ export function registerCoverageRoutes(server: FastifyInstance, ctx: GatewayCont
   });
 
   // Review routes
-  server.post("/api/v1/coverage/orders/:orderId/review", async (req, reply) => {
+  server.post("/api/v1/coverage/orders/:orderId/review", {
+    config: { rateLimit: { max: 30, timeWindow: "1 minute" } }
+  }, async (req, reply) => {
     const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
     if (!userId) return reply.status(401).send({ error: "unauthorized" });
     const { orderId } = req.params as { orderId: string };
@@ -272,7 +294,9 @@ export function registerCoverageRoutes(server: FastifyInstance, ctx: GatewayCont
   });
 
   // Dispute routes
-  server.post("/api/v1/coverage/orders/:orderId/dispute", async (req, reply) => {
+  server.post("/api/v1/coverage/orders/:orderId/dispute", {
+    config: { rateLimit: { max: 30, timeWindow: "1 minute" } }
+  }, async (req, reply) => {
     const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
     if (!userId) return reply.status(401).send({ error: "unauthorized" });
     const { orderId } = req.params as { orderId: string };
@@ -286,7 +310,9 @@ export function registerCoverageRoutes(server: FastifyInstance, ctx: GatewayCont
     );
   });
 
-  server.get("/api/v1/coverage/disputes", async (req, reply) => {
+  server.get("/api/v1/coverage/disputes", {
+    config: { rateLimit: { max: 30, timeWindow: "1 minute" } }
+  }, async (req, reply) => {
     const adminId = await resolveAdminUserId(ctx.requestFn, ctx.identityServiceBase, req.headers, ctx.coverageAdminAllowlist);
     if (!adminId) return reply.status(403).send({ error: "forbidden" });
     const qs = buildQuerySuffix(req.query);
@@ -296,7 +322,9 @@ export function registerCoverageRoutes(server: FastifyInstance, ctx: GatewayCont
     );
   });
 
-  server.patch("/api/v1/coverage/disputes/:disputeId", async (req, reply) => {
+  server.patch("/api/v1/coverage/disputes/:disputeId", {
+    config: { rateLimit: { max: 30, timeWindow: "1 minute" } }
+  }, async (req, reply) => {
     const adminId = await resolveAdminUserId(ctx.requestFn, ctx.identityServiceBase, req.headers, ctx.coverageAdminAllowlist);
     if (!adminId) return reply.status(403).send({ error: "forbidden" });
     const { disputeId } = req.params as { disputeId: string };

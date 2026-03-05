@@ -203,7 +203,7 @@ test("PUT /api/v1/admin/rankings/prestige/:competitionId requires allowlisted ad
   const forbidden = await server.inject({
     method: "PUT",
     url: "/api/v1/admin/rankings/prestige/comp_01",
-    payload: { multiplier: 2 }
+    payload: { tier: "notable", multiplier: 2 }
   });
   assert.equal(forbidden.statusCode, 403);
 
@@ -211,7 +211,7 @@ test("PUT /api/v1/admin/rankings/prestige/:competitionId requires allowlisted ad
     method: "PUT",
     url: "/api/v1/admin/rankings/prestige/comp_01",
     headers: { "x-admin-user-id": "admin_01" },
-    payload: { multiplier: 2 }
+    payload: { tier: "notable", multiplier: 2 }
   });
   assert.equal(ok.statusCode, 200);
   assert.equal(urls[0], "http://ranking-svc/internal/prestige/comp_01");
@@ -302,7 +302,7 @@ test("POST /api/v1/admin/rankings/appeals/:appealId/resolve requires admin", asy
   const forbidden = await server.inject({
     method: "POST",
     url: "/api/v1/admin/rankings/appeals/appeal_01/resolve",
-    payload: { status: "accepted", notes: "Valid appeal" }
+    payload: { status: "upheld", resolutionNote: "Valid appeal" }
   });
   assert.equal(forbidden.statusCode, 403);
 
@@ -310,7 +310,7 @@ test("POST /api/v1/admin/rankings/appeals/:appealId/resolve requires admin", asy
     method: "POST",
     url: "/api/v1/admin/rankings/appeals/appeal_01/resolve",
     headers: { "x-admin-user-id": "admin_01" },
-    payload: { status: "accepted", notes: "Valid appeal" }
+    payload: { status: "upheld", resolutionNote: "Valid appeal" }
   });
   assert.equal(ok.statusCode, 200);
   assert.equal(urls[0], "http://ranking-svc/internal/appeals/appeal_01/resolve");

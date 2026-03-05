@@ -167,7 +167,13 @@ test("POST /api/v1/feedback/listings requires auth and proxies to feedback excha
   const forbidden = await server.inject({
     method: "POST",
     url: "/api/v1/feedback/listings",
-    payload: { scriptId: "script_01", tokenCost: 3 }
+    payload: {
+      projectId: "project_01",
+      scriptId: "script_01",
+      title: "My Script",
+      genre: "drama",
+      format: "feature"
+    }
   });
   assert.equal(forbidden.statusCode, 401);
 
@@ -175,7 +181,13 @@ test("POST /api/v1/feedback/listings requires auth and proxies to feedback excha
     method: "POST",
     url: "/api/v1/feedback/listings",
     headers: { authorization: "Bearer sess_1" },
-    payload: { scriptId: "script_01", tokenCost: 3 }
+    payload: {
+      projectId: "project_01",
+      scriptId: "script_01",
+      title: "My Script",
+      genre: "drama",
+      format: "feature"
+    }
   });
   assert.equal(ok.statusCode, 201);
   assert.equal(urls[0], "http://feedback-svc/internal/listings");
@@ -424,7 +436,15 @@ test("POST /api/v1/feedback/reviews/:reviewId/submit requires auth", async (t) =
   const forbidden = await server.inject({
     method: "POST",
     url: "/api/v1/feedback/reviews/review_01/submit",
-    payload: { overallRating: 4, comments: "Great script" }
+    payload: {
+      rubric: {
+        storyStructure: { score: 4, comment: "Good structure" },
+        characters: { score: 4, comment: "Well developed" },
+        dialogue: { score: 4, comment: "Natural dialogue" },
+        craftVoice: { score: 4, comment: "Strong voice" }
+      },
+      overallComment: "Great script"
+    }
   });
   assert.equal(forbidden.statusCode, 401);
 
@@ -432,7 +452,15 @@ test("POST /api/v1/feedback/reviews/:reviewId/submit requires auth", async (t) =
     method: "POST",
     url: "/api/v1/feedback/reviews/review_01/submit",
     headers: { authorization: "Bearer sess_1" },
-    payload: { overallRating: 4, comments: "Great script" }
+    payload: {
+      rubric: {
+        storyStructure: { score: 4, comment: "Good structure" },
+        characters: { score: 4, comment: "Well developed" },
+        dialogue: { score: 4, comment: "Natural dialogue" },
+        craftVoice: { score: 4, comment: "Strong voice" }
+      },
+      overallComment: "Great script"
+    }
   });
   assert.equal(ok.statusCode, 200);
   assert.equal(urls[0], "http://feedback-svc/internal/reviews/review_01/submit");
@@ -466,7 +494,7 @@ test("POST /api/v1/feedback/reviews/:reviewId/rate requires auth", async (t) => 
   const forbidden = await server.inject({
     method: "POST",
     url: "/api/v1/feedback/reviews/review_01/rate",
-    payload: { stars: 5 }
+    payload: { score: 5 }
   });
   assert.equal(forbidden.statusCode, 401);
 
@@ -474,7 +502,7 @@ test("POST /api/v1/feedback/reviews/:reviewId/rate requires auth", async (t) => 
     method: "POST",
     url: "/api/v1/feedback/reviews/review_01/rate",
     headers: { authorization: "Bearer sess_1" },
-    payload: { stars: 5 }
+    payload: { score: 5 }
   });
   assert.equal(ok.statusCode, 200);
   assert.equal(urls[0], "http://feedback-svc/internal/reviews/review_01/rate");
@@ -636,7 +664,7 @@ test("POST /api/v1/feedback/disputes/:disputeId/resolve requires auth", async (t
   const forbidden = await server.inject({
     method: "POST",
     url: "/api/v1/feedback/disputes/dispute_01/resolve",
-    payload: { resolution: "refund_tokens", notes: "Valid dispute" }
+    payload: { status: "resolved_for_filer", resolutionNote: "Valid dispute" }
   });
   assert.equal(forbidden.statusCode, 401);
 
@@ -644,7 +672,7 @@ test("POST /api/v1/feedback/disputes/:disputeId/resolve requires auth", async (t
     method: "POST",
     url: "/api/v1/feedback/disputes/dispute_01/resolve",
     headers: { authorization: "Bearer sess_1" },
-    payload: { resolution: "refund_tokens", notes: "Valid dispute" }
+    payload: { status: "resolved_for_filer", resolutionNote: "Valid dispute" }
   });
   assert.equal(ok.statusCode, 200);
   assert.equal(urls[0], "http://feedback-svc/internal/disputes/dispute_01/resolve");

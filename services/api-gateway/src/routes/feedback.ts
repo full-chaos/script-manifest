@@ -1,5 +1,12 @@
 import type { FastifyInstance } from "fastify";
 import {
+  FeedbackDisputeCreateRequestSchema,
+  FeedbackDisputeResolveRequestSchema,
+  FeedbackListingCreateRequestSchema,
+  FeedbackReviewSubmitRequestSchema,
+  ReviewerRatingCreateRequestSchema
+} from "@script-manifest/contracts";
+import {
   type GatewayContext,
   addAuthUserIdHeader,
   buildQuerySuffix,
@@ -42,6 +49,7 @@ export function registerFeedbackRoutes(server: FastifyInstance, ctx: GatewayCont
     if (!userId) {
       return reply.status(401).send({ error: "unauthorized" });
     }
+    // TODO: add validation schema
     return proxyJsonRequest(
       reply,
       ctx.requestFn,
@@ -61,6 +69,13 @@ export function registerFeedbackRoutes(server: FastifyInstance, ctx: GatewayCont
     if (!userId) {
       return reply.status(401).send({ error: "unauthorized" });
     }
+    const parsed = FeedbackListingCreateRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.status(400).send({
+        error: "invalid_payload",
+        details: parsed.error.flatten()
+      });
+    }
     return proxyJsonRequest(
       reply,
       ctx.requestFn,
@@ -68,7 +83,7 @@ export function registerFeedbackRoutes(server: FastifyInstance, ctx: GatewayCont
       {
         method: "POST",
         headers: addAuthUserIdHeader({ "content-type": "application/json" }, userId),
-        body: JSON.stringify(req.body ?? {})
+        body: JSON.stringify(parsed.data)
       }
     );
   });
@@ -99,6 +114,7 @@ export function registerFeedbackRoutes(server: FastifyInstance, ctx: GatewayCont
     if (!userId) {
       return reply.status(401).send({ error: "unauthorized" });
     }
+    // TODO: add validation schema
 
     try {
       const upstream = await ctx.requestFn(
@@ -147,6 +163,7 @@ export function registerFeedbackRoutes(server: FastifyInstance, ctx: GatewayCont
     if (!userId) {
       return reply.status(401).send({ error: "unauthorized" });
     }
+    // TODO: add validation schema
     return proxyJsonRequest(
       reply,
       ctx.requestFn,
@@ -192,6 +209,13 @@ export function registerFeedbackRoutes(server: FastifyInstance, ctx: GatewayCont
     if (!userId) {
       return reply.status(401).send({ error: "unauthorized" });
     }
+    const parsed = FeedbackReviewSubmitRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.status(400).send({
+        error: "invalid_payload",
+        details: parsed.error.flatten()
+      });
+    }
     return proxyJsonRequest(
       reply,
       ctx.requestFn,
@@ -199,7 +223,7 @@ export function registerFeedbackRoutes(server: FastifyInstance, ctx: GatewayCont
       {
         method: "POST",
         headers: addAuthUserIdHeader({ "content-type": "application/json" }, userId),
-        body: JSON.stringify(req.body ?? {})
+        body: JSON.stringify(parsed.data)
       }
     );
   });
@@ -210,6 +234,13 @@ export function registerFeedbackRoutes(server: FastifyInstance, ctx: GatewayCont
     if (!userId) {
       return reply.status(401).send({ error: "unauthorized" });
     }
+    const parsed = ReviewerRatingCreateRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.status(400).send({
+        error: "invalid_payload",
+        details: parsed.error.flatten()
+      });
+    }
     return proxyJsonRequest(
       reply,
       ctx.requestFn,
@@ -217,7 +248,7 @@ export function registerFeedbackRoutes(server: FastifyInstance, ctx: GatewayCont
       {
         method: "POST",
         headers: addAuthUserIdHeader({ "content-type": "application/json" }, userId),
-        body: JSON.stringify(req.body ?? {})
+        body: JSON.stringify(parsed.data)
       }
     );
   });
@@ -238,6 +269,13 @@ export function registerFeedbackRoutes(server: FastifyInstance, ctx: GatewayCont
     if (!userId) {
       return reply.status(401).send({ error: "unauthorized" });
     }
+    const parsed = FeedbackDisputeCreateRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.status(400).send({
+        error: "invalid_payload",
+        details: parsed.error.flatten()
+      });
+    }
     return proxyJsonRequest(
       reply,
       ctx.requestFn,
@@ -245,7 +283,7 @@ export function registerFeedbackRoutes(server: FastifyInstance, ctx: GatewayCont
       {
         method: "POST",
         headers: addAuthUserIdHeader({ "content-type": "application/json" }, userId),
-        body: JSON.stringify(req.body ?? {})
+        body: JSON.stringify(parsed.data)
       }
     );
   });
@@ -284,6 +322,13 @@ export function registerFeedbackRoutes(server: FastifyInstance, ctx: GatewayCont
     if (!userId) {
       return reply.status(401).send({ error: "unauthorized" });
     }
+    const parsed = FeedbackDisputeResolveRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.status(400).send({
+        error: "invalid_payload",
+        details: parsed.error.flatten()
+      });
+    }
     return proxyJsonRequest(
       reply,
       ctx.requestFn,
@@ -291,7 +336,7 @@ export function registerFeedbackRoutes(server: FastifyInstance, ctx: GatewayCont
       {
         method: "POST",
         headers: addAuthUserIdHeader({ "content-type": "application/json" }, userId),
-        body: JSON.stringify(req.body ?? {})
+        body: JSON.stringify(parsed.data)
       }
     );
   });

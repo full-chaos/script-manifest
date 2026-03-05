@@ -2,7 +2,7 @@ import Fastify, { type FastifyInstance, type FastifyReply } from "fastify";
 import { randomUUID } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import { request } from "undici";
-import { bootstrapService, setupErrorReporting } from "@script-manifest/service-utils";
+import { bootstrapService, registerMetrics, setupErrorReporting, validateRequiredEnv } from "@script-manifest/service-utils";
 import {
   CompetitionFiltersSchema,
   CompetitionSchema,
@@ -232,13 +232,26 @@ export function buildServer(options: CompetitionDirectoryOptions = {}): FastifyI
 export async function startServer(): Promise<void> {
   const boot = bootstrapService("competition-directory-service");
   setupErrorReporting("competition-directory-service");
+  if (process.env.OTEL_EXPORTER_OTLP_ENDPOINT) {
+    const { setupTracing } = await import("@script-manifest/service-utils/tracing");
+    const tracingSdk = setupTracing("competition-directory-service");
+    if (tracingSdk) {
+      process.once("SIGTERM", () => {
+        tracingSdk.shutdown().catch((err) => console.error("OTel SDK shutdown error", err));
+      });
+    }
+    boot.phase("tracing initialized");
+  }
+  validateRequiredEnv(["PORT", "SEARCH_INDEXER_URL"]);
+  boot.phase("env validated");
   const port = Number(process.env.PORT ?? 4002);
   const server = buildServer({
     searchIndexerBase: process.env.SEARCH_INDEXER_URL,
     notificationServiceBase: process.env.NOTIFICATION_SERVICE_URL
   });
   boot.phase("server built");
-
+  // Register Prometheus metrics endpoint (only in production server startup, not tests).
+  await registerMetrics(server);
   await server.listen({ port, host: "0.0.0.0" });
   boot.ready(port);
 }

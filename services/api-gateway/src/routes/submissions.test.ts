@@ -216,7 +216,7 @@ test("POST /api/v1/submissions/:submissionId/placements proxies and triggers ran
     method: "POST",
     url: "/api/v1/submissions/sub_01/placements",
     headers: { authorization: "Bearer sess_1" },
-    payload: { competitionId: "comp_01", result: "finalist" }
+    payload: { status: "finalist" }
   });
 
   assert.equal(response.statusCode, 201);
@@ -292,7 +292,7 @@ test("POST /api/v1/placements/:placementId/verify proxies and triggers ranking r
     method: "POST",
     url: "/api/v1/placements/placement_01/verify",
     headers: { authorization: "Bearer sess_1" },
-    payload: { evidenceUrl: "https://example.com/proof" }
+    payload: { verificationState: "verified" }
   });
 
   assert.equal(response.statusCode, 200);

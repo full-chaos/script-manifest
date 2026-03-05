@@ -18,7 +18,7 @@ export function registerHealthRoutes(server: FastifyInstance, ctx: GatewayContex
   }
 
   async function runChecks(): Promise<Record<string, boolean>> {
-    const [identity, profileProject, competitionDirectory, submissionTracking, scriptStorage, feedbackExchange, ranking] =
+    const [identity, profileProject, competitionDirectory, submissionTracking, scriptStorage, feedbackExchange, ranking, coverageMarketplace, industryPortal, programs, partnerDashboard] =
       await Promise.all([
         checkDownstream("identity", ctx.identityServiceBase),
         checkDownstream("profile-project", ctx.profileServiceBase),
@@ -26,7 +26,11 @@ export function registerHealthRoutes(server: FastifyInstance, ctx: GatewayContex
         checkDownstream("submission-tracking", ctx.submissionTrackingBase),
         checkDownstream("script-storage", ctx.scriptStorageBase),
         checkDownstream("feedback-exchange", ctx.feedbackExchangeBase),
-        checkDownstream("ranking", ctx.rankingServiceBase)
+        checkDownstream("ranking", ctx.rankingServiceBase),
+        checkDownstream("coverage-marketplace", ctx.coverageMarketplaceBase),
+        checkDownstream("industry-portal", ctx.industryPortalBase),
+        checkDownstream("programs", ctx.programsServiceBase),
+        checkDownstream("partner-dashboard", ctx.partnerDashboardServiceBase)
       ]);
 
     return {
@@ -36,7 +40,11 @@ export function registerHealthRoutes(server: FastifyInstance, ctx: GatewayContex
       "submission-tracking": submissionTracking,
       "script-storage": scriptStorage,
       "feedback-exchange": feedbackExchange,
-      ranking
+      ranking,
+      "coverage-marketplace": coverageMarketplace,
+      "industry-portal": industryPortal,
+      programs,
+      "partner-dashboard": partnerDashboard
     };
   }
 

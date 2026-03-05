@@ -2,8 +2,7 @@ import Fastify, { type FastifyInstance } from "fastify";
 import rateLimit from "@fastify/rate-limit";
 import { pathToFileURL } from "node:url";
 import { randomUUID } from "node:crypto";
-import { Counter } from "prom-client";
-import { validateRequiredEnv, bootstrapService, setupErrorReporting } from "@script-manifest/service-utils";
+import { Counter, bootstrapService, registerMetrics, setupErrorReporting, validateRequiredEnv } from "@script-manifest/service-utils";
 import {
   CoverageProviderCreateRequestSchema,
   CoverageProviderUpdateRequestSchema,
@@ -1188,11 +1187,23 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
 export async function startServer(): Promise<void> {
   const boot = bootstrapService("coverage-marketplace-service");
   setupErrorReporting("coverage-marketplace-service");
+  if (process.env.OTEL_EXPORTER_OTLP_ENDPOINT) {
+    const { setupTracing } = await import("@script-manifest/service-utils/tracing");
+    const tracingSdk = setupTracing("coverage-marketplace-service");
+    if (tracingSdk) {
+      process.once("SIGTERM", () => {
+        tracingSdk.shutdown().catch((err) => console.error("OTel SDK shutdown error", err));
+      });
+    }
+    boot.phase("tracing initialized");
+  }
   validateRequiredEnv(["DATABASE_URL", "STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"]);
   boot.phase("env validated");
   const port = Number(process.env.PORT ?? 4008);
   const server = buildServer();
   boot.phase("server built");
+  // Register Prometheus metrics endpoint (only in production server startup, not tests).
+  await registerMetrics(server);
   await server.listen({ port, host: "0.0.0.0" });
   boot.ready(port);
 }

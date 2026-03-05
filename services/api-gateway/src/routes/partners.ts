@@ -1,5 +1,14 @@
 import type { FastifyInstance } from "fastify";
 import {
+  PartnerCompetitionCreateRequestSchema,
+  PartnerDraftSwapRequestSchema,
+  PartnerEvaluationRequestSchema,
+  PartnerFilmFreewaySyncRequestSchema,
+  PartnerJudgeAssignmentRequestSchema,
+  PartnerNormalizeRequestSchema,
+  PartnerPublishResultsRequestSchema
+} from "@script-manifest/contracts";
+import {
   buildQuerySuffix,
   proxyJsonRequest,
   resolveUserId,
@@ -29,11 +38,15 @@ export function registerPartnerRoutes(server: FastifyInstance, ctx: GatewayConte
       if (!actorUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
+      const parsed = PartnerCompetitionCreateRequestSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
+      }
 
       return proxyJsonRequest(reply, ctx.requestFn, `${ctx.partnerDashboardServiceBase}/internal/partners/competitions`, {
         method: "POST",
         headers: actorHeaders(actorUserId, true),
-        body: JSON.stringify(req.body ?? {})
+        body: JSON.stringify(parsed.data)
       });
     }
   });
@@ -46,6 +59,7 @@ export function registerPartnerRoutes(server: FastifyInstance, ctx: GatewayConte
       if (!actorUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
+      // TODO: add validation schema
 
       return proxyJsonRequest(
         reply,
@@ -68,6 +82,7 @@ export function registerPartnerRoutes(server: FastifyInstance, ctx: GatewayConte
       if (!actorUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
+      // TODO: add validation schema
 
       return proxyJsonRequest(
         reply,
@@ -90,6 +105,7 @@ export function registerPartnerRoutes(server: FastifyInstance, ctx: GatewayConte
       if (!actorUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
+      // TODO: add validation schema
 
       return proxyJsonRequest(
         reply,
@@ -133,6 +149,7 @@ export function registerPartnerRoutes(server: FastifyInstance, ctx: GatewayConte
       if (!actorUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
+      // TODO: add validation schema
 
       return proxyJsonRequest(
         reply,
@@ -176,6 +193,7 @@ export function registerPartnerRoutes(server: FastifyInstance, ctx: GatewayConte
       if (!actorUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
+      // TODO: add validation schema
 
       return proxyJsonRequest(
         reply,
@@ -198,6 +216,10 @@ export function registerPartnerRoutes(server: FastifyInstance, ctx: GatewayConte
       if (!actorUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
+      const parsed = PartnerJudgeAssignmentRequestSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
+      }
 
       return proxyJsonRequest(
         reply,
@@ -206,7 +228,7 @@ export function registerPartnerRoutes(server: FastifyInstance, ctx: GatewayConte
         {
           method: "POST",
           headers: actorHeaders(actorUserId, true),
-          body: JSON.stringify(req.body ?? {})
+          body: JSON.stringify(parsed.data)
         }
       );
     }
@@ -220,6 +242,7 @@ export function registerPartnerRoutes(server: FastifyInstance, ctx: GatewayConte
       if (!actorUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
+      // TODO: add validation schema
 
       return proxyJsonRequest(
         reply,
@@ -242,6 +265,10 @@ export function registerPartnerRoutes(server: FastifyInstance, ctx: GatewayConte
       if (!actorUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
+      const parsed = PartnerEvaluationRequestSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
+      }
 
       return proxyJsonRequest(
         reply,
@@ -250,7 +277,7 @@ export function registerPartnerRoutes(server: FastifyInstance, ctx: GatewayConte
         {
           method: "POST",
           headers: actorHeaders(actorUserId, true),
-          body: JSON.stringify(req.body ?? {})
+          body: JSON.stringify(parsed.data)
         }
       );
     }
@@ -264,6 +291,10 @@ export function registerPartnerRoutes(server: FastifyInstance, ctx: GatewayConte
       if (!actorUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
+      const parsed = PartnerNormalizeRequestSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
+      }
 
       return proxyJsonRequest(
         reply,
@@ -272,7 +303,7 @@ export function registerPartnerRoutes(server: FastifyInstance, ctx: GatewayConte
         {
           method: "POST",
           headers: actorHeaders(actorUserId, true),
-          body: JSON.stringify(req.body ?? {})
+          body: JSON.stringify(parsed.data)
         }
       );
     }
@@ -286,6 +317,10 @@ export function registerPartnerRoutes(server: FastifyInstance, ctx: GatewayConte
       if (!actorUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
+      const parsed = PartnerPublishResultsRequestSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
+      }
 
       return proxyJsonRequest(
         reply,
@@ -294,7 +329,7 @@ export function registerPartnerRoutes(server: FastifyInstance, ctx: GatewayConte
         {
           method: "POST",
           headers: actorHeaders(actorUserId, true),
-          body: JSON.stringify(req.body ?? {})
+          body: JSON.stringify(parsed.data)
         }
       );
     }
@@ -308,6 +343,10 @@ export function registerPartnerRoutes(server: FastifyInstance, ctx: GatewayConte
       if (!actorUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
+      const parsed = PartnerDraftSwapRequestSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
+      }
 
       return proxyJsonRequest(
         reply,
@@ -316,7 +355,7 @@ export function registerPartnerRoutes(server: FastifyInstance, ctx: GatewayConte
         {
           method: "POST",
           headers: actorHeaders(actorUserId, true),
-          body: JSON.stringify(req.body ?? {})
+          body: JSON.stringify(parsed.data)
         }
       );
     }
@@ -350,6 +389,10 @@ export function registerPartnerRoutes(server: FastifyInstance, ctx: GatewayConte
       if (!actorUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
+      const parsed = PartnerFilmFreewaySyncRequestSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
+      }
 
       return proxyJsonRequest(
         reply,
@@ -358,7 +401,7 @@ export function registerPartnerRoutes(server: FastifyInstance, ctx: GatewayConte
         {
           method: "POST",
           headers: actorHeaders(actorUserId, true),
-          body: JSON.stringify(req.body ?? {})
+          body: JSON.stringify(parsed.data)
         }
       );
     }
@@ -371,6 +414,7 @@ export function registerPartnerRoutes(server: FastifyInstance, ctx: GatewayConte
       if (!actorUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
+      // TODO: add validation schema
 
       return proxyJsonRequest(
         reply,
@@ -392,6 +436,7 @@ export function registerPartnerRoutes(server: FastifyInstance, ctx: GatewayConte
       if (!actorUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
+      // TODO: add validation schema
 
       return proxyJsonRequest(
         reply,
@@ -414,6 +459,7 @@ export function registerPartnerRoutes(server: FastifyInstance, ctx: GatewayConte
       if (!actorUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
+      // TODO: add validation schema
 
       return proxyJsonRequest(
         reply,
@@ -435,6 +481,7 @@ export function registerPartnerRoutes(server: FastifyInstance, ctx: GatewayConte
       if (!actorUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
+      // TODO: add validation schema
 
       return proxyJsonRequest(
         reply,

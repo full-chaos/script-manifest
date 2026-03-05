@@ -3,7 +3,7 @@ import rateLimit from "@fastify/rate-limit";
 import { randomUUID } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import { request as undiciRequest } from "undici";
-import { bootstrapService, setupErrorReporting } from "@script-manifest/service-utils";
+import { bootstrapService, registerMetrics, setupErrorReporting, validateRequiredEnv } from "@script-manifest/service-utils";
 import {
   ProgramApplicationCreateRequestSchema,
   ProgramApplicationReviewRequestSchema,
@@ -732,9 +732,23 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
 export async function startServer(): Promise<void> {
   const boot = bootstrapService("programs-service");
   setupErrorReporting("programs-service");
+  if (process.env.OTEL_EXPORTER_OTLP_ENDPOINT) {
+    const { setupTracing } = await import("@script-manifest/service-utils/tracing");
+    const tracingSdk = setupTracing("programs-service");
+    if (tracingSdk) {
+      process.once("SIGTERM", () => {
+        tracingSdk.shutdown().catch((err) => console.error("OTel SDK shutdown error", err));
+      });
+    }
+    boot.phase("tracing initialized");
+  }
+  validateRequiredEnv(["DATABASE_URL"]);
+  boot.phase("env validated");
   const port = Number(process.env.PORT ?? 4012);
   const server = buildServer();
   boot.phase("server built");
+  // Register Prometheus metrics endpoint (only in production server startup, not tests).
+  await registerMetrics(server);
   await server.listen({ port, host: "0.0.0.0" });
   boot.ready(port);
 }

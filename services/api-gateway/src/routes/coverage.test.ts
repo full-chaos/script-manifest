@@ -213,7 +213,13 @@ test("POST /api/v1/coverage/providers/:providerId/services requires auth", async
   const forbidden = await server.inject({
     method: "POST",
     url: "/api/v1/coverage/providers/provider_01/services",
-    payload: { name: "Basic Coverage", priceInCents: 5000 }
+    payload: {
+      title: "Basic Coverage",
+      tier: "concept_notes",
+      priceCents: 5000,
+      turnaroundDays: 7,
+      maxPages: 100
+    }
   });
   assert.equal(forbidden.statusCode, 401);
 
@@ -221,7 +227,13 @@ test("POST /api/v1/coverage/providers/:providerId/services requires auth", async
     method: "POST",
     url: "/api/v1/coverage/providers/provider_01/services",
     headers: { authorization: "Bearer sess_1" },
-    payload: { name: "Basic Coverage", priceInCents: 5000 }
+    payload: {
+      title: "Basic Coverage",
+      tier: "concept_notes",
+      priceCents: 5000,
+      turnaroundDays: 7,
+      maxPages: 100
+    }
   });
   assert.equal(ok.statusCode, 201);
   assert.equal(urls[0], "http://coverage-svc/internal/providers/provider_01/services");
@@ -513,7 +525,7 @@ test("POST /api/v1/coverage/orders/:orderId/deliver requires auth and sends body
   const forbidden = await server.inject({
     method: "POST",
     url: "/api/v1/coverage/orders/order_01/deliver",
-    payload: { coverageFileUrl: "https://example.com/coverage.pdf" }
+    payload: { summary: "Detailed coverage analysis of the script" }
   });
   assert.equal(forbidden.statusCode, 401);
 
@@ -521,7 +533,7 @@ test("POST /api/v1/coverage/orders/:orderId/deliver requires auth and sends body
     method: "POST",
     url: "/api/v1/coverage/orders/order_01/deliver",
     headers: { authorization: "Bearer sess_1" },
-    payload: { coverageFileUrl: "https://example.com/coverage.pdf" }
+    payload: { summary: "Detailed coverage analysis of the script" }
   });
   assert.equal(ok.statusCode, 200);
   assert.equal(urls[0], "http://coverage-svc/internal/orders/order_01/deliver");
@@ -636,7 +648,7 @@ test("POST /api/v1/coverage/orders/:orderId/review requires auth", async (t) => 
   const forbidden = await server.inject({
     method: "POST",
     url: "/api/v1/coverage/orders/order_01/review",
-    payload: { stars: 5, comments: "Excellent coverage" }
+    payload: { rating: 5, comment: "Excellent coverage" }
   });
   assert.equal(forbidden.statusCode, 401);
 
@@ -644,7 +656,7 @@ test("POST /api/v1/coverage/orders/:orderId/review requires auth", async (t) => 
     method: "POST",
     url: "/api/v1/coverage/orders/order_01/review",
     headers: { authorization: "Bearer sess_1" },
-    payload: { stars: 5, comments: "Excellent coverage" }
+    payload: { rating: 5, comment: "Excellent coverage" }
   });
   assert.equal(ok.statusCode, 201);
   assert.equal(urls[0], "http://coverage-svc/internal/orders/order_01/review");
@@ -701,7 +713,7 @@ test("POST /api/v1/coverage/orders/:orderId/dispute requires auth", async (t) =>
   const forbidden = await server.inject({
     method: "POST",
     url: "/api/v1/coverage/orders/order_01/dispute",
-    payload: { reason: "Coverage was not delivered" }
+    payload: { reason: "non_delivery", description: "Coverage was not delivered" }
   });
   assert.equal(forbidden.statusCode, 401);
 
@@ -709,7 +721,7 @@ test("POST /api/v1/coverage/orders/:orderId/dispute requires auth", async (t) =>
     method: "POST",
     url: "/api/v1/coverage/orders/order_01/dispute",
     headers: { authorization: "Bearer sess_1" },
-    payload: { reason: "Coverage was not delivered" }
+    payload: { reason: "non_delivery", description: "Coverage was not delivered" }
   });
   assert.equal(ok.statusCode, 201);
   assert.equal(urls[0], "http://coverage-svc/internal/orders/order_01/dispute");
@@ -770,7 +782,7 @@ test("PATCH /api/v1/coverage/disputes/:disputeId requires allowlisted admin", as
   const forbidden = await server.inject({
     method: "PATCH",
     url: "/api/v1/coverage/disputes/dispute_01",
-    payload: { resolution: "refund", notes: "Provider failed to deliver" }
+    payload: { status: "resolved_refund", adminNotes: "Provider failed to deliver" }
   });
   assert.equal(forbidden.statusCode, 403);
   assert.equal(urls.length, 0);
@@ -779,7 +791,7 @@ test("PATCH /api/v1/coverage/disputes/:disputeId requires allowlisted admin", as
     method: "PATCH",
     url: "/api/v1/coverage/disputes/dispute_01",
     headers: { "x-admin-user-id": "admin_01" },
-    payload: { resolution: "refund", notes: "Provider failed to deliver" }
+    payload: { status: "resolved_refund", adminNotes: "Provider failed to deliver" }
   });
   assert.equal(ok.statusCode, 200);
   assert.equal(urls[0], "http://coverage-svc/internal/disputes/dispute_01");

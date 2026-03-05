@@ -1,5 +1,10 @@
 import type { FastifyInstance } from "fastify";
 import {
+  CompetitionPrestigeUpsertRequestSchema,
+  RankingAppealCreateRequestSchema,
+  RankingAppealResolveRequestSchema
+} from "@script-manifest/contracts";
+import {
   type GatewayContext,
   addAuthUserIdHeader,
   buildQuerySuffix,
@@ -57,6 +62,13 @@ export function registerRankingRoutes(server: FastifyInstance, ctx: GatewayConte
     if (!userId) {
       return reply.status(401).send({ error: "unauthorized" });
     }
+    const parsed = RankingAppealCreateRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.status(400).send({
+        error: "invalid_payload",
+        details: parsed.error.flatten()
+      });
+    }
     return proxyJsonRequest(
       reply,
       ctx.requestFn,
@@ -64,7 +76,7 @@ export function registerRankingRoutes(server: FastifyInstance, ctx: GatewayConte
       {
         method: "POST",
         headers: addAuthUserIdHeader({ "content-type": "application/json" }, userId),
-        body: JSON.stringify(req.body ?? {})
+        body: JSON.stringify(parsed.data)
       }
     );
   });
@@ -94,6 +106,13 @@ export function registerRankingRoutes(server: FastifyInstance, ctx: GatewayConte
     if (!adminId) {
       return reply.status(403).send({ error: "forbidden" });
     }
+    const parsed = CompetitionPrestigeUpsertRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.status(400).send({
+        error: "invalid_payload",
+        details: parsed.error.flatten()
+      });
+    }
     return proxyJsonRequest(
       reply,
       ctx.requestFn,
@@ -101,7 +120,7 @@ export function registerRankingRoutes(server: FastifyInstance, ctx: GatewayConte
       {
         method: "PUT",
         headers: addAuthUserIdHeader({ "content-type": "application/json" }, adminId),
-        body: JSON.stringify(req.body ?? {})
+        body: JSON.stringify(parsed.data)
       }
     );
   });
@@ -115,6 +134,7 @@ export function registerRankingRoutes(server: FastifyInstance, ctx: GatewayConte
     if (!adminId) {
       return reply.status(403).send({ error: "forbidden" });
     }
+    // TODO: add validation schema
     return proxyJsonRequest(
       reply,
       ctx.requestFn,
@@ -152,6 +172,13 @@ export function registerRankingRoutes(server: FastifyInstance, ctx: GatewayConte
     if (!adminId) {
       return reply.status(403).send({ error: "forbidden" });
     }
+    const parsed = RankingAppealResolveRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.status(400).send({
+        error: "invalid_payload",
+        details: parsed.error.flatten()
+      });
+    }
     return proxyJsonRequest(
       reply,
       ctx.requestFn,
@@ -159,7 +186,7 @@ export function registerRankingRoutes(server: FastifyInstance, ctx: GatewayConte
       {
         method: "POST",
         headers: addAuthUserIdHeader({ "content-type": "application/json" }, adminId),
-        body: JSON.stringify(req.body ?? {})
+        body: JSON.stringify(parsed.data)
       }
     );
   });
@@ -190,6 +217,7 @@ export function registerRankingRoutes(server: FastifyInstance, ctx: GatewayConte
     if (!adminId) {
       return reply.status(403).send({ error: "forbidden" });
     }
+    // TODO: add validation schema
     return proxyJsonRequest(
       reply,
       ctx.requestFn,

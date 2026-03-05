@@ -1,8 +1,7 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import { pathToFileURL } from "node:url";
 import { randomUUID } from "node:crypto";
-import { Counter } from "prom-client";
-import { validateRequiredEnv, bootstrapService, setupErrorReporting } from "@script-manifest/service-utils";
+import { Counter, bootstrapService, registerMetrics, setupErrorReporting, validateRequiredEnv } from "@script-manifest/service-utils";
 import {
   CompetitionPrestigeUpsertRequestSchema,
   RankedLeaderboardFiltersSchema,
@@ -435,14 +434,25 @@ export function buildServer(options: RankingServiceOptions = {}): FastifyInstanc
 export async function startServer(): Promise<void> {
   const boot = bootstrapService("ranking-service");
   setupErrorReporting("ranking-service");
+  if (process.env.OTEL_EXPORTER_OTLP_ENDPOINT) {
+    const { setupTracing } = await import("@script-manifest/service-utils/tracing");
+    const tracingSdk = setupTracing("ranking-service");
+    if (tracingSdk) {
+      process.once("SIGTERM", () => {
+        tracingSdk.shutdown().catch((err) => console.error("OTel SDK shutdown error", err));
+      });
+    }
+    boot.phase("tracing initialized");
+  }
   validateRequiredEnv(["DATABASE_URL"]);
   boot.phase("env validated");
   const server = buildServer();
   const repo = new PgRankingRepository();
   await repo.init();
   boot.phase("server built");
-
   const port = Number(process.env.PORT ?? 4007);
+  // Register Prometheus metrics endpoint (only in production server startup, not tests).
+  await registerMetrics(server);
   await server.listen({ port, host: "0.0.0.0" });
   boot.ready(port);
 }

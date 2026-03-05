@@ -102,5 +102,7 @@ ARG SERVICE_NAME
 ENV SERVICE_NAME=${SERVICE_NAME}
 ENV NODE_ENV=production
 
+USER node
+
 EXPOSE 4000
 CMD ["sh", "-c", "node services/${SERVICE_NAME}/dist/index.js"]

@@ -1,5 +1,7 @@
 import type { FastifyReply } from "fastify";
+import { randomBytes } from "node:crypto";
 import type { request } from "undici";
+import { signServiceToken, type Role } from "@script-manifest/service-utils";
 
 export type RequestFn = typeof request;
 
@@ -20,6 +22,21 @@ export type GatewayContext = {
   coverageAdminAllowlist: Set<string>;
   industryAdminAllowlist: Set<string>;
 };
+
+const devServiceTokenSecret = randomBytes(32).toString("hex");
+
+function resolveServiceTokenSecret(): string | null {
+  const configured = process.env.SERVICE_TOKEN_SECRET;
+  if (configured && configured.length > 0) {
+    return configured;
+  }
+
+  if ((process.env.NODE_ENV ?? "development") !== "production") {
+    return devServiceTokenSecret;
+  }
+
+  return null;
+}
 
 export function buildQuerySuffix(rawQuery: unknown): string {
   const query = rawQuery as Record<string, string | string[] | undefined>;
@@ -75,11 +92,19 @@ export async function getUserIdFromAuth(
 
 export function addAuthUserIdHeader(
   headers: Record<string, string>,
-  userId: string | null
+  userId: string | null,
+  role: Role = "writer"
 ): Record<string, string> {
   if (userId) {
-    return { ...headers, "x-auth-user-id": userId };
+    const nextHeaders: Record<string, string> = { ...headers, "x-auth-user-id": userId };
+    const secret = resolveServiceTokenSecret();
+    if (secret) {
+      nextHeaders["x-service-token"] = signServiceToken({ sub: userId, role }, secret);
+    }
+
+    return nextHeaders;
   }
+
   return headers;
 }
 

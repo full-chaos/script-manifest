@@ -1,4 +1,4 @@
-import { randomUUID, scryptSync, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes, randomUUID, scryptSync, timingSafeEqual } from "node:crypto";
 import { ensureCoreTables, getPool } from "@script-manifest/db";
 
 export type IdentityUser = {
@@ -32,6 +32,17 @@ export type OAuthStateRecord = {
   expiresAt: string;
 };
 
+export type RefreshTokenIssue = {
+  refreshToken: string;
+  familyId: string;
+  expiresAt: string;
+};
+
+export type RefreshTokenRotateResult =
+  | ({ status: "rotated"; userId: string } & RefreshTokenIssue)
+  | { status: "reuse_detected"; familyId: string }
+  | { status: "invalid" };
+
 export interface IdentityRepository {
   init(): Promise<void>;
   healthCheck(): Promise<{ database: boolean }>;
@@ -43,7 +54,19 @@ export interface IdentityRepository {
   saveOAuthState(state: string, record: OAuthStateRecord): Promise<void>;
   getAndDeleteOAuthState(state: string): Promise<OAuthStateRecord | null>;
   cleanExpiredOAuthState(): Promise<void>;
+  createRefreshToken(userId: string, familyId?: string): Promise<RefreshTokenIssue>;
+  rotateRefreshToken(rawToken: string): Promise<RefreshTokenRotateResult>;
+  revokeTokenFamily(familyId: string): Promise<void>;
 }
+
+function hashRefreshToken(token: string): string {
+  return createHash("sha256").update(token).digest("hex");
+}
+
+type QueryClient = {
+  query<T = Record<string, unknown>>(queryText: string, values?: readonly unknown[]): Promise<{ rows: T[] }>;
+  release(): void;
+};
 
 export function hashPassword(password: string, salt: string): string {
   // Use scrypt with explicit secure parameters: N=16384, r=8, p=1, keylen=64
@@ -86,6 +109,24 @@ export class PgIdentityRepository implements IdentityRepository {
         created_at TIMESTAMPTZ DEFAULT NOW(),
         expires_at TIMESTAMPTZ NOT NULL
       );
+    `);
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS refresh_tokens (
+        id TEXT PRIMARY KEY,
+        token_hash TEXT UNIQUE NOT NULL,
+        family_id TEXT NOT NULL,
+        user_id TEXT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+        expires_at TIMESTAMPTZ NOT NULL,
+        used_at TIMESTAMPTZ,
+        revoked_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+    await db.query(`
+      CREATE INDEX IF NOT EXISTS idx_refresh_tokens_family ON refresh_tokens(family_id);
+    `);
+    await db.query(`
+      CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user ON refresh_tokens(user_id);
     `);
   }
 
@@ -189,12 +230,7 @@ export class PgIdentityRepository implements IdentityRepository {
   async createSession(userId: string): Promise<IdentitySession> {
     const db = getPool();
     const token = `sess_${randomUUID()}`;
-    // Configurable session duration in days (default: 7 days)
-    const sessionDurationDays = parseInt(process.env.SESSION_DURATION_DAYS ?? "7", 10);
-    if (!Number.isFinite(sessionDurationDays) || sessionDurationDays <= 0) {
-      throw new Error("SESSION_DURATION_DAYS must be a positive integer");
-    }
-    const expiresAt = new Date(Date.now() + sessionDurationDays * 24 * 60 * 60 * 1000).toISOString();
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
 
     await db.query(
       `
@@ -330,6 +366,120 @@ export class PgIdentityRepository implements IdentityRepository {
   async cleanExpiredOAuthState(): Promise<void> {
     const db = getPool();
     await db.query(`DELETE FROM oauth_state WHERE expires_at < NOW()`);
+  }
+
+  async createRefreshToken(userId: string, familyId?: string): Promise<RefreshTokenIssue> {
+    const db = getPool();
+    const client = await db.connect();
+
+    try {
+      return await this.insertRefreshToken(client, userId, familyId);
+    } finally {
+      client.release();
+    }
+  }
+
+  async rotateRefreshToken(rawToken: string): Promise<RefreshTokenRotateResult> {
+    const db = getPool();
+    const client = await db.connect();
+    const tokenHash = hashRefreshToken(rawToken);
+    let inTransaction = false;
+
+    try {
+      const existing = await client.query<{
+        id: string;
+        family_id: string;
+        user_id: string;
+        expires_at: string;
+        used_at: string | null;
+        revoked_at: string | null;
+      }>(
+        `
+          SELECT id, family_id, user_id, expires_at, used_at, revoked_at
+          FROM refresh_tokens
+          WHERE token_hash = $1
+        `,
+        [tokenHash]
+      );
+
+      const row = existing.rows[0];
+      if (!row) {
+        return { status: "invalid" };
+      }
+
+      if (row.used_at) {
+        return { status: "reuse_detected", familyId: row.family_id };
+      }
+
+      if (row.revoked_at || new Date(row.expires_at).getTime() <= Date.now()) {
+        return { status: "invalid" };
+      }
+
+      await client.query("BEGIN");
+      inTransaction = true;
+      const markUsed = await client.query<{ id: string }>(
+        `
+          UPDATE refresh_tokens
+          SET used_at = NOW()
+          WHERE id = $1 AND used_at IS NULL AND revoked_at IS NULL
+          RETURNING id
+        `,
+        [row.id]
+      );
+
+      if (markUsed.rows.length === 0) {
+        await client.query("ROLLBACK");
+        inTransaction = false;
+        return { status: "reuse_detected", familyId: row.family_id };
+      }
+
+      const replacement = await this.insertRefreshToken(client, row.user_id, row.family_id);
+      await client.query("COMMIT");
+      inTransaction = false;
+
+      return {
+        status: "rotated",
+        userId: row.user_id,
+        ...replacement,
+      };
+    } catch (error) {
+      if (inTransaction) {
+        await client.query("ROLLBACK");
+      }
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async revokeTokenFamily(familyId: string): Promise<void> {
+    const db = getPool();
+    await db.query(
+      `
+        UPDATE refresh_tokens
+        SET revoked_at = NOW()
+        WHERE family_id = $1 AND revoked_at IS NULL
+      `,
+      [familyId]
+    );
+  }
+
+  private async insertRefreshToken(client: QueryClient, userId: string, familyId?: string): Promise<RefreshTokenIssue> {
+    const refreshToken = `rfr_${randomBytes(48).toString("base64url")}`;
+    const tokenHash = hashRefreshToken(refreshToken);
+    const finalFamilyId = familyId ?? `fam_${randomUUID()}`;
+    const id = `rt_${randomUUID()}`;
+    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+
+    await client.query(
+      `
+        INSERT INTO refresh_tokens (id, token_hash, family_id, user_id, expires_at)
+        VALUES ($1, $2, $3, $4, $5)
+      `,
+      [id, tokenHash, finalFamilyId, userId, expiresAt]
+    );
+
+    return { refreshToken, familyId: finalFamilyId, expiresAt };
   }
 }
 

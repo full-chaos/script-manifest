@@ -18,6 +18,7 @@ import {
 } from "@script-manifest/contracts";
 import {
   type IdentityRepository,
+  type IdentityUser,
   PgIdentityRepository,
   verifyPassword
 } from "./repository.js";
@@ -117,17 +118,7 @@ export function buildServer(options: IdentityServiceOptions = {}): FastifyInstan
       return reply.status(409).send({ error: "email_already_registered" });
     }
 
-    const session = await repository.createSession(user.id);
-    const payload = AuthSessionResponseSchema.parse({
-      token: session.token,
-      expiresAt: session.expiresAt,
-      user: {
-        id: user.id,
-        email: user.email,
-        displayName: user.displayName,
-        role: user.role
-      }
-    });
+    const payload = await createAuthSessionPayload(repository, user);
 
       return reply.status(201).send(payload);
     }
@@ -156,17 +147,7 @@ export function buildServer(options: IdentityServiceOptions = {}): FastifyInstan
       return reply.status(401).send({ error: "invalid_credentials" });
     }
 
-    const session = await repository.createSession(user.id);
-    const payload = AuthSessionResponseSchema.parse({
-      token: session.token,
-      expiresAt: session.expiresAt,
-      user: {
-        id: user.id,
-        email: user.email,
-        displayName: user.displayName,
-        role: user.role
-      }
-    });
+    const payload = await createAuthSessionPayload(repository, user);
 
       loginCounter.inc({ method: "password" });
       return reply.send(payload);
@@ -351,6 +332,46 @@ export function buildServer(options: IdentityServiceOptions = {}): FastifyInstan
 
       await repository.deleteSession(token);
       return reply.status(204).send();
+    }
+  });
+
+  server.post("/internal/auth/refresh", {
+    config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
+      const rawToken = (req.body as { refreshToken?: unknown } | undefined)?.refreshToken;
+      if (typeof rawToken !== "string" || rawToken.length === 0) {
+        return reply.status(400).send({ error: "invalid_payload" });
+      }
+
+      const rotated = await repository.rotateRefreshToken(rawToken);
+      if (rotated.status === "reuse_detected") {
+        await repository.revokeTokenFamily(rotated.familyId);
+        return reply.status(401).send({ error: "refresh_token_reuse_detected" });
+      }
+
+      if (rotated.status === "invalid") {
+        return reply.status(401).send({ error: "invalid_refresh_token" });
+      }
+
+      const session = await repository.createSession(rotated.userId);
+      const sessionData = await repository.findUserBySessionToken(session.token);
+      if (!sessionData) {
+        return reply.status(500).send({ error: "session_creation_failed" });
+      }
+
+      const payload = AuthSessionResponseSchema.parse({
+        token: session.token,
+        refreshToken: rotated.refreshToken,
+        expiresAt: session.expiresAt,
+        user: {
+          id: sessionData.user.id,
+          email: sessionData.user.email,
+          displayName: sessionData.user.displayName,
+          role: sessionData.user.role
+        }
+      });
+
+      return reply.send(payload);
     }
   });
 
@@ -563,9 +584,22 @@ async function completeOAuthSession(
     return { error: "oauth_user_provision_failed", statusCode: 500 };
   }
 
+  const payload = await createAuthSessionPayload(repository, user);
+
+  loginCounter.inc({ method: provider });
+  return { payload };
+}
+
+async function createAuthSessionPayload(
+  repository: IdentityRepository,
+  user: IdentityUser,
+): Promise<ReturnType<typeof AuthSessionResponseSchema.parse>> {
   const session = await repository.createSession(user.id);
-  const payload = AuthSessionResponseSchema.parse({
+  const refresh = await repository.createRefreshToken(user.id);
+
+  return AuthSessionResponseSchema.parse({
     token: session.token,
+    refreshToken: refresh.refreshToken,
     expiresAt: session.expiresAt,
     user: {
       id: user.id,
@@ -574,9 +608,6 @@ async function completeOAuthSession(
       role: user.role
     }
   });
-
-  loginCounter.inc({ method: provider });
-  return { payload };
 }
 
 function isMainModule(metaUrl: string): boolean {

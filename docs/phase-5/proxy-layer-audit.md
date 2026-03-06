@@ -175,3 +175,93 @@ Rationale:
 4. Add client-side network error translation for gateway-unavailable cases so UX remains consistent with current proxy `502` messaging.
 5. Decommission pure proxy routes and monitor for CORS/auth regressions in staging.
 6. After confidence window, remove `_proxy.ts` only when no routes depend on it.
+
+## POC: Direct Browser-to-Gateway Proof of Concept
+
+### Route Chosen
+
+`GET /api/v1/projects` (`apps/writer-web/app/api/v1/projects/route.ts`) was selected as the POC target because:
+
+- It is a textbook **pure proxy** route — 11 lines with no custom logic.
+- Both `GET` and `POST` are implemented as identical `proxyRequest(request, "/api/v1/projects")` calls.
+- The upstream is `profile-project-service`, which has no streaming, file, or third-party SDK requirements.
+- It is one of the most frequently called routes in writer-web, making the latency improvement immediately visible.
+
+### CORS Configuration (Verified from `services/api-gateway/src/index.ts` lines 63–68)
+
+```typescript
+await server.register(cors, {
+  origin: process.env.CORS_ALLOWED_ORIGINS?.split(",") ?? ["http://localhost:3000"],
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "x-request-id"],
+  credentials: true,
+});
+```
+
+Key findings:
+
+- Default `CORS_ALLOWED_ORIGINS` is `["http://localhost:3000"]`, which matches writer-web's local dev origin — **no gateway changes are needed for local development**.
+- `credentials: true` permits the browser to send the `Authorization` header cross-origin.
+- `allowedHeaders` includes `Content-Type` and `Authorization`, covering all headers the browser needs to make Direct Calls.
+- **Production risk**: the default does not include any production domain. `CORS_ALLOWED_ORIGINS` must be set to the live frontend URL (e.g., `https://app.scriptmanifest.com`) before deployment.
+
+### POC Snippet (Direct Call)
+
+Full POC file: `docs/phase-5/poc-direct-gateway.ts`
+
+```typescript
+// POC: Direct browser-to-gateway call (bypassing Next.js proxy)
+// Proposed architecture: browser → API gateway → microservice
+
+const API_GATEWAY = process.env.NEXT_PUBLIC_API_GATEWAY_URL ?? "http://localhost:4000";
+
+async function fetchProjectsDirect(authToken: string): Promise<unknown> {
+  const response = await fetch(`${API_GATEWAY}/api/v1/projects`, {
+    headers: {
+      "Authorization": `Bearer ${authToken}`,
+      "Content-Type": "application/json",
+    },
+    credentials: "include",  // required: CORS credentials:true is set on the gateway
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error(`Gateway error ${response.status}: ${response.statusText}`);
+  }
+  return response.json();
+}
+```
+
+Auth source: `apps/writer-web/app/lib/authSession.ts` exposes `getAuthHeaders()` which reads the JWT from `localStorage["script_manifest_session"].token` — no server-side session or cookie is involved.
+
+### What Changes for Direct Calls
+
+| Concern | Current (proxy) | Direct Call |
+|---------|----------------|-------------|
+| Fetch target | `/api/v1/projects` (relative, same origin) | `${NEXT_PUBLIC_API_GATEWAY_URL}/api/v1/projects` |
+| Auth delivery | Proxy re-forwards `Authorization` header | Browser sends `Authorization` header directly |
+| Error on gateway down | `{ error: "api_gateway_unavailable" }` HTTP 502 | `TypeError: Failed to fetch` (CORS/network) |
+| Response headers | Stripped by `_proxy.ts` (`NextResponse.json`) | Full upstream headers preserved |
+| Hop count | browser → Next.js → gateway → service | browser → gateway → service |
+
+### Benefits
+
+- **Removed network hop** — eliminates the Next.js server as a middleman, reducing round-trip latency.
+- **Simpler error handling** — no more opaque `502 api_gateway_unavailable` wrapping gateway errors.
+- **No 502 JSON wrapping** — Direct Calls expose real HTTP status codes from the gateway.
+- **Header fidelity** — `Cache-Control`, `ETag`, and other upstream response headers reach the browser.
+- **Less surface area** — removes 76 files of boilerplate proxy code.
+
+### Risks
+
+- `CORS_ALLOWED_ORIGINS` must be set to the production frontend domain before go-live; the default allows only `localhost:3000`.
+- Error shape changes during migration window — clients that pattern-match on `{ error: "api_gateway_unavailable" }` need updating.
+- Network failures surface as `TypeError` instead of structured JSON; client error boundaries must handle both shapes during the transition.
+
+### Migration Path
+
+1. Add `NEXT_PUBLIC_API_GATEWAY_URL` to `apps/writer-web/.env.local` (local) and all deployment environment configs.
+2. Set `CORS_ALLOWED_ORIGINS` to the production frontend domain on the gateway.
+3. Migrate one route group at a time: `projects` → `auth` → `feedback` → `scripts` → remaining groups.
+4. Update client error handling to translate `TypeError: Failed to fetch` to user-friendly messages, matching the current 502 UX.
+5. After each group migrates, delete the corresponding Next.js proxy routes.
+6. When no routes depend on `_proxy.ts`, remove it as the final cleanup step.

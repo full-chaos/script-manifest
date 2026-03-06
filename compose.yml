@@ -95,12 +95,12 @@ services:
     # Pinned: Redpanda v24.3.1 (stable, Jan 2025)
     image: redpandadata/redpanda:v24.3.1
     container_name: manifest-redpanda
-  command:
-  - redpanda
-  - start
-  - --overprovisioned
-  - --set
-  - auto_create_topics_enabled=true
+    command:
+      - redpanda
+      - start
+      - --overprovisioned
+      - --set
+      - auto_create_topics_enabled=true
       - --smp=1
       - --memory=1G
       - --reserve-memory=0M

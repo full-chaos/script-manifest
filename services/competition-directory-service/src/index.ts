@@ -50,20 +50,53 @@ export function buildServer(options: CompetitionDirectoryOptions = {}): FastifyI
 
   const startedAt = Date.now();
 
-  server.get("/health", async () => ({
-    service: "competition-directory-service",
-    ok: true,
-    uptime: Math.floor((Date.now() - startedAt) / 1000),
-    count: competitions.size
-  }));
+  // Deep health check: verify connectivity to external dependencies (indexer and notifier)
+  server.get("/health", async () => {
+    const checkUrl = async (url: string): Promise<boolean> => {
+      try {
+        const res = await requestFn(url);
+        return res.statusCode >= 200 && res.statusCode < 300;
+      } catch {
+        return false;
+      }
+    };
+
+    const indexerHealthy = await checkUrl(`${searchIndexerBase}/health/ready`);
+    const notifierHealthy = await checkUrl(`${notificationServiceBase}/health/ready`);
+    const ok = indexerHealthy && notifierHealthy;
+    return {
+      service: "competition-directory-service",
+      ok,
+      uptime: Math.floor((Date.now() - startedAt) / 1000),
+      indexer: indexerHealthy,
+      notifier: notifierHealthy,
+      count: competitions.size
+    };
+  });
 
   server.get("/health/live", async () => ({ ok: true }));
 
-  server.get("/health/ready", async () => ({
-    service: "competition-directory-service",
-    ok: true,
-    uptime: Math.floor((Date.now() - startedAt) / 1000)
-  }));
+  server.get("/health/ready", async () => {
+    const checkUrl = async (url: string): Promise<boolean> => {
+      try {
+        const res = await requestFn(url);
+        return res.statusCode >= 200 && res.statusCode < 300;
+      } catch {
+        return false;
+      }
+    };
+
+    const indexerHealthy = await checkUrl(`${searchIndexerBase}/health/ready`);
+    const notifierHealthy = await checkUrl(`${notificationServiceBase}/health/ready`);
+    const ok = indexerHealthy && notifierHealthy;
+    return {
+      service: "competition-directory-service",
+      ok,
+      uptime: Math.floor((Date.now() - startedAt) / 1000),
+      indexer: indexerHealthy,
+      notifier: notifierHealthy
+    };
+  });
 
   server.get("/internal/competitions", async (req, reply) => {
     const parsedFilters = CompetitionFiltersSchema.safeParse(req.query);

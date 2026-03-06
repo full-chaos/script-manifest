@@ -100,7 +100,16 @@ class MemoryRankingRepository implements RankingRepository {
     return badge;
   }
   async getBadges(writerId: string) { return this.badges.filter((b) => b.writerId === writerId); }
+  async getBadgesForWriters(writerIds: string[]) {
+    const map = new Map<string, WriterBadge[]>();
+    for (const id of writerIds) {
+      const badges = this.badges.filter((b) => b.writerId === id);
+      if (badges.length > 0) map.set(id, badges);
+    }
+    return map;
+  }
   async hasBadge(placementId: string) { return this.badges.some((b) => b.placementId === placementId); }
+  async hasBadges(placementIds: string[]) { return new Set(placementIds.filter((id) => this.badges.some((b) => b.placementId === id))); }
 
   // Snapshots
   async createSnapshot(writerId: string, totalScore: number) {
@@ -110,6 +119,7 @@ class MemoryRankingRepository implements RankingRepository {
     for (const r of rows) await this.createSnapshot(r.writerId, r.totalScore);
   }
   async getSnapshotScore(_writerId: string, _daysAgo: number) { return null; }
+  async getSnapshotScores(_writerIds: string[], _daysAgo: number) { return new Map<string, number>(); }
 
   // Anti-gaming
   async createFlag(writerId: string, reason: AntiGamingFlagReason, details: string) {
@@ -450,4 +460,85 @@ test("duplicate submissions create anti-gaming flags during recompute", async (t
   assert.equal(res.json().flagsCreated, 1);
   assert.equal(repo.flags.length, 1);
   assert.equal(repo.flags[0]!.reason, "duplicate_submission");
+});
+
+// ── Batch method tests (CHAOS-582, CHAOS-583) ──────────────────────
+
+test("getBadgesForWriters returns grouped badges by writer", async () => {
+  const repo = new MemoryRankingRepository();
+  await repo.awardBadge("w1", "Finalist – Austin 2026", "pl_1", "c1");
+  await repo.awardBadge("w1", "Winner – Austin 2026", "pl_2", "c1");
+  await repo.awardBadge("w2", "Semifinalist – Sundance 2026", "pl_3", "c2");
+
+  const result = await repo.getBadgesForWriters(["w1", "w2", "w3"]);
+  assert.equal(result.size, 2);
+  assert.equal(result.get("w1")!.length, 2);
+  assert.equal(result.get("w2")!.length, 1);
+  assert.equal(result.has("w3"), false, "writer with no badges should not appear in map");
+});
+
+test("getBadgesForWriters returns empty map for empty input", async () => {
+  const repo = new MemoryRankingRepository();
+  const result = await repo.getBadgesForWriters([]);
+  assert.equal(result.size, 0);
+});
+
+test("hasBadges returns set of placement IDs that already have badges", async () => {
+  const repo = new MemoryRankingRepository();
+  await repo.awardBadge("w1", "Finalist", "pl_1", "c1");
+  await repo.awardBadge("w2", "Winner", "pl_3", "c2");
+
+  const result = await repo.hasBadges(["pl_1", "pl_2", "pl_3"]);
+  assert.equal(result.size, 2);
+  assert.ok(result.has("pl_1"));
+  assert.ok(result.has("pl_3"));
+  assert.ok(!result.has("pl_2"), "pl_2 has no badge");
+});
+
+test("hasBadges returns empty set for empty input", async () => {
+  const repo = new MemoryRankingRepository();
+  const result = await repo.hasBadges([]);
+  assert.equal(result.size, 0);
+});
+
+test("getSnapshotScores returns empty map (memory repo stub)", async () => {
+  const repo = new MemoryRankingRepository();
+  const result = await repo.getSnapshotScores(["w1", "w2"], 30);
+  assert.equal(result.size, 0);
+});
+
+test("bulkUpsertWriterScores writes all rows", async () => {
+  const repo = new MemoryRankingRepository();
+  const now = new Date().toISOString();
+  await repo.bulkUpsertWriterScores([
+    { writerId: "w1", totalScore: 100, submissionCount: 5, placementCount: 3, rank: 1, tier: "top_1", scoreChange30d: 10, lastUpdatedAt: now },
+    { writerId: "w2", totalScore: 50, submissionCount: 3, placementCount: 1, rank: 2, tier: "top_10", scoreChange30d: 5, lastUpdatedAt: now }
+  ]);
+  const w1 = await repo.getWriterScore("w1");
+  const w2 = await repo.getWriterScore("w2");
+  assert.equal(w1!.totalScore, 100);
+  assert.equal(w2!.totalScore, 50);
+});
+
+test("bulkCreateSnapshots creates all snapshots", async () => {
+  const repo = new MemoryRankingRepository();
+  await repo.bulkCreateSnapshots([
+    { writerId: "w1", totalScore: 100 },
+    { writerId: "w2", totalScore: 50 },
+    { writerId: "w3", totalScore: 25 }
+  ]);
+  assert.equal(repo.snapshots.length, 3);
+});
+
+test("bulkUpsertPlacementScores writes all rows", async () => {
+  const repo = new MemoryRankingRepository();
+  await repo.bulkUpsertPlacementScores([
+    { placementId: "pl_1", writerId: "w1", competitionId: "c1", projectId: "p1", statusWeight: 10, prestigeMultiplier: 1, verificationMultiplier: 1, timeDecayFactor: 1, confidenceFactor: 1, rawScore: 10, placementDate: "2026-01-01" },
+    { placementId: "pl_2", writerId: "w2", competitionId: "c1", projectId: "p2", statusWeight: 5, prestigeMultiplier: 1, verificationMultiplier: 1, timeDecayFactor: 1, confidenceFactor: 1, rawScore: 5, placementDate: "2026-01-01" }
+  ]);
+  const w1Scores = await repo.getPlacementScores("w1");
+  const w2Scores = await repo.getPlacementScores("w2");
+  assert.equal(w1Scores.length, 1);
+  assert.equal(w2Scores.length, 1);
+  assert.equal(w1Scores[0]!.rawScore, 10);
 });

@@ -258,17 +258,24 @@ export function startProgramsScheduler(
       if (new Date().getUTCMinutes() % 30 === 0) {
         jobs.push("cohort_transition", "kpi_aggregation");
       }
-      for (const job of jobs) {
-        const outcome = await runProgramsSchedulerJob(deps, job);
-        deps.logger?.info(
-          {
-            schedulerJob: outcome.job,
-            scanned: outcome.scanned,
-            processed: outcome.processed,
-            failed: outcome.failed
-          },
-          "program scheduler tick complete"
-        );
+      // CHAOS-586: Run independent scheduler jobs in parallel
+      const outcomes = await Promise.allSettled(
+        jobs.map((job) => runProgramsSchedulerJob(deps, job))
+      );
+      for (const outcome of outcomes) {
+        if (outcome.status === "fulfilled") {
+          deps.logger?.info(
+            {
+              schedulerJob: outcome.value.job,
+              scanned: outcome.value.scanned,
+              processed: outcome.value.processed,
+              failed: outcome.value.failed
+            },
+            "program scheduler tick complete"
+          );
+        } else {
+          deps.logger?.error({ error: outcome.reason }, "program scheduler job failed");
+        }
       }
     } catch (error) {
       deps.logger?.error({ error }, "program scheduler tick failed");

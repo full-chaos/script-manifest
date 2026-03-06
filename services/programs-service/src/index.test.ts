@@ -1456,3 +1456,59 @@ test("programs service CRM sync queue lifecycle supports failed, succeeded, and 
   assert.equal(deadLetterList.json().jobs.length, 1);
   assert.equal(deadLetterList.json().jobs[0]?.id, secondJobId);
 });
+
+// ── Scheduler parallelization tests (CHAOS-586) ─────────────────────
+
+test("scheduler runs multiple jobs via /internal/admin/programs/jobs/run endpoint", async (t) => {
+  const requestFn = (async () => ({
+    statusCode: 202,
+    body: {
+      json: async () => ({ accepted: true }),
+      text: async () => JSON.stringify({ accepted: true })
+    }
+  })) as any;
+
+  const server = buildServer({
+    logger: false,
+    repository: new MemoryProgramsRepository(),
+    requestFn,
+    notificationServiceBase: "http://notification-svc",
+    schedulerEnabled: false
+  });
+  t.after(async () => {
+    await server.close();
+  });
+
+  // Run application_sla_reminder job — should return result without error
+  const slaRes = await server.inject({
+    method: "POST",
+    url: "/internal/admin/programs/jobs/run",
+    headers: { "x-admin-user-id": "admin_01" },
+    payload: { job: "application_sla_reminder", limit: 10 }
+  });
+  assert.equal(slaRes.statusCode, 200);
+  const slaResult = slaRes.json().result;
+  assert.equal(slaResult.job, "application_sla_reminder");
+  assert.equal(typeof slaResult.scanned, "number");
+  assert.equal(typeof slaResult.processed, "number");
+
+  // Run session_reminder job — should also succeed
+  const sessionRes = await server.inject({
+    method: "POST",
+    url: "/internal/admin/programs/jobs/run",
+    headers: { "x-admin-user-id": "admin_01" },
+    payload: { job: "session_reminder", limit: 10 }
+  });
+  assert.equal(sessionRes.statusCode, 200);
+  assert.equal(sessionRes.json().result.job, "session_reminder");
+
+  // Run kpi_aggregation job
+  const kpiRes = await server.inject({
+    method: "POST",
+    url: "/internal/admin/programs/jobs/run",
+    headers: { "x-admin-user-id": "admin_01" },
+    payload: { job: "kpi_aggregation" }
+  });
+  assert.equal(kpiRes.statusCode, 200);
+  assert.equal(kpiRes.json().result.job, "kpi_aggregation");
+});

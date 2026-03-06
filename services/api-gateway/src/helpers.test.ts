@@ -6,6 +6,7 @@ import { verifyServiceToken } from "@script-manifest/service-utils";
 import {
   addAuthUserIdHeader,
   buildQuerySuffix,
+  clearAuthCache,
   copyAuthHeader,
   getUserIdFromAuth,
   parseAllowlist,
@@ -160,6 +161,7 @@ test("resolveAdminUserId prefers explicit admin header when allowlisted", async 
 });
 
 test("resolveAdminUserId falls back to auth identity lookup", async () => {
+  clearAuthCache();
   const requestFn = (async () => jsonResponse({ user: { id: "admin_from_auth" } }, 200)) as typeof request;
 
   const allowlisted = await resolveAdminUserId(
@@ -198,7 +200,8 @@ test("proxyJsonRequest forwards response body and request id header", async () =
 
   assert.equal(requestIdHeader, "req_123");
   assert.equal(capture.statusCode, 201);
-  assert.deepEqual(capture.payload, { ok: true });
+  // CHAOS-584: proxyJsonRequest now passes raw text through (no double-serialization)
+  assert.equal(capture.payload, '{"ok":true}');
 });
 
 test("proxyJsonRequest preserves plain text and returns 502 on upstream failure", async () => {
@@ -231,4 +234,123 @@ test("proxyJsonRequest preserves plain text and returns 502 on upstream failure"
 test("safeJsonParse returns parsed object or original payload", () => {
   assert.deepEqual(safeJsonParse('{"ok":true}'), { ok: true });
   assert.equal(safeJsonParse("no-json"), "no-json");
+});
+
+// ── Auth cache tests (CHAOS-581) ────────────────────────────────────
+
+test("auth cache returns cached result on second call without hitting identity service", async () => {
+  clearAuthCache();
+  let callCount = 0;
+  const requestFn = (async () => {
+    callCount++;
+    return jsonResponse({ user: { id: "cached_user" } }, 200);
+  }) as typeof request;
+
+  const first = await getUserIdFromAuth(requestFn, "http://identity", "Bearer cache_test_1");
+  assert.equal(first, "cached_user");
+  assert.equal(callCount, 1);
+
+  const second = await getUserIdFromAuth(requestFn, "http://identity", "Bearer cache_test_1");
+  assert.equal(second, "cached_user");
+  assert.equal(callCount, 1, "second call should use cache, not call identity service");
+});
+
+test("auth cache returns null from cache for failed auth without re-calling identity", async () => {
+  clearAuthCache();
+  let callCount = 0;
+  const requestFn = (async () => {
+    callCount++;
+    return jsonResponse({}, 401);
+  }) as typeof request;
+
+  const first = await getUserIdFromAuth(requestFn, "http://identity", "Bearer fail_cache_1");
+  assert.equal(first, null);
+  assert.equal(callCount, 1);
+
+  const second = await getUserIdFromAuth(requestFn, "http://identity", "Bearer fail_cache_1");
+  assert.equal(second, null);
+  assert.equal(callCount, 1, "cached null should prevent re-calling identity service");
+});
+
+test("clearAuthCache resets cache so next call hits identity service", async () => {
+  clearAuthCache();
+  let callCount = 0;
+  const requestFn = (async () => {
+    callCount++;
+    return jsonResponse({ user: { id: "writer_clear" } }, 200);
+  }) as typeof request;
+
+  await getUserIdFromAuth(requestFn, "http://identity", "Bearer clear_test_1");
+  assert.equal(callCount, 1);
+
+  clearAuthCache();
+
+  await getUserIdFromAuth(requestFn, "http://identity", "Bearer clear_test_1");
+  assert.equal(callCount, 2, "after clearing cache, identity service should be called again");
+});
+
+test("auth cache uses different entries for different tokens", async () => {
+  clearAuthCache();
+  let lastCalledAuth = "";
+  const requestFn = (async (_url, options) => {
+    lastCalledAuth = (options?.headers as Record<string, string> | undefined)?.authorization ?? "";
+    if (lastCalledAuth === "Bearer user_a") {
+      return jsonResponse({ user: { id: "user_a" } }, 200);
+    }
+    return jsonResponse({ user: { id: "user_b" } }, 200);
+  }) as typeof request;
+
+  const a = await getUserIdFromAuth(requestFn, "http://identity", "Bearer user_a");
+  const b = await getUserIdFromAuth(requestFn, "http://identity", "Bearer user_b");
+  assert.equal(a, "user_a");
+  assert.equal(b, "user_b");
+
+  // Both should now be cached — calling with swapped requestFn should still return original
+  const aCached = await getUserIdFromAuth(
+    (async () => jsonResponse({ user: { id: "wrong" } }, 200)) as typeof request,
+    "http://identity",
+    "Bearer user_a"
+  );
+  assert.equal(aCached, "user_a", "cached entry for token A should be returned");
+});
+
+// ── proxyJsonRequest passthrough tests (CHAOS-584) ──────────────────
+
+test("proxyJsonRequest passes through content-type from upstream headers", async () => {
+  const headers: Record<string, string> = {};
+  const capture: { statusCode?: number; payload?: unknown } = {};
+  const reply = {
+    status(code: number) { capture.statusCode = code; return this; },
+    send(payload: unknown) { capture.payload = payload; return this; },
+    header(name: string, value: string) { headers[name] = value; return this; }
+  } as unknown as FastifyReply;
+
+  const requestFn = (async () => ({
+    statusCode: 200,
+    headers: { "content-type": "application/json; charset=utf-8" },
+    body: { text: async () => '{"data":"hello"}', json: async () => ({ data: "hello" }) }
+  })) as unknown as typeof request;
+
+  await proxyJsonRequest(reply, requestFn, "http://svc/test", { method: "GET" });
+  assert.equal(capture.statusCode, 200);
+  assert.equal(capture.payload, '{"data":"hello"}');
+  assert.equal(headers["content-type"], "application/json; charset=utf-8");
+});
+
+test("proxyJsonRequest sends null for empty upstream body", async () => {
+  const capture: { statusCode?: number; payload?: unknown } = {};
+  const reply = {
+    status(code: number) { capture.statusCode = code; return this; },
+    send(payload: unknown) { capture.payload = payload; return this; },
+    header() { return this; }
+  } as unknown as FastifyReply;
+
+  const requestFn = (async () => ({
+    statusCode: 204,
+    body: { text: async () => "", json: async () => null }
+  })) as unknown as typeof request;
+
+  await proxyJsonRequest(reply, requestFn, "http://svc/test", { method: "DELETE" });
+  assert.equal(capture.statusCode, 204);
+  assert.equal(capture.payload, null);
 });

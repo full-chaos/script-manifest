@@ -925,6 +925,107 @@ test("list reviews requires matching auth", async (t) => {
   assert.equal(res.statusCode, 403);
 });
 
+// ── Reputation (CHAOS-585) ────────────────────────────────────────────
+
+test("reputation returns aggregated rating, strikes, and suspension status", async (t) => {
+  const { server, repo } = createServer();
+  t.after(() => server.close());
+
+  // Grant tokens for both users
+  await server.inject({ method: "POST", url: "/internal/tokens/grant-signup", headers: { "x-auth-user-id": "writer_01" } });
+  await server.inject({ method: "POST", url: "/internal/tokens/grant-signup", headers: { "x-auth-user-id": "writer_02" } });
+
+  // Create listing, claim, submit review, then rate it
+  const createRes = await server.inject({
+    method: "POST",
+    url: "/internal/listings",
+    headers: { "x-auth-user-id": "writer_01", "content-type": "application/json" },
+    payload: { projectId: "p1", scriptId: "s1", title: "Test", genre: "drama", format: "feature" }
+  });
+  const listingId = createRes.json().listing.id;
+
+  const claimRes = await server.inject({
+    method: "POST",
+    url: `/internal/listings/${listingId}/claim`,
+    headers: { "x-auth-user-id": "writer_02" }
+  });
+  const reviewId = claimRes.json().review.id;
+
+  const submitRes = await server.inject({
+    method: "POST",
+    url: `/internal/reviews/${reviewId}/submit`,
+    headers: { "x-auth-user-id": "writer_02", "content-type": "application/json" },
+    payload: { rubric: { storyStructure: { score: 4, comment: "Good" }, characters: { score: 3, comment: "OK" }, dialogue: { score: 5, comment: "Great" }, craftVoice: { score: 4, comment: "Solid" } }, overallComment: "Well done" }
+  });
+  assert.equal(submitRes.statusCode, 200, `submit should succeed, got: ${JSON.stringify(submitRes.json())}`);
+
+  const rateRes = await server.inject({
+    method: "POST",
+    url: `/internal/reviews/${reviewId}/rate`,
+    headers: { "x-auth-user-id": "writer_01", "content-type": "application/json" },
+    payload: { score: 5, comment: "Excellent review" }
+  });
+  assert.equal(rateRes.statusCode, 201, `rate should succeed, got: ${JSON.stringify(rateRes.json())}`);
+
+  // Issue a strike
+  await repo.issueStrike("writer_02", "test strike");
+
+  const repRes = await server.inject({ method: "GET", url: "/internal/reputation/writer_02" });
+  assert.equal(repRes.statusCode, 200);
+  const rep = repRes.json().reputation;
+  assert.equal(rep.userId, "writer_02");
+  assert.equal(rep.averageRating, 5);
+  assert.equal(rep.totalReviews, 1);
+  assert.equal(rep.activeStrikes, 1);
+  assert.equal(rep.isSuspended, false);
+});
+
+// ── Overdue review expiration (CHAOS-587) ─────────────────────────────
+
+test("expireOverdueReviews resets claimed listings with past deadlines", async (t) => {
+  const { server, repo } = createServer();
+  t.after(() => server.close());
+
+  // Grant tokens for both users
+  await server.inject({ method: "POST", url: "/internal/tokens/grant-signup", headers: { "x-auth-user-id": "writer_01" } });
+  await server.inject({ method: "POST", url: "/internal/tokens/grant-signup", headers: { "x-auth-user-id": "writer_02" } });
+
+  // Create listing
+  const createRes = await server.inject({
+    method: "POST",
+    url: "/internal/listings",
+    headers: { "x-auth-user-id": "writer_01", "content-type": "application/json" },
+    payload: { projectId: "p2", scriptId: "s2", title: "Overdue Test", genre: "comedy", format: "short" }
+  });
+  const listingId = createRes.json().listing.id;
+
+  // Claim it
+  await server.inject({
+    method: "POST",
+    url: `/internal/listings/${listingId}/claim`,
+    headers: { "x-auth-user-id": "writer_02" }
+  });
+
+  // Verify listing is claimed
+  const claimedRes = await server.inject({ method: "GET", url: `/internal/listings/${listingId}` });
+  assert.equal(claimedRes.json().listing.status, "claimed");
+  assert.ok(claimedRes.json().listing.reviewDeadline);
+
+  // Manually set deadline to past to simulate overdue
+  const listing = await repo.getListing(listingId);
+  assert.ok(listing);
+  (listing as { reviewDeadline: string | null }).reviewDeadline = new Date(Date.now() - 1000).toISOString();
+
+  // Run expiration
+  const expired = await repo.expireOverdueReviews();
+  assert.equal(expired, 1);
+
+  // Verify listing is back to open
+  const afterRes = await server.inject({ method: "GET", url: `/internal/listings/${listingId}` });
+  assert.equal(afterRes.json().listing.status, "open");
+  assert.equal(afterRes.json().listing.claimedByUserId, null);
+});
+
 // ── Health ────────────────────────────────────────────────────────────
 
 test("health endpoint returns ok", async (t) => {

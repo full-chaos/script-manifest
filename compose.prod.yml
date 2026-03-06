@@ -112,6 +112,8 @@ services:
       - --advertise-kafka-addr=PLAINTEXT://redpanda:9092
       - --pandaproxy-addr=0.0.0.0:8082
       - --advertise-pandaproxy-addr=redpanda:8082
+      - --set
+      - auto_create_topics_enabled=true
     networks: [internal]
     deploy:
       resources:
@@ -219,6 +221,10 @@ services:
     environment:
       PORT: "4010"
       NODE_ENV: production
+      KAFKA_BROKERS: "redpanda:9092"
+    depends_on:
+      redpanda:
+        condition: service_started
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:4010/health || exit 1"]
       <<: *healthcheck
@@ -260,6 +266,7 @@ services:
       NODE_ENV: production
       DATABASE_URL: "postgresql://${POSTGRES_USER:-manifest}:${POSTGRES_PASSWORD:?}@postgres:5432/${POSTGRES_DB:-manifest}"
       NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
+      KAFKA_BROKERS: "redpanda:9092"
     depends_on:
       postgres:
         condition: service_healthy
@@ -304,6 +311,7 @@ services:
       NODE_ENV: production
       SEARCH_INDEXER_URL: "http://search-indexer-service:4003"
       NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
+      KAFKA_BROKERS: "redpanda:9092"
     depends_on:
       search-indexer-service:
         condition: service_healthy
@@ -372,6 +380,7 @@ services:
       NODE_ENV: production
       DATABASE_URL: "postgresql://${POSTGRES_USER:-manifest}:${POSTGRES_PASSWORD:?}@postgres:5432/${POSTGRES_DB:-manifest}"
       NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
+      KAFKA_BROKERS: "redpanda:9092"
     depends_on:
       postgres:
         condition: service_healthy
@@ -395,6 +404,7 @@ services:
       NODE_ENV: production
       DATABASE_URL: "postgresql://${POSTGRES_USER:-manifest}:${POSTGRES_PASSWORD:?}@postgres:5432/${POSTGRES_DB:-manifest}"
       NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
+      KAFKA_BROKERS: "redpanda:9092"
       SUBMISSION_TRACKING_SERVICE_URL: "http://submission-tracking-service:4004"
       COMPETITION_DIRECTORY_SERVICE_URL: "http://competition-directory-service:4002"
       PROFILE_SERVICE_URL: "http://profile-project-service:4001"
@@ -425,6 +435,7 @@ services:
       NODE_ENV: production
       DATABASE_URL: "postgresql://${POSTGRES_USER:-manifest}:${POSTGRES_PASSWORD:?}@postgres:5432/${POSTGRES_DB:-manifest}"
       NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
+      KAFKA_BROKERS: "redpanda:9092"
     depends_on:
       postgres:
         condition: service_healthy
@@ -449,6 +460,7 @@ services:
       DATABASE_URL: "postgresql://${POSTGRES_USER:-manifest}:${POSTGRES_PASSWORD:?}@postgres:5432/${POSTGRES_DB:-manifest}"
       RANKING_SERVICE_URL: "http://ranking-service:4007"
       NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
+      KAFKA_BROKERS: "redpanda:9092"
     depends_on:
       postgres:
         condition: service_healthy
@@ -539,6 +551,7 @@ services:
       NODE_ENV: production
       DATABASE_URL: "postgresql://${POSTGRES_USER:-manifest}:${POSTGRES_PASSWORD:?}@postgres:5432/${POSTGRES_DB:-manifest}"
       NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
+      KAFKA_BROKERS: "redpanda:9092"
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:?STRIPE_SECRET_KEY is required}
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:?STRIPE_WEBHOOK_SECRET is required}
       PLATFORM_COMMISSION_RATE: ${PLATFORM_COMMISSION_RATE:-0.15}
@@ -574,6 +587,7 @@ services:
       DATABASE_URL: "postgresql://${POSTGRES_USER:-manifest}:${POSTGRES_PASSWORD:?}@postgres:5432/${POSTGRES_DB:-manifest}"
       SCRIPT_STORAGE_SERVICE_URL: "http://script-storage-service:4011"
       NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
+      KAFKA_BROKERS: "redpanda:9092"
     depends_on:
       postgres:
         condition: service_healthy

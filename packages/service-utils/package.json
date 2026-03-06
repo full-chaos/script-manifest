@@ -23,6 +23,7 @@
     "@sentry/node": "^9.0.0",
     "fastify": "^5.8.1",
     "fastify-metrics": "^12.1.0",
+    "kafkajs": "^2.2.4",
     "pino": "^10.3.1",
     "undici": "^7.22.0"
   },

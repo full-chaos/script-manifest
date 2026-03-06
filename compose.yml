@@ -99,6 +99,8 @@ services:
       - redpanda
       - start
       - --overprovisioned
+      - --set
+      - auto_create_topics_enabled=true
       - --smp=1
       - --memory=1G
       - --reserve-memory=0M
@@ -191,6 +193,7 @@ services:
       PORT: "4001"
       DATABASE_URL: "postgresql://manifest:manifest@postgres:5432/manifest"
       NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
+      KAFKA_BROKERS: "redpanda:9092"
     command: >
       sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/profile-project-service dev"
     ports:
@@ -205,7 +208,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 20s
+      start_period: 120s
 
   identity-service:
     <<: *node-dev
@@ -230,7 +233,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 20s
+      start_period: 120s
 
   notification-service:
     <<: *node-dev
@@ -241,6 +244,7 @@ services:
     environment:
       PORT: "4010"
       DATABASE_URL: "postgresql://manifest:manifest@postgres:5432/manifest"
+      KAFKA_BROKERS: "redpanda:9092"
     command: >
       sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/notification-service dev"
     ports:
@@ -248,12 +252,14 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      redpanda:
+        condition: service_started
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:4010/health || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 60s
+      start_period: 120s
 
   search-indexer-service:
     <<: *node-dev
@@ -277,7 +283,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 20s
+      start_period: 120s
 
   competition-directory-service:
     <<: *node-dev
@@ -291,6 +297,7 @@ services:
       SEARCH_INDEXER_URL: "http://search-indexer-service:4003"
       NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
       COMPETITION_ADMIN_ALLOWLIST: "admin_01,user_admin_01"
+      KAFKA_BROKERS: "redpanda:9092"
     command: >
       sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/competition-directory-service dev"
     ports:
@@ -307,7 +314,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 60s
+      start_period: 120s
 
   script-storage-service:
     <<: *node-dev
@@ -339,7 +346,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 20s
+      start_period: 120s
 
   submission-tracking-service:
     <<: *node-dev
@@ -362,7 +369,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 60s
+      start_period: 120s
 
   feedback-exchange-service:
     <<: *node-dev
@@ -374,6 +381,7 @@ services:
       PORT: "4006"
       DATABASE_URL: "postgresql://manifest:manifest@postgres:5432/manifest"
       NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
+      KAFKA_BROKERS: "redpanda:9092"
     command: >
       sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/feedback-exchange-service dev"
     ports:
@@ -388,7 +396,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 20s
+      start_period: 120s
 
   ranking-service:
     <<: *node-dev
@@ -403,6 +411,7 @@ services:
       SUBMISSION_TRACKING_SERVICE_URL: "http://submission-tracking-service:4004"
       COMPETITION_DIRECTORY_SERVICE_URL: "http://competition-directory-service:4002"
       PROFILE_SERVICE_URL: "http://profile-project-service:4001"
+      KAFKA_BROKERS: "redpanda:9092"
     command: >
       sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/ranking-service dev"
     ports:
@@ -421,7 +430,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 20s
+      start_period: 120s
 
   coverage-marketplace-service:
     <<: *node-dev
@@ -441,6 +450,7 @@ services:
       STORAGE_S3_ACCESS_KEY: "manifest"
       STORAGE_S3_SECRET_KEY: "manifest123"
       STORAGE_BUCKET: "coverage-reports"
+      KAFKA_BROKERS: "redpanda:9092"
     command: >
       sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/coverage-marketplace-service dev"
     ports:
@@ -457,7 +467,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 20s
+      start_period: 120s
 
   industry-portal-service:
     <<: *node-dev
@@ -470,6 +480,7 @@ services:
       DATABASE_URL: "postgresql://manifest:manifest@postgres:5432/manifest"
       SCRIPT_STORAGE_SERVICE_URL: "http://script-storage-service:4011"
       NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
+      KAFKA_BROKERS: "redpanda:9092"
     command: >
       sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/industry-portal-service dev"
     ports:
@@ -486,7 +497,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 20s
+      start_period: 120s
 
   programs-service:
     <<: *node-dev
@@ -498,6 +509,7 @@ services:
       PORT: "4012"
       DATABASE_URL: "postgresql://manifest:manifest@postgres:5432/manifest"
       NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
+      KAFKA_BROKERS: "redpanda:9092"
     command: >
       sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/programs-service dev"
     ports:
@@ -512,7 +524,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 20s
+      start_period: 120s
 
   partner-dashboard-service:
     <<: *node-dev
@@ -525,6 +537,7 @@ services:
       DATABASE_URL: "postgresql://manifest:manifest@postgres:5432/manifest"
       RANKING_SERVICE_URL: "http://ranking-service:4007"
       NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
+      KAFKA_BROKERS: "redpanda:9092"
     command: >
       sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/partner-dashboard-service dev"
     ports:
@@ -541,7 +554,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 20s
+      start_period: 120s
 
   api-gateway:
     <<: *node-dev
@@ -598,7 +611,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 30s
+      start_period: 120s
 
   writer-web:
     <<: *node-dev

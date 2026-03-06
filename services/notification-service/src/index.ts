@@ -6,6 +6,7 @@ import {
   NotificationEventEnvelopeSchema
 } from "@script-manifest/contracts";
 import type { NotificationRepository } from "./repository.js";
+import { startConsumer } from "./consumer.js";
 import { PgNotificationRepository } from "./pgRepository.js";
 
 export type NotificationServiceOptions = {
@@ -22,14 +23,17 @@ export function buildServer(options: NotificationServiceOptions = {}): FastifyIn
     requestIdHeader: "x-request-id",
   });
   const repository = options.repository ?? new PgNotificationRepository();
+  let stopConsumer: () => Promise<void> = async () => {};
 
   const startedAt = Date.now();
 
   server.addHook("onReady", async () => {
     await repository.init();
+    stopConsumer = await startConsumer(repository, server.log);
   });
 
   server.addHook("onClose", async () => {
+    await stopConsumer();
     await closePool();
   });
 

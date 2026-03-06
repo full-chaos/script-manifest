@@ -8,7 +8,7 @@ PLATFORM_MARKER_FILE="$WORKSPACE/node_modules/.pnpm-install.platform"
 LOCKFILE_HASH_FILE="$WORKSPACE/node_modules/.pnpm-lock.hash"
 BUILD_MARKER_FILE="$WORKSPACE/node_modules/.workspace-packages-built"
 
-current_platform="$(node -p '\`${process.platform}-${process.arch}\`')"
+current_platform="$(node -p '`${process.platform}-${process.arch}`')"
 current_lockfile_hash="$(md5sum "$WORKSPACE/pnpm-lock.yaml" 2>/dev/null | cut -d' ' -f1 || true)"
 
 export WORKSPACE MARKER_FILE PLATFORM_MARKER_FILE LOCKFILE_HASH_FILE BUILD_MARKER_FILE current_platform current_lockfile_hash

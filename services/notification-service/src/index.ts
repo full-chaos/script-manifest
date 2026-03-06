@@ -1,7 +1,6 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import { randomUUID } from "node:crypto";
-import { pathToFileURL } from "node:url";
-import { bootstrapService, registerMetrics, setupErrorReporting, validateRequiredEnv } from "@script-manifest/service-utils";
+import { bootstrapService, registerMetrics, setupErrorReporting, validateRequiredEnv, isMainModule } from "@script-manifest/service-utils";
 import {
   NotificationEventEnvelope,
   NotificationEventEnvelopeSchema
@@ -81,14 +80,6 @@ export async function startServer(): Promise<void> {
   await registerMetrics(server);
   await server.listen({ port, host: "0.0.0.0" });
   boot.ready(port);
-}
-
-function isMainModule(metaUrl: string): boolean {
-  if (!process.argv[1]) {
-    return false;
-  }
-
-  return metaUrl === pathToFileURL(process.argv[1]).href;
 }
 
 if (isMainModule(import.meta.url)) {

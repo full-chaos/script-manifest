@@ -6,9 +6,8 @@ import {
 } from "@aws-sdk/client-s3";
 import { createPresignedPost } from "@aws-sdk/s3-presigned-post";
 import { randomUUID } from "node:crypto";
-import { pathToFileURL } from "node:url";
 import { Counter } from "prom-client";
-import { bootstrapService, registerMetrics, setupErrorReporting, validateRequiredEnv } from "@script-manifest/service-utils";
+import { bootstrapService, registerMetrics, setupErrorReporting, validateRequiredEnv, isMainModule } from "@script-manifest/service-utils";
 import {
   ScriptFileRegistrationSchema,
   ScriptRegisterRequestSchema,
@@ -455,14 +454,6 @@ function rewriteUploadUrlForClient(sourceUrl: string, publicBaseUrl: string): st
 
 function toUrlPath(bucket: string, objectKey: string): string {
   return `/${bucket}/${objectKey}`.replace(/\/{2,}/g, "/");
-}
-
-function isMainModule(metaUrl: string): boolean {
-  if (!process.argv[1]) {
-    return false;
-  }
-
-  return metaUrl === pathToFileURL(process.argv[1]).href;
 }
 
 if (isMainModule(import.meta.url)) {

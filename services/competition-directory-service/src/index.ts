@@ -1,8 +1,7 @@
 import Fastify, { type FastifyInstance, type FastifyReply } from "fastify";
 import { randomUUID } from "node:crypto";
-import { pathToFileURL } from "node:url";
 import { request } from "undici";
-import { bootstrapService, registerMetrics, setupErrorReporting, validateRequiredEnv } from "@script-manifest/service-utils";
+import { bootstrapService, registerMetrics, setupErrorReporting, validateRequiredEnv, isMainModule, readHeader } from "@script-manifest/service-utils";
 import {
   CompetitionFiltersSchema,
   CompetitionSchema,
@@ -152,7 +151,7 @@ export function buildServer(options: CompetitionDirectoryOptions = {}): FastifyI
   });
 
   server.post("/internal/admin/competitions", async (req, reply) => {
-    const adminUserId = readHeader(req.headers, "x-admin-user-id");
+    const adminUserId = readHeader(req, "x-admin-user-id");
     if (!adminUserId || !adminAllowlist.has(adminUserId)) {
       return reply.status(403).send({ error: "forbidden" });
     }
@@ -169,7 +168,7 @@ export function buildServer(options: CompetitionDirectoryOptions = {}): FastifyI
   });
 
   server.put<{ Params: { competitionId: string } }>("/internal/admin/competitions/:competitionId", async (req, reply) => {
-    const adminUserId = readHeader(req.headers, "x-admin-user-id");
+    const adminUserId = readHeader(req, "x-admin-user-id");
     if (!adminUserId || !adminAllowlist.has(adminUserId)) {
       return reply.status(403).send({ error: "forbidden" });
     }
@@ -289,14 +288,6 @@ export async function startServer(): Promise<void> {
   boot.ready(port);
 }
 
-function isMainModule(metaUrl: string): boolean {
-  if (!process.argv[1]) {
-    return false;
-  }
-
-  return metaUrl === pathToFileURL(process.argv[1]).href;
-}
-
 if (isMainModule(import.meta.url)) {
   startServer().catch((error) => { process.stderr.write(String(error) + "\n"); process.exit(1); });
 }
@@ -363,9 +354,4 @@ function parseAllowlist(value: string): Set<string> {
       .map((entry) => entry.trim())
       .filter(Boolean)
   );
-}
-
-function readHeader(headers: Record<string, unknown>, name: string): string | null {
-  const value = headers[name];
-  return typeof value === "string" && value.length > 0 ? value : null;
 }

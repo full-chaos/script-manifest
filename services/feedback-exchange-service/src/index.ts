@@ -1,8 +1,8 @@
 import Fastify, { type FastifyInstance } from "fastify";
-import { pathToFileURL } from "node:url";
 import { randomUUID } from "node:crypto";
 import { Counter } from "prom-client";
-import { bootstrapService, registerMetrics, setupErrorReporting, validateRequiredEnv } from "@script-manifest/service-utils";
+import { bootstrapService, registerMetrics, setupErrorReporting, validateRequiredEnv, getAuthUserId, isMainModule, publishNotificationEvent } from "@script-manifest/service-utils";
+import { healthCheck } from "@script-manifest/db";
 import {
   FeedbackListingCreateRequestSchema,
   FeedbackListingFiltersSchema,
@@ -11,7 +11,6 @@ import {
   FeedbackDisputeCreateRequestSchema,
   FeedbackDisputeResolveRequestSchema
 } from "@script-manifest/contracts";
-import { publishNotificationEvent } from "./notificationPublisher.js";
 import {
   type FeedbackExchangeRepository,
   PgFeedbackExchangeRepository
@@ -42,11 +41,7 @@ export function buildServer(options: FeedbackExchangeServiceOptions = {}): Fasti
   });
   const publisher = options.publisher ?? publishNotificationEvent;
   const repository = options.repository ?? new PgFeedbackExchangeRepository();
-
-  const getAuthUserId = (headers: Record<string, unknown>): string | null => {
-    const userId = headers["x-auth-user-id"];
-    return typeof userId === "string" && userId.length > 0 ? userId : null;
-  };
+  const runHealthCheck = options.repository ? () => repository.healthCheck() : healthCheck;
 
   server.addHook("onReady", async () => {
     await repository.init();
@@ -57,7 +52,7 @@ export function buildServer(options: FeedbackExchangeServiceOptions = {}): Fasti
   server.get("/health", async (_req, reply) => {
     const checks: Record<string, boolean> = {};
     try {
-      const result = await repository.healthCheck();
+      const result = await runHealthCheck();
       checks.database = result.database;
     } catch {
       checks.database = false;
@@ -71,7 +66,7 @@ export function buildServer(options: FeedbackExchangeServiceOptions = {}): Fasti
   server.get("/health/ready", async (_req, reply) => {
     const checks: Record<string, boolean> = {};
     try {
-      const result = await repository.healthCheck();
+      const result = await runHealthCheck();
       checks.database = result.database;
     } catch {
       checks.database = false;
@@ -95,7 +90,7 @@ export function buildServer(options: FeedbackExchangeServiceOptions = {}): Fasti
   });
 
   server.post("/internal/tokens/grant-signup", async (req, reply) => {
-    const authUserId = getAuthUserId(req.headers);
+    const authUserId = getAuthUserId(req);
     if (!authUserId) {
       return reply.status(403).send({ error: "forbidden" });
     }
@@ -106,7 +101,7 @@ export function buildServer(options: FeedbackExchangeServiceOptions = {}): Fasti
   // ── Listings ───────────────────────────────────────────────────────
 
   server.post("/internal/listings", async (req, reply) => {
-    const authUserId = getAuthUserId(req.headers);
+    const authUserId = getAuthUserId(req);
     if (!authUserId) {
       return reply.status(403).send({ error: "forbidden" });
     }
@@ -158,7 +153,7 @@ export function buildServer(options: FeedbackExchangeServiceOptions = {}): Fasti
 
   server.post<{ Params: { listingId: string } }>("/internal/listings/:listingId/claim", async (req, reply) => {
     const { listingId } = req.params;
-    const authUserId = getAuthUserId(req.headers);
+    const authUserId = getAuthUserId(req);
     if (!authUserId) {
       return reply.status(403).send({ error: "forbidden" });
     }
@@ -204,7 +199,7 @@ export function buildServer(options: FeedbackExchangeServiceOptions = {}): Fasti
 
   server.post<{ Params: { listingId: string } }>("/internal/listings/:listingId/cancel", async (req, reply) => {
     const { listingId } = req.params;
-    const authUserId = getAuthUserId(req.headers);
+    const authUserId = getAuthUserId(req);
     if (!authUserId) {
       return reply.status(403).send({ error: "forbidden" });
     }
@@ -243,7 +238,7 @@ export function buildServer(options: FeedbackExchangeServiceOptions = {}): Fasti
 
   server.get<{ Querystring: { reviewerUserId?: string } }>("/internal/reviews", async (req, reply) => {
     const { reviewerUserId } = req.query;
-    const authUserId = getAuthUserId(req.headers);
+    const authUserId = getAuthUserId(req);
 
     if (!reviewerUserId) {
       return reply.status(400).send({ error: "missing_reviewer_user_id" });
@@ -268,7 +263,7 @@ export function buildServer(options: FeedbackExchangeServiceOptions = {}): Fasti
 
   server.post<{ Params: { reviewId: string } }>("/internal/reviews/:reviewId/submit", async (req, reply) => {
     const { reviewId } = req.params;
-    const authUserId = getAuthUserId(req.headers);
+    const authUserId = getAuthUserId(req);
     if (!authUserId) {
       return reply.status(403).send({ error: "forbidden" });
     }
@@ -330,7 +325,7 @@ export function buildServer(options: FeedbackExchangeServiceOptions = {}): Fasti
 
   server.post<{ Params: { reviewId: string } }>("/internal/reviews/:reviewId/rate", async (req, reply) => {
     const { reviewId } = req.params;
-    const authUserId = getAuthUserId(req.headers);
+    const authUserId = getAuthUserId(req);
     if (!authUserId) {
       return reply.status(403).send({ error: "forbidden" });
     }
@@ -392,7 +387,7 @@ export function buildServer(options: FeedbackExchangeServiceOptions = {}): Fasti
 
   server.post<{ Params: { reviewId: string } }>("/internal/reviews/:reviewId/dispute", async (req, reply) => {
     const { reviewId } = req.params;
-    const authUserId = getAuthUserId(req.headers);
+    const authUserId = getAuthUserId(req);
     if (!authUserId) {
       return reply.status(403).send({ error: "forbidden" });
     }
@@ -462,7 +457,7 @@ export function buildServer(options: FeedbackExchangeServiceOptions = {}): Fasti
 
   server.post<{ Params: { disputeId: string } }>("/internal/disputes/:disputeId/resolve", async (req, reply) => {
     const { disputeId } = req.params;
-    const authUserId = getAuthUserId(req.headers);
+    const authUserId = getAuthUserId(req);
     if (!authUserId) {
       return reply.status(403).send({ error: "forbidden" });
     }
@@ -552,14 +547,6 @@ export async function startServer(): Promise<void> {
   await registerMetrics(server);
   await server.listen({ port, host: "0.0.0.0" });
   boot.ready(port);
-}
-
-function isMainModule(metaUrl: string): boolean {
-  if (!process.argv[1]) {
-    return false;
-  }
-
-  return metaUrl === pathToFileURL(process.argv[1]).href;
 }
 
 if (isMainModule(import.meta.url)) {

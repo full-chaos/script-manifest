@@ -1,10 +1,9 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import rateLimit from "@fastify/rate-limit";
-import { pathToFileURL } from "node:url";
 import { randomUUID } from "node:crypto";
 import { Counter } from "prom-client";
-import { bootstrapService, registerMetrics, setupErrorReporting, validateRequiredEnv } from "@script-manifest/service-utils";
-import { closePool } from "@script-manifest/db";
+import { bootstrapService, registerMetrics, setupErrorReporting, validateRequiredEnv, getAuthUserId, isMainModule } from "@script-manifest/service-utils";
+import { closePool, healthCheck } from "@script-manifest/db";
 import {
   CoverageProviderCreateRequestSchema,
   CoverageProviderUpdateRequestSchema,
@@ -81,17 +80,13 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
   });
 
   const repository = options.repository ?? new PgCoverageMarketplaceRepository();
+  const runHealthCheck = options.repository ? () => repository.healthCheck() : healthCheck;
   const paymentGateway = options.paymentGateway ?? createPaymentGatewayFromEnv();
   const commissionRate = options.commissionRate ?? Number(process.env.PLATFORM_COMMISSION_RATE ?? "0.15");
   const autoCompleteDays = Number(process.env.COVERAGE_AUTO_COMPLETE_DAYS ?? "7");
   const maintenanceIntervalMs = Number(process.env.COVERAGE_SLA_MAINTENANCE_MS ?? "0");
   const systemUserId = process.env.COVERAGE_SYSTEM_USER_ID ?? "system";
   let maintenanceTimer: NodeJS.Timeout | null = null;
-
-  const getAuthUserId = (headers: Record<string, unknown>): string | null => {
-    const userId = headers["x-auth-user-id"];
-    return typeof userId === "string" && userId.length > 0 ? userId : null;
-  };
 
   server.register(rateLimit, {
     global: true,
@@ -185,7 +180,7 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
   server.get("/health", async (_req, reply) => {
     const checks: Record<string, boolean> = {};
     try {
-      const result = await repository.healthCheck();
+      const result = await runHealthCheck();
       checks.database = result.database;
     } catch {
       checks.database = false;
@@ -199,7 +194,7 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
   server.get("/health/ready", async (_req, reply) => {
     const checks: Record<string, boolean> = {};
     try {
-      const result = await repository.healthCheck();
+      const result = await runHealthCheck();
       checks.database = result.database;
     } catch {
       checks.database = false;
@@ -211,7 +206,7 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
   // ── Provider Routes ────────────────────────────────────────────────
 
   server.post("/internal/providers", async (req, reply) => {
-    const authUserId = getAuthUserId(req.headers);
+    const authUserId = getAuthUserId(req);
     if (!authUserId) {
       return reply.status(403).send({ error: "forbidden" });
     }
@@ -262,7 +257,7 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
 
   server.patch<{ Params: { providerId: string } }>("/internal/providers/:providerId", async (req, reply) => {
     const { providerId } = req.params;
-    const authUserId = getAuthUserId(req.headers);
+    const authUserId = getAuthUserId(req);
     if (!authUserId) {
       return reply.status(403).send({ error: "forbidden" });
     }
@@ -286,7 +281,7 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
 
   server.get<{ Params: { providerId: string } }>("/internal/providers/:providerId/stripe-onboarding", async (req, reply) => {
     const { providerId } = req.params;
-    const authUserId = getAuthUserId(req.headers);
+    const authUserId = getAuthUserId(req);
     if (!authUserId) {
       return reply.status(403).send({ error: "forbidden" });
     }
@@ -321,7 +316,7 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
   });
 
   server.get("/internal/admin/providers/review-queue", async (req, reply) => {
-    const authUserId = getAuthUserId(req.headers);
+    const authUserId = getAuthUserId(req);
     if (!authUserId) {
       return reply.status(403).send({ error: "forbidden" });
     }
@@ -346,7 +341,7 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
   });
 
   server.post<{ Params: { providerId: string } }>("/internal/admin/providers/:providerId/review", async (req, reply) => {
-    const authUserId = getAuthUserId(req.headers);
+    const authUserId = getAuthUserId(req);
     if (!authUserId) {
       return reply.status(403).send({ error: "forbidden" });
     }
@@ -385,7 +380,7 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
 
   server.post<{ Params: { providerId: string } }>("/internal/providers/:providerId/services", async (req, reply) => {
     const { providerId } = req.params;
-    const authUserId = getAuthUserId(req.headers);
+    const authUserId = getAuthUserId(req);
     if (!authUserId) {
       return reply.status(403).send({ error: "forbidden" });
     }
@@ -418,7 +413,7 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
 
   server.patch<{ Params: { serviceId: string } }>("/internal/services/:serviceId", async (req, reply) => {
     const { serviceId } = req.params;
-    const authUserId = getAuthUserId(req.headers);
+    const authUserId = getAuthUserId(req);
     if (!authUserId) {
       return reply.status(403).send({ error: "forbidden" });
     }
@@ -454,7 +449,7 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
   // ── Order Routes ───────────────────────────────────────────────────
 
   server.post("/internal/orders", async (req, reply) => {
-    const authUserId = getAuthUserId(req.headers);
+    const authUserId = getAuthUserId(req);
     if (!authUserId) {
       return reply.status(403).send({ error: "forbidden" });
     }
@@ -507,7 +502,7 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
   });
 
   server.get("/internal/orders", async (req, reply) => {
-    const authUserId = getAuthUserId(req.headers);
+    const authUserId = getAuthUserId(req);
     if (!authUserId) {
       return reply.status(403).send({ error: "forbidden" });
     }
@@ -523,7 +518,7 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
 
   server.get<{ Params: { orderId: string } }>("/internal/orders/:orderId", async (req, reply) => {
     const { orderId } = req.params;
-    const authUserId = getAuthUserId(req.headers);
+    const authUserId = getAuthUserId(req);
     if (!authUserId) {
       return reply.status(403).send({ error: "forbidden" });
     }
@@ -544,7 +539,7 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
 
   server.post<{ Params: { orderId: string } }>("/internal/orders/:orderId/claim", async (req, reply) => {
     const { orderId } = req.params;
-    const authUserId = getAuthUserId(req.headers);
+    const authUserId = getAuthUserId(req);
     if (!authUserId) {
       return reply.status(403).send({ error: "forbidden" });
     }
@@ -576,7 +571,7 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
 
   server.post<{ Params: { orderId: string } }>("/internal/orders/:orderId/deliver", async (req, reply) => {
     const { orderId } = req.params;
-    const authUserId = getAuthUserId(req.headers);
+    const authUserId = getAuthUserId(req);
     if (!authUserId) {
       return reply.status(403).send({ error: "forbidden" });
     }
@@ -611,7 +606,7 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
 
   server.post<{ Params: { orderId: string } }>("/internal/orders/:orderId/complete", async (req, reply) => {
     const { orderId } = req.params;
-    const authUserId = getAuthUserId(req.headers);
+    const authUserId = getAuthUserId(req);
     if (!authUserId) {
       return reply.status(403).send({ error: "forbidden" });
     }
@@ -654,7 +649,7 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
 
   server.post<{ Params: { orderId: string } }>("/internal/orders/:orderId/cancel", async (req, reply) => {
     const { orderId } = req.params;
-    const authUserId = getAuthUserId(req.headers);
+    const authUserId = getAuthUserId(req);
     if (!authUserId) {
       return reply.status(403).send({ error: "forbidden" });
     }
@@ -685,7 +680,7 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
 
   server.get<{ Params: { orderId: string } }>("/internal/orders/:orderId/delivery", async (req, reply) => {
     const { orderId } = req.params;
-    const authUserId = getAuthUserId(req.headers);
+    const authUserId = getAuthUserId(req);
     if (!authUserId) {
       return reply.status(403).send({ error: "forbidden" });
     }
@@ -711,7 +706,7 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
 
   server.get<{ Params: { orderId: string } }>("/internal/orders/:orderId/delivery/upload-url", async (req, reply) => {
     const { orderId } = req.params;
-    const authUserId = getAuthUserId(req.headers);
+    const authUserId = getAuthUserId(req);
     if (!authUserId) {
       return reply.status(403).send({ error: "forbidden" });
     }
@@ -745,7 +740,7 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
 
   server.post<{ Params: { orderId: string } }>("/internal/orders/:orderId/review", async (req, reply) => {
     const { orderId } = req.params;
-    const authUserId = getAuthUserId(req.headers);
+    const authUserId = getAuthUserId(req);
     if (!authUserId) {
       return reply.status(403).send({ error: "forbidden" });
     }
@@ -790,7 +785,7 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
 
   server.post<{ Params: { orderId: string } }>("/internal/orders/:orderId/dispute", async (req, reply) => {
     const { orderId } = req.params;
-    const authUserId = getAuthUserId(req.headers);
+    const authUserId = getAuthUserId(req);
     if (!authUserId) {
       return reply.status(403).send({ error: "forbidden" });
     }
@@ -837,7 +832,7 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
   });
 
   server.get<{ Querystring: { status?: string } }>("/internal/disputes", async (req, reply) => {
-    const authUserId = getAuthUserId(req.headers);
+    const authUserId = getAuthUserId(req);
     if (!authUserId) {
       return reply.status(403).send({ error: "forbidden" });
     }
@@ -852,7 +847,7 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
   });
 
   server.get<{ Params: { disputeId: string } }>("/internal/disputes/:disputeId/events", async (req, reply) => {
-    const authUserId = getAuthUserId(req.headers);
+    const authUserId = getAuthUserId(req);
     if (!authUserId) {
       return reply.status(403).send({ error: "forbidden" });
     }
@@ -867,7 +862,7 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
 
   server.patch<{ Params: { disputeId: string } }>("/internal/disputes/:disputeId", async (req, reply) => {
     const { disputeId } = req.params;
-    const authUserId = getAuthUserId(req.headers);
+    const authUserId = getAuthUserId(req);
     if (!authUserId) {
       return reply.status(403).send({ error: "forbidden" });
     }
@@ -932,7 +927,7 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
   // ── Provider Earnings & Ledger Routes ─────────────────────────────
 
   server.get<{ Params: { providerId: string }; Querystring: { month?: string; format?: string } }>("/internal/providers/:providerId/earnings-statement", async (req, reply) => {
-    const authUserId = getAuthUserId(req.headers);
+    const authUserId = getAuthUserId(req);
     if (!authUserId) {
       return reply.status(403).send({ error: "forbidden" });
     }
@@ -1021,7 +1016,7 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
   });
 
   server.get<{ Querystring: { month?: string; format?: string } }>("/internal/admin/payout-ledger", async (req, reply) => {
-    const authUserId = getAuthUserId(req.headers);
+    const authUserId = getAuthUserId(req);
     if (!authUserId) {
       return reply.status(403).send({ error: "forbidden" });
     }
@@ -1093,7 +1088,7 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
   server.post("/internal/jobs/sla-maintenance", {
     config: { rateLimit: { max: 5, timeWindow: "1 minute" } }
   }, async (req, reply) => {
-    const authUserId = getAuthUserId(req.headers);
+    const authUserId = getAuthUserId(req);
     if (!authUserId) {
       return reply.status(403).send({ error: "forbidden" });
     }
@@ -1209,14 +1204,6 @@ export async function startServer(): Promise<void> {
   await registerMetrics(server);
   await server.listen({ port, host: "0.0.0.0" });
   boot.ready(port);
-}
-
-function isMainModule(metaUrl: string): boolean {
-  if (!process.argv[1]) {
-    return false;
-  }
-
-  return metaUrl === pathToFileURL(process.argv[1]).href;
 }
 
 if (isMainModule(import.meta.url)) {

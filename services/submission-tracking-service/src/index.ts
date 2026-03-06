@@ -1,8 +1,7 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import { randomUUID } from "node:crypto";
-import { pathToFileURL } from "node:url";
 import { Counter } from "prom-client";
-import { bootstrapService, registerMetrics, setupErrorReporting, validateRequiredEnv } from "@script-manifest/service-utils";
+import { bootstrapService, registerMetrics, setupErrorReporting, validateRequiredEnv, getAuthUserId, isMainModule } from "@script-manifest/service-utils";
 import {
   PlacementFiltersSchema,
   PlacementListItemSchema,
@@ -38,11 +37,6 @@ export function buildServer(options: SubmissionTrackingOptions = {}): FastifyIns
   const submissions = new Map<string, Submission>();
   const placements = new Map<string, Placement>();
 
-  const getAuthUserId = (headers: Record<string, unknown>): string | null => {
-    const userId = headers["x-auth-user-id"];
-    return typeof userId === "string" && userId.length > 0 ? userId : null;
-  };
-
   const startedAt = Date.now();
 
   server.get("/health", async () => ({
@@ -62,7 +56,7 @@ export function buildServer(options: SubmissionTrackingOptions = {}): FastifyIns
   }));
 
   server.post("/internal/submissions", async (req, reply) => {
-    const authUserId = getAuthUserId(req.headers);
+    const authUserId = getAuthUserId(req);
     if (!authUserId) {
       return reply.status(403).send({ error: "forbidden" });
     }
@@ -93,7 +87,7 @@ export function buildServer(options: SubmissionTrackingOptions = {}): FastifyIns
 
   server.patch<{ Params: { submissionId: string } }>("/internal/submissions/:submissionId/project", async (req, reply) => {
     const { submissionId } = req.params;
-    const authUserId = getAuthUserId(req.headers);
+    const authUserId = getAuthUserId(req);
     if (!authUserId) {
       return reply.status(403).send({ error: "forbidden" });
     }
@@ -202,7 +196,7 @@ export function buildServer(options: SubmissionTrackingOptions = {}): FastifyIns
       return reply.status(404).send({ error: "submission_not_found" });
     }
 
-    const authUserId = getAuthUserId(req.headers);
+    const authUserId = getAuthUserId(req);
     if (authUserId && authUserId !== submission.writerId) {
       return reply.status(403).send({ error: "forbidden" });
     }
@@ -223,7 +217,7 @@ export function buildServer(options: SubmissionTrackingOptions = {}): FastifyIns
       });
     }
 
-    const authUserId = getAuthUserId(req.headers);
+    const authUserId = getAuthUserId(req);
     const filters = parsedQuery.data;
     if (authUserId && filters.writerId && filters.writerId !== authUserId) {
       return reply.status(403).send({ error: "forbidden" });
@@ -276,7 +270,7 @@ export function buildServer(options: SubmissionTrackingOptions = {}): FastifyIns
       return reply.status(404).send({ error: "submission_not_found" });
     }
 
-    const authUserId = getAuthUserId(req.headers);
+    const authUserId = getAuthUserId(req);
     if (authUserId && authUserId !== submission.writerId) {
       return reply.status(403).send({ error: "forbidden" });
     }
@@ -345,14 +339,6 @@ export async function startServer(): Promise<void> {
   await registerMetrics(server);
   await server.listen({ port, host: "0.0.0.0" });
   boot.ready(port);
-}
-
-function isMainModule(metaUrl: string): boolean {
-  if (!process.argv[1]) {
-    return false;
-  }
-
-  return metaUrl === pathToFileURL(process.argv[1]).href;
 }
 
 if (isMainModule(import.meta.url)) {

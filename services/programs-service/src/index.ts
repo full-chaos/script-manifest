@@ -1,9 +1,9 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import rateLimit from "@fastify/rate-limit";
 import { randomUUID } from "node:crypto";
-import { pathToFileURL } from "node:url";
 import { request as undiciRequest } from "undici";
-import { bootstrapService, registerMetrics, setupErrorReporting, validateRequiredEnv } from "@script-manifest/service-utils";
+import { bootstrapService, registerMetrics, setupErrorReporting, validateRequiredEnv, isMainModule, readHeader } from "@script-manifest/service-utils";
+import { healthCheck } from "@script-manifest/db";
 import {
   ProgramApplicationCreateRequestSchema,
   ProgramApplicationReviewRequestSchema,
@@ -29,11 +29,6 @@ export type ProgramsServiceOptions = {
   schedulerEnabled?: boolean;
 };
 
-function readHeader(headers: Record<string, unknown>, name: string): string | null {
-  const value = headers[name];
-  return typeof value === "string" && value.length > 0 ? value : null;
-}
-
 export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstance {
   const server = Fastify({
     logger: options.logger === false ? false : {
@@ -43,6 +38,7 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
     requestIdHeader: "x-request-id"
   });
   const repository = options.repository ?? new PgProgramsRepository();
+  const runHealthCheck = options.repository ? () => repository.healthCheck() : healthCheck;
   const repositoryReady = repository.init();
   const requestFn = options.requestFn ?? undiciRequest;
   const notificationServiceBase =
@@ -122,7 +118,7 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
       await repositoryReady;
       const checks: Record<string, boolean> = {};
       try {
-        const result = await repository.healthCheck();
+        const result = await runHealthCheck();
         checks.database = result.database;
       } catch {
         checks.database = false;
@@ -140,7 +136,7 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
       await repositoryReady;
       const checks: Record<string, boolean> = {};
       try {
-        const result = await repository.healthCheck();
+        const result = await runHealthCheck();
         checks.database = result.database;
       } catch {
         checks.database = false;
@@ -196,7 +192,7 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
-      const userId = readHeader(req.headers, "x-auth-user-id");
+      const userId = readHeader(req, "x-auth-user-id");
       if (!userId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -217,7 +213,7 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
     config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
-      const userId = readHeader(req.headers, "x-auth-user-id");
+      const userId = readHeader(req, "x-auth-user-id");
       if (!userId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -231,7 +227,7 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
     config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
-      const adminUserId = readHeader(req.headers, "x-admin-user-id");
+      const adminUserId = readHeader(req, "x-admin-user-id");
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -245,7 +241,7 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
-      const reviewerUserId = readHeader(req.headers, "x-admin-user-id");
+      const reviewerUserId = readHeader(req, "x-admin-user-id");
       if (!reviewerUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -299,7 +295,7 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
-      const adminUserId = readHeader(req.headers, "x-admin-user-id");
+      const adminUserId = readHeader(req, "x-admin-user-id");
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -324,7 +320,7 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
-      const adminUserId = readHeader(req.headers, "x-admin-user-id");
+      const adminUserId = readHeader(req, "x-admin-user-id");
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -349,7 +345,7 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
     config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
-      const adminUserId = readHeader(req.headers, "x-admin-user-id");
+      const adminUserId = readHeader(req, "x-admin-user-id");
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -363,7 +359,7 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
     config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
-      const adminUserId = readHeader(req.headers, "x-admin-user-id");
+      const adminUserId = readHeader(req, "x-admin-user-id");
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -377,7 +373,7 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
-      const adminUserId = readHeader(req.headers, "x-admin-user-id");
+      const adminUserId = readHeader(req, "x-admin-user-id");
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -398,7 +394,7 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
-      const adminUserId = readHeader(req.headers, "x-admin-user-id");
+      const adminUserId = readHeader(req, "x-admin-user-id");
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -422,7 +418,7 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
-      const adminUserId = readHeader(req.headers, "x-admin-user-id");
+      const adminUserId = readHeader(req, "x-admin-user-id");
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -489,7 +485,7 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
-      const adminUserId = readHeader(req.headers, "x-admin-user-id");
+      const adminUserId = readHeader(req, "x-admin-user-id");
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -510,7 +506,7 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
-      const adminUserId = readHeader(req.headers, "x-admin-user-id");
+      const adminUserId = readHeader(req, "x-admin-user-id");
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -536,7 +532,7 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
-      const adminUserId = readHeader(req.headers, "x-admin-user-id");
+      const adminUserId = readHeader(req, "x-admin-user-id");
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -557,7 +553,7 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
-      const adminUserId = readHeader(req.headers, "x-admin-user-id");
+      const adminUserId = readHeader(req, "x-admin-user-id");
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -578,7 +574,7 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
-      const adminUserId = readHeader(req.headers, "x-admin-user-id");
+      const adminUserId = readHeader(req, "x-admin-user-id");
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -599,7 +595,7 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
-      const adminUserId = readHeader(req.headers, "x-admin-user-id");
+      const adminUserId = readHeader(req, "x-admin-user-id");
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -620,7 +616,7 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
-      const adminUserId = readHeader(req.headers, "x-admin-user-id");
+      const adminUserId = readHeader(req, "x-admin-user-id");
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -644,7 +640,7 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
     config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
-      const adminUserId = readHeader(req.headers, "x-admin-user-id");
+      const adminUserId = readHeader(req, "x-admin-user-id");
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -683,7 +679,7 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
     config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
-      const adminUserId = readHeader(req.headers, "x-admin-user-id");
+      const adminUserId = readHeader(req, "x-admin-user-id");
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -709,7 +705,7 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
-      const adminUserId = readHeader(req.headers, "x-admin-user-id");
+      const adminUserId = readHeader(req, "x-admin-user-id");
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -751,13 +747,6 @@ export async function startServer(): Promise<void> {
   await registerMetrics(server);
   await server.listen({ port, host: "0.0.0.0" });
   boot.ready(port);
-}
-
-function isMainModule(metaUrl: string): boolean {
-  if (!process.argv[1]) {
-    return false;
-  }
-  return metaUrl === pathToFileURL(process.argv[1]).href;
 }
 
 if (isMainModule(import.meta.url)) {

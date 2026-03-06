@@ -1,2 +1,0 @@
-export { publishNotificationEvent, disconnectProducer } from "./notificationPublisher.js";
-export { getKafkaClient, _resetKafkaClient } from "./kafka.js";

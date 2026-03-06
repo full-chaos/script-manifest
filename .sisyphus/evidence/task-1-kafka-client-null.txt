@@ -1,3 +1,0 @@
-Test: getKafkaClient - null when KAFKA_BROKERS unset
-Result: PASS
-Details: All assertions in test 'returns null when KAFKA_BROKERS is not set' passed.

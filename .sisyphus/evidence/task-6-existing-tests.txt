@@ -1,7 +1,0 @@
-Command: node --import tsx --test services/notification-service/src/index.test.ts
-Workdir: /Users/chris/projects/script-manifest-chaos-602
-
-✔ notification service accepts valid events and lists by user
-✔ notification service rejects invalid events
-
-Result: PASS (2 tests, 0 failures)

@@ -1,4 +1,0 @@
-import { startConsumer } from "./consumer.js";
-  let stopConsumer: () => Promise<void> = async () => {};
-    stopConsumer = await startConsumer(repository, server.log);
-    await stopConsumer();

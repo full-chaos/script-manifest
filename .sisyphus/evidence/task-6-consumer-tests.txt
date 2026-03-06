@@ -1,9 +1,0 @@
-Command: node --import tsx --test services/notification-service/src/consumer.test.ts
-Workdir: /Users/chris/projects/script-manifest-chaos-602
-
-✔ startConsumer returns a disconnect function
-✔ startConsumer disables consumer when KAFKA_BROKERS is missing
-✔ startConsumer persists valid kafka messages
-✔ startConsumer logs and skips invalid JSON messages
-
-Result: PASS (4 tests, 0 failures)

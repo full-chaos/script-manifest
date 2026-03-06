@@ -4,6 +4,7 @@ import { pathToFileURL } from "node:url";
 import { randomUUID } from "node:crypto";
 import { Counter } from "prom-client";
 import { bootstrapService, registerMetrics, setupErrorReporting, validateRequiredEnv } from "@script-manifest/service-utils";
+import { closePool } from "@script-manifest/db";
 import {
   CoverageProviderCreateRequestSchema,
   CoverageProviderUpdateRequestSchema,
@@ -176,6 +177,7 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
       clearInterval(maintenanceTimer);
       maintenanceTimer = null;
     }
+    await closePool();
   });
 
   // ── Health ─────────────────────────────────────────────────────────

@@ -1,0 +1,3 @@
+Test: getKafkaClient - Kafka instance creation and singleton
+Result: PASS
+Details: Tests 'returns a Kafka instance when KAFKA_BROKERS is set' and 'singleton' passed.

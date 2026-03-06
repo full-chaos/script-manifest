@@ -290,6 +290,7 @@ services:
       DATABASE_URL: "postgresql://manifest:manifest@postgres:5432/manifest"
       SEARCH_INDEXER_URL: "http://search-indexer-service:4003"
       NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
+      COMPETITION_ADMIN_ALLOWLIST: "admin_01,user_admin_01"
     command: >
       sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/competition-directory-service dev"
     ports:
@@ -565,6 +566,7 @@ services:
       COVERAGE_ADMIN_ALLOWLIST: "admin_01,user_admin_01"
       INDUSTRY_ADMIN_ALLOWLIST: "admin_01,user_admin_01"
       COMPETITION_ADMIN_ALLOWLIST: "admin_01,user_admin_01"
+      RATE_LIMIT_MAX: "1000"
     command: >
       sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/api-gateway dev"
     ports:

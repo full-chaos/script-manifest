@@ -15,7 +15,7 @@ export async function registerRateLimit(
   }
 
   await server.register(rateLimit, {
-    max: 100,
+    max: Number(process.env.RATE_LIMIT_MAX ?? 100),
     timeWindow: "1 minute",
     allowList: [],
     ...(redis ? { redis } : {}),

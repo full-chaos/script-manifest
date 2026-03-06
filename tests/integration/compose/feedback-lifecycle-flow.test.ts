@@ -129,7 +129,7 @@ test("compose flow: feedback lifecycle including rating dispute resolution and c
   assert.ok(disputes.disputes.some((entry) => entry.id === dispute.dispute.id && entry.status === "resolved_for_filer"));
 
   const reviews = await expectOkJson<{ reviews: Array<{ id: string; status: string }> }>(
-    `${API_BASE_URL}/api/v1/feedback/reviews?limit=25&offset=0`,
+    `${API_BASE_URL}/api/v1/feedback/reviews?limit=25&offset=0&reviewerUserId=${encodeURIComponent(reviewer.user.id)}`,
     {
       method: "GET",
       headers: authHeaders(reviewer.token)

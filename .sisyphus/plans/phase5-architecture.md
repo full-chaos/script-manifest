@@ -65,10 +65,10 @@ Replace synchronous HTTP notification publishing with async Kafka, extract the S
 - `docs/phase-5/proxy-layer-audit.md` — audit document with recommendation
 
 ### Definition of Done
-- [ ] `pnpm test` — all tests pass across workspace
-- [ ] `pnpm typecheck` — 18/18 packages pass
-- [ ] All 4 sub-issue acceptance criteria met (see individual tasks)
-- [ ] No regressions in existing service behavior
+- [x] `pnpm test` — all tests pass across workspace
+- [x] `pnpm typecheck` — 18/18 packages pass
+- [x] All 4 sub-issue acceptance criteria met (see individual tasks)
+- [x] No regressions in existing service behavior
 
 ### Must Have
 - Kafka producer in service-utils with env-driven fallback to HTTP
@@ -1166,8 +1166,8 @@ test -f docs/phase-5/proxy-layer-audit.md  # Audit document exists
 ```
 
 ### Final Checklist
-- [ ] All "Must Have" present
-- [ ] All "Must NOT Have" absent
-- [ ] All tests pass
-- [ ] All 4 Linear sub-issues (CHAOS-603-606) updated to Done
-- [ ] Parent CHAOS-602 updated to Done
+- [x] All "Must Have" present
+- [x] All "Must NOT Have" absent
+- [x] All tests pass
+- [x] All 4 Linear sub-issues (CHAOS-603-606) updated to Done
+- [x] Parent CHAOS-602 updated to Done

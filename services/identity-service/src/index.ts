@@ -1,10 +1,10 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import rateLimit from "@fastify/rate-limit";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
-import { pathToFileURL } from "node:url";
 import { request } from "undici";
 import { Counter } from "prom-client";
-import { validateRequiredEnv, bootstrapService, setupErrorReporting } from "@script-manifest/service-utils";
+import { validateRequiredEnv, bootstrapService, setupErrorReporting, isMainModule } from "@script-manifest/service-utils";
+import { healthCheck } from "@script-manifest/db";
 import {
   AuthLoginRequestSchema,
   AuthMeResponseSchema,
@@ -42,6 +42,7 @@ export type IdentityServiceOptions = {
 // lgtm [js/missing-rate-limiting]
 export function buildServer(options: IdentityServiceOptions = {}): FastifyInstance {
   const repository = options.repository ?? new PgIdentityRepository();
+  const runHealthCheck = options.repository ? () => repository.healthCheck() : healthCheck;
   const server = Fastify({
     logger: options.logger === false ? false : {
       level: process.env.LOG_LEVEL ?? "info",
@@ -72,7 +73,7 @@ export function buildServer(options: IdentityServiceOptions = {}): FastifyInstan
     handler: async (_req, reply) => {
       const checks: Record<string, boolean> = {};
       try {
-        const result = await repository.healthCheck();
+        const result = await runHealthCheck();
         checks.database = result.database;
       } catch {
         checks.database = false;
@@ -92,7 +93,7 @@ export function buildServer(options: IdentityServiceOptions = {}): FastifyInstan
     handler: async (_req, reply) => {
       const checks: Record<string, boolean> = {};
       try {
-        const result = await repository.healthCheck();
+        const result = await runHealthCheck();
         checks.database = result.database;
       } catch {
         checks.database = false;
@@ -608,14 +609,6 @@ async function createAuthSessionPayload(
       role: user.role
     }
   });
-}
-
-function isMainModule(metaUrl: string): boolean {
-  if (!process.argv[1]) {
-    return false;
-  }
-
-  return metaUrl === pathToFileURL(process.argv[1]).href;
 }
 
 if (isMainModule(import.meta.url)) {

@@ -1,7 +1,7 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import rateLimit from "@fastify/rate-limit";
-import { pathToFileURL } from "node:url";
-import { validateRequiredEnv, bootstrapService, setupErrorReporting } from "@script-manifest/service-utils";
+import { validateRequiredEnv, bootstrapService, setupErrorReporting, getAuthUserId, isMainModule, publishNotificationEvent } from "@script-manifest/service-utils";
+import { healthCheck } from "@script-manifest/db";
 import {
   ProjectCoWriterCreateRequestSchema,
   ProjectCreateInternalSchema,
@@ -15,7 +15,6 @@ import {
   WriterProfileUpdateRequestSchema
 } from "@script-manifest/contracts";
 import { randomUUID } from "node:crypto";
-import { publishNotificationEvent } from "./notificationPublisher.js";
 import {
   type ProfileProjectRepository,
   PgProfileProjectRepository
@@ -41,12 +40,7 @@ export function buildServer(options: ProfileProjectServiceOptions = {}): Fastify
   });
   const publisher = options.publisher ?? publishNotificationEvent;
   const repository = options.repository ?? new PgProfileProjectRepository();
-
-  // Helper to extract authenticated user ID from headers
-  const getAuthUserId = (headers: Record<string, unknown>): string | null => {
-    const userId = headers["x-auth-user-id"];
-    return typeof userId === "string" && userId.length > 0 ? userId : null;
-  };
+  const runHealthCheck = options.repository ? () => repository.healthCheck() : healthCheck;
 
   server.addHook("onReady", async () => {
     await repository.init();
@@ -64,7 +58,7 @@ export function buildServer(options: ProfileProjectServiceOptions = {}): Fastify
     handler: async (_req, reply) => {
       const checks: Record<string, boolean> = {};
       try {
-        const result = await repository.healthCheck();
+        const result = await runHealthCheck();
         checks.database = result.database;
       } catch {
         checks.database = false;
@@ -84,7 +78,7 @@ export function buildServer(options: ProfileProjectServiceOptions = {}): Fastify
     handler: async (_req, reply) => {
       const checks: Record<string, boolean> = {};
       try {
-        const result = await repository.healthCheck();
+        const result = await runHealthCheck();
         checks.database = result.database;
       } catch {
         checks.database = false;
@@ -98,7 +92,7 @@ export function buildServer(options: ProfileProjectServiceOptions = {}): Fastify
     config: { rateLimit: { max: 40, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
     const { writerId } = req.params;
-    const authUserId = getAuthUserId(req.headers);
+    const authUserId = getAuthUserId(req);
     const profile = await repository.getProfile(writerId);
     if (!profile) {
       return reply.status(404).send({ error: "profile_not_found" });
@@ -117,7 +111,7 @@ export function buildServer(options: ProfileProjectServiceOptions = {}): Fastify
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
     const { writerId } = req.params;
-    const authUserId = getAuthUserId(req.headers);
+    const authUserId = getAuthUserId(req);
     
     // Only the user themselves can update their profile
     if (authUserId !== writerId) {
@@ -141,7 +135,7 @@ export function buildServer(options: ProfileProjectServiceOptions = {}): Fastify
   server.post("/internal/projects", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
-    const authUserId = getAuthUserId(req.headers);
+    const authUserId = getAuthUserId(req);
     if (!authUserId) {
       return reply.status(403).send({ error: "forbidden" });
     }
@@ -193,7 +187,7 @@ export function buildServer(options: ProfileProjectServiceOptions = {}): Fastify
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
     const { projectId } = req.params;
-    const authUserId = getAuthUserId(req.headers);
+    const authUserId = getAuthUserId(req);
     
     const project = await repository.getProject(projectId);
     if (!project) {
@@ -223,7 +217,7 @@ export function buildServer(options: ProfileProjectServiceOptions = {}): Fastify
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
     const { projectId } = req.params;
-    const authUserId = getAuthUserId(req.headers);
+    const authUserId = getAuthUserId(req);
     
     const project = await repository.getProject(projectId);
     if (!project) {
@@ -262,7 +256,7 @@ export function buildServer(options: ProfileProjectServiceOptions = {}): Fastify
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
     const { projectId } = req.params;
-    const authUserId = getAuthUserId(req.headers);
+    const authUserId = getAuthUserId(req);
     
     const project = await repository.getProject(projectId);
     if (!project) {
@@ -304,7 +298,7 @@ export function buildServer(options: ProfileProjectServiceOptions = {}): Fastify
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
     const { projectId, coWriterUserId } = req.params;
-    const authUserId = getAuthUserId(req.headers);
+    const authUserId = getAuthUserId(req);
     
     const project = await repository.getProject(projectId);
     if (!project) {
@@ -343,7 +337,7 @@ export function buildServer(options: ProfileProjectServiceOptions = {}): Fastify
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
     const { projectId } = req.params;
-    const authUserId = getAuthUserId(req.headers);
+    const authUserId = getAuthUserId(req);
     if (!authUserId) {
       return reply.status(403).send({ error: "forbidden" });
     }
@@ -377,7 +371,7 @@ export function buildServer(options: ProfileProjectServiceOptions = {}): Fastify
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
     const { projectId, draftId } = req.params;
-    const authUserId = getAuthUserId(req.headers);
+    const authUserId = getAuthUserId(req);
     
     const project = await repository.getProject(projectId);
     if (!project) {
@@ -407,7 +401,7 @@ export function buildServer(options: ProfileProjectServiceOptions = {}): Fastify
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
     const { projectId, draftId } = req.params;
-    const authUserId = getAuthUserId(req.headers);
+    const authUserId = getAuthUserId(req);
     if (!authUserId) {
       return reply.status(403).send({ error: "forbidden" });
     }
@@ -433,7 +427,7 @@ export function buildServer(options: ProfileProjectServiceOptions = {}): Fastify
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
     const { scriptId } = req.params;
-    const authUserId = getAuthUserId(req.headers);
+    const authUserId = getAuthUserId(req);
     const parseResult = ScriptAccessRequestCreateRequestSchema.safeParse(req.body);
     if (!parseResult.success) {
       return reply.status(400).send({
@@ -500,7 +494,7 @@ export function buildServer(options: ProfileProjectServiceOptions = {}): Fastify
     }
 
     const accessRequests = await repository.listScriptAccessRequests(scriptId, parseResult.data);
-    const authUserId = getAuthUserId(req.headers);
+    const authUserId = getAuthUserId(req);
     const visibleAccessRequests = authUserId
       ? accessRequests.filter(
           (entry) => entry.requesterUserId === authUserId || entry.ownerUserId === authUserId
@@ -515,7 +509,7 @@ export function buildServer(options: ProfileProjectServiceOptions = {}): Fastify
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       const { scriptId, requestId } = req.params;
-      const authUserId = getAuthUserId(req.headers);
+      const authUserId = getAuthUserId(req);
       if (!authUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -565,7 +559,7 @@ export function buildServer(options: ProfileProjectServiceOptions = {}): Fastify
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       const { scriptId, requestId } = req.params;
-      const authUserId = getAuthUserId(req.headers);
+      const authUserId = getAuthUserId(req);
       if (!authUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -619,14 +613,6 @@ export async function startServer(): Promise<void> {
   await registerMetrics(server);
   await server.listen({ port, host: "0.0.0.0" });
   boot.ready(port);
-}
-
-function isMainModule(metaUrl: string): boolean {
-  if (!process.argv[1]) {
-    return false;
-  }
-
-  return metaUrl === pathToFileURL(process.argv[1]).href;
 }
 
 if (isMainModule(import.meta.url)) {

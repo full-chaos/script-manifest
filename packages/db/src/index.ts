@@ -2,11 +2,32 @@ import { Pool } from "pg";
 
 const DEFAULT_DATABASE_URL = "postgresql://manifest:manifest@localhost:5432/manifest";
 
+export type PoolConfig = {
+  max?: number;
+  idleTimeoutMillis?: number;
+  connectionTimeoutMillis?: number;
+  statementTimeout?: number;
+};
+
+const DEFAULT_POOL_CONFIG: Required<PoolConfig> = {
+  max: Number(process.env.DB_POOL_MAX ?? 10),
+  idleTimeoutMillis: Number(process.env.DB_POOL_IDLE_TIMEOUT ?? 30000),
+  connectionTimeoutMillis: Number(process.env.DB_POOL_CONNECT_TIMEOUT ?? 5000),
+  statementTimeout: Number(process.env.DB_STATEMENT_TIMEOUT ?? 30000),
+};
+
 const pools = new Map<string, Pool>();
 
-export function getPool(databaseUrl = process.env.DATABASE_URL ?? DEFAULT_DATABASE_URL): Pool {
+export function getPool(
+  databaseUrl = process.env.DATABASE_URL ?? DEFAULT_DATABASE_URL,
+  config?: PoolConfig,
+): Pool {
   if (!pools.has(databaseUrl)) {
-    pools.set(databaseUrl, new Pool({ connectionString: databaseUrl }));
+    pools.set(databaseUrl, new Pool({
+      connectionString: databaseUrl,
+      ...DEFAULT_POOL_CONFIG,
+      ...config,
+    }));
   }
 
   return pools.get(databaseUrl)!;
@@ -25,6 +46,15 @@ export async function closePool(databaseUrl?: string): Promise<void> {
       Array.from(pools.values()).map((pool) => pool.end())
     );
     pools.clear();
+  }
+}
+
+export async function healthCheck(databaseUrl?: string): Promise<{ database: boolean }> {
+  try {
+    await getPool(databaseUrl).query("SELECT 1");
+    return { database: true };
+  } catch {
+    return { database: false };
   }
 }
 

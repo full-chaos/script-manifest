@@ -1,8 +1,7 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import { randomUUID } from "node:crypto";
-import { pathToFileURL } from "node:url";
 import { request } from "undici";
-import { bootstrapService, registerMetrics, setupErrorReporting, validateRequiredEnv } from "@script-manifest/service-utils";
+import { bootstrapService, registerMetrics, setupErrorReporting, validateRequiredEnv, isMainModule } from "@script-manifest/service-utils";
 import {
   CompetitionIndexBulkRequestSchema,
   CompetitionIndexDocumentSchema,
@@ -252,14 +251,6 @@ async function readBody(upstream: Awaited<ReturnType<typeof request>>): Promise<
   } catch {
     return raw;
   }
-}
-
-function isMainModule(metaUrl: string): boolean {
-  if (!process.argv[1]) {
-    return false;
-  }
-
-  return metaUrl === pathToFileURL(process.argv[1]).href;
 }
 
 if (isMainModule(import.meta.url)) {

@@ -1,8 +1,8 @@
 import Fastify, { type FastifyInstance } from "fastify";
-import { pathToFileURL } from "node:url";
 import { randomUUID } from "node:crypto";
 import { Counter } from "prom-client";
-import { bootstrapService, registerMetrics, setupErrorReporting, validateRequiredEnv } from "@script-manifest/service-utils";
+import { bootstrapService, registerMetrics, setupErrorReporting, validateRequiredEnv, isMainModule, publishNotificationEvent } from "@script-manifest/service-utils";
+import { healthCheck } from "@script-manifest/db";
 import {
   CompetitionPrestigeUpsertRequestSchema,
   RankedLeaderboardFiltersSchema,
@@ -15,7 +15,6 @@ import {
   PlacementListItemSchema,
   CompetitionSchema
 } from "@script-manifest/contracts";
-import { publishNotificationEvent } from "./notificationPublisher.js";
 import {
   type RankingRepository,
   type WriterScoreRow,
@@ -65,6 +64,7 @@ export function buildServer(options: RankingServiceOptions = {}): FastifyInstanc
   });
 
   const repo = options.repository ?? new PgRankingRepository();
+  const runHealthCheck = options.repository ? () => repo.healthCheck() : healthCheck;
   const publisher = options.publisher ?? publishNotificationEvent;
   const httpRequest = options.requestFn ?? undiciRequest;
   const submissionTrackingBase = options.submissionTrackingBase ?? process.env.SUBMISSION_TRACKING_SERVICE_URL ?? "http://localhost:4004";
@@ -74,12 +74,12 @@ export function buildServer(options: RankingServiceOptions = {}): FastifyInstanc
   // ── Health ──
 
   server.get("/health", async () => {
-    const health = await repo.healthCheck();
+    const health = await runHealthCheck();
     return { service: "ranking-service", ok: health.database, database: health.database };
   });
   server.get("/health/live", async () => ({ ok: true }));
   server.get("/health/ready", async () => {
-    const health = await repo.healthCheck();
+    const health = await runHealthCheck();
     return { service: "ranking-service", ok: health.database };
   });
 
@@ -458,6 +458,6 @@ export async function startServer(): Promise<void> {
   boot.ready(port);
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
+if (isMainModule(import.meta.url)) {
   startServer().catch((error) => { process.stderr.write(String(error) + "\n"); process.exit(1); });
 }

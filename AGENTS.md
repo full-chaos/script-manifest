@@ -62,9 +62,9 @@ linear i create "[Subtask] <subtask title>" \
 - Add every mirrored issue to the `Script Manifest` project in Linear.
 - **NEVER commit or push directly to `main`.** ALL changes go through feature branches + PRs.
   - This applies to every change, no matter how small — config files, one-liners, CI tweaks, everything.
-  - Branch format: `codex/phase-<n>-<short-feature-slug>` (example: `codex/phase-1-writer-profiles`).
+  - Branch format: `<change-type:feat,chore,sec,fix,docs>/<issue>-<short description>` (example: `feat/TICK-111-add-new-thing`).
   - Create from latest default branch: `git fetch origin && git checkout main && git pull --ff-only`.
-  - Create branch: `git checkout -b codex/phase-<n>-<short-feature-slug>`.
+  - Create branch: `git checkout -b`<change-type:feat,chore,sec,fix,docs>/<issue>-<short description>`.
   - Keep all commits for that feature on its dedicated branch until merged.
   - Open a PR for review before merging.
 - Keep Linear issue status aligned when work starts/completes.
@@ -79,16 +79,19 @@ linear i create "[Subtask] <subtask title>" \
 2. **Run quality gates** (if code changed) - Tests, linters, builds
 3. **Update issue status** - Close finished work, update in-progress items
 4. **PUSH TO REMOTE** - This is MANDATORY:
+
    ```bash
    git pull --rebase
    git push
    git status  # MUST show "up to date with origin"
    ```
+
 5. **Clean up** - Clear stashes, prune remote branches
 6. **Verify** - All changes committed AND pushed
 7. **Hand off** - Provide context for next session
 
 **CRITICAL RULES:**
+
 - Work is NOT complete until `git push` succeeds
 - NEVER stop before pushing - that leaves work stranded locally
 - NEVER say "ready to push when you are" - YOU must push
@@ -122,6 +125,7 @@ linear issues get CHAOS-123
 ### Claude Code Skills
 
 Available workflow skills (install with `linear skills install --all`):
+
 - `/prd` - Create agent-friendly tickets with PRDs and sub-issues
 - `/triage` - Analyze and prioritize backlog
 - `/cycle-plan` - Plan cycles using velocity analytics

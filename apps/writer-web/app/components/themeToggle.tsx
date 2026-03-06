@@ -2,7 +2,7 @@
 
 import { Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useSyncExternalStore } from "react";
 
 const themeOrder = ["light", "dark", "system"] as const;
 
@@ -21,11 +21,8 @@ function nextTheme(theme: string | undefined): ThemeMode {
 
 export function ThemeToggle() {
   const { theme, resolvedTheme, setTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const subscribe = () => () => {};
+  const mounted = useSyncExternalStore(subscribe, () => true, () => false);
 
   const currentTheme = useMemo<ThemeMode>(
     () => (themeOrder.includes(theme as ThemeMode) ? (theme as ThemeMode) : "system"),

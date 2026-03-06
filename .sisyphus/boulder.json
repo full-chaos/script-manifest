@@ -1,0 +1,11 @@
+{
+  "active_plan": "/Users/chris/projects/script-manifest/.sisyphus/plans/phase5-architecture.md",
+  "started_at": "2026-03-06T13:16:01.741Z",
+  "session_ids": [
+    "ses_33f03188cffe9t3eZc8fjXUr34"
+  ],
+  "plan_name": "phase5-architecture",
+  "agent": "atlas",
+  "worktree_path": "/Users/chris/projects/script-manifest-chaos-602",
+  "branch": "feat/CHAOS-602-phase5-architecture"
+}

@@ -1,9 +1,16 @@
 import { renderToString } from "react-dom/server";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, cleanup } from "@testing-library/react";
 import type { Route } from "next";
 import { describe, expect, it } from "vitest";
+import { afterEach } from "vitest";
 import { AuthBanner } from "./AuthBanner";
 import { SESSION_CHANGED_EVENT, SESSION_STORAGE_KEY } from "../lib/authSession";
+
+afterEach(() => {
+  cleanup();
+  window.localStorage.clear();
+});
+
 
 const writerSurfaces = [
   {

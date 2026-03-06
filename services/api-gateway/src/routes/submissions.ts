@@ -46,8 +46,8 @@ export function registerSubmissionRoutes(server: FastifyInstance, ctx: GatewayCo
     });
   });
 
-  server.patch("/api/v1/submissions/:submissionId/project", async (req, reply) => {
-    const { submissionId } = req.params as { submissionId: string };
+  server.patch<{ Params: { submissionId: string } }>("/api/v1/submissions/:submissionId/project", async (req, reply) => {
+    const { submissionId } = req.params;
     const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
     const parsed = SubmissionProjectReassignmentRequestSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -86,8 +86,8 @@ export function registerSubmissionRoutes(server: FastifyInstance, ctx: GatewayCo
     );
   });
 
-  server.get("/api/v1/submissions/:submissionId/placements", async (req, reply) => {
-    const { submissionId } = req.params as { submissionId: string };
+  server.get<{ Params: { submissionId: string } }>("/api/v1/submissions/:submissionId/placements", async (req, reply) => {
+    const { submissionId } = req.params;
     const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
     return proxyJsonRequest(
       reply,
@@ -100,8 +100,8 @@ export function registerSubmissionRoutes(server: FastifyInstance, ctx: GatewayCo
     );
   });
 
-  server.post("/api/v1/submissions/:submissionId/placements", async (req, reply) => {
-    const { submissionId } = req.params as { submissionId: string };
+  server.post<{ Params: { submissionId: string } }>("/api/v1/submissions/:submissionId/placements", async (req, reply) => {
+    const { submissionId } = req.params;
     const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
     const parsed = PlacementCreateRequestSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -132,8 +132,8 @@ export function registerSubmissionRoutes(server: FastifyInstance, ctx: GatewayCo
     return result;
   });
 
-  server.get("/api/v1/placements/:placementId", async (req, reply) => {
-    const { placementId } = req.params as { placementId: string };
+  server.get<{ Params: { placementId: string } }>("/api/v1/placements/:placementId", async (req, reply) => {
+    const { placementId } = req.params;
     const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
     return proxyJsonRequest(
       reply,
@@ -146,8 +146,8 @@ export function registerSubmissionRoutes(server: FastifyInstance, ctx: GatewayCo
     );
   });
 
-  server.post("/api/v1/placements/:placementId/verify", async (req, reply) => {
-    const { placementId } = req.params as { placementId: string };
+  server.post<{ Params: { placementId: string } }>("/api/v1/placements/:placementId/verify", async (req, reply) => {
+    const { placementId } = req.params;
     const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
     const parsed = PlacementVerificationUpdateRequestSchema.safeParse(req.body);
     if (!parsed.success) {

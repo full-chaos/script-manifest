@@ -91,8 +91,8 @@ export function buildServer(options: SubmissionTrackingOptions = {}): FastifyIns
     return reply.status(201).send({ submission });
   });
 
-  server.patch("/internal/submissions/:submissionId/project", async (req, reply) => {
-    const { submissionId } = req.params as { submissionId: string };
+  server.patch<{ Params: { submissionId: string } }>("/internal/submissions/:submissionId/project", async (req, reply) => {
+    const { submissionId } = req.params;
     const authUserId = getAuthUserId(req.headers);
     if (!authUserId) {
       return reply.status(403).send({ error: "forbidden" });
@@ -158,8 +158,8 @@ export function buildServer(options: SubmissionTrackingOptions = {}): FastifyIns
     return reply.send({ submissions: filteredSubmissions });
   });
 
-  server.post("/internal/submissions/:submissionId/placements", async (req, reply) => {
-    const { submissionId } = req.params as { submissionId: string };
+  server.post<{ Params: { submissionId: string } }>("/internal/submissions/:submissionId/placements", async (req, reply) => {
+    const { submissionId } = req.params;
     const submission = submissions.get(submissionId);
     if (!submission) {
       return reply.status(404).send({ error: "submission_not_found" });
@@ -195,8 +195,8 @@ export function buildServer(options: SubmissionTrackingOptions = {}): FastifyIns
     return reply.status(201).send({ placement, submission: updatedSubmission });
   });
 
-  server.get("/internal/submissions/:submissionId/placements", async (req, reply) => {
-    const { submissionId } = req.params as { submissionId: string };
+  server.get<{ Params: { submissionId: string } }>("/internal/submissions/:submissionId/placements", async (req, reply) => {
+    const { submissionId } = req.params;
     const submission = submissions.get(submissionId);
     if (!submission) {
       return reply.status(404).send({ error: "submission_not_found" });
@@ -264,8 +264,8 @@ export function buildServer(options: SubmissionTrackingOptions = {}): FastifyIns
     return reply.send({ placements: filteredPlacements });
   });
 
-  server.get("/internal/placements/:placementId", async (req, reply) => {
-    const { placementId } = req.params as { placementId: string };
+  server.get<{ Params: { placementId: string } }>("/internal/placements/:placementId", async (req, reply) => {
+    const { placementId } = req.params;
     const placement = placements.get(placementId);
     if (!placement) {
       return reply.status(404).send({ error: "placement_not_found" });
@@ -284,8 +284,8 @@ export function buildServer(options: SubmissionTrackingOptions = {}): FastifyIns
     return reply.send({ placement: toPlacementListItem(placement, submission) });
   });
 
-  server.post("/internal/placements/:placementId/verify", async (req, reply) => {
-    const { placementId } = req.params as { placementId: string };
+  server.post<{ Params: { placementId: string } }>("/internal/placements/:placementId/verify", async (req, reply) => {
+    const { placementId } = req.params;
     const placement = placements.get(placementId);
     if (!placement) {
       return reply.status(404).send({ error: "placement_not_found" });

@@ -49,8 +49,8 @@ export function registerScriptRoutes(server: FastifyInstance, ctx: GatewayContex
     });
   });
 
-  server.post("/api/v1/scripts/:scriptId/access-requests", async (req, reply) => {
-    const { scriptId } = req.params as { scriptId: string };
+  server.post<{ Params: { scriptId: string } }>("/api/v1/scripts/:scriptId/access-requests", async (req, reply) => {
+    const { scriptId } = req.params;
     const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
     const parsed = ScriptAccessRequestCreateRequestSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -71,8 +71,8 @@ export function registerScriptRoutes(server: FastifyInstance, ctx: GatewayContex
     );
   });
 
-  server.get("/api/v1/scripts/:scriptId/access-requests", async (req, reply) => {
-    const { scriptId } = req.params as { scriptId: string };
+  server.get<{ Params: { scriptId: string } }>("/api/v1/scripts/:scriptId/access-requests", async (req, reply) => {
+    const { scriptId } = req.params;
     const querySuffix = buildQuerySuffix(req.query);
     const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
     return proxyJsonRequest(
@@ -86,8 +86,8 @@ export function registerScriptRoutes(server: FastifyInstance, ctx: GatewayContex
     );
   });
 
-  server.post("/api/v1/scripts/:scriptId/access-requests/:requestId/approve", async (req, reply) => {
-    const { scriptId, requestId } = req.params as { scriptId: string; requestId: string };
+  server.post<{ Params: { scriptId: string; requestId: string } }>("/api/v1/scripts/:scriptId/access-requests/:requestId/approve", async (req, reply) => {
+    const { scriptId, requestId } = req.params;
     const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
     const parsed = ScriptAccessRequestDecisionRequestSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -108,8 +108,8 @@ export function registerScriptRoutes(server: FastifyInstance, ctx: GatewayContex
     );
   });
 
-  server.post("/api/v1/scripts/:scriptId/access-requests/:requestId/reject", async (req, reply) => {
-    const { scriptId, requestId } = req.params as { scriptId: string; requestId: string };
+  server.post<{ Params: { scriptId: string; requestId: string } }>("/api/v1/scripts/:scriptId/access-requests/:requestId/reject", async (req, reply) => {
+    const { scriptId, requestId } = req.params;
     const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
     const parsed = ScriptAccessRequestDecisionRequestSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -130,8 +130,8 @@ export function registerScriptRoutes(server: FastifyInstance, ctx: GatewayContex
     );
   });
 
-  server.get("/api/v1/scripts/:scriptId/view", async (req, reply) => {
-    const { scriptId } = req.params as { scriptId: string };
+  server.get<{ Params: { scriptId: string } }>("/api/v1/scripts/:scriptId/view", async (req, reply) => {
+    const { scriptId } = req.params;
     const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
     if (!userId) {
       return reply.status(401).send({ error: "unauthorized" });
@@ -144,8 +144,8 @@ export function registerScriptRoutes(server: FastifyInstance, ctx: GatewayContex
     );
   });
 
-  server.post("/api/v1/scripts/:scriptId/approve-viewer", async (req, reply) => {
-    const { scriptId } = req.params as { scriptId: string };
+  server.post<{ Params: { scriptId: string } }>("/api/v1/scripts/:scriptId/approve-viewer", async (req, reply) => {
+    const { scriptId } = req.params;
     const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
     if (!userId) {
       return reply.status(401).send({ error: "unauthorized" });
@@ -163,8 +163,8 @@ export function registerScriptRoutes(server: FastifyInstance, ctx: GatewayContex
     );
   });
 
-  server.patch("/api/v1/scripts/:scriptId/visibility", async (req, reply) => {
-    const { scriptId } = req.params as { scriptId: string };
+  server.patch<{ Params: { scriptId: string } }>("/api/v1/scripts/:scriptId/visibility", async (req, reply) => {
+    const { scriptId } = req.params;
     const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
     // TODO: add validation schema
     return proxyJsonRequest(

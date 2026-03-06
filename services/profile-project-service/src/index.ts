@@ -94,10 +94,10 @@ export function buildServer(options: ProfileProjectServiceOptions = {}): Fastify
     }
   });
 
-  server.get("/internal/profiles/:writerId", {
+  server.get<{ Params: { writerId: string } }>("/internal/profiles/:writerId", {
     config: { rateLimit: { max: 40, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
-    const { writerId } = req.params as { writerId: string };
+    const { writerId } = req.params;
     const authUserId = getAuthUserId(req.headers);
     const profile = await repository.getProfile(writerId);
     if (!profile) {
@@ -113,10 +113,10 @@ export function buildServer(options: ProfileProjectServiceOptions = {}): Fastify
     }
   });
 
-  server.put("/internal/profiles/:writerId", {
+  server.put<{ Params: { writerId: string } }>("/internal/profiles/:writerId", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
-    const { writerId } = req.params as { writerId: string };
+    const { writerId } = req.params;
     const authUserId = getAuthUserId(req.headers);
     
     // Only the user themselves can update their profile
@@ -176,10 +176,10 @@ export function buildServer(options: ProfileProjectServiceOptions = {}): Fastify
     }
   });
 
-  server.get("/internal/projects/:projectId", {
+  server.get<{ Params: { projectId: string } }>("/internal/projects/:projectId", {
     config: { rateLimit: { max: 40, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
-    const { projectId } = req.params as { projectId: string };
+    const { projectId } = req.params;
     const project = await repository.getProject(projectId);
     if (!project) {
       return reply.status(404).send({ error: "project_not_found" });
@@ -189,10 +189,10 @@ export function buildServer(options: ProfileProjectServiceOptions = {}): Fastify
     }
   });
 
-  server.put("/internal/projects/:projectId", {
+  server.put<{ Params: { projectId: string } }>("/internal/projects/:projectId", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
-    const { projectId } = req.params as { projectId: string };
+    const { projectId } = req.params;
     const authUserId = getAuthUserId(req.headers);
     
     const project = await repository.getProject(projectId);
@@ -219,10 +219,10 @@ export function buildServer(options: ProfileProjectServiceOptions = {}): Fastify
     }
   });
 
-  server.delete("/internal/projects/:projectId", {
+  server.delete<{ Params: { projectId: string } }>("/internal/projects/:projectId", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
-    const { projectId } = req.params as { projectId: string };
+    const { projectId } = req.params;
     const authUserId = getAuthUserId(req.headers);
     
     const project = await repository.getProject(projectId);
@@ -244,10 +244,10 @@ export function buildServer(options: ProfileProjectServiceOptions = {}): Fastify
     }
   });
 
-  server.get("/internal/projects/:projectId/co-writers", {
+  server.get<{ Params: { projectId: string } }>("/internal/projects/:projectId/co-writers", {
     config: { rateLimit: { max: 40, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
-    const { projectId } = req.params as { projectId: string };
+    const { projectId } = req.params;
     const project = await repository.getProject(projectId);
     if (!project) {
       return reply.status(404).send({ error: "project_not_found" });
@@ -258,10 +258,10 @@ export function buildServer(options: ProfileProjectServiceOptions = {}): Fastify
     }
   });
 
-  server.post("/internal/projects/:projectId/co-writers", {
+  server.post<{ Params: { projectId: string } }>("/internal/projects/:projectId/co-writers", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
-    const { projectId } = req.params as { projectId: string };
+    const { projectId } = req.params;
     const authUserId = getAuthUserId(req.headers);
     
     const project = await repository.getProject(projectId);
@@ -297,13 +297,13 @@ export function buildServer(options: ProfileProjectServiceOptions = {}): Fastify
     }
   });
 
-  server.delete("/internal/projects/:projectId/co-writers/:coWriterUserId", {
-    config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
-    handler: async (req, reply) => {
-    const { projectId, coWriterUserId } = req.params as {
+  server.delete<{ Params: {
       projectId: string;
       coWriterUserId: string;
-    };
+    } }>("/internal/projects/:projectId/co-writers/:coWriterUserId", {
+    config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
+    const { projectId, coWriterUserId } = req.params;
     const authUserId = getAuthUserId(req.headers);
     
     const project = await repository.getProject(projectId);
@@ -325,10 +325,10 @@ export function buildServer(options: ProfileProjectServiceOptions = {}): Fastify
     }
   });
 
-  server.get("/internal/projects/:projectId/drafts", {
+  server.get<{ Params: { projectId: string } }>("/internal/projects/:projectId/drafts", {
     config: { rateLimit: { max: 40, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
-    const { projectId } = req.params as { projectId: string };
+    const { projectId } = req.params;
     const project = await repository.getProject(projectId);
     if (!project) {
       return reply.status(404).send({ error: "project_not_found" });
@@ -339,10 +339,10 @@ export function buildServer(options: ProfileProjectServiceOptions = {}): Fastify
     }
   });
 
-  server.post("/internal/projects/:projectId/drafts", {
+  server.post<{ Params: { projectId: string } }>("/internal/projects/:projectId/drafts", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
-    const { projectId } = req.params as { projectId: string };
+    const { projectId } = req.params;
     const authUserId = getAuthUserId(req.headers);
     if (!authUserId) {
       return reply.status(403).send({ error: "forbidden" });
@@ -373,10 +373,10 @@ export function buildServer(options: ProfileProjectServiceOptions = {}): Fastify
     }
   });
 
-  server.patch("/internal/projects/:projectId/drafts/:draftId", {
+  server.patch<{ Params: { projectId: string; draftId: string } }>("/internal/projects/:projectId/drafts/:draftId", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
-    const { projectId, draftId } = req.params as { projectId: string; draftId: string };
+    const { projectId, draftId } = req.params;
     const authUserId = getAuthUserId(req.headers);
     
     const project = await repository.getProject(projectId);
@@ -403,10 +403,10 @@ export function buildServer(options: ProfileProjectServiceOptions = {}): Fastify
     }
   });
 
-  server.post("/internal/projects/:projectId/drafts/:draftId/primary", {
+  server.post<{ Params: { projectId: string; draftId: string } }>("/internal/projects/:projectId/drafts/:draftId/primary", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
-    const { projectId, draftId } = req.params as { projectId: string; draftId: string };
+    const { projectId, draftId } = req.params;
     const authUserId = getAuthUserId(req.headers);
     if (!authUserId) {
       return reply.status(403).send({ error: "forbidden" });
@@ -429,10 +429,10 @@ export function buildServer(options: ProfileProjectServiceOptions = {}): Fastify
     }
   });
 
-  server.post("/internal/scripts/:scriptId/access-requests", {
+  server.post<{ Params: { scriptId: string } }>("/internal/scripts/:scriptId/access-requests", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
-    const { scriptId } = req.params as { scriptId: string };
+    const { scriptId } = req.params;
     const authUserId = getAuthUserId(req.headers);
     const parseResult = ScriptAccessRequestCreateRequestSchema.safeParse(req.body);
     if (!parseResult.success) {
@@ -487,10 +487,10 @@ export function buildServer(options: ProfileProjectServiceOptions = {}): Fastify
     }
   });
 
-  server.get("/internal/scripts/:scriptId/access-requests", {
+  server.get<{ Params: { scriptId: string } }>("/internal/scripts/:scriptId/access-requests", {
     config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
-    const { scriptId } = req.params as { scriptId: string };
+    const { scriptId } = req.params;
     const parseResult = ScriptAccessRequestFiltersSchema.safeParse(req.query);
     if (!parseResult.success) {
       return reply.status(400).send({
@@ -511,10 +511,10 @@ export function buildServer(options: ProfileProjectServiceOptions = {}): Fastify
     }
   });
 
-  server.post("/internal/scripts/:scriptId/access-requests/:requestId/approve", {
+  server.post<{ Params: { scriptId: string; requestId: string } }>("/internal/scripts/:scriptId/access-requests/:requestId/approve", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
-      const { scriptId, requestId } = req.params as { scriptId: string; requestId: string };
+      const { scriptId, requestId } = req.params;
       const authUserId = getAuthUserId(req.headers);
       if (!authUserId) {
         return reply.status(403).send({ error: "forbidden" });
@@ -561,10 +561,10 @@ export function buildServer(options: ProfileProjectServiceOptions = {}): Fastify
     }
   });
 
-  server.post("/internal/scripts/:scriptId/access-requests/:requestId/reject", {
+  server.post<{ Params: { scriptId: string; requestId: string } }>("/internal/scripts/:scriptId/access-requests/:requestId/reject", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
-      const { scriptId, requestId } = req.params as { scriptId: string; requestId: string };
+      const { scriptId, requestId } = req.params;
       const authUserId = getAuthUserId(req.headers);
       if (!authUserId) {
         return reply.status(403).send({ error: "forbidden" });

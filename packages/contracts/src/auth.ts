@@ -1,4 +1,5 @@
 import { z } from "zod";
+
 import { OptionalUrlStringSchema } from "./common.js";
 
 export const AuthRegisterRequestSchema = z.object({

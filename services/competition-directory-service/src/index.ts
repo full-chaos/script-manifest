@@ -135,13 +135,13 @@ export function buildServer(options: CompetitionDirectoryOptions = {}): FastifyI
     return upsertCompetition(parsedBody.data, competitions, requestFn, searchIndexerBase, server, reply);
   });
 
-  server.put("/internal/admin/competitions/:competitionId", async (req, reply) => {
+  server.put<{ Params: { competitionId: string } }>("/internal/admin/competitions/:competitionId", async (req, reply) => {
     const adminUserId = readHeader(req.headers, "x-admin-user-id");
     if (!adminUserId || !adminAllowlist.has(adminUserId)) {
       return reply.status(403).send({ error: "forbidden" });
     }
 
-    const { competitionId } = req.params as { competitionId: string };
+    const { competitionId } = req.params;
     const parsedBody = CompetitionUpsertRequestSchema.safeParse({
       ...(req.body as object),
       id: competitionId
@@ -184,8 +184,8 @@ export function buildServer(options: CompetitionDirectoryOptions = {}): FastifyI
     message: z.string().max(500).optional()
   });
 
-  server.post("/internal/competitions/:competitionId/deadline-reminders", async (req, reply) => {
-    const { competitionId } = req.params as { competitionId: string };
+  server.post<{ Params: { competitionId: string } }>("/internal/competitions/:competitionId/deadline-reminders", async (req, reply) => {
+    const { competitionId } = req.params;
     const parsedBody = DeadlineReminderRequestSchema.safeParse(req.body);
     if (!parsedBody.success) {
       return reply.status(400).send({

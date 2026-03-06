@@ -98,8 +98,8 @@ export function registerFeedbackRoutes(server: FastifyInstance, ctx: GatewayCont
     );
   });
 
-  server.get("/api/v1/feedback/listings/:listingId", async (req, reply) => {
-    const { listingId } = req.params as { listingId: string };
+  server.get<{ Params: { listingId: string } }>("/api/v1/feedback/listings/:listingId", async (req, reply) => {
+    const { listingId } = req.params;
     return proxyJsonRequest(
       reply,
       ctx.requestFn,
@@ -108,8 +108,8 @@ export function registerFeedbackRoutes(server: FastifyInstance, ctx: GatewayCont
     );
   });
 
-  server.post("/api/v1/feedback/listings/:listingId/claim", async (req, reply) => {
-    const { listingId } = req.params as { listingId: string };
+  server.post<{ Params: { listingId: string } }>("/api/v1/feedback/listings/:listingId/claim", async (req, reply) => {
+    const { listingId } = req.params;
     const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
     if (!userId) {
       return reply.status(401).send({ error: "unauthorized" });
@@ -157,8 +157,8 @@ export function registerFeedbackRoutes(server: FastifyInstance, ctx: GatewayCont
     }
   });
 
-  server.post("/api/v1/feedback/listings/:listingId/cancel", async (req, reply) => {
-    const { listingId } = req.params as { listingId: string };
+  server.post<{ Params: { listingId: string } }>("/api/v1/feedback/listings/:listingId/cancel", async (req, reply) => {
+    const { listingId } = req.params;
     const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
     if (!userId) {
       return reply.status(401).send({ error: "unauthorized" });
@@ -192,8 +192,8 @@ export function registerFeedbackRoutes(server: FastifyInstance, ctx: GatewayCont
     );
   });
 
-  server.get("/api/v1/feedback/reviews/:reviewId", async (req, reply) => {
-    const { reviewId } = req.params as { reviewId: string };
+  server.get<{ Params: { reviewId: string } }>("/api/v1/feedback/reviews/:reviewId", async (req, reply) => {
+    const { reviewId } = req.params;
     const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
     return proxyJsonRequest(
       reply,
@@ -203,8 +203,8 @@ export function registerFeedbackRoutes(server: FastifyInstance, ctx: GatewayCont
     );
   });
 
-  server.post("/api/v1/feedback/reviews/:reviewId/submit", async (req, reply) => {
-    const { reviewId } = req.params as { reviewId: string };
+  server.post<{ Params: { reviewId: string } }>("/api/v1/feedback/reviews/:reviewId/submit", async (req, reply) => {
+    const { reviewId } = req.params;
     const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
     if (!userId) {
       return reply.status(401).send({ error: "unauthorized" });
@@ -228,8 +228,8 @@ export function registerFeedbackRoutes(server: FastifyInstance, ctx: GatewayCont
     );
   });
 
-  server.post("/api/v1/feedback/reviews/:reviewId/rate", async (req, reply) => {
-    const { reviewId } = req.params as { reviewId: string };
+  server.post<{ Params: { reviewId: string } }>("/api/v1/feedback/reviews/:reviewId/rate", async (req, reply) => {
+    const { reviewId } = req.params;
     const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
     if (!userId) {
       return reply.status(401).send({ error: "unauthorized" });
@@ -253,8 +253,8 @@ export function registerFeedbackRoutes(server: FastifyInstance, ctx: GatewayCont
     );
   });
 
-  server.get("/api/v1/feedback/reviews/:reviewId/rating", async (req, reply) => {
-    const { reviewId } = req.params as { reviewId: string };
+  server.get<{ Params: { reviewId: string } }>("/api/v1/feedback/reviews/:reviewId/rating", async (req, reply) => {
+    const { reviewId } = req.params;
     return proxyJsonRequest(
       reply,
       ctx.requestFn,
@@ -263,8 +263,8 @@ export function registerFeedbackRoutes(server: FastifyInstance, ctx: GatewayCont
     );
   });
 
-  server.post("/api/v1/feedback/reviews/:reviewId/dispute", async (req, reply) => {
-    const { reviewId } = req.params as { reviewId: string };
+  server.post<{ Params: { reviewId: string } }>("/api/v1/feedback/reviews/:reviewId/dispute", async (req, reply) => {
+    const { reviewId } = req.params;
     const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
     if (!userId) {
       return reply.status(401).send({ error: "unauthorized" });
@@ -290,8 +290,8 @@ export function registerFeedbackRoutes(server: FastifyInstance, ctx: GatewayCont
 
   // ── Reputation ─────────────────────────────────────────────────────
 
-  server.get("/api/v1/feedback/reputation/:userId", async (req, reply) => {
-    const { userId } = req.params as { userId: string };
+  server.get<{ Params: { userId: string } }>("/api/v1/feedback/reputation/:userId", async (req, reply) => {
+    const { userId } = req.params;
     return proxyJsonRequest(
       reply,
       ctx.requestFn,
@@ -316,8 +316,8 @@ export function registerFeedbackRoutes(server: FastifyInstance, ctx: GatewayCont
     );
   });
 
-  server.post("/api/v1/feedback/disputes/:disputeId/resolve", async (req, reply) => {
-    const { disputeId } = req.params as { disputeId: string };
+  server.post<{ Params: { disputeId: string } }>("/api/v1/feedback/disputes/:disputeId/resolve", async (req, reply) => {
+    const { disputeId } = req.params;
     const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
     if (!userId) {
       return reply.status(401).send({ error: "unauthorized" });

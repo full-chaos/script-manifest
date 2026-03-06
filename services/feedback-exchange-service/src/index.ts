@@ -82,14 +82,14 @@ export function buildServer(options: FeedbackExchangeServiceOptions = {}): Fasti
 
   // ── Token Economy ──────────────────────────────────────────────────
 
-  server.get("/internal/tokens/:userId/balance", async (req, reply) => {
-    const { userId } = req.params as { userId: string };
+  server.get<{ Params: { userId: string } }>("/internal/tokens/:userId/balance", async (req, reply) => {
+    const { userId } = req.params;
     const balance = await repository.getBalance(userId);
     return reply.send({ userId, balance });
   });
 
-  server.get("/internal/tokens/:userId/transactions", async (req, reply) => {
-    const { userId } = req.params as { userId: string };
+  server.get<{ Params: { userId: string } }>("/internal/tokens/:userId/transactions", async (req, reply) => {
+    const { userId } = req.params;
     const transactions = await repository.listTransactions(userId);
     return reply.send({ transactions });
   });
@@ -147,8 +147,8 @@ export function buildServer(options: FeedbackExchangeServiceOptions = {}): Fasti
     return reply.send({ listings });
   });
 
-  server.get("/internal/listings/:listingId", async (req, reply) => {
-    const { listingId } = req.params as { listingId: string };
+  server.get<{ Params: { listingId: string } }>("/internal/listings/:listingId", async (req, reply) => {
+    const { listingId } = req.params;
     const listing = await repository.getListing(listingId);
     if (!listing) {
       return reply.status(404).send({ error: "listing_not_found" });
@@ -156,8 +156,8 @@ export function buildServer(options: FeedbackExchangeServiceOptions = {}): Fasti
     return reply.send({ listing });
   });
 
-  server.post("/internal/listings/:listingId/claim", async (req, reply) => {
-    const { listingId } = req.params as { listingId: string };
+  server.post<{ Params: { listingId: string } }>("/internal/listings/:listingId/claim", async (req, reply) => {
+    const { listingId } = req.params;
     const authUserId = getAuthUserId(req.headers);
     if (!authUserId) {
       return reply.status(403).send({ error: "forbidden" });
@@ -202,8 +202,8 @@ export function buildServer(options: FeedbackExchangeServiceOptions = {}): Fasti
     return reply.status(201).send(result);
   });
 
-  server.post("/internal/listings/:listingId/cancel", async (req, reply) => {
-    const { listingId } = req.params as { listingId: string };
+  server.post<{ Params: { listingId: string } }>("/internal/listings/:listingId/cancel", async (req, reply) => {
+    const { listingId } = req.params;
     const authUserId = getAuthUserId(req.headers);
     if (!authUserId) {
       return reply.status(403).send({ error: "forbidden" });
@@ -241,8 +241,8 @@ export function buildServer(options: FeedbackExchangeServiceOptions = {}): Fasti
 
   // ── Reviews ────────────────────────────────────────────────────────
 
-  server.get("/internal/reviews", async (req, reply) => {
-    const { reviewerUserId } = req.query as { reviewerUserId?: string };
+  server.get<{ Querystring: { reviewerUserId?: string } }>("/internal/reviews", async (req, reply) => {
+    const { reviewerUserId } = req.query;
     const authUserId = getAuthUserId(req.headers);
 
     if (!reviewerUserId) {
@@ -257,8 +257,8 @@ export function buildServer(options: FeedbackExchangeServiceOptions = {}): Fasti
     return reply.send({ reviews });
   });
 
-  server.get("/internal/reviews/:reviewId", async (req, reply) => {
-    const { reviewId } = req.params as { reviewId: string };
+  server.get<{ Params: { reviewId: string } }>("/internal/reviews/:reviewId", async (req, reply) => {
+    const { reviewId } = req.params;
     const review = await repository.getReview(reviewId);
     if (!review) {
       return reply.status(404).send({ error: "review_not_found" });
@@ -266,8 +266,8 @@ export function buildServer(options: FeedbackExchangeServiceOptions = {}): Fasti
     return reply.send({ review });
   });
 
-  server.post("/internal/reviews/:reviewId/submit", async (req, reply) => {
-    const { reviewId } = req.params as { reviewId: string };
+  server.post<{ Params: { reviewId: string } }>("/internal/reviews/:reviewId/submit", async (req, reply) => {
+    const { reviewId } = req.params;
     const authUserId = getAuthUserId(req.headers);
     if (!authUserId) {
       return reply.status(403).send({ error: "forbidden" });
@@ -328,8 +328,8 @@ export function buildServer(options: FeedbackExchangeServiceOptions = {}): Fasti
 
   // ── Ratings ────────────────────────────────────────────────────────
 
-  server.post("/internal/reviews/:reviewId/rate", async (req, reply) => {
-    const { reviewId } = req.params as { reviewId: string };
+  server.post<{ Params: { reviewId: string } }>("/internal/reviews/:reviewId/rate", async (req, reply) => {
+    const { reviewId } = req.params;
     const authUserId = getAuthUserId(req.headers);
     if (!authUserId) {
       return reply.status(403).send({ error: "forbidden" });
@@ -371,8 +371,8 @@ export function buildServer(options: FeedbackExchangeServiceOptions = {}): Fasti
     return reply.status(201).send({ rating });
   });
 
-  server.get("/internal/reviews/:reviewId/rating", async (req, reply) => {
-    const { reviewId } = req.params as { reviewId: string };
+  server.get<{ Params: { reviewId: string } }>("/internal/reviews/:reviewId/rating", async (req, reply) => {
+    const { reviewId } = req.params;
     const rating = await repository.getRatingByReview(reviewId);
     if (!rating) {
       return reply.status(404).send({ error: "rating_not_found" });
@@ -382,16 +382,16 @@ export function buildServer(options: FeedbackExchangeServiceOptions = {}): Fasti
 
   // ── Reputation ─────────────────────────────────────────────────────
 
-  server.get("/internal/reputation/:userId", async (req, reply) => {
-    const { userId } = req.params as { userId: string };
+  server.get<{ Params: { userId: string } }>("/internal/reputation/:userId", async (req, reply) => {
+    const { userId } = req.params;
     const reputation = await repository.getReputation(userId);
     return reply.send({ reputation });
   });
 
   // ── Disputes ───────────────────────────────────────────────────────
 
-  server.post("/internal/reviews/:reviewId/dispute", async (req, reply) => {
-    const { reviewId } = req.params as { reviewId: string };
+  server.post<{ Params: { reviewId: string } }>("/internal/reviews/:reviewId/dispute", async (req, reply) => {
+    const { reviewId } = req.params;
     const authUserId = getAuthUserId(req.headers);
     if (!authUserId) {
       return reply.status(403).send({ error: "forbidden" });
@@ -441,8 +441,8 @@ export function buildServer(options: FeedbackExchangeServiceOptions = {}): Fasti
     return reply.status(201).send({ dispute });
   });
 
-  server.get("/internal/disputes", async (req, reply) => {
-    const { status } = req.query as { status?: string };
+  server.get<{ Querystring: { status?: string } }>("/internal/disputes", async (req, reply) => {
+    const { status } = req.query;
     const validStatuses = ["open", "under_review", "resolved_for_filer", "resolved_for_reviewer", "dismissed"];
     const filterStatus = status && validStatuses.includes(status)
       ? status as Parameters<typeof repository.listDisputes>[0]
@@ -451,8 +451,8 @@ export function buildServer(options: FeedbackExchangeServiceOptions = {}): Fasti
     return reply.send({ disputes });
   });
 
-  server.get("/internal/disputes/:disputeId", async (req, reply) => {
-    const { disputeId } = req.params as { disputeId: string };
+  server.get<{ Params: { disputeId: string } }>("/internal/disputes/:disputeId", async (req, reply) => {
+    const { disputeId } = req.params;
     const dispute = await repository.getDispute(disputeId);
     if (!dispute) {
       return reply.status(404).send({ error: "dispute_not_found" });
@@ -460,8 +460,8 @@ export function buildServer(options: FeedbackExchangeServiceOptions = {}): Fasti
     return reply.send({ dispute });
   });
 
-  server.post("/internal/disputes/:disputeId/resolve", async (req, reply) => {
-    const { disputeId } = req.params as { disputeId: string };
+  server.post<{ Params: { disputeId: string } }>("/internal/disputes/:disputeId/resolve", async (req, reply) => {
+    const { disputeId } = req.params;
     const authUserId = getAuthUserId(req.headers);
     if (!authUserId) {
       return reply.status(403).send({ error: "forbidden" });

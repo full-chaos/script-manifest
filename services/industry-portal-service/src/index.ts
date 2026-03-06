@@ -184,11 +184,11 @@ export function buildServer(options: IndustryPortalServiceOptions = {}): Fastify
     }
   });
 
-  server.get("/internal/accounts/:accountId", {
+  server.get<{ Params: { accountId: string } }>("/internal/accounts/:accountId", {
     config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
-      const { accountId } = req.params as { accountId: string };
+      const { accountId } = req.params;
       const account = await repository.getAccountById(accountId);
       if (!account) {
         return reply.status(404).send({ error: "industry_account_not_found" });
@@ -197,11 +197,11 @@ export function buildServer(options: IndustryPortalServiceOptions = {}): Fastify
     }
   });
 
-  server.post("/internal/accounts/:accountId/verify", {
+  server.post<{ Params: { accountId: string } }>("/internal/accounts/:accountId/verify", {
     config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
-      const { accountId } = req.params as { accountId: string };
+      const { accountId } = req.params;
       const reviewerUserId = readHeader(req.headers, "x-admin-user-id");
       if (!reviewerUserId) {
         return reply.status(403).send({ error: "forbidden" });
@@ -221,11 +221,11 @@ export function buildServer(options: IndustryPortalServiceOptions = {}): Fastify
     }
   });
 
-  server.put("/internal/entitlements/:writerUserId", {
+  server.put<{ Params: { writerUserId: string } }>("/internal/entitlements/:writerUserId", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
-      const { writerUserId } = req.params as { writerUserId: string };
+      const { writerUserId } = req.params;
       const authUserId = readHeader(req.headers, "x-auth-user-id");
       if (!authUserId || authUserId !== writerUserId) {
         return reply.status(403).send({ error: "forbidden" });
@@ -245,12 +245,12 @@ export function buildServer(options: IndustryPortalServiceOptions = {}): Fastify
     }
   });
 
-  server.get("/internal/entitlements/:writerUserId/check", {
+  server.get<{ Params: { writerUserId: string }; Querystring: { industryAccountId?: string; industryUserId?: string } }>("/internal/entitlements/:writerUserId/check", {
     config: { rateLimit: { max: 40, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
-      const { writerUserId } = req.params as { writerUserId: string };
-      const query = req.query as { industryAccountId?: string; industryUserId?: string };
+      const { writerUserId } = req.params;
+      const query = req.query;
 
       let industryAccountId = typeof query.industryAccountId === "string"
         ? query.industryAccountId
@@ -358,7 +358,7 @@ export function buildServer(options: IndustryPortalServiceOptions = {}): Fastify
     }
   });
 
-  server.post("/internal/lists/:listId/items", {
+  server.post<{ Params: { listId: string } }>("/internal/lists/:listId/items", {
     config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
@@ -374,7 +374,7 @@ export function buildServer(options: IndustryPortalServiceOptions = {}): Fastify
       if (!parsed.success) {
         return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
       }
-      const { listId } = req.params as { listId: string };
+      const { listId } = req.params;
       const item = await repository.addListItem(listId, access.industryAccountId, authUserId, parsed.data);
       if (!item) {
         return reply.status(404).send({ error: "list_or_writer_not_found" });
@@ -383,7 +383,7 @@ export function buildServer(options: IndustryPortalServiceOptions = {}): Fastify
     }
   });
 
-  server.post("/internal/lists/:listId/notes", {
+  server.post<{ Params: { listId: string } }>("/internal/lists/:listId/notes", {
     config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
@@ -399,7 +399,7 @@ export function buildServer(options: IndustryPortalServiceOptions = {}): Fastify
       if (!parsed.success) {
         return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
       }
-      const { listId } = req.params as { listId: string };
+      const { listId } = req.params;
       const note = await repository.addListNote(listId, access.industryAccountId, authUserId, parsed.data);
       if (!note) {
         return reply.status(404).send({ error: "list_or_target_not_found" });
@@ -408,7 +408,7 @@ export function buildServer(options: IndustryPortalServiceOptions = {}): Fastify
     }
   });
 
-  server.post("/internal/lists/:listId/share-team", {
+  server.post<{ Params: { listId: string } }>("/internal/lists/:listId/share-team", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
@@ -424,7 +424,7 @@ export function buildServer(options: IndustryPortalServiceOptions = {}): Fastify
       if (!parsed.success) {
         return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
       }
-      const { listId } = req.params as { listId: string };
+      const { listId } = req.params;
       const ok = await repository.shareListWithTeam(
         listId,
         access.industryAccountId,
@@ -479,7 +479,7 @@ export function buildServer(options: IndustryPortalServiceOptions = {}): Fastify
     }
   });
 
-  server.put("/internal/teams/:teamId/members", {
+  server.put<{ Params: { teamId: string } }>("/internal/teams/:teamId/members", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
@@ -495,7 +495,7 @@ export function buildServer(options: IndustryPortalServiceOptions = {}): Fastify
       if (!parsed.success) {
         return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
       }
-      const { teamId } = req.params as { teamId: string };
+      const { teamId } = req.params;
       const member = await repository.upsertTeamMember(
         teamId,
         access.industryAccountId,
@@ -560,7 +560,7 @@ export function buildServer(options: IndustryPortalServiceOptions = {}): Fastify
     }
   });
 
-  server.get("/internal/mandates/:mandateId/submissions", {
+  server.get<{ Params: { mandateId: string } }>("/internal/mandates/:mandateId/submissions", {
     config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
@@ -568,13 +568,13 @@ export function buildServer(options: IndustryPortalServiceOptions = {}): Fastify
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
-      const { mandateId } = req.params as { mandateId: string };
+      const { mandateId } = req.params;
       const submissions = await repository.listMandateSubmissions(mandateId);
       return reply.send({ submissions });
     }
   });
 
-  server.post("/internal/mandates/:mandateId/submissions", {
+  server.post<{ Params: { mandateId: string } }>("/internal/mandates/:mandateId/submissions", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
@@ -582,7 +582,7 @@ export function buildServer(options: IndustryPortalServiceOptions = {}): Fastify
       if (!writerUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
-      const { mandateId } = req.params as { mandateId: string };
+      const { mandateId } = req.params;
       const parsed = IndustryMandateSubmissionCreateRequestSchema.safeParse(req.body);
       if (!parsed.success) {
         return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
@@ -595,7 +595,7 @@ export function buildServer(options: IndustryPortalServiceOptions = {}): Fastify
     }
   });
 
-  server.post("/internal/mandates/:mandateId/submissions/:submissionId/review", {
+  server.post<{ Params: { mandateId: string; submissionId: string } }>("/internal/mandates/:mandateId/submissions/:submissionId/review", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
@@ -603,7 +603,7 @@ export function buildServer(options: IndustryPortalServiceOptions = {}): Fastify
       if (!reviewerUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
-      const { mandateId, submissionId } = req.params as { mandateId: string; submissionId: string };
+      const { mandateId, submissionId } = req.params;
       const parsed = IndustryMandateSubmissionReviewRequestSchema.safeParse(req.body);
       if (!parsed.success) {
         return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
@@ -663,7 +663,7 @@ export function buildServer(options: IndustryPortalServiceOptions = {}): Fastify
     }
   });
 
-  server.get("/internal/analytics", {
+  server.get<{ Querystring: { windowDays?: string } }>("/internal/analytics", {
     config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
@@ -675,13 +675,13 @@ export function buildServer(options: IndustryPortalServiceOptions = {}): Fastify
       if (!access) {
         return reply.status(403).send({ error: "industry_account_not_verified" });
       }
-      const windowDays = Number((req.query as { windowDays?: string }).windowDays ?? "30");
+      const windowDays = Number((req.query).windowDays ?? "30");
       const summary = await repository.getAnalyticsSummary(access.industryAccountId, windowDays);
       return reply.send({ summary });
     }
   });
 
-  server.post("/internal/scripts/:scriptId/download", {
+  server.post<{ Params: { scriptId: string } }>("/internal/scripts/:scriptId/download", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
@@ -693,7 +693,7 @@ export function buildServer(options: IndustryPortalServiceOptions = {}): Fastify
       if (!access) {
         return reply.status(403).send({ error: "industry_account_not_verified" });
       }
-      const { scriptId } = req.params as { scriptId: string };
+      const { scriptId } = req.params;
       const writerUserId = await repository.resolveScriptOwnerUserId(scriptId);
       if (!writerUserId) {
         return reply.status(404).send({ error: "script_not_found" });

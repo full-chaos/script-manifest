@@ -51,8 +51,8 @@ export function registerProjectRoutes(server: FastifyInstance, ctx: GatewayConte
     });
   });
 
-  server.get("/api/v1/projects/:projectId", async (req, reply) => {
-    const { projectId } = req.params as { projectId: string };
+  server.get<{ Params: { projectId: string } }>("/api/v1/projects/:projectId", async (req, reply) => {
+    const { projectId } = req.params;
     return proxyJsonRequest(
       reply,
       ctx.requestFn,
@@ -63,8 +63,8 @@ export function registerProjectRoutes(server: FastifyInstance, ctx: GatewayConte
     );
   });
 
-  server.put("/api/v1/projects/:projectId", async (req, reply) => {
-    const { projectId } = req.params as { projectId: string };
+  server.put<{ Params: { projectId: string } }>("/api/v1/projects/:projectId", async (req, reply) => {
+    const { projectId } = req.params;
     const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
     if (!userId) {
       return reply.status(401).send({ error: "unauthorized", detail: "Could not resolve user from auth token" });
@@ -92,8 +92,8 @@ export function registerProjectRoutes(server: FastifyInstance, ctx: GatewayConte
     );
   });
 
-  server.delete("/api/v1/projects/:projectId", async (req, reply) => {
-    const { projectId } = req.params as { projectId: string };
+  server.delete<{ Params: { projectId: string } }>("/api/v1/projects/:projectId", async (req, reply) => {
+    const { projectId } = req.params;
     const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
     if (!userId) {
       return reply.status(401).send({ error: "unauthorized", detail: "Could not resolve user from auth token" });
@@ -110,8 +110,8 @@ export function registerProjectRoutes(server: FastifyInstance, ctx: GatewayConte
     );
   });
 
-  server.get("/api/v1/projects/:projectId/co-writers", async (req, reply) => {
-    const { projectId } = req.params as { projectId: string };
+  server.get<{ Params: { projectId: string } }>("/api/v1/projects/:projectId/co-writers", async (req, reply) => {
+    const { projectId } = req.params;
     return proxyJsonRequest(
       reply,
       ctx.requestFn,
@@ -122,8 +122,8 @@ export function registerProjectRoutes(server: FastifyInstance, ctx: GatewayConte
     );
   });
 
-  server.post("/api/v1/projects/:projectId/co-writers", async (req, reply) => {
-    const { projectId } = req.params as { projectId: string };
+  server.post<{ Params: { projectId: string } }>("/api/v1/projects/:projectId/co-writers", async (req, reply) => {
+    const { projectId } = req.params;
     const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
     if (!userId) {
       return reply.status(401).send({ error: "unauthorized", detail: "Could not resolve user from auth token" });
@@ -151,11 +151,11 @@ export function registerProjectRoutes(server: FastifyInstance, ctx: GatewayConte
     );
   });
 
-  server.delete("/api/v1/projects/:projectId/co-writers/:coWriterUserId", async (req, reply) => {
-    const { projectId, coWriterUserId } = req.params as {
+  server.delete<{ Params: {
       projectId: string;
       coWriterUserId: string;
-    };
+    } }>("/api/v1/projects/:projectId/co-writers/:coWriterUserId", async (req, reply) => {
+    const { projectId, coWriterUserId } = req.params;
     const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
     if (!userId) {
       return reply.status(401).send({ error: "unauthorized", detail: "Could not resolve user from auth token" });
@@ -172,8 +172,8 @@ export function registerProjectRoutes(server: FastifyInstance, ctx: GatewayConte
     );
   });
 
-  server.get("/api/v1/projects/:projectId/drafts", async (req, reply) => {
-    const { projectId } = req.params as { projectId: string };
+  server.get<{ Params: { projectId: string } }>("/api/v1/projects/:projectId/drafts", async (req, reply) => {
+    const { projectId } = req.params;
     return proxyJsonRequest(
       reply,
       ctx.requestFn,
@@ -184,8 +184,8 @@ export function registerProjectRoutes(server: FastifyInstance, ctx: GatewayConte
     );
   });
 
-  server.post("/api/v1/projects/:projectId/drafts", async (req, reply) => {
-    const { projectId } = req.params as { projectId: string };
+  server.post<{ Params: { projectId: string } }>("/api/v1/projects/:projectId/drafts", async (req, reply) => {
+    const { projectId } = req.params;
     const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
     if (!userId) {
       return reply.status(401).send({ error: "unauthorized", detail: "Could not resolve user from auth token" });
@@ -213,8 +213,8 @@ export function registerProjectRoutes(server: FastifyInstance, ctx: GatewayConte
     );
   });
 
-  server.patch("/api/v1/projects/:projectId/drafts/:draftId", async (req, reply) => {
-    const { projectId, draftId } = req.params as { projectId: string; draftId: string };
+  server.patch<{ Params: { projectId: string; draftId: string } }>("/api/v1/projects/:projectId/drafts/:draftId", async (req, reply) => {
+    const { projectId, draftId } = req.params;
     const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
     if (!userId) {
       return reply.status(401).send({ error: "unauthorized", detail: "Could not resolve user from auth token" });
@@ -242,8 +242,8 @@ export function registerProjectRoutes(server: FastifyInstance, ctx: GatewayConte
     );
   });
 
-  server.post("/api/v1/projects/:projectId/drafts/:draftId/primary", async (req, reply) => {
-    const { projectId, draftId } = req.params as { projectId: string; draftId: string };
+  server.post<{ Params: { projectId: string; draftId: string } }>("/api/v1/projects/:projectId/drafts/:draftId/primary", async (req, reply) => {
+    const { projectId, draftId } = req.params;
     const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
     if (!userId) {
       return reply.status(401).send({ error: "unauthorized", detail: "Could not resolve user from auth token" });

@@ -23,6 +23,7 @@ import type { CoverageMarketplaceRepository } from "./repository.js";
 import { PgCoverageMarketplaceRepository } from "./pgRepository.js";
 import { type PaymentGateway, MemoryPaymentGateway } from "./paymentGateway.js";
 import { StripePaymentGateway } from "./stripePaymentGateway.js";
+import { createScheduler } from "./scheduler.js";
 
 const coverageOrdersCounter = new Counter({
   name: "coverage_orders_total",
@@ -86,7 +87,13 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
   const autoCompleteDays = Number(process.env.COVERAGE_AUTO_COMPLETE_DAYS ?? "7");
   const maintenanceIntervalMs = Number(process.env.COVERAGE_SLA_MAINTENANCE_MS ?? "0");
   const systemUserId = process.env.COVERAGE_SYSTEM_USER_ID ?? "system";
-  let maintenanceTimer: NodeJS.Timeout | null = null;
+  const scheduler = createScheduler({
+    repository,
+    paymentGateway,
+    autoCompleteDays,
+    systemUserId,
+    logger: server.log,
+  });
 
   server.register(rateLimit, {
     global: true,
@@ -95,83 +102,17 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
     allowList: []
   });
 
-  const runSlaMaintenance = async (actorUserId: string) => {
-    const now = Date.now();
-    const autoCompleteCutoff = now - autoCompleteDays * 86400000;
-    const deliveredOrders = await repository.listOrders({ status: "delivered", limit: 1000, offset: 0 });
-    let autoCompleted = 0;
-
-    for (const order of deliveredOrders) {
-      const deliveredAt = order.deliveredAt ? new Date(order.deliveredAt).getTime() : null;
-      if (!deliveredAt || deliveredAt > autoCompleteCutoff) {
-        continue;
-      }
-      const provider = await repository.getProvider(order.providerId);
-      if (!provider?.stripeAccountId) {
-        continue;
-      }
-      if (order.stripePaymentIntentId) {
-        await paymentGateway.capturePayment(order.stripePaymentIntentId);
-      }
-      const { transferId } = await paymentGateway.transferToProvider({
-        amountCents: order.providerPayoutCents,
-        stripeAccountId: provider.stripeAccountId,
-        transferGroup: order.id
-      });
-      await repository.updateOrderStatus(order.id, "completed", { stripeTransferId: transferId });
-      autoCompleted += 1;
-    }
-
-    const claimed = await repository.listOrders({ status: "claimed", limit: 1000, offset: 0 });
-    const inProgress = await repository.listOrders({ status: "in_progress", limit: 1000, offset: 0 });
-    let slaBreachesDisputed = 0;
-    for (const order of [...claimed, ...inProgress]) {
-      const deadline = order.slaDeadline ? new Date(order.slaDeadline).getTime() : null;
-      if (!deadline || deadline >= now) {
-        continue;
-      }
-      const existingDispute = await repository.getDisputeByOrder(order.id);
-      if (existingDispute && (existingDispute.status === "open" || existingDispute.status === "under_review")) {
-        continue;
-      }
-
-      const dispute = await repository.createDispute(order.id, actorUserId, {
-        reason: "non_delivery",
-        description: "Auto-opened after SLA deadline elapsed."
-      });
-      await repository.updateOrderStatus(order.id, "disputed");
-      await repository.createDisputeEvent({
-        disputeId: dispute.id,
-        actorUserId,
-        eventType: "sla_breach_auto_open",
-        note: "SLA deadline exceeded; dispute opened automatically.",
-        fromStatus: null,
-        toStatus: "open"
-      });
-      slaBreachesDisputed += 1;
-    }
-
-    return { autoCompleted, slaBreachesDisputed };
-  };
-
   // lgtm [js/missing-rate-limiting] Background maintenance hook is scheduler-driven, not request-driven.
   server.addHook("onReady", async () => {
     await repository.init();
+    scheduler.start(maintenanceIntervalMs);
     if (maintenanceIntervalMs > 0) {
-      maintenanceTimer = setInterval(() => {
-        void runSlaMaintenance(systemUserId).catch((error) => {
-          server.log.error({ error }, "sla maintenance run failed");
-        });
-      }, maintenanceIntervalMs);
       server.log.info({ maintenanceIntervalMs }, "scheduled SLA maintenance job");
     }
   });
 
   server.addHook("onClose", async () => {
-    if (maintenanceTimer) {
-      clearInterval(maintenanceTimer);
-      maintenanceTimer = null;
-    }
+    scheduler.stop();
     await closePool();
   });
 
@@ -1092,7 +1033,7 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
     if (!authUserId) {
       return reply.status(403).send({ error: "forbidden" });
     }
-    const result = await runSlaMaintenance(authUserId);
+    const result = await scheduler.runOnce();
     return reply.send(result);
   });
 

@@ -22,7 +22,7 @@
   },
   "devDependencies": {
     "@types/archiver": "^7.0.0",
-    "@types/node": "^22.8.1",
+    "@types/node": "^25.3.4",
     "tsx": "^4.19.2",
     "typescript": "^5.9.3"
   }

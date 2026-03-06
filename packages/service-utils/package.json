@@ -11,7 +11,7 @@
     "build": "tsc -p tsconfig.json",
     "test": "node --import tsx --test test/**/*.test.ts",
     "typecheck": "tsc --noEmit",
-    "lint": "echo 'lint not configured'"
+    "lint": "eslint src/"
   },
   "dependencies": {
     "@opentelemetry/auto-instrumentations-node": "^0.56.1",

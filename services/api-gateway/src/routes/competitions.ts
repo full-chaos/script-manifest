@@ -36,12 +36,7 @@ export function registerCompetitionRoutes(server: FastifyInstance, ctx: GatewayC
   });
 
   server.post("/api/v1/admin/competitions", async (req, reply) => {
-    const adminUserId = await resolveAdminUserId(
-      ctx.requestFn,
-      ctx.identityServiceBase,
-      req.headers,
-      ctx.competitionAdminAllowlist
-    );
+    const adminUserId = await resolveAdminUserId(ctx.requestFn, ctx.identityServiceBase, req.headers, ctx.competitionAdminAllowlist, req.log);
     if (!adminUserId) {
       return reply.status(403).send({ error: "forbidden" });
     }
@@ -65,12 +60,7 @@ export function registerCompetitionRoutes(server: FastifyInstance, ctx: GatewayC
 
   server.put("/api/v1/admin/competitions/:competitionId", async (req, reply) => {
     const { competitionId } = req.params as { competitionId: string };
-    const adminUserId = await resolveAdminUserId(
-      ctx.requestFn,
-      ctx.identityServiceBase,
-      req.headers,
-      ctx.competitionAdminAllowlist
-    );
+    const adminUserId = await resolveAdminUserId(ctx.requestFn, ctx.identityServiceBase, req.headers, ctx.competitionAdminAllowlist, req.log);
     if (!adminUserId) {
       return reply.status(403).send({ error: "forbidden" });
     }

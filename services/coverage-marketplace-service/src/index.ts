@@ -1195,7 +1195,7 @@ export async function startServer(): Promise<void> {
     const tracingSdk = setupTracing("coverage-marketplace-service");
     if (tracingSdk) {
       process.once("SIGTERM", () => {
-        tracingSdk.shutdown().catch((err) => console.error("OTel SDK shutdown error", err));
+        tracingSdk.shutdown().catch((err) => server.log.error(err, "OTel SDK shutdown error"));
       });
     }
     boot.phase("tracing initialized");
@@ -1220,8 +1220,5 @@ function isMainModule(metaUrl: string): boolean {
 }
 
 if (isMainModule(import.meta.url)) {
-  startServer().catch((error) => {
-    console.error(error);
-    process.exit(1);
-  });
+  startServer().catch((error) => { process.stderr.write(String(error) + "\n"); process.exit(1); });
 }

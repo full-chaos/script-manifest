@@ -27,7 +27,7 @@ export function registerIndustryRoutes(server: FastifyInstance, ctx: GatewayCont
   server.post("/api/v1/industry/accounts", {
     config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
-      const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
+      const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
       if (!userId) {
         return reply.status(401).send({ error: "unauthorized", detail: "Could not resolve user from auth token" });
       }
@@ -71,12 +71,7 @@ export function registerIndustryRoutes(server: FastifyInstance, ctx: GatewayCont
     config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       const { accountId } = req.params as { accountId: string };
-      const adminUserId = await resolveAdminUserId(
-        ctx.requestFn,
-        ctx.identityServiceBase,
-        req.headers as Record<string, unknown>,
-        ctx.industryAdminAllowlist
-      );
+      const adminUserId = await resolveAdminUserId(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, ctx.industryAdminAllowlist, req.log);
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -105,7 +100,7 @@ export function registerIndustryRoutes(server: FastifyInstance, ctx: GatewayCont
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       const { writerUserId } = req.params as { writerUserId: string };
-      const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
+      const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
       if (!userId) {
         return reply.status(401).send({ error: "unauthorized", detail: "Could not resolve user from auth token" });
       }
@@ -149,7 +144,7 @@ export function registerIndustryRoutes(server: FastifyInstance, ctx: GatewayCont
   server.get("/api/v1/industry/talent-search", {
     config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
-      const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
+      const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
       if (!userId) {
         return reply.status(401).send({ error: "unauthorized", detail: "Could not resolve user from auth token" });
       }
@@ -169,7 +164,7 @@ export function registerIndustryRoutes(server: FastifyInstance, ctx: GatewayCont
   server.get("/api/v1/industry/lists", {
     config: { rateLimit: { max: 40, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
-      const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
+      const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
       if (!userId) {
         return reply.status(401).send({ error: "unauthorized", detail: "Could not resolve user from auth token" });
       }
@@ -189,7 +184,7 @@ export function registerIndustryRoutes(server: FastifyInstance, ctx: GatewayCont
   server.post("/api/v1/industry/lists", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
-      const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
+      const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
       if (!userId) {
         return reply.status(401).send({ error: "unauthorized", detail: "Could not resolve user from auth token" });
       }
@@ -215,7 +210,7 @@ export function registerIndustryRoutes(server: FastifyInstance, ctx: GatewayCont
     config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       const { listId } = req.params as { listId: string };
-      const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
+      const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
       if (!userId) {
         return reply.status(401).send({ error: "unauthorized", detail: "Could not resolve user from auth token" });
       }
@@ -241,7 +236,7 @@ export function registerIndustryRoutes(server: FastifyInstance, ctx: GatewayCont
     config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       const { listId } = req.params as { listId: string };
-      const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
+      const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
       if (!userId) {
         return reply.status(401).send({ error: "unauthorized", detail: "Could not resolve user from auth token" });
       }
@@ -281,12 +276,7 @@ export function registerIndustryRoutes(server: FastifyInstance, ctx: GatewayCont
   server.post("/api/v1/industry/mandates", {
     config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
-      const adminUserId = await resolveAdminUserId(
-        ctx.requestFn,
-        ctx.identityServiceBase,
-        req.headers as Record<string, unknown>,
-        ctx.industryAdminAllowlist
-      );
+      const adminUserId = await resolveAdminUserId(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, ctx.industryAdminAllowlist, req.log);
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -315,7 +305,7 @@ export function registerIndustryRoutes(server: FastifyInstance, ctx: GatewayCont
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       const { mandateId } = req.params as { mandateId: string };
-      const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
+      const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
       if (!userId) {
         return reply.status(401).send({ error: "unauthorized", detail: "Could not resolve user from auth token" });
       }
@@ -341,12 +331,7 @@ export function registerIndustryRoutes(server: FastifyInstance, ctx: GatewayCont
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       const { mandateId } = req.params as { mandateId: string };
-      const adminUserId = await resolveAdminUserId(
-        ctx.requestFn,
-        ctx.identityServiceBase,
-        req.headers as Record<string, unknown>,
-        ctx.industryAdminAllowlist
-      );
+      const adminUserId = await resolveAdminUserId(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, ctx.industryAdminAllowlist, req.log);
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -367,12 +352,7 @@ export function registerIndustryRoutes(server: FastifyInstance, ctx: GatewayCont
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       const { mandateId, submissionId } = req.params as { mandateId: string; submissionId: string };
-      const adminUserId = await resolveAdminUserId(
-        ctx.requestFn,
-        ctx.identityServiceBase,
-        req.headers as Record<string, unknown>,
-        ctx.industryAdminAllowlist
-      );
+      const adminUserId = await resolveAdminUserId(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, ctx.industryAdminAllowlist, req.log);
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -399,12 +379,7 @@ export function registerIndustryRoutes(server: FastifyInstance, ctx: GatewayCont
   server.post("/api/v1/industry/talent-index/rebuild", {
     config: { rateLimit: { max: 5, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
-      const adminUserId = await resolveAdminUserId(
-        ctx.requestFn,
-        ctx.identityServiceBase,
-        req.headers as Record<string, unknown>,
-        ctx.industryAdminAllowlist
-      );
+      const adminUserId = await resolveAdminUserId(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, ctx.industryAdminAllowlist, req.log);
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -425,7 +400,7 @@ export function registerIndustryRoutes(server: FastifyInstance, ctx: GatewayCont
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       const { listId } = req.params as { listId: string };
-      const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
+      const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
       if (!userId) {
         return reply.status(401).send({ error: "unauthorized", detail: "Could not resolve user from auth token" });
       }
@@ -449,7 +424,7 @@ export function registerIndustryRoutes(server: FastifyInstance, ctx: GatewayCont
   server.get("/api/v1/industry/teams", {
     config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
-      const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
+      const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
       if (!userId) {
         return reply.status(401).send({ error: "unauthorized", detail: "Could not resolve user from auth token" });
       }
@@ -468,7 +443,7 @@ export function registerIndustryRoutes(server: FastifyInstance, ctx: GatewayCont
   server.post("/api/v1/industry/teams", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
-      const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
+      const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
       if (!userId) {
         return reply.status(401).send({ error: "unauthorized", detail: "Could not resolve user from auth token" });
       }
@@ -493,7 +468,7 @@ export function registerIndustryRoutes(server: FastifyInstance, ctx: GatewayCont
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       const { teamId } = req.params as { teamId: string };
-      const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
+      const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
       if (!userId) {
         return reply.status(401).send({ error: "unauthorized", detail: "Could not resolve user from auth token" });
       }
@@ -517,7 +492,7 @@ export function registerIndustryRoutes(server: FastifyInstance, ctx: GatewayCont
   server.get("/api/v1/industry/activity", {
     config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
-      const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
+      const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
       if (!userId) {
         return reply.status(401).send({ error: "unauthorized", detail: "Could not resolve user from auth token" });
       }
@@ -537,7 +512,7 @@ export function registerIndustryRoutes(server: FastifyInstance, ctx: GatewayCont
   server.post("/api/v1/industry/digests/weekly/run", {
     config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
-      const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
+      const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
       if (!userId) {
         return reply.status(401).send({ error: "unauthorized", detail: "Could not resolve user from auth token" });
       }
@@ -561,7 +536,7 @@ export function registerIndustryRoutes(server: FastifyInstance, ctx: GatewayCont
   server.get("/api/v1/industry/digests/weekly/runs", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
-      const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
+      const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
       if (!userId) {
         return reply.status(401).send({ error: "unauthorized", detail: "Could not resolve user from auth token" });
       }
@@ -581,7 +556,7 @@ export function registerIndustryRoutes(server: FastifyInstance, ctx: GatewayCont
   server.get("/api/v1/industry/analytics", {
     config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
-      const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
+      const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
       if (!userId) {
         return reply.status(401).send({ error: "unauthorized", detail: "Could not resolve user from auth token" });
       }
@@ -602,7 +577,7 @@ export function registerIndustryRoutes(server: FastifyInstance, ctx: GatewayCont
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       const { scriptId } = req.params as { scriptId: string };
-      const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
+      const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
       if (!userId) {
         return reply.status(401).send({ error: "unauthorized", detail: "Could not resolve user from auth token" });
       }

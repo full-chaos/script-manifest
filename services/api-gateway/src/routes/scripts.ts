@@ -51,7 +51,7 @@ export function registerScriptRoutes(server: FastifyInstance, ctx: GatewayContex
 
   server.post("/api/v1/scripts/:scriptId/access-requests", async (req, reply) => {
     const { scriptId } = req.params as { scriptId: string };
-    const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
+    const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
     const parsed = ScriptAccessRequestCreateRequestSchema.safeParse(req.body);
     if (!parsed.success) {
       return reply.status(400).send({
@@ -74,7 +74,7 @@ export function registerScriptRoutes(server: FastifyInstance, ctx: GatewayContex
   server.get("/api/v1/scripts/:scriptId/access-requests", async (req, reply) => {
     const { scriptId } = req.params as { scriptId: string };
     const querySuffix = buildQuerySuffix(req.query);
-    const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
+    const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
     return proxyJsonRequest(
       reply,
       ctx.requestFn,
@@ -88,7 +88,7 @@ export function registerScriptRoutes(server: FastifyInstance, ctx: GatewayContex
 
   server.post("/api/v1/scripts/:scriptId/access-requests/:requestId/approve", async (req, reply) => {
     const { scriptId, requestId } = req.params as { scriptId: string; requestId: string };
-    const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
+    const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
     const parsed = ScriptAccessRequestDecisionRequestSchema.safeParse(req.body);
     if (!parsed.success) {
       return reply.status(400).send({
@@ -110,7 +110,7 @@ export function registerScriptRoutes(server: FastifyInstance, ctx: GatewayContex
 
   server.post("/api/v1/scripts/:scriptId/access-requests/:requestId/reject", async (req, reply) => {
     const { scriptId, requestId } = req.params as { scriptId: string; requestId: string };
-    const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
+    const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
     const parsed = ScriptAccessRequestDecisionRequestSchema.safeParse(req.body);
     if (!parsed.success) {
       return reply.status(400).send({
@@ -132,7 +132,7 @@ export function registerScriptRoutes(server: FastifyInstance, ctx: GatewayContex
 
   server.get("/api/v1/scripts/:scriptId/view", async (req, reply) => {
     const { scriptId } = req.params as { scriptId: string };
-    const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
+    const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
     if (!userId) {
       return reply.status(401).send({ error: "unauthorized" });
     }
@@ -146,7 +146,7 @@ export function registerScriptRoutes(server: FastifyInstance, ctx: GatewayContex
 
   server.post("/api/v1/scripts/:scriptId/approve-viewer", async (req, reply) => {
     const { scriptId } = req.params as { scriptId: string };
-    const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
+    const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
     if (!userId) {
       return reply.status(401).send({ error: "unauthorized" });
     }
@@ -165,7 +165,7 @@ export function registerScriptRoutes(server: FastifyInstance, ctx: GatewayContex
 
   server.patch("/api/v1/scripts/:scriptId/visibility", async (req, reply) => {
     const { scriptId } = req.params as { scriptId: string };
-    const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
+    const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
     // TODO: add validation schema
     return proxyJsonRequest(
       reply,

@@ -1,9 +1,10 @@
-import type { FastifyReply } from "fastify";
+import type { FastifyBaseLogger, FastifyReply } from "fastify";
 import { randomBytes } from "node:crypto";
 import type { request } from "undici";
 import { signServiceToken, type Role } from "@script-manifest/service-utils";
 
 export type RequestFn = typeof request;
+type AuthLogger = Pick<FastifyBaseLogger, "warn" | "error">;
 
 export type GatewayContext = {
   requestFn: RequestFn;
@@ -61,7 +62,8 @@ export function buildQuerySuffix(rawQuery: unknown): string {
 export async function getUserIdFromAuth(
   requestFn: RequestFn,
   identityServiceBase: string,
-  authorization: string | undefined
+  authorization: string | undefined,
+  logger?: AuthLogger
 ): Promise<string | null> {
   if (!authorization) {
     return null;
@@ -74,18 +76,18 @@ export async function getUserIdFromAuth(
     });
 
     if (response.statusCode !== 200) {
-      console.warn(`Auth verification failed with status ${response.statusCode}`);
+      logger?.warn(`Auth verification failed with status ${response.statusCode}`);
       return null;
     }
 
     const body = (await response.body.json()) as { user?: { id?: string } };
     if (!body?.user?.id) {
-      console.warn("Auth response missing user.id", body);
+      logger?.warn({ body }, "Auth response missing user.id");
       return null;
     }
     return body.user.id;
   } catch (error) {
-    console.error("Error verifying auth token:", error);
+    logger?.error(error, "Error verifying auth token");
     return null;
   }
 }
@@ -120,7 +122,8 @@ export async function resolveAdminUserId(
   requestFn: RequestFn,
   identityServiceBase: string,
   headers: Record<string, unknown>,
-  allowlist: Set<string>
+  allowlist: Set<string>,
+  logger?: AuthLogger
 ): Promise<string | null> {
   const headerAdminUserId = readHeaderValue(headers, "x-admin-user-id");
   if (headerAdminUserId && allowlist.has(headerAdminUserId)) {
@@ -128,7 +131,7 @@ export async function resolveAdminUserId(
   }
 
   const authorization = readHeaderValue(headers, "authorization");
-  const authedUserId = await getUserIdFromAuth(requestFn, identityServiceBase, authorization);
+  const authedUserId = await getUserIdFromAuth(requestFn, identityServiceBase, authorization, logger);
   if (authedUserId && allowlist.has(authedUserId)) {
     return authedUserId;
   }
@@ -139,7 +142,8 @@ export async function resolveAdminUserId(
 export async function resolveUserId(
   requestFn: RequestFn,
   identityServiceBase: string,
-  headers: Record<string, unknown>
+  headers: Record<string, unknown>,
+  logger?: AuthLogger
 ): Promise<string | null> {
   const headerUserId =
     readHeaderValue(headers, "x-auth-user-id") ??
@@ -150,7 +154,7 @@ export async function resolveUserId(
   }
 
   const authorization = readHeaderValue(headers, "authorization");
-  const authedUserId = await getUserIdFromAuth(requestFn, identityServiceBase, authorization);
+  const authedUserId = await getUserIdFromAuth(requestFn, identityServiceBase, authorization, logger);
   return authedUserId;
 }
 

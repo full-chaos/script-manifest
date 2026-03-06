@@ -1,4 +1,4 @@
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyRequest } from "fastify";
 import {
   PartnerCompetitionCreateRequestSchema,
   PartnerDraftSwapRequestSchema,
@@ -16,8 +16,8 @@ import {
 } from "../helpers.js";
 
 export function registerPartnerRoutes(server: FastifyInstance, ctx: GatewayContext): void {
-  const resolveActorUserId = async (headers: Record<string, unknown>): Promise<string | null> => {
-    return resolveUserId(ctx.requestFn, ctx.identityServiceBase, headers);
+  const resolveActorUserId = async (req: FastifyRequest): Promise<string | null> => {
+    return resolveUserId(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, req.log);
   };
 
   const actorHeaders = (actorUserId: string, json = false): Record<string, string> => {
@@ -34,7 +34,7 @@ export function registerPartnerRoutes(server: FastifyInstance, ctx: GatewayConte
   server.post("/api/v1/partners/competitions", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
-      const actorUserId = await resolveActorUserId(req.headers as Record<string, unknown>);
+      const actorUserId = await resolveActorUserId(req);
       if (!actorUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -55,7 +55,7 @@ export function registerPartnerRoutes(server: FastifyInstance, ctx: GatewayConte
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       const { competitionId, userId } = req.params as { competitionId: string; userId: string };
-      const actorUserId = await resolveActorUserId(req.headers as Record<string, unknown>);
+      const actorUserId = await resolveActorUserId(req);
       if (!actorUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -78,7 +78,7 @@ export function registerPartnerRoutes(server: FastifyInstance, ctx: GatewayConte
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       const { competitionId } = req.params as { competitionId: string };
-      const actorUserId = await resolveActorUserId(req.headers as Record<string, unknown>);
+      const actorUserId = await resolveActorUserId(req);
       if (!actorUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -101,7 +101,7 @@ export function registerPartnerRoutes(server: FastifyInstance, ctx: GatewayConte
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       const { competitionId } = req.params as { competitionId: string };
-      const actorUserId = await resolveActorUserId(req.headers as Record<string, unknown>);
+      const actorUserId = await resolveActorUserId(req);
       if (!actorUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -124,7 +124,7 @@ export function registerPartnerRoutes(server: FastifyInstance, ctx: GatewayConte
     config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       const { competitionId } = req.params as { competitionId: string };
-      const actorUserId = await resolveActorUserId(req.headers as Record<string, unknown>);
+      const actorUserId = await resolveActorUserId(req);
       if (!actorUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -145,7 +145,7 @@ export function registerPartnerRoutes(server: FastifyInstance, ctx: GatewayConte
     config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       const { competitionId } = req.params as { competitionId: string };
-      const actorUserId = await resolveActorUserId(req.headers as Record<string, unknown>);
+      const actorUserId = await resolveActorUserId(req);
       if (!actorUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -168,7 +168,7 @@ export function registerPartnerRoutes(server: FastifyInstance, ctx: GatewayConte
     config: { rateLimit: { max: 40, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       const { competitionId } = req.params as { competitionId: string };
-      const actorUserId = await resolveActorUserId(req.headers as Record<string, unknown>);
+      const actorUserId = await resolveActorUserId(req);
       if (!actorUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -189,7 +189,7 @@ export function registerPartnerRoutes(server: FastifyInstance, ctx: GatewayConte
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       const { competitionId } = req.params as { competitionId: string };
-      const actorUserId = await resolveActorUserId(req.headers as Record<string, unknown>);
+      const actorUserId = await resolveActorUserId(req);
       if (!actorUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -212,7 +212,7 @@ export function registerPartnerRoutes(server: FastifyInstance, ctx: GatewayConte
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       const { competitionId } = req.params as { competitionId: string };
-      const actorUserId = await resolveActorUserId(req.headers as Record<string, unknown>);
+      const actorUserId = await resolveActorUserId(req);
       if (!actorUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -238,7 +238,7 @@ export function registerPartnerRoutes(server: FastifyInstance, ctx: GatewayConte
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       const { competitionId } = req.params as { competitionId: string };
-      const actorUserId = await resolveActorUserId(req.headers as Record<string, unknown>);
+      const actorUserId = await resolveActorUserId(req);
       if (!actorUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -261,7 +261,7 @@ export function registerPartnerRoutes(server: FastifyInstance, ctx: GatewayConte
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       const { competitionId } = req.params as { competitionId: string };
-      const actorUserId = await resolveActorUserId(req.headers as Record<string, unknown>);
+      const actorUserId = await resolveActorUserId(req);
       if (!actorUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -287,7 +287,7 @@ export function registerPartnerRoutes(server: FastifyInstance, ctx: GatewayConte
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       const { competitionId } = req.params as { competitionId: string };
-      const actorUserId = await resolveActorUserId(req.headers as Record<string, unknown>);
+      const actorUserId = await resolveActorUserId(req);
       if (!actorUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -313,7 +313,7 @@ export function registerPartnerRoutes(server: FastifyInstance, ctx: GatewayConte
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       const { competitionId } = req.params as { competitionId: string };
-      const actorUserId = await resolveActorUserId(req.headers as Record<string, unknown>);
+      const actorUserId = await resolveActorUserId(req);
       if (!actorUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -339,7 +339,7 @@ export function registerPartnerRoutes(server: FastifyInstance, ctx: GatewayConte
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       const { competitionId } = req.params as { competitionId: string };
-      const actorUserId = await resolveActorUserId(req.headers as Record<string, unknown>);
+      const actorUserId = await resolveActorUserId(req);
       if (!actorUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -365,7 +365,7 @@ export function registerPartnerRoutes(server: FastifyInstance, ctx: GatewayConte
     config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       const { competitionId } = req.params as { competitionId: string };
-      const actorUserId = await resolveActorUserId(req.headers as Record<string, unknown>);
+      const actorUserId = await resolveActorUserId(req);
       if (!actorUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -385,7 +385,7 @@ export function registerPartnerRoutes(server: FastifyInstance, ctx: GatewayConte
   server.post("/api/v1/partners/integrations/filmfreeway/sync", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
-      const actorUserId = await resolveActorUserId(req.headers as Record<string, unknown>);
+      const actorUserId = await resolveActorUserId(req);
       if (!actorUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -410,7 +410,7 @@ export function registerPartnerRoutes(server: FastifyInstance, ctx: GatewayConte
   server.post("/api/v1/partners/integrations/filmfreeway/sync/jobs/claim", {
     config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
-      const actorUserId = await resolveActorUserId(req.headers as Record<string, unknown>);
+      const actorUserId = await resolveActorUserId(req);
       if (!actorUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -432,7 +432,7 @@ export function registerPartnerRoutes(server: FastifyInstance, ctx: GatewayConte
     config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       const { jobId } = req.params as { jobId: string };
-      const actorUserId = await resolveActorUserId(req.headers as Record<string, unknown>);
+      const actorUserId = await resolveActorUserId(req);
       if (!actorUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -455,7 +455,7 @@ export function registerPartnerRoutes(server: FastifyInstance, ctx: GatewayConte
     config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       const { jobId } = req.params as { jobId: string };
-      const actorUserId = await resolveActorUserId(req.headers as Record<string, unknown>);
+      const actorUserId = await resolveActorUserId(req);
       if (!actorUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -477,7 +477,7 @@ export function registerPartnerRoutes(server: FastifyInstance, ctx: GatewayConte
   server.post("/api/v1/partners/integrations/filmfreeway/sync/run-next", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
-      const actorUserId = await resolveActorUserId(req.headers as Record<string, unknown>);
+      const actorUserId = await resolveActorUserId(req);
       if (!actorUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }

@@ -27,7 +27,7 @@ export function registerSubmissionRoutes(server: FastifyInstance, ctx: GatewayCo
   });
 
   server.post("/api/v1/submissions", async (req, reply) => {
-    const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
+    const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
     const parsed = SubmissionCreateRequestSchema.safeParse(req.body);
     if (!parsed.success) {
       return reply.status(400).send({
@@ -48,7 +48,7 @@ export function registerSubmissionRoutes(server: FastifyInstance, ctx: GatewayCo
 
   server.patch("/api/v1/submissions/:submissionId/project", async (req, reply) => {
     const { submissionId } = req.params as { submissionId: string };
-    const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
+    const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
     const parsed = SubmissionProjectReassignmentRequestSchema.safeParse(req.body);
     if (!parsed.success) {
       return reply.status(400).send({
@@ -74,7 +74,7 @@ export function registerSubmissionRoutes(server: FastifyInstance, ctx: GatewayCo
 
   server.get("/api/v1/placements", async (req, reply) => {
     const querySuffix = buildQuerySuffix(req.query);
-    const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
+    const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
     return proxyJsonRequest(
       reply,
       ctx.requestFn,
@@ -88,7 +88,7 @@ export function registerSubmissionRoutes(server: FastifyInstance, ctx: GatewayCo
 
   server.get("/api/v1/submissions/:submissionId/placements", async (req, reply) => {
     const { submissionId } = req.params as { submissionId: string };
-    const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
+    const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
     return proxyJsonRequest(
       reply,
       ctx.requestFn,
@@ -102,7 +102,7 @@ export function registerSubmissionRoutes(server: FastifyInstance, ctx: GatewayCo
 
   server.post("/api/v1/submissions/:submissionId/placements", async (req, reply) => {
     const { submissionId } = req.params as { submissionId: string };
-    const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
+    const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
     const parsed = PlacementCreateRequestSchema.safeParse(req.body);
     if (!parsed.success) {
       return reply.status(400).send({
@@ -134,7 +134,7 @@ export function registerSubmissionRoutes(server: FastifyInstance, ctx: GatewayCo
 
   server.get("/api/v1/placements/:placementId", async (req, reply) => {
     const { placementId } = req.params as { placementId: string };
-    const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
+    const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
     return proxyJsonRequest(
       reply,
       ctx.requestFn,
@@ -148,7 +148,7 @@ export function registerSubmissionRoutes(server: FastifyInstance, ctx: GatewayCo
 
   server.post("/api/v1/placements/:placementId/verify", async (req, reply) => {
     const { placementId } = req.params as { placementId: string };
-    const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
+    const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
     const parsed = PlacementVerificationUpdateRequestSchema.safeParse(req.body);
     if (!parsed.success) {
       return reply.status(400).send({

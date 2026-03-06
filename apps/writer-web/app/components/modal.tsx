@@ -47,15 +47,15 @@ export function Modal({ open, title, description, onClose, children }: ModalProp
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={description ? descriptionId : undefined}
-        className="w-full max-w-2xl rounded-3xl border border-zinc-300/80 bg-white p-6 shadow-panel"
+        className="w-full max-w-2xl rounded-3xl border border-zinc-300/80 bg-surface p-6 shadow-panel"
       >
         <div className="mb-4 flex items-start justify-between gap-4">
           <div className="space-y-1">
-            <h2 id={titleId} className="font-display text-3xl text-ink-900">
+            <h2 id={titleId} className="font-display text-3xl text-foreground">
               {title}
             </h2>
             {description ? (
-              <p id={descriptionId} className="text-sm text-ink-500">
+              <p id={descriptionId} className="text-sm text-muted">
                 {description}
               </p>
             ) : null}

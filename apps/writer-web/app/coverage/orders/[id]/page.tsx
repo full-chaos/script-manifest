@@ -250,16 +250,16 @@ export default function OrderDetailPage() {
 
   function getStatusColor(status: CoverageOrderStatus): string {
     const colors: Record<CoverageOrderStatus, string> = {
-      placed: "border-ink-500/20 bg-ink-500/10 text-ink-700",
-      payment_held: "border-amber-300 bg-amber-50 text-amber-700",
-      claimed: "border-tide-500/30 bg-tide-500/10 text-tide-700",
+      placed: "border-border/65 bg-ink-500/10 text-foreground-secondary",
+      payment_held: "border-amber-400/60 dark:border-amber-300/45 bg-amber-500/10 dark:bg-amber-500/15 text-amber-700 dark:text-amber-500",
+      claimed: "border-tide-500/30 dark:border-tide-500/40 bg-tide-500/10 dark:bg-tide-500/20 text-tide-700 dark:text-tide-500",
       in_progress: "border-blue-300 bg-blue-50 text-blue-700",
-      delivered: "border-violet-300 bg-violet-50 text-violet-700",
-      completed: "border-green-300 bg-green-50 text-green-700",
-      disputed: "border-red-300 bg-red-50 text-red-700",
-      cancelled: "border-ink-500/20 bg-ink-500/10 text-ink-500",
-      payment_failed: "border-red-300 bg-red-50 text-red-700",
-      refunded: "border-ink-500/20 bg-ink-500/10 text-ink-500"
+  delivered: "border-violet-400/60 dark:border-violet-300/45 bg-violet-500/10 dark:bg-violet-500/15 text-violet-700 dark:text-violet-400",
+      completed: "border-green-300 bg-green-500/10 dark:bg-green-500/15 text-green-700 dark:text-green-400",
+      disputed: "border-red-400/60 dark:border-red-300/45 bg-red-500/10 dark:bg-red-500/15 text-red-700 dark:text-red-300",
+      cancelled: "border-border/65 bg-ink-500/10 text-muted",
+      payment_failed: "border-red-400/60 dark:border-red-300/45 bg-red-500/10 dark:bg-red-500/15 text-red-700 dark:text-red-300",
+      refunded: "border-border/65 bg-ink-500/10 text-muted"
     };
     return colors[status] ?? colors.placed;
   }
@@ -276,7 +276,7 @@ export default function OrderDetailPage() {
     return (
       <section className="space-y-4">
         <EmptyState
-          illustration={<EmptyIllustration variant="search" className="h-14 w-14 text-ink-900" />}
+          illustration={<EmptyIllustration variant="search" className="h-14 w-14 text-foreground" />}
           title="Order not found"
           description="The order you're looking for doesn't exist or you don't have permission to view it."
         />
@@ -291,7 +291,7 @@ export default function OrderDetailPage() {
     <section className="space-y-4">
       <article className="hero-card hero-card--violet animate-in">
         <p className="eyebrow">Coverage Order</p>
-        <h1 className="text-4xl text-ink-900">Order {order.id}</h1>
+        <h1 className="text-4xl text-foreground">Order {order.id}</h1>
         <div className="mt-4">
           <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.1em] ${getStatusColor(order.status)}`}>
             {order.status.replace(/_/g, " ")}
@@ -304,26 +304,26 @@ export default function OrderDetailPage() {
         <div className="subcard">
           <div className="stack-tight">
             <div className="flex items-center justify-between">
-              <span className="text-sm text-ink-700">Service price</span>
-              <span className="text-sm font-medium text-ink-900">{formatPrice(order.priceCents)}</span>
+              <span className="text-sm text-foreground-secondary">Service price</span>
+              <span className="text-sm font-medium text-foreground">{formatPrice(order.priceCents)}</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-sm text-ink-700">Platform fee</span>
-              <span className="text-sm font-medium text-ink-900">{formatPrice(order.platformFeeCents)}</span>
+              <span className="text-sm text-foreground-secondary">Platform fee</span>
+              <span className="text-sm font-medium text-foreground">{formatPrice(order.platformFeeCents)}</span>
             </div>
-            <div className="flex items-center justify-between pt-2 border-t border-ink-500/10">
-              <span className="text-base font-semibold text-ink-900">Total</span>
-              <span className="text-base font-semibold text-ink-900">
+            <div className="flex items-center justify-between pt-2 border-t border-border/40">
+              <span className="text-base font-semibold text-foreground">Total</span>
+              <span className="text-base font-semibold text-foreground">
                 {formatPrice(order.priceCents + order.platformFeeCents)}
               </span>
             </div>
-            <div className="mt-2 pt-2 border-t border-ink-500/10">
-              <p className="text-xs text-ink-500">Created: {new Date(order.createdAt).toLocaleString()}</p>
+            <div className="mt-2 pt-2 border-t border-border/40">
+              <p className="text-xs text-muted">Created: {new Date(order.createdAt).toLocaleString()}</p>
               {order.deliveredAt ? (
-                <p className="text-xs text-ink-500">Delivered: {new Date(order.deliveredAt).toLocaleString()}</p>
+                <p className="text-xs text-muted">Delivered: {new Date(order.deliveredAt).toLocaleString()}</p>
               ) : null}
               {order.slaDeadline ? (
-                <p className="text-xs text-ink-500">SLA Deadline: {new Date(order.slaDeadline).toLocaleString()}</p>
+                <p className="text-xs text-muted">SLA Deadline: {new Date(order.slaDeadline).toLocaleString()}</p>
               ) : null}
             </div>
           </div>
@@ -336,34 +336,34 @@ export default function OrderDetailPage() {
           <div className="subcard stack-tight">
             {delivery.score !== null ? (
               <div className="flex items-center justify-between">
-                <span className="text-sm font-semibold text-ink-900">Score</span>
-                <span className="inline-flex items-center rounded-full border border-tide-500/30 bg-tide-500/10 px-2.5 py-0.5 text-xs font-semibold text-tide-700">
+                <span className="text-sm font-semibold text-foreground">Score</span>
+                <span className="inline-flex items-center rounded-full border border-tide-500/30 dark:border-tide-500/40 bg-tide-500/10 dark:bg-tide-500/20 px-2.5 py-0.5 text-xs font-semibold text-tide-700 dark:text-tide-500">
                   {delivery.score}/100
                 </span>
               </div>
             ) : null}
             {delivery.summary ? (
               <div>
-                <strong className="text-sm text-ink-900">Summary</strong>
-                <p className="mt-1 text-sm text-ink-700">{delivery.summary}</p>
+                <strong className="text-sm text-foreground">Summary</strong>
+                <p className="mt-1 text-sm text-foreground-secondary">{delivery.summary}</p>
               </div>
             ) : null}
             {delivery.strengths ? (
               <div>
-                <strong className="text-sm text-ink-900">Strengths</strong>
-                <p className="mt-1 text-sm text-ink-700">{delivery.strengths}</p>
+                <strong className="text-sm text-foreground">Strengths</strong>
+                <p className="mt-1 text-sm text-foreground-secondary">{delivery.strengths}</p>
               </div>
             ) : null}
             {delivery.weaknesses ? (
               <div>
-                <strong className="text-sm text-ink-900">Weaknesses</strong>
-                <p className="mt-1 text-sm text-ink-700">{delivery.weaknesses}</p>
+                <strong className="text-sm text-foreground">Weaknesses</strong>
+                <p className="mt-1 text-sm text-foreground-secondary">{delivery.weaknesses}</p>
               </div>
             ) : null}
             {delivery.recommendations ? (
               <div>
-                <strong className="text-sm text-ink-900">Recommendations</strong>
-                <p className="mt-1 text-sm text-ink-700">{delivery.recommendations}</p>
+                <strong className="text-sm text-foreground">Recommendations</strong>
+                <p className="mt-1 text-sm text-foreground-secondary">{delivery.recommendations}</p>
               </div>
             ) : null}
           </div>
@@ -407,7 +407,7 @@ export default function OrderDetailPage() {
       <Modal open={reviewModalOpen} onClose={() => setReviewModalOpen(false)} title="Leave a Review">
         <form className="stack" onSubmit={handleSubmitReview}>
           <label className="stack-tight">
-            <span className="text-sm font-medium text-ink-900">Rating (1-5)</span>
+            <span className="text-sm font-medium text-foreground">Rating (1-5)</span>
             <input
               className="input"
               type="number"
@@ -419,7 +419,7 @@ export default function OrderDetailPage() {
             />
           </label>
           <label className="stack-tight">
-            <span className="text-sm font-medium text-ink-900">Comment</span>
+            <span className="text-sm font-medium text-foreground">Comment</span>
             <textarea
               className="input min-h-20"
               value={comment}

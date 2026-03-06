@@ -34,11 +34,11 @@ const FADE_OUT_MS = 300;
 
 const variantStyles: Record<ToastVariant, string> = {
   success:
-    "border-tide-500/40 bg-tide-500/10 text-tide-700",
+    "border-tide-500/40 bg-tide-500/10 dark:bg-tide-500/20 text-tide-700 dark:text-tide-500 dark:border-tide-500/50",
   error:
-    "border-red-300 bg-red-50 text-red-700",
+    "border-red-400/60 bg-red-500/10 dark:bg-red-500/15 text-red-700 dark:text-red-300 dark:border-red-300/45",
   info:
-    "border-ink-500/30 bg-cream-100 text-ink-700"
+    "border-border/70 bg-background-secondary text-foreground-secondary"
 };
 
 const variantLabels: Record<ToastVariant, string> = {

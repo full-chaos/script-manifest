@@ -256,8 +256,8 @@ export default function SubmissionsPage() {
     <section className="space-y-4">
       <article className="hero-card hero-card--violet animate-in">
         <p className="eyebrow eyebrow--violet">Submission Hub</p>
-        <h1 className="text-4xl text-ink-900">Track every competition outcome</h1>
-        <p className="max-w-3xl text-ink-700">
+        <h1 className="text-4xl text-foreground">Track every competition outcome</h1>
+        <p className="max-w-3xl text-foreground-secondary">
           Track every submission, record placements, and move entries between projects — all from
           one dashboard.
         </p>
@@ -287,7 +287,7 @@ export default function SubmissionsPage() {
 
       {!writerId ? (
         <EmptyState
-          illustration={<EmptyIllustration variant="inbox" className="h-14 w-14 text-ink-900" />}
+          illustration={<EmptyIllustration variant="inbox" className="h-14 w-14 text-foreground" />}
           title="Sign in to track submissions"
           description="Create an account or sign in to record competition submissions and placements."
           actionLabel="Sign in"
@@ -308,7 +308,7 @@ export default function SubmissionsPage() {
           </div>
         ) : submissions.length === 0 ? (
           <EmptyState
-            illustration={<EmptyIllustration variant="inbox" className="h-14 w-14 text-ink-900" />}
+            illustration={<EmptyIllustration variant="inbox" className="h-14 w-14 text-foreground" />}
             title="No submissions yet"
             description="Hit 'Create submission' above to record your first competition entry."
           />
@@ -359,7 +359,7 @@ export default function SubmissionsPage() {
                   {placements
                     .filter((placement) => placement.submissionId === submission.id)
                     .map((placement) => (
-                      <article key={placement.id} className="rounded-xl border border-zinc-300/60 bg-white p-3">
+                      <article key={placement.id} className="rounded-xl border border-zinc-300/60 bg-surface p-3">
                         <div className="subcard-header">
                           <strong>{placement.id}</strong>
                           <span className="badge">

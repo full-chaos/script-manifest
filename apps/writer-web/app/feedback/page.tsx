@@ -64,18 +64,18 @@ function describeDeadline(deadline: string): DeadlineInfo {
 }
 
 const urgencyColors: Record<DeadlineInfo["urgency"], string> = {
-  expired: "border-ink-500/20 bg-ink-500/10 text-ink-500",
-  urgent: "border-red-300 bg-red-50 text-red-700",
-  approaching: "border-amber-300 bg-amber-50 text-amber-700",
-  comfortable: "border-tide-500/30 bg-tide-500/10 text-tide-700"
+  expired: "border-border/65 bg-ink-500/10 text-muted",
+  urgent: "border-red-400/60 dark:border-red-300/45 bg-red-500/10 dark:bg-red-500/15 text-red-700 dark:text-red-300",
+  approaching: "border-amber-400/60 dark:border-amber-300/45 bg-amber-500/10 dark:bg-amber-500/15 text-amber-700 dark:text-amber-500",
+  comfortable: "border-tide-500/30 dark:border-tide-500/40 bg-tide-500/10 dark:bg-tide-500/20 text-tide-700 dark:text-tide-500"
 };
 
 const statusColors: Record<string, string> = {
-  open: "border-tide-500/30 bg-tide-500/10 text-tide-700",
-  claimed: "border-amber-300 bg-amber-50 text-amber-700",
-  completed: "border-green-300 bg-green-50 text-green-700",
-  expired: "border-ink-500/20 bg-ink-500/10 text-ink-500",
-  cancelled: "border-ink-500/20 bg-ink-500/10 text-ink-500"
+  open: "border-tide-500/30 dark:border-tide-500/40 bg-tide-500/10 dark:bg-tide-500/20 text-tide-700 dark:text-tide-500",
+  claimed: "border-amber-400/60 dark:border-amber-300/45 bg-amber-500/10 dark:bg-amber-500/15 text-amber-700 dark:text-amber-500",
+  completed: "border-green-300 bg-green-500/10 dark:bg-green-500/15 text-green-700 dark:text-green-400",
+  expired: "border-border/65 bg-ink-500/10 text-muted",
+  cancelled: "border-border/65 bg-ink-500/10 text-muted"
 };
 
 export default function FeedbackPage() {
@@ -538,8 +538,8 @@ export default function FeedbackPage() {
     <section className="space-y-4">
       <article className="hero-card hero-card--violet animate-in">
         <p className="eyebrow">Feedback Exchange</p>
-        <h1 className="text-4xl text-ink-900">Give feedback, get feedback</h1>
-        <p className="max-w-3xl text-ink-700">
+        <h1 className="text-4xl text-foreground">Give feedback, get feedback</h1>
+        <p className="max-w-3xl text-foreground-secondary">
           Earn tokens by reviewing others&rsquo; scripts, then spend tokens to get structured feedback on your own work.
           Every review uses a rubric covering story structure, characters, dialogue, and craft.
         </p>
@@ -558,7 +558,7 @@ export default function FeedbackPage() {
         <article className="panel stack animate-in animate-in-delay-1">
           <div className="subcard-header">
             <h2 className="section-title">Create a listing</h2>
-            <span className="text-xs text-ink-500">Costs 1 token</span>
+            <span className="text-xs text-muted">Costs 1 token</span>
           </div>
           {createOpen ? (
             <form className="stack" onSubmit={handleCreateListing}>
@@ -590,9 +590,9 @@ export default function FeedbackPage() {
                         ))}
                       </select>
                     ) : selectedProjectId ? (
-                      <span className="text-xs text-ink-500 py-2">No drafts — upload one on the Projects page</span>
+                      <span className="text-xs text-muted py-2">No drafts — upload one on the Projects page</span>
                     ) : (
-                      <span className="text-xs text-ink-500 py-2">Select a project first</span>
+                      <span className="text-xs text-muted py-2">Select a project first</span>
                     )}
                   </label>
                   <label className="stack-tight">
@@ -609,17 +609,17 @@ export default function FeedbackPage() {
               ) : null}
 
               {projects.length > 0 && !selectedProjectId ? (
-                <div className="rounded-lg border border-dashed border-ink-500/20 p-4">
-                  <p className="text-sm text-ink-700">
+                <div className="rounded-lg border border-dashed border-border/65 p-4">
+                  <p className="text-sm text-foreground-secondary">
                     Or upload a new manuscript:
                   </p>
                 </div>
               ) : null}
 
               {projects.length === 0 || (projects.length > 0 && !selectedProjectId) ? (
-                <div className="rounded-lg border border-dashed border-ink-500/20 bg-cream-50 p-4 stack-tight">
+                <div className="rounded-lg border border-dashed border-border/65 bg-background p-4 stack-tight">
                   <label className="stack-tight">
-                    <span className="text-sm font-medium text-ink-900">
+                    <span className="text-sm font-medium text-foreground">
                       {projects.length === 0 ? "Upload your manuscript" : "Upload a new manuscript"}
                     </span>
                     <input
@@ -633,15 +633,15 @@ export default function FeedbackPage() {
                     />
                   </label>
                   {uploadFile ? (
-                    <p className="text-xs text-tide-700">
+                    <p className="text-xs text-tide-700 dark:text-tide-500">
                       {uploadFile.name} ({(uploadFile.size / 1024).toFixed(0)} KB) — will be uploaded when you submit
                     </p>
                   ) : null}
                   {uploadStep !== "idle" && uploadStep !== "done" ? (
-                    <p className="text-xs text-amber-700 font-medium">{uploadStepLabels[uploadStep]}</p>
+                    <p className="text-xs text-amber-700 dark:text-amber-500 font-medium">{uploadStepLabels[uploadStep]}</p>
                   ) : null}
                   <label className="stack-tight">
-                    <span className="text-xs text-ink-500">Page count</span>
+                    <span className="text-xs text-muted">Page count</span>
                     <input
                       className="input"
                       type="number"
@@ -719,15 +719,15 @@ export default function FeedbackPage() {
       ) : null}
 
       <article className="panel stack animate-in animate-in-delay-2">
-        <nav className="flex gap-2 border-b border-ink-500/15 pb-3">
+        <nav className="flex gap-2 border-b border-border/55 pb-3">
           {tabs.map((tab) => (
             <button
               key={tab.key}
               type="button"
               className={
                 activeTab === tab.key
-                  ? "rounded-md border border-ember-500/40 bg-ember-500/10 px-3 py-1.5 text-xs font-semibold text-ember-700"
-                  : "rounded-md border border-transparent px-3 py-1.5 text-xs font-medium text-ink-700 hover:border-ink-500/20 hover:bg-cream-100"
+                  ? "rounded-md border border-primary/45 bg-primary/15 px-3 py-1.5 text-xs font-semibold text-primary-dark dark:text-primary"
+                  : "rounded-md border border-transparent px-3 py-1.5 text-xs font-medium text-foreground-secondary hover:border-border/65 hover:bg-background-secondary"
               }
               onClick={() => setActiveTab(tab.key)}
             >
@@ -745,7 +745,7 @@ export default function FeedbackPage() {
         ) : activeTab === "available" ? (
           listings.length === 0 ? (
             <EmptyState
-              illustration={<EmptyIllustration variant="search" className="h-14 w-14 text-ink-900" />}
+              illustration={<EmptyIllustration variant="search" className="h-14 w-14 text-foreground" />}
               title="No scripts awaiting feedback"
               description="Check back later or encourage fellow writers to list their work."
             />
@@ -756,18 +756,18 @@ export default function FeedbackPage() {
                 return (
                   <article key={listing.id} className="subcard">
                     <div className="flex gap-4">
-                      <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-violet-500/10 text-lg font-bold text-violet-700">
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-violet-500/10 dark:bg-violet-500/20 text-lg font-bold text-violet-700 dark:text-violet-400">
                         {listing.title.charAt(0).toUpperCase()}
                       </span>
                       <div className="min-w-0 flex-1">
                         <div className="subcard-header">
-                          <strong className="text-lg text-ink-900">{listing.title}</strong>
+                          <strong className="text-lg text-foreground">{listing.title}</strong>
                           <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${urgencyColors[dl.urgency]}`}>
                             {dl.label}
                           </span>
                         </div>
                         {listing.description ? (
-                          <p className="mt-1 text-sm text-ink-700 line-clamp-2">{listing.description}</p>
+                          <p className="mt-1 text-sm text-foreground-secondary line-clamp-2">{listing.description}</p>
                         ) : null}
                         <div className="mt-2 flex flex-wrap items-center gap-2">
                           <span className="badge">{listing.genre}</span>
@@ -783,7 +783,7 @@ export default function FeedbackPage() {
                             </button>
                           </div>
                         ) : listing.ownerUserId === signedInUserId ? (
-                          <p className="mt-2 text-xs text-ink-500">Your listing</p>
+                          <p className="mt-2 text-xs text-muted">Your listing</p>
                         ) : null}
                       </div>
                     </div>
@@ -795,13 +795,13 @@ export default function FeedbackPage() {
         ) : activeTab === "my-listings" ? (
           !signedInUserId ? (
             <EmptyState
-              illustration={<EmptyIllustration variant="search" className="h-14 w-14 text-ink-900" />}
+              illustration={<EmptyIllustration variant="search" className="h-14 w-14 text-foreground" />}
               title="Sign in to see your listings"
               description="Your feedback listings will appear here."
             />
           ) : myListings.length === 0 ? (
             <EmptyState
-              illustration={<EmptyIllustration variant="search" className="h-14 w-14 text-ink-900" />}
+              illustration={<EmptyIllustration variant="search" className="h-14 w-14 text-foreground" />}
               title="No listings yet"
               description="Create a listing above to request feedback on your script."
             />
@@ -810,7 +810,7 @@ export default function FeedbackPage() {
               {myListings.map((listing) => (
                 <article key={listing.id} className="subcard">
                   <div className="subcard-header">
-                    <strong className="text-ink-900">{listing.title}</strong>
+                    <strong className="text-foreground">{listing.title}</strong>
                     <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.1em] ${statusColors[listing.status] ?? statusColors.open}`}>
                       {listing.status}
                     </span>
@@ -837,13 +837,13 @@ export default function FeedbackPage() {
           )
         ) : !signedInUserId ? (
           <EmptyState
-            illustration={<EmptyIllustration variant="search" className="h-14 w-14 text-ink-900" />}
+            illustration={<EmptyIllustration variant="search" className="h-14 w-14 text-foreground" />}
             title="Sign in to see your reviews"
             description="Reviews you claim will appear here."
           />
         ) : myReviews.length === 0 ? (
           <EmptyState
-            illustration={<EmptyIllustration variant="search" className="h-14 w-14 text-ink-900" />}
+            illustration={<EmptyIllustration variant="search" className="h-14 w-14 text-foreground" />}
             title="No reviews yet"
             description="Claim a listing above to start reviewing scripts."
           />
@@ -855,12 +855,12 @@ export default function FeedbackPage() {
               return (
                 <article key={review.id} className="subcard">
                   <div className="flex gap-4">
-                    <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-tide-500/10 text-lg font-bold text-tide-700">
+                    <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-tide-500/10 dark:bg-tide-500/20 text-lg font-bold text-tide-700 dark:text-tide-500">
                       R
                     </span>
                     <div className="min-w-0 flex-1">
                       <div className="subcard-header">
-                        <strong className="text-ink-900">{listing?.title ?? review.listingId}</strong>
+                        <strong className="text-foreground">{listing?.title ?? review.listingId}</strong>
                         <div className="flex items-center gap-2">
                           {dl ? (
                             <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${urgencyColors[dl.urgency]}`}>
@@ -914,11 +914,11 @@ export default function FeedbackPage() {
             const scoreKey = `${category}Score` as keyof typeof rubricForm;
             const commentKey = `${category}Comment` as keyof typeof rubricForm;
             return (
-              <fieldset key={category} className="rounded-lg border border-ink-500/15 p-4">
-                <legend className="px-2 text-sm font-semibold text-ink-900">{labels[category]}</legend>
+              <fieldset key={category} className="rounded-lg border border-border/55 p-4">
+                <legend className="px-2 text-sm font-semibold text-foreground">{labels[category]}</legend>
                 <div className="stack-tight">
                   <label className="stack-tight">
-                    <span className="text-xs text-ink-500">Score (1-5)</span>
+                    <span className="text-xs text-muted">Score (1-5)</span>
                     <input
                       className="input"
                       type="number"
@@ -930,7 +930,7 @@ export default function FeedbackPage() {
                     />
                   </label>
                   <label className="stack-tight">
-                    <span className="text-xs text-ink-500">Comment</span>
+                    <span className="text-xs text-muted">Comment</span>
                     <textarea
                       className="input min-h-16"
                       value={rubricForm[commentKey]}

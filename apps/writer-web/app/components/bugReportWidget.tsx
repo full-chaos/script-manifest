@@ -98,18 +98,18 @@ export function BugReportWidget() {
           role="dialog"
           aria-modal="false"
           aria-label="Report a bug"
-          className="fixed bottom-20 right-5 z-50 w-[340px] rounded-2xl border border-ink-500/15 bg-white/95 p-5 shadow-panel backdrop-blur animate-in"
+          className="fixed bottom-20 right-5 z-50 w-[340px] rounded-2xl border border-border/55 bg-surface/95 p-5 shadow-panel backdrop-blur animate-in"
         >
           <div className="mb-4 space-y-1">
-            <h2 className="font-display text-xl text-ink-900">Report a Bug</h2>
-            <p className="text-xs text-ink-500">
+            <h2 className="font-display text-xl text-foreground">Report a Bug</h2>
+            <p className="text-xs text-muted">
               Describe what went wrong and we&apos;ll look into it.
             </p>
           </div>
 
           <form className="stack" onSubmit={handleSubmit}>
             <label className="stack-tight">
-              <span className="text-sm font-medium text-ink-700">Title</span>
+              <span className="text-sm font-medium text-foreground-secondary">Title</span>
               <input
                 className="input"
                 value={title}
@@ -121,7 +121,7 @@ export function BugReportWidget() {
             </label>
 
             <label className="stack-tight">
-              <span className="text-sm font-medium text-ink-700">Description</span>
+              <span className="text-sm font-medium text-foreground-secondary">Description</span>
               <textarea
                 className="input textarea min-h-[80px]"
                 value={description}
@@ -133,7 +133,7 @@ export function BugReportWidget() {
             </label>
 
             <label className="stack-tight">
-              <span className="text-sm font-medium text-ink-700">Priority</span>
+              <span className="text-sm font-medium text-foreground-secondary">Priority</span>
               <div className="relative">
                 <select
                   className="input appearance-none pr-8"
@@ -147,7 +147,7 @@ export function BugReportWidget() {
                   ))}
                 </select>
                 <ChevronDown
-                  className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-500"
+                  className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted"
                   aria-hidden="true"
                 />
               </div>

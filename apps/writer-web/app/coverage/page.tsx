@@ -66,8 +66,8 @@ export default function CoverageMarketplacePage() {
     <section className="space-y-4">
       <article className="hero-card hero-card--violet animate-in">
         <p className="eyebrow">Coverage Marketplace</p>
-        <h1 className="text-4xl text-ink-900">Professional script coverage</h1>
-        <p className="max-w-3xl text-ink-700">
+        <h1 className="text-4xl text-foreground">Professional script coverage</h1>
+        <p className="max-w-3xl text-foreground-secondary">
           Get detailed feedback from experienced coverage providers. Browse services by tier,
           price, and turnaround time to find the perfect fit for your script.
         </p>
@@ -77,7 +77,7 @@ export default function CoverageMarketplacePage() {
         <h2 className="section-title">Filter Services</h2>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <label className="stack-tight">
-            <span className="text-sm font-medium text-ink-900">Tier</span>
+            <span className="text-sm font-medium text-foreground">Tier</span>
             <select
               className="input"
               value={tierFilter}
@@ -91,7 +91,7 @@ export default function CoverageMarketplacePage() {
             </select>
           </label>
           <label className="stack-tight">
-            <span className="text-sm font-medium text-ink-900">Min Price ($)</span>
+            <span className="text-sm font-medium text-foreground">Min Price ($)</span>
             <input
               type="number"
               className="input"
@@ -103,7 +103,7 @@ export default function CoverageMarketplacePage() {
             />
           </label>
           <label className="stack-tight">
-            <span className="text-sm font-medium text-ink-900">Max Price ($)</span>
+            <span className="text-sm font-medium text-foreground">Max Price ($)</span>
             <input
               type="number"
               className="input"
@@ -127,7 +127,7 @@ export default function CoverageMarketplacePage() {
           </div>
         ) : services.length === 0 ? (
           <EmptyState
-            illustration={<EmptyIllustration variant="search" className="h-14 w-14 text-ink-900" />}
+            illustration={<EmptyIllustration variant="search" className="h-14 w-14 text-foreground" />}
             title="No services found"
             description="Try adjusting your filters or check back later."
           />
@@ -137,23 +137,23 @@ export default function CoverageMarketplacePage() {
               <article key={service.id} className="subcard">
                 <div className="stack-tight">
                   <div className="flex items-start justify-between gap-2">
-                    <strong className="text-lg text-ink-900">{service.title}</strong>
-                    <span className="inline-flex items-center rounded-full border border-tide-500/30 bg-tide-500/10 px-2.5 py-0.5 text-[11px] font-semibold text-tide-700">
+                    <strong className="text-lg text-foreground">{service.title}</strong>
+                    <span className="inline-flex items-center rounded-full border border-tide-500/30 dark:border-tide-500/40 bg-tide-500/10 dark:bg-tide-500/20 px-2.5 py-0.5 text-[11px] font-semibold text-tide-700 dark:text-tide-500">
                       {formatTier(service.tier)}
                     </span>
                   </div>
                   {service.description ? (
-                    <p className="text-sm text-ink-700 line-clamp-2">{service.description}</p>
+                    <p className="text-sm text-foreground-secondary line-clamp-2">{service.description}</p>
                   ) : null}
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="badge">{formatPrice(service.priceCents)}</span>
                     <span className="badge">{service.turnaroundDays}d turnaround</span>
                     <span className="badge">Up to {service.maxPages}pp</span>
                   </div>
-                  <div className="mt-2 pt-2 border-t border-ink-500/10">
+                  <div className="mt-2 pt-2 border-t border-border/40">
                     <a
                       href={`/coverage/providers/${encodeURIComponent(service.providerId)}`}
-                      className="text-sm text-tide-700 hover:underline"
+                      className="text-sm text-tide-700 dark:text-tide-500 hover:underline"
                     >
                       {getProviderName(service.providerId)}
                     </a>

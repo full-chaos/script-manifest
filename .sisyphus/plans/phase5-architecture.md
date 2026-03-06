@@ -233,12 +233,12 @@ Max Concurrent: 4 (Waves 1 & FINAL)
   - `index.ts:9`: Shows exactly where exports are listed — add new export in same style
 
   **Acceptance Criteria**:
-  - [ ] `kafkajs` in `packages/service-utils/package.json` dependencies
-  - [ ] `packages/service-utils/src/kafka.ts` exists and exports `getKafkaClient`
-  - [ ] `packages/service-utils/src/index.ts` re-exports `getKafkaClient`
-  - [ ] `compose.yml` and `compose.prod.yml` have `--set auto_create_topics_enabled=true` in redpanda command
-  - [ ] `node --import tsx --test packages/service-utils/test/kafka.test.ts` → PASS (3 tests)
-  - [ ] `pnpm --filter @script-manifest/service-utils typecheck` → PASS
+  - [x] `kafkajs` in `packages/service-utils/package.json` dependencies
+  - [x] `packages/service-utils/src/kafka.ts` exists and exports `getKafkaClient`
+  - [x] `packages/service-utils/src/index.ts` re-exports `getKafkaClient`
+  - [x] `compose.yml` and `compose.prod.yml` have `--set auto_create_topics_enabled=true` in redpanda command
+  - [x] `node --import tsx --test packages/service-utils/test/kafka.test.ts` → PASS (3 tests)
+  - [x] `pnpm --filter @script-manifest/service-utils typecheck` → PASS
 
   **QA Scenarios (MANDATORY):**
 
@@ -275,9 +275,9 @@ Max Concurrent: 4 (Waves 1 & FINAL)
   ```
 
   **Evidence to Capture:**
-  - [ ] task-1-kafka-client-null.txt — test output
-  - [ ] task-1-kafka-client-instance.txt — test output
-  - [ ] task-1-compose-config.txt — grep output
+  - [x] task-1-kafka-client-null.txt — test output
+  - [x] task-1-kafka-client-instance.txt — test output
+  - [x] task-1-compose-config.txt — grep output
 
   **Commit**: YES
   - Message: `feat(service-utils): add kafkajs dependency and shared Kafka client module`
@@ -370,13 +370,13 @@ Max Concurrent: 4 (Waves 1 & FINAL)
   - `index.test.ts`: Follow same test patterns (mock creation, server.inject style)
 
   **Acceptance Criteria**:
-  - [ ] `services/coverage-marketplace-service/src/scheduler.ts` exists and exports `createScheduler`
-  - [ ] `services/coverage-marketplace-service/src/scheduler.test.ts` exists
-  - [ ] `node --import tsx --test services/coverage-marketplace-service/src/scheduler.test.ts` → PASS (5+ tests)
-  - [ ] `node --import tsx --test services/coverage-marketplace-service/src/index.test.ts` → PASS (existing tests)
-  - [ ] `pnpm --filter @script-manifest/coverage-marketplace-service typecheck` → PASS
-  - [ ] `runSlaMaintenance` function no longer defined inline in `index.ts`
-  - [ ] `setInterval` for SLA no longer directly in `index.ts` onReady hook
+  - [x] `services/coverage-marketplace-service/src/scheduler.ts` exists and exports `createScheduler`
+  - [x] `services/coverage-marketplace-service/src/scheduler.test.ts` exists
+  - [x] `node --import tsx --test services/coverage-marketplace-service/src/scheduler.test.ts` → PASS (5+ tests)
+  - [x] `node --import tsx --test services/coverage-marketplace-service/src/index.test.ts` → PASS (existing tests)
+  - [x] `pnpm --filter @script-manifest/coverage-marketplace-service typecheck` → PASS
+  - [x] `runSlaMaintenance` function no longer defined inline in `index.ts`
+  - [x] `setInterval` for SLA no longer directly in `index.ts` onReady hook
 
   **QA Scenarios (MANDATORY):**
 
@@ -415,9 +415,9 @@ Max Concurrent: 4 (Waves 1 & FINAL)
   ```
 
   **Evidence to Capture:**
-  - [ ] task-2-scheduler-tests.txt — new scheduler test output
-  - [ ] task-2-existing-tests.txt — existing test output (regression check)
-  - [ ] task-2-extraction-verified.txt — grep output confirming extraction
+  - [x] task-2-scheduler-tests.txt — new scheduler test output
+  - [x] task-2-existing-tests.txt — existing test output (regression check)
+  - [x] task-2-extraction-verified.txt — grep output confirming extraction
 
   **Commit**: YES
   - Message: `refactor(coverage-marketplace): extract SLA scheduler to dedicated module (CHAOS-604)`
@@ -497,12 +497,12 @@ Max Concurrent: 4 (Waves 1 & FINAL)
   - `illustrations.tsx`: Must verify RSC compatibility — if they use hooks, they need to be client components too
 
   **Acceptance Criteria**:
-  - [ ] `apps/writer-web/app/components/AuthBanner.tsx` exists with `"use client"` directive
-  - [ ] `apps/writer-web/app/page.tsx` does NOT contain `"use client"`
-  - [ ] `apps/writer-web/app/page.tsx` does NOT import `useState` or `useEffect`
-  - [ ] `writerSurfaces` and `trustPrinciples` are in `page.tsx` (server component)
-  - [ ] `pnpm --filter @script-manifest/writer-web build` — PASS
-  - [ ] `pnpm --filter @script-manifest/writer-web typecheck` — PASS
+  - [x] `apps/writer-web/app/components/AuthBanner.tsx` exists with `"use client"` directive
+  - [x] `apps/writer-web/app/page.tsx` does NOT contain `"use client"`
+  - [x] `apps/writer-web/app/page.tsx` does NOT import `useState` or `useEffect`
+  - [x] `writerSurfaces` and `trustPrinciples` are in `page.tsx` (server component)
+  - [x] `pnpm --filter @script-manifest/writer-web build` — PASS
+  - [x] `pnpm --filter @script-manifest/writer-web typecheck` — PASS
 
   **QA Scenarios (MANDATORY):**
 
@@ -545,9 +545,9 @@ Max Concurrent: 4 (Waves 1 & FINAL)
   ```
 
   **Evidence to Capture:**
-  - [ ] task-3-rsc-verified.txt — grep output confirming RSC conversion
-  - [ ] task-3-authbanner-verified.txt — grep output confirming client component
-  - [ ] task-3-build-success.txt — build output
+  - [x] task-3-rsc-verified.txt — grep output confirming RSC conversion
+  - [x] task-3-authbanner-verified.txt — grep output confirming client component
+  - [x] task-3-build-success.txt — build output
 
   **Commit**: YES
   - Message: `refactor(writer-web): split home page into RSC shell + AuthBanner client component (CHAOS-605)`
@@ -615,11 +615,11 @@ Max Concurrent: 4 (Waves 1 & FINAL)
   - Gateway CORS: Determines feasibility of direct browser-to-gateway calls
 
   **Acceptance Criteria**:
-  - [ ] `docs/phase-5/proxy-layer-audit.md` exists
-  - [ ] Document contains route classification table with ALL routes
-  - [ ] Document includes CORS assessment
-  - [ ] Document includes recommendation (remove/keep/partial)
-  - [ ] `wc -l docs/phase-5/proxy-layer-audit.md` returns >= 50 lines (substantive document)
+  - [x] `docs/phase-5/proxy-layer-audit.md` exists
+  - [x] Document contains route classification table with ALL routes
+  - [x] Document includes CORS assessment
+  - [x] Document includes recommendation (remove/keep/partial)
+  - [x] `wc -l docs/phase-5/proxy-layer-audit.md` returns >= 50 lines (substantive document)
 
   **QA Scenarios (MANDATORY):**
 
@@ -652,8 +652,8 @@ Max Concurrent: 4 (Waves 1 & FINAL)
   ```
 
   **Evidence to Capture:**
-  - [ ] task-4-audit-exists.txt — document stats
-  - [ ] task-4-route-coverage.txt — route coverage verification
+  - [x] task-4-audit-exists.txt — document stats
+  - [x] task-4-route-coverage.txt — route coverage verification
 
   **Commit**: YES (groups with Task 7)
   - Message: `docs(phase-5): proxy layer audit and POC direct gateway call (CHAOS-606)`
@@ -747,13 +747,13 @@ Max Concurrent: 4 (Waves 1 & FINAL)
   - `profile-project-service/src/index.ts:41`: Confirms DI pattern — no calling service changes needed
 
   **Acceptance Criteria**:
-  - [ ] `publishNotificationEvent` uses Kafka when `KAFKA_BROKERS` is set
-  - [ ] `publishNotificationEvent` falls back to HTTP when `KAFKA_BROKERS` is not set
-  - [ ] Producer connects lazily (first call, not at import)
-  - [ ] `disconnectProducer()` export exists for graceful shutdown
-  - [ ] `KAFKA_BROKERS=localhost:9092 node --import tsx --test packages/service-utils/test/notificationPublisher.test.ts` → PASS
-  - [ ] `node --import tsx --test packages/service-utils/test/notificationPublisher.test.ts` → PASS (HTTP fallback)
-  - [ ] `pnpm --filter @script-manifest/service-utils typecheck` → PASS
+  - [x] `publishNotificationEvent` uses Kafka when `KAFKA_BROKERS` is set
+  - [x] `publishNotificationEvent` falls back to HTTP when `KAFKA_BROKERS` is not set
+  - [x] Producer connects lazily (first call, not at import)
+  - [x] `disconnectProducer()` export exists for graceful shutdown
+  - [x] `KAFKA_BROKERS=localhost:9092 node --import tsx --test packages/service-utils/test/notificationPublisher.test.ts` → PASS
+  - [x] `node --import tsx --test packages/service-utils/test/notificationPublisher.test.ts` → PASS (HTTP fallback)
+  - [x] `pnpm --filter @script-manifest/service-utils typecheck` → PASS
 
   **QA Scenarios (MANDATORY):**
 
@@ -790,9 +790,9 @@ Max Concurrent: 4 (Waves 1 & FINAL)
   ```
 
   **Evidence to Capture:**
-  - [ ] task-5-kafka-producer.txt — Kafka path test output
-  - [ ] task-5-http-fallback.txt — HTTP fallback test output
-  - [ ] task-5-lazy-connection.txt — lazy connection test output
+  - [x] task-5-kafka-producer.txt — Kafka path test output
+  - [x] task-5-http-fallback.txt — HTTP fallback test output
+  - [x] task-5-lazy-connection.txt — lazy connection test output
 
   **Commit**: YES
   - Message: `feat(service-utils): replace HTTP notification publisher with Kafka producer (CHAOS-603)`
@@ -882,12 +882,12 @@ Max Concurrent: 4 (Waves 1 & FINAL)
   - `repository.ts`: Consumer calls `repository.pushEvent()` — same method as HTTP handler
 
   **Acceptance Criteria**:
-  - [ ] `services/notification-service/src/consumer.ts` exists and exports `startConsumer`
-  - [ ] `services/notification-service/src/consumer.test.ts` exists
-  - [ ] `node --import tsx --test services/notification-service/src/consumer.test.ts` → PASS (4+ tests)
-  - [ ] `node --import tsx --test services/notification-service/src/index.test.ts` → PASS (existing tests)
-  - [ ] `POST /internal/events` HTTP endpoint still works (verified by existing tests)
-  - [ ] `pnpm --filter @script-manifest/notification-service typecheck` → PASS
+  - [x] `services/notification-service/src/consumer.ts` exists and exports `startConsumer`
+  - [x] `services/notification-service/src/consumer.test.ts` exists
+  - [x] `node --import tsx --test services/notification-service/src/consumer.test.ts` → PASS (4+ tests)
+  - [x] `node --import tsx --test services/notification-service/src/index.test.ts` → PASS (existing tests)
+  - [x] `POST /internal/events` HTTP endpoint still works (verified by existing tests)
+  - [x] `pnpm --filter @script-manifest/notification-service typecheck` → PASS
 
   **QA Scenarios (MANDATORY):**
 
@@ -924,9 +924,9 @@ Max Concurrent: 4 (Waves 1 & FINAL)
   ```
 
   **Evidence to Capture:**
-  - [ ] task-6-consumer-tests.txt — new consumer test output
-  - [ ] task-6-error-handling.txt — error handling test output
-  - [ ] task-6-existing-tests.txt — existing tests regression check
+  - [x] task-6-consumer-tests.txt — new consumer test output
+  - [x] task-6-error-handling.txt — error handling test output
+  - [x] task-6-existing-tests.txt — existing tests regression check
 
   **Commit**: YES
   - Message: `feat(notification-service): add Kafka consumer for event ingestion (CHAOS-603)`
@@ -982,10 +982,10 @@ Max Concurrent: 4 (Waves 1 & FINAL)
   - Gateway CORS: Must verify browser can call gateway directly
 
   **Acceptance Criteria**:
-  - [ ] 1 route demonstrated working via direct browser-to-gateway call
-  - [ ] POC results documented in `docs/phase-5/proxy-layer-audit.md`
-  - [ ] CORS verified working for direct calls
-  - [ ] No existing proxy routes modified or removed
+  - [x] 1 route demonstrated working via direct browser-to-gateway call
+  - [x] POC results documented in `docs/phase-5/proxy-layer-audit.md`
+  - [x] CORS verified working for direct calls
+  - [x] No existing proxy routes modified or removed
 
   **QA Scenarios (MANDATORY):**
 
@@ -1014,8 +1014,8 @@ Max Concurrent: 4 (Waves 1 & FINAL)
   ```
 
   **Evidence to Capture:**
-  - [ ] task-7-direct-call.txt — curl output with CORS headers
-  - [ ] task-7-poc-documented.txt — grep output confirming POC section
+  - [x] task-7-direct-call.txt — curl output with CORS headers
+  - [x] task-7-poc-documented.txt — grep output confirming POC section
 
   **Commit**: YES (groups with Task 4)
   - Message: `docs(phase-5): proxy layer audit and POC direct gateway call (CHAOS-606)`
@@ -1062,12 +1062,12 @@ Max Concurrent: 4 (Waves 1 & FINAL)
   - PR #245: Template for PR description format, branch naming, commit style
 
   **Acceptance Criteria**:
-  - [ ] `pnpm typecheck` → 18/18 PASS
-  - [ ] `pnpm test` → all tests pass
-  - [ ] CHAOS-603, 604, 605, 606 updated to Done in Linear
-  - [ ] CHAOS-602 updated to In Progress in Linear
-  - [ ] Feature branch pushed to remote
-  - [ ] PR created
+  - [x] `pnpm typecheck` → 18/18 PASS
+  - [x] `pnpm test` → all tests pass
+  - [x] CHAOS-603, 604, 605, 606 updated to Done in Linear
+  - [x] CHAOS-602 updated to In Progress in Linear
+  - [x] Feature branch pushed to remote
+  - [x] PR created
 
   **QA Scenarios (MANDATORY):**
 
@@ -1102,8 +1102,8 @@ Max Concurrent: 4 (Waves 1 & FINAL)
   ```
 
   **Evidence to Capture:**
-  - [ ] task-8-workspace.txt — typecheck + test output
-  - [ ] task-8-linear.txt — linear status verification
+  - [x] task-8-workspace.txt — typecheck + test output
+  - [x] task-8-linear.txt — linear status verification
 
   **Commit**: YES
   - Message: `chore: workspace verification and lockfile update`

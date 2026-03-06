@@ -208,7 +208,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 20s
+      start_period: 120s
 
   identity-service:
     <<: *node-dev
@@ -233,7 +233,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 20s
+      start_period: 120s
 
   notification-service:
     <<: *node-dev
@@ -259,7 +259,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 60s
+      start_period: 120s
 
   search-indexer-service:
     <<: *node-dev
@@ -283,7 +283,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 20s
+      start_period: 120s
 
   competition-directory-service:
     <<: *node-dev
@@ -314,7 +314,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 60s
+      start_period: 120s
 
   script-storage-service:
     <<: *node-dev
@@ -346,7 +346,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 20s
+      start_period: 120s
 
   submission-tracking-service:
     <<: *node-dev
@@ -369,7 +369,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 60s
+      start_period: 120s
 
   feedback-exchange-service:
     <<: *node-dev
@@ -396,7 +396,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 20s
+      start_period: 120s
 
   ranking-service:
     <<: *node-dev
@@ -430,7 +430,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 20s
+      start_period: 120s
 
   coverage-marketplace-service:
     <<: *node-dev
@@ -467,7 +467,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 20s
+      start_period: 120s
 
   industry-portal-service:
     <<: *node-dev
@@ -497,7 +497,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 20s
+      start_period: 120s
 
   programs-service:
     <<: *node-dev
@@ -524,7 +524,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 20s
+      start_period: 120s
 
   partner-dashboard-service:
     <<: *node-dev
@@ -554,7 +554,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 20s
+      start_period: 120s
 
   api-gateway:
     <<: *node-dev
@@ -611,7 +611,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 30s
+      start_period: 120s
 
   writer-web:
     <<: *node-dev

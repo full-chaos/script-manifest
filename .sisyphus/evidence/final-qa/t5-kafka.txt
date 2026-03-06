@@ -1,0 +1,16 @@
+▶ publishNotificationEvent
+  ✔ sends to Kafka topic notification-events when KAFKA_BROKERS is set (48.252291ms)
+  ✔ falls back to HTTP POST when KAFKA_BROKERS is not set (15.158583ms)
+  ✔ throws schema validation error in Kafka path for invalid events (2.047708ms)
+  ✔ throws schema validation error in HTTP fallback path for invalid events (3.3635ms)
+  ✔ connects lazily only on first publish (1.849709ms)
+  ✔ disconnectProducer disconnects producer if initialized (1.44925ms)
+✔ publishNotificationEvent (72.645291ms)
+ℹ tests 6
+ℹ suites 1
+ℹ pass 6
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 237.596209

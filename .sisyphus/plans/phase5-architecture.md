@@ -165,7 +165,7 @@ Max Concurrent: 4 (Waves 1 & FINAL)
 > EVERY task MUST have: Recommended Agent Profile + Parallelization info + QA Scenarios.
 > **A task WITHOUT QA Scenarios is INCOMPLETE. No exceptions.**
 
-- [ ] 1. Install kafkajs + shared Kafka client module + compose config
+- [x] 1. Install kafkajs + shared Kafka client module + compose config
 
   **What to do**:
   - Install `kafkajs` in `packages/service-utils` (`pnpm --filter @script-manifest/service-utils add kafkajs`)
@@ -284,7 +284,7 @@ Max Concurrent: 4 (Waves 1 & FINAL)
   - Files: `packages/service-utils/src/kafka.ts`, `packages/service-utils/src/index.ts`, `packages/service-utils/package.json`, `packages/service-utils/test/kafka.test.ts`, `compose.yml`, `compose.prod.yml`, `pnpm-lock.yaml`
   - Pre-commit: `pnpm --filter @script-manifest/service-utils typecheck && node --import tsx --test packages/service-utils/test/kafka.test.ts`
 
-- [ ] 2. TDD: Extract SLA scheduler to scheduler.ts (CHAOS-604)
+- [x] 2. TDD: Extract SLA scheduler to scheduler.ts (CHAOS-604)
 
   **What to do**:
   - **RED phase**: Create `services/coverage-marketplace-service/src/scheduler.test.ts`:
@@ -424,7 +424,7 @@ Max Concurrent: 4 (Waves 1 & FINAL)
   - Files: `services/coverage-marketplace-service/src/scheduler.ts`, `services/coverage-marketplace-service/src/scheduler.test.ts`, `services/coverage-marketplace-service/src/index.ts`
   - Pre-commit: `node --import tsx --test services/coverage-marketplace-service/src/scheduler.test.ts && node --import tsx --test services/coverage-marketplace-service/src/index.test.ts`
 
-- [ ] 3. TDD: Create AuthBanner.tsx + convert home page to RSC (CHAOS-605)
+- [x] 3. TDD: Create AuthBanner.tsx + convert home page to RSC (CHAOS-605)
 
   **What to do**:
   - **RED phase**: Create test file `apps/writer-web/app/components/AuthBanner.test.tsx`:
@@ -554,7 +554,7 @@ Max Concurrent: 4 (Waves 1 & FINAL)
   - Files: `apps/writer-web/app/page.tsx`, `apps/writer-web/app/components/AuthBanner.tsx`, `apps/writer-web/app/components/AuthBanner.test.tsx`
   - Pre-commit: `pnpm --filter @script-manifest/writer-web build && pnpm --filter @script-manifest/writer-web typecheck`
 
-- [ ] 4. Audit all Next.js API routes + document findings (CHAOS-606, part 1)
+- [x] 4. Audit all Next.js API routes + document findings (CHAOS-606, part 1)
 
   **What to do**:
   - Scan all files in `apps/writer-web/app/api/` recursively
@@ -660,7 +660,7 @@ Max Concurrent: 4 (Waves 1 & FINAL)
   - Files: `docs/phase-5/proxy-layer-audit.md`
   - Pre-commit: `test -f docs/phase-5/proxy-layer-audit.md`
 
-- [ ] 5. TDD: Kafka producer in service-utils (CHAOS-603, producer side)
+- [x] 5. TDD: Kafka producer in service-utils (CHAOS-603, producer side)
 
   **What to do**:
   - **RED phase**: Create `packages/service-utils/test/notificationPublisher.test.ts`:
@@ -799,7 +799,7 @@ Max Concurrent: 4 (Waves 1 & FINAL)
   - Files: `packages/service-utils/src/notificationPublisher.ts`, `packages/service-utils/test/notificationPublisher.test.ts`
   - Pre-commit: `KAFKA_BROKERS=localhost:9092 node --import tsx --test packages/service-utils/test/notificationPublisher.test.ts && node --import tsx --test packages/service-utils/test/notificationPublisher.test.ts`
 
-- [ ] 6. TDD: Kafka consumer in notification-service (CHAOS-603, consumer side)
+- [x] 6. TDD: Kafka consumer in notification-service (CHAOS-603, consumer side)
 
   **What to do**:
   - **RED phase**: Create `services/notification-service/src/consumer.test.ts`:
@@ -933,7 +933,7 @@ Max Concurrent: 4 (Waves 1 & FINAL)
   - Files: `services/notification-service/src/consumer.ts`, `services/notification-service/src/consumer.test.ts`, `services/notification-service/src/index.ts`
   - Pre-commit: `node --import tsx --test services/notification-service/src/consumer.test.ts && node --import tsx --test services/notification-service/src/index.test.ts`
 
-- [ ] 7. POC: Direct browser-to-gateway route (CHAOS-606, part 2)
+- [x] 7. POC: Direct browser-to-gateway route (CHAOS-606, part 2)
 
   **What to do**:
   - Select 1 representative pure-proxy route from the audit (Task 4) — choose an authenticated JSON endpoint (e.g., `GET /api/v1/projects`)
@@ -1022,7 +1022,7 @@ Max Concurrent: 4 (Waves 1 & FINAL)
   - Files: `docs/phase-5/proxy-layer-audit.md`, POC test files
   - Pre-commit: `test -f docs/phase-5/proxy-layer-audit.md`
 
-- [ ] 8. Full workspace verification + Linear updates
+- [x] 8. Full workspace verification + Linear updates
 
   **What to do**:
   - Run full workspace typecheck: `pnpm typecheck` (must be 18/18)
@@ -1114,19 +1114,19 @@ Max Concurrent: 4 (Waves 1 & FINAL)
 
 > 4 review agents run in PARALLEL. ALL must APPROVE. Rejection → fix → re-run.
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
+- [x] F1. **Plan Compliance Audit** — `oracle`
   Read the plan end-to-end. For each "Must Have": verify implementation exists (read file, curl endpoint, run command). For each "Must NOT Have": search codebase for forbidden patterns — reject with file:line if found. Check evidence files exist in .sisyphus/evidence/. Compare deliverables against plan.
   Output: `Must Have [N/N] | Must NOT Have [N/N] | Tasks [N/N] | VERDICT: APPROVE/REJECT`
 
-- [ ] F2. **Code Quality Review** — `unspecified-high`
+- [x] F2. **Code Quality Review** — `unspecified-high`
   Run `pnpm typecheck` + `pnpm test`. Review all changed files for: `as any`/`@ts-ignore`, empty catches, console.log in prod, commented-out code, unused imports. Check AI slop: excessive comments, over-abstraction, generic names.
   Output: `Build [PASS/FAIL] | Tests [N pass/N fail] | Files [N clean/N issues] | VERDICT`
 
-- [ ] F3. **Real Manual QA** — `unspecified-high`
+- [x] F3. **Real Manual QA** — `unspecified-high`
   Start from clean state. Execute EVERY QA scenario from EVERY task — follow exact steps, capture evidence. Test cross-task integration. Save to `.sisyphus/evidence/final-qa/`.
   Output: `Scenarios [N/N pass] | Integration [N/N] | VERDICT`
 
-- [ ] F4. **Scope Fidelity Check** — `deep`
+- [x] F4. **Scope Fidelity Check** — `deep`
   For each task: read "What to do", read actual diff (git log/diff). Verify 1:1. Check "Must NOT do" compliance. Detect cross-task contamination. Flag unaccounted changes.
   Output: `Tasks [N/N compliant] | Contamination [CLEAN/N issues] | VERDICT`
 

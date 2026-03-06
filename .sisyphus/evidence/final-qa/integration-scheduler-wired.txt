@@ -1,0 +1,5 @@
+import { createScheduler } from "./scheduler.js";
+  const scheduler = createScheduler({
+    scheduler.start(maintenanceIntervalMs);
+    scheduler.stop();
+    const result = await scheduler.runOnce();

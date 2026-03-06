@@ -1,9 +1,9 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import rateLimit from "@fastify/rate-limit";
 import { randomUUID } from "node:crypto";
-import { pathToFileURL } from "node:url";
 import { request } from "undici";
-import { bootstrapService, registerMetrics, setupErrorReporting, validateRequiredEnv } from "@script-manifest/service-utils";
+import { bootstrapService, registerMetrics, setupErrorReporting, validateRequiredEnv, isMainModule, readHeader } from "@script-manifest/service-utils";
+import { healthCheck } from "@script-manifest/db";
 import {
   IndustryAccountCreateRequestSchema,
   IndustryAccountVerificationRequestSchema,
@@ -38,11 +38,6 @@ export type IndustryPortalServiceOptions = {
   scriptStorageBase?: string;
   notificationServiceBase?: string;
 };
-
-function readHeader(headers: Record<string, unknown>, name: string): string | null {
-  const value = headers[name];
-  return typeof value === "string" && value.length > 0 ? value : null;
-}
 
 async function resolveVerifiedIndustryAccess(
   repository: IndustryPortalRepository,
@@ -109,6 +104,7 @@ export function buildServer(options: IndustryPortalServiceOptions = {}): Fastify
     requestIdHeader: "x-request-id"
   });
   const repository = options.repository ?? new PgIndustryPortalRepository();
+  const runHealthCheck = options.repository ? () => repository.healthCheck() : healthCheck;
   const repositoryReady = repository.init();
   const requestFn = options.requestFn ?? request;
   const scriptStorageBase = options.scriptStorageBase ?? process.env.SCRIPT_STORAGE_SERVICE_URL ?? "http://localhost:4011";
@@ -126,7 +122,7 @@ export function buildServer(options: IndustryPortalServiceOptions = {}): Fastify
       await repositoryReady;
       const checks: Record<string, boolean> = {};
       try {
-        const result = await repository.healthCheck();
+        const result = await runHealthCheck();
         checks.database = result.database;
       } catch {
         checks.database = false;
@@ -144,7 +140,7 @@ export function buildServer(options: IndustryPortalServiceOptions = {}): Fastify
       await repositoryReady;
       const checks: Record<string, boolean> = {};
       try {
-        const result = await repository.healthCheck();
+        const result = await runHealthCheck();
         checks.database = result.database;
       } catch {
         checks.database = false;
@@ -158,7 +154,7 @@ export function buildServer(options: IndustryPortalServiceOptions = {}): Fastify
     config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
-      const authUserId = readHeader(req.headers, "x-auth-user-id");
+      const authUserId = readHeader(req, "x-auth-user-id");
       if (!authUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -202,7 +198,7 @@ export function buildServer(options: IndustryPortalServiceOptions = {}): Fastify
     handler: async (req, reply) => {
       await repositoryReady;
       const { accountId } = req.params;
-      const reviewerUserId = readHeader(req.headers, "x-admin-user-id");
+      const reviewerUserId = readHeader(req, "x-admin-user-id");
       if (!reviewerUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -226,7 +222,7 @@ export function buildServer(options: IndustryPortalServiceOptions = {}): Fastify
     handler: async (req, reply) => {
       await repositoryReady;
       const { writerUserId } = req.params;
-      const authUserId = readHeader(req.headers, "x-auth-user-id");
+      const authUserId = readHeader(req, "x-auth-user-id");
       if (!authUserId || authUserId !== writerUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -280,7 +276,7 @@ export function buildServer(options: IndustryPortalServiceOptions = {}): Fastify
     config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
-      const authUserId = readHeader(req.headers, "x-auth-user-id");
+      const authUserId = readHeader(req, "x-auth-user-id");
       if (!authUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -305,7 +301,7 @@ export function buildServer(options: IndustryPortalServiceOptions = {}): Fastify
     config: { rateLimit: { max: 5, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
-      const adminUserId = readHeader(req.headers, "x-admin-user-id");
+      const adminUserId = readHeader(req, "x-admin-user-id");
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -318,7 +314,7 @@ export function buildServer(options: IndustryPortalServiceOptions = {}): Fastify
     config: { rateLimit: { max: 40, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
-      const authUserId = readHeader(req.headers, "x-auth-user-id");
+      const authUserId = readHeader(req, "x-auth-user-id");
       if (!authUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -336,7 +332,7 @@ export function buildServer(options: IndustryPortalServiceOptions = {}): Fastify
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
-      const authUserId = readHeader(req.headers, "x-auth-user-id");
+      const authUserId = readHeader(req, "x-auth-user-id");
       if (!authUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -362,7 +358,7 @@ export function buildServer(options: IndustryPortalServiceOptions = {}): Fastify
     config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
-      const authUserId = readHeader(req.headers, "x-auth-user-id");
+      const authUserId = readHeader(req, "x-auth-user-id");
       if (!authUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -387,7 +383,7 @@ export function buildServer(options: IndustryPortalServiceOptions = {}): Fastify
     config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
-      const authUserId = readHeader(req.headers, "x-auth-user-id");
+      const authUserId = readHeader(req, "x-auth-user-id");
       if (!authUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -412,7 +408,7 @@ export function buildServer(options: IndustryPortalServiceOptions = {}): Fastify
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
-      const authUserId = readHeader(req.headers, "x-auth-user-id");
+      const authUserId = readHeader(req, "x-auth-user-id");
       if (!authUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -442,7 +438,7 @@ export function buildServer(options: IndustryPortalServiceOptions = {}): Fastify
     config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
-      const authUserId = readHeader(req.headers, "x-auth-user-id");
+      const authUserId = readHeader(req, "x-auth-user-id");
       if (!authUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -459,7 +455,7 @@ export function buildServer(options: IndustryPortalServiceOptions = {}): Fastify
     config: { rateLimit: { max: 15, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
-      const authUserId = readHeader(req.headers, "x-auth-user-id");
+      const authUserId = readHeader(req, "x-auth-user-id");
       if (!authUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -483,7 +479,7 @@ export function buildServer(options: IndustryPortalServiceOptions = {}): Fastify
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
-      const authUserId = readHeader(req.headers, "x-auth-user-id");
+      const authUserId = readHeader(req, "x-auth-user-id");
       if (!authUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -513,7 +509,7 @@ export function buildServer(options: IndustryPortalServiceOptions = {}): Fastify
     config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
-      const authUserId = readHeader(req.headers, "x-auth-user-id");
+      const authUserId = readHeader(req, "x-auth-user-id");
       if (!authUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -544,7 +540,7 @@ export function buildServer(options: IndustryPortalServiceOptions = {}): Fastify
     config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
-      const adminUserId = readHeader(req.headers, "x-admin-user-id");
+      const adminUserId = readHeader(req, "x-admin-user-id");
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -564,7 +560,7 @@ export function buildServer(options: IndustryPortalServiceOptions = {}): Fastify
     config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
-      const adminUserId = readHeader(req.headers, "x-admin-user-id");
+      const adminUserId = readHeader(req, "x-admin-user-id");
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -578,7 +574,7 @@ export function buildServer(options: IndustryPortalServiceOptions = {}): Fastify
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
-      const writerUserId = readHeader(req.headers, "x-auth-user-id");
+      const writerUserId = readHeader(req, "x-auth-user-id");
       if (!writerUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -599,7 +595,7 @@ export function buildServer(options: IndustryPortalServiceOptions = {}): Fastify
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
-      const reviewerUserId = readHeader(req.headers, "x-admin-user-id");
+      const reviewerUserId = readHeader(req, "x-admin-user-id");
       if (!reviewerUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -625,7 +621,7 @@ export function buildServer(options: IndustryPortalServiceOptions = {}): Fastify
     config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
-      const authUserId = readHeader(req.headers, "x-auth-user-id");
+      const authUserId = readHeader(req, "x-auth-user-id");
       if (!authUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -649,7 +645,7 @@ export function buildServer(options: IndustryPortalServiceOptions = {}): Fastify
     config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
-      const authUserId = readHeader(req.headers, "x-auth-user-id");
+      const authUserId = readHeader(req, "x-auth-user-id");
       if (!authUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -667,7 +663,7 @@ export function buildServer(options: IndustryPortalServiceOptions = {}): Fastify
     config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
-      const authUserId = readHeader(req.headers, "x-auth-user-id");
+      const authUserId = readHeader(req, "x-auth-user-id");
       if (!authUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -685,7 +681,7 @@ export function buildServer(options: IndustryPortalServiceOptions = {}): Fastify
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
-      const authUserId = readHeader(req.headers, "x-auth-user-id");
+      const authUserId = readHeader(req, "x-auth-user-id");
       if (!authUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -777,13 +773,6 @@ export async function startServer(): Promise<void> {
   await registerMetrics(server);
   await server.listen({ port, host: "0.0.0.0" });
   boot.ready(port);
-}
-
-function isMainModule(metaUrl: string): boolean {
-  if (!process.argv[1]) {
-    return false;
-  }
-  return metaUrl === pathToFileURL(process.argv[1]).href;
 }
 
 if (isMainModule(import.meta.url)) {

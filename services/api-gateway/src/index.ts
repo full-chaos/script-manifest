@@ -1,9 +1,8 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import cors from "@fastify/cors";
 import { randomUUID } from "node:crypto";
-import { pathToFileURL } from "node:url";
 import { request } from "undici";
-import { validateRequiredEnv, bootstrapService, setupErrorReporting } from "@script-manifest/service-utils";
+import { validateRequiredEnv, bootstrapService, setupErrorReporting, isMainModule } from "@script-manifest/service-utils";
 import { type GatewayContext, type RequestFn, parseAllowlist, clearAuthCache } from "./helpers.js";
 import helmet from "@fastify/helmet";
 import { registerRateLimit } from "./plugins/rateLimit.js";
@@ -178,14 +177,6 @@ export async function startServer(): Promise<void> {
   boot.phase("metrics registered");
   await server.listen({ port, host: "0.0.0.0" });
   boot.ready(port);
-}
-
-function isMainModule(metaUrl: string): boolean {
-  if (!process.argv[1]) {
-    return false;
-  }
-
-  return metaUrl === pathToFileURL(process.argv[1]).href;
 }
 
 if (isMainModule(import.meta.url)) {

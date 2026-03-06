@@ -1,9 +1,9 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import rateLimit from "@fastify/rate-limit";
 import { randomUUID } from "node:crypto";
-import { pathToFileURL } from "node:url";
 import { request as undiciRequest } from "undici";
-import { bootstrapService, registerMetrics, setupErrorReporting, validateRequiredEnv } from "@script-manifest/service-utils";
+import { bootstrapService, registerMetrics, setupErrorReporting, validateRequiredEnv, isMainModule, readHeader } from "@script-manifest/service-utils";
+import { healthCheck } from "@script-manifest/db";
 import {
   PartnerCompetitionCreateRequestSchema,
   PartnerDraftSwapRequestSchema,
@@ -31,11 +31,6 @@ export type PartnerDashboardServiceOptions = {
   onFilmFreewaySyncQueued?: (job: PartnerSyncJob) => Promise<void> | void;
 };
 
-function readHeader(headers: Record<string, unknown>, name: string): string | null {
-  const value = headers[name];
-  return typeof value === "string" && value.length > 0 ? value : null;
-}
-
 export function buildServer(options: PartnerDashboardServiceOptions = {}): FastifyInstance {
   const server = Fastify({
     logger: options.logger === false ? false : {
@@ -45,6 +40,7 @@ export function buildServer(options: PartnerDashboardServiceOptions = {}): Fasti
     requestIdHeader: "x-request-id"
   });
   const repository = options.repository ?? new PgPartnerDashboardRepository();
+  const runHealthCheck = options.repository ? () => repository.healthCheck() : healthCheck;
   const repositoryReady = repository.init();
   const requestFn = options.requestFn ?? undiciRequest;
   const rankingServiceBase = options.rankingServiceBase ?? process.env.RANKING_SERVICE_URL ?? "http://localhost:4007";
@@ -175,7 +171,7 @@ export function buildServer(options: PartnerDashboardServiceOptions = {}): Fasti
       await repositoryReady;
       const checks: Record<string, boolean> = {};
       try {
-        const result = await repository.healthCheck();
+      const result = await runHealthCheck();
         checks.database = result.database;
       } catch {
         checks.database = false;
@@ -193,7 +189,7 @@ export function buildServer(options: PartnerDashboardServiceOptions = {}): Fasti
       await repositoryReady;
       const checks: Record<string, boolean> = {};
       try {
-        const result = await repository.healthCheck();
+      const result = await runHealthCheck();
         checks.database = result.database;
       } catch {
         checks.database = false;
@@ -207,7 +203,7 @@ export function buildServer(options: PartnerDashboardServiceOptions = {}): Fasti
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
-      const adminUserId = readHeader(req.headers, "x-admin-user-id");
+      const adminUserId = readHeader(req, "x-admin-user-id");
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -227,7 +223,7 @@ export function buildServer(options: PartnerDashboardServiceOptions = {}): Fasti
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
-      const actorUserId = readHeader(req.headers, "x-admin-user-id");
+      const actorUserId = readHeader(req, "x-admin-user-id");
       if (!actorUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -254,7 +250,7 @@ export function buildServer(options: PartnerDashboardServiceOptions = {}): Fasti
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
-      const actorUserId = readHeader(req.headers, "x-admin-user-id");
+      const actorUserId = readHeader(req, "x-admin-user-id");
       if (!actorUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -286,7 +282,7 @@ export function buildServer(options: PartnerDashboardServiceOptions = {}): Fasti
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
-      const actorUserId = readHeader(req.headers, "x-admin-user-id");
+      const actorUserId = readHeader(req, "x-admin-user-id");
       if (!actorUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -337,7 +333,7 @@ export function buildServer(options: PartnerDashboardServiceOptions = {}): Fasti
     config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
-      const adminUserId = readHeader(req.headers, "x-admin-user-id");
+      const adminUserId = readHeader(req, "x-admin-user-id");
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -360,7 +356,7 @@ export function buildServer(options: PartnerDashboardServiceOptions = {}): Fasti
     config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
-      const actorUserId = readHeader(req.headers, "x-admin-user-id");
+      const actorUserId = readHeader(req, "x-admin-user-id");
       if (!actorUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -405,7 +401,7 @@ export function buildServer(options: PartnerDashboardServiceOptions = {}): Fasti
     config: { rateLimit: { max: 40, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
-      const actorUserId = readHeader(req.headers, "x-admin-user-id");
+      const actorUserId = readHeader(req, "x-admin-user-id");
       if (!actorUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -434,7 +430,7 @@ export function buildServer(options: PartnerDashboardServiceOptions = {}): Fasti
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
-      const adminUserId = readHeader(req.headers, "x-admin-user-id");
+      const adminUserId = readHeader(req, "x-admin-user-id");
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -461,7 +457,7 @@ export function buildServer(options: PartnerDashboardServiceOptions = {}): Fasti
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
-      const actorUserId = readHeader(req.headers, "x-admin-user-id");
+      const actorUserId = readHeader(req, "x-admin-user-id");
       if (!actorUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -538,7 +534,7 @@ export function buildServer(options: PartnerDashboardServiceOptions = {}): Fasti
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
-      const actorUserId = readHeader(req.headers, "x-admin-user-id");
+      const actorUserId = readHeader(req, "x-admin-user-id");
       if (!actorUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -638,7 +634,7 @@ export function buildServer(options: PartnerDashboardServiceOptions = {}): Fasti
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
-      const adminUserId = readHeader(req.headers, "x-admin-user-id");
+      const adminUserId = readHeader(req, "x-admin-user-id");
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -665,7 +661,7 @@ export function buildServer(options: PartnerDashboardServiceOptions = {}): Fasti
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
-      const adminUserId = readHeader(req.headers, "x-admin-user-id");
+      const adminUserId = readHeader(req, "x-admin-user-id");
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -708,7 +704,7 @@ export function buildServer(options: PartnerDashboardServiceOptions = {}): Fasti
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
-      const adminUserId = readHeader(req.headers, "x-admin-user-id");
+      const adminUserId = readHeader(req, "x-admin-user-id");
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -780,7 +776,7 @@ export function buildServer(options: PartnerDashboardServiceOptions = {}): Fasti
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
-      const adminUserId = readHeader(req.headers, "x-admin-user-id");
+      const adminUserId = readHeader(req, "x-admin-user-id");
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -825,7 +821,7 @@ export function buildServer(options: PartnerDashboardServiceOptions = {}): Fasti
     config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
-      const adminUserId = readHeader(req.headers, "x-admin-user-id");
+      const adminUserId = readHeader(req, "x-admin-user-id");
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -848,7 +844,7 @@ export function buildServer(options: PartnerDashboardServiceOptions = {}): Fasti
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
-      const adminUserId = readHeader(req.headers, "x-admin-user-id");
+      const adminUserId = readHeader(req, "x-admin-user-id");
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -881,7 +877,7 @@ export function buildServer(options: PartnerDashboardServiceOptions = {}): Fasti
     config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
-      const adminUserId = readHeader(req.headers, "x-admin-user-id");
+      const adminUserId = readHeader(req, "x-admin-user-id");
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -897,7 +893,7 @@ export function buildServer(options: PartnerDashboardServiceOptions = {}): Fasti
     config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
-      const adminUserId = readHeader(req.headers, "x-admin-user-id");
+      const adminUserId = readHeader(req, "x-admin-user-id");
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -918,7 +914,7 @@ export function buildServer(options: PartnerDashboardServiceOptions = {}): Fasti
     config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
-      const adminUserId = readHeader(req.headers, "x-admin-user-id");
+      const adminUserId = readHeader(req, "x-admin-user-id");
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -939,7 +935,7 @@ export function buildServer(options: PartnerDashboardServiceOptions = {}): Fasti
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
-      const adminUserId = readHeader(req.headers, "x-admin-user-id");
+      const adminUserId = readHeader(req, "x-admin-user-id");
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -1004,13 +1000,6 @@ export async function startServer(): Promise<void> {
   await registerMetrics(server);
   await server.listen({ port, host: "0.0.0.0" });
   boot.ready(port);
-}
-
-function isMainModule(metaUrl: string): boolean {
-  if (!process.argv[1]) {
-    return false;
-  }
-  return metaUrl === pathToFileURL(process.argv[1]).href;
 }
 
 if (isMainModule(import.meta.url)) {

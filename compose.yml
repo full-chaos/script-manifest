@@ -193,6 +193,7 @@ services:
       PORT: "4001"
       DATABASE_URL: "postgresql://manifest:manifest@postgres:5432/manifest"
       NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
+      KAFKA_BROKERS: "redpanda:9092"
     command: >
       sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/profile-project-service dev"
     ports:
@@ -243,6 +244,7 @@ services:
     environment:
       PORT: "4010"
       DATABASE_URL: "postgresql://manifest:manifest@postgres:5432/manifest"
+      KAFKA_BROKERS: "redpanda:9092"
     command: >
       sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/notification-service dev"
     ports:
@@ -250,6 +252,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      redpanda:
+        condition: service_started
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:4010/health || exit 1"]
       interval: 10s
@@ -293,6 +297,7 @@ services:
       SEARCH_INDEXER_URL: "http://search-indexer-service:4003"
       NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
       COMPETITION_ADMIN_ALLOWLIST: "admin_01,user_admin_01"
+      KAFKA_BROKERS: "redpanda:9092"
     command: >
       sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/competition-directory-service dev"
     ports:
@@ -376,6 +381,7 @@ services:
       PORT: "4006"
       DATABASE_URL: "postgresql://manifest:manifest@postgres:5432/manifest"
       NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
+      KAFKA_BROKERS: "redpanda:9092"
     command: >
       sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/feedback-exchange-service dev"
     ports:
@@ -405,6 +411,7 @@ services:
       SUBMISSION_TRACKING_SERVICE_URL: "http://submission-tracking-service:4004"
       COMPETITION_DIRECTORY_SERVICE_URL: "http://competition-directory-service:4002"
       PROFILE_SERVICE_URL: "http://profile-project-service:4001"
+      KAFKA_BROKERS: "redpanda:9092"
     command: >
       sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/ranking-service dev"
     ports:
@@ -443,6 +450,7 @@ services:
       STORAGE_S3_ACCESS_KEY: "manifest"
       STORAGE_S3_SECRET_KEY: "manifest123"
       STORAGE_BUCKET: "coverage-reports"
+      KAFKA_BROKERS: "redpanda:9092"
     command: >
       sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/coverage-marketplace-service dev"
     ports:
@@ -472,6 +480,7 @@ services:
       DATABASE_URL: "postgresql://manifest:manifest@postgres:5432/manifest"
       SCRIPT_STORAGE_SERVICE_URL: "http://script-storage-service:4011"
       NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
+      KAFKA_BROKERS: "redpanda:9092"
     command: >
       sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/industry-portal-service dev"
     ports:
@@ -500,6 +509,7 @@ services:
       PORT: "4012"
       DATABASE_URL: "postgresql://manifest:manifest@postgres:5432/manifest"
       NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
+      KAFKA_BROKERS: "redpanda:9092"
     command: >
       sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/programs-service dev"
     ports:
@@ -527,6 +537,7 @@ services:
       DATABASE_URL: "postgresql://manifest:manifest@postgres:5432/manifest"
       RANKING_SERVICE_URL: "http://ranking-service:4007"
       NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
+      KAFKA_BROKERS: "redpanda:9092"
     command: >
       sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/partner-dashboard-service dev"
     ports:

@@ -64,12 +64,15 @@ export interface RankingRepository {
   // Badges
   awardBadge(writerId: string, label: string, placementId: string, competitionId: string): Promise<WriterBadge>;
   getBadges(writerId: string): Promise<WriterBadge[]>;
+  getBadgesForWriters(writerIds: string[]): Promise<Map<string, WriterBadge[]>>;
   hasBadge(placementId: string): Promise<boolean>;
+  hasBadges(placementIds: string[]): Promise<Set<string>>;
 
   // Snapshots
   createSnapshot(writerId: string, totalScore: number): Promise<void>;
   bulkCreateSnapshots(rows: Array<{ writerId: string; totalScore: number }>): Promise<void>;
   getSnapshotScore(writerId: string, daysAgo: number): Promise<number | null>;
+  getSnapshotScores(writerIds: string[], daysAgo: number): Promise<Map<string, number>>;
 
   // Anti-gaming
   createFlag(writerId: string, reason: AntiGamingFlagReason, details: string): Promise<AntiGamingFlag>;
@@ -149,9 +152,29 @@ export class PgRankingRepository implements RankingRepository {
     );
   }
 
+  // CHAOS-583: Batch upsert instead of serial loop
   async bulkUpsertWriterScores(rows: WriterScoreRow[]): Promise<void> {
-    for (const row of rows) {
-      await this.upsertWriterScore(row);
+    if (rows.length === 0) return;
+    const BATCH_SIZE = 500;
+    for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+      const batch = rows.slice(i, i + BATCH_SIZE);
+      const values: unknown[] = [];
+      const placeholders: string[] = [];
+      for (let j = 0; j < batch.length; j++) {
+        const r = batch[j]!;
+        const base = j * 8;
+        placeholders.push(`($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6}, $${base + 7}, $${base + 8})`);
+        values.push(r.writerId, r.totalScore, r.submissionCount, r.placementCount, r.rank, r.tier, r.scoreChange30d, r.lastUpdatedAt);
+      }
+      await getPool().query(
+        `INSERT INTO writer_scores (writer_id, total_score, submission_count, placement_count, rank, tier, score_change_30d, last_updated_at)
+         VALUES ${placeholders.join(", ")}
+         ON CONFLICT (writer_id) DO UPDATE SET
+           total_score = EXCLUDED.total_score, submission_count = EXCLUDED.submission_count,
+           placement_count = EXCLUDED.placement_count, rank = EXCLUDED.rank, tier = EXCLUDED.tier,
+           score_change_30d = EXCLUDED.score_change_30d, last_updated_at = EXCLUDED.last_updated_at`,
+        values
+      );
     }
   }
 
@@ -183,22 +206,21 @@ export class PgRankingRepository implements RankingRepository {
       [...params, limit, offset]
     );
 
-    const entries: RankedWriterEntry[] = [];
-    for (const row of rows) {
-      const score = mapWriterScore(row);
-      const badges = await this.getBadges(score.writerId);
-      entries.push({
-        writerId: score.writerId,
-        rank: score.rank ?? 0,
-        totalScore: score.totalScore,
-        submissionCount: score.submissionCount,
-        placementCount: score.placementCount,
-        tier: score.tier,
-        badges: badges.map((b) => b.label),
-        scoreChange30d: score.scoreChange30d,
-        lastUpdatedAt: score.lastUpdatedAt
-      });
-    }
+    const scores: WriterScoreRow[] = rows.map(mapWriterScore);
+    // CHAOS-582: Batch-load badges for all writers in one query instead of N+1
+    const writerIds: string[] = scores.map((s: WriterScoreRow) => s.writerId);
+    const badgeMap: Map<string, WriterBadge[]> = writerIds.length > 0 ? await this.getBadgesForWriters(writerIds) : new Map();
+    const entries: RankedWriterEntry[] = scores.map((score: WriterScoreRow) => ({
+      writerId: score.writerId,
+      rank: score.rank ?? 0,
+      totalScore: score.totalScore,
+      submissionCount: score.submissionCount,
+      placementCount: score.placementCount,
+      tier: score.tier,
+      badges: (badgeMap.get(score.writerId) ?? []).map((b) => b.label),
+      scoreChange30d: score.scoreChange30d,
+      lastUpdatedAt: score.lastUpdatedAt
+    }));
 
     return { entries, total };
   }
@@ -221,9 +243,29 @@ export class PgRankingRepository implements RankingRepository {
     );
   }
 
+  // CHAOS-583: Batch upsert placement scores
   async bulkUpsertPlacementScores(rows: PlacementScoreRow[]): Promise<void> {
-    for (const row of rows) {
-      await this.upsertPlacementScore(row);
+    if (rows.length === 0) return;
+    const BATCH_SIZE = 200;
+    for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+      const batch = rows.slice(i, i + BATCH_SIZE);
+      const values: unknown[] = [];
+      const placeholders: string[] = [];
+      for (let j = 0; j < batch.length; j++) {
+        const r = batch[j]!;
+        const base = j * 11;
+        placeholders.push(`($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6}, $${base + 7}, $${base + 8}, $${base + 9}, $${base + 10}, $${base + 11}, NOW())`);
+        values.push(r.placementId, r.writerId, r.competitionId, r.projectId, r.statusWeight, r.prestigeMultiplier, r.verificationMultiplier, r.timeDecayFactor, r.confidenceFactor, r.rawScore, r.placementDate);
+      }
+      await getPool().query(
+        `INSERT INTO placement_scores (placement_id, writer_id, competition_id, project_id, status_weight, prestige_multiplier, verification_multiplier, time_decay_factor, confidence_factor, raw_score, placement_date, computed_at)
+         VALUES ${placeholders.join(", ")}
+         ON CONFLICT (placement_id) DO UPDATE SET
+           status_weight = EXCLUDED.status_weight, prestige_multiplier = EXCLUDED.prestige_multiplier,
+           verification_multiplier = EXCLUDED.verification_multiplier, time_decay_factor = EXCLUDED.time_decay_factor,
+           confidence_factor = EXCLUDED.confidence_factor, raw_score = EXCLUDED.raw_score, computed_at = NOW()`,
+        values
+      );
     }
   }
 
@@ -268,6 +310,36 @@ export class PgRankingRepository implements RankingRepository {
     return rows.length > 0;
   }
 
+  // CHAOS-582: Batch-load badges for multiple writers in one query
+  async getBadgesForWriters(writerIds: string[]): Promise<Map<string, WriterBadge[]>> {
+    if (writerIds.length === 0) return new Map();
+    const { rows } = await getPool().query(
+      "SELECT * FROM writer_badges WHERE writer_id = ANY($1) ORDER BY awarded_at DESC",
+      [writerIds]
+    );
+    const map = new Map<string, WriterBadge[]>();
+    for (const row of rows) {
+      const badge = mapBadge(row);
+      const list = map.get(badge.writerId);
+      if (list) {
+        list.push(badge);
+      } else {
+        map.set(badge.writerId, [badge]);
+      }
+    }
+    return map;
+  }
+
+  // CHAOS-583: Batch check which placement IDs already have badges
+  async hasBadges(placementIds: string[]): Promise<Set<string>> {
+    if (placementIds.length === 0) return new Set();
+    const { rows } = await getPool().query(
+      "SELECT DISTINCT placement_id FROM writer_badges WHERE placement_id = ANY($1)",
+      [placementIds]
+    );
+    return new Set(rows.map((r: Record<string, unknown>) => r.placement_id as string));
+  }
+
   // ── Snapshots ──
 
   async createSnapshot(writerId: string, totalScore: number): Promise<void> {
@@ -280,9 +352,26 @@ export class PgRankingRepository implements RankingRepository {
     );
   }
 
+  // CHAOS-583: Batch insert snapshots
   async bulkCreateSnapshots(rows: Array<{ writerId: string; totalScore: number }>): Promise<void> {
-    for (const row of rows) {
-      await this.createSnapshot(row.writerId, row.totalScore);
+    if (rows.length === 0) return;
+    const BATCH_SIZE = 500;
+    for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+      const batch = rows.slice(i, i + BATCH_SIZE);
+      const values: unknown[] = [];
+      const placeholders: string[] = [];
+      for (let j = 0; j < batch.length; j++) {
+        const r = batch[j]!;
+        const base = j * 3;
+        placeholders.push(`($${base + 1}, $${base + 2}, $${base + 3}, CURRENT_DATE)`);
+        values.push(`snap_${randomUUID()}`, r.writerId, r.totalScore);
+      }
+      await getPool().query(
+        `INSERT INTO score_snapshots (id, writer_id, total_score, snapshot_date)
+         VALUES ${placeholders.join(", ")}
+         ON CONFLICT (writer_id, snapshot_date) DO UPDATE SET total_score = EXCLUDED.total_score`,
+        values
+      );
     }
   }
 
@@ -294,6 +383,23 @@ export class PgRankingRepository implements RankingRepository {
       [writerId, daysAgo]
     );
     return rows[0] ? Number(rows[0].total_score) : null;
+  }
+
+  // CHAOS-583: Batch fetch snapshot scores for all writers in one query
+  async getSnapshotScores(writerIds: string[], daysAgo: number): Promise<Map<string, number>> {
+    if (writerIds.length === 0) return new Map();
+    const { rows } = await getPool().query(
+      `SELECT DISTINCT ON (writer_id) writer_id, total_score
+       FROM score_snapshots
+       WHERE writer_id = ANY($1) AND snapshot_date <= CURRENT_DATE - $2::int
+       ORDER BY writer_id, snapshot_date DESC`,
+      [writerIds, daysAgo]
+    );
+    const map = new Map<string, number>();
+    for (const row of rows) {
+      map.set(row.writer_id as string, Number(row.total_score));
+    }
+    return map;
   }
 
   // ── Anti-gaming ──

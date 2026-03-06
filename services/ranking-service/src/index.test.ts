@@ -100,7 +100,16 @@ class MemoryRankingRepository implements RankingRepository {
     return badge;
   }
   async getBadges(writerId: string) { return this.badges.filter((b) => b.writerId === writerId); }
+  async getBadgesForWriters(writerIds: string[]) {
+    const map = new Map<string, WriterBadge[]>();
+    for (const id of writerIds) {
+      const badges = this.badges.filter((b) => b.writerId === id);
+      if (badges.length > 0) map.set(id, badges);
+    }
+    return map;
+  }
   async hasBadge(placementId: string) { return this.badges.some((b) => b.placementId === placementId); }
+  async hasBadges(placementIds: string[]) { return new Set(placementIds.filter((id) => this.badges.some((b) => b.placementId === id))); }
 
   // Snapshots
   async createSnapshot(writerId: string, totalScore: number) {
@@ -110,6 +119,7 @@ class MemoryRankingRepository implements RankingRepository {
     for (const r of rows) await this.createSnapshot(r.writerId, r.totalScore);
   }
   async getSnapshotScore(_writerId: string, _daysAgo: number) { return null; }
+  async getSnapshotScores(_writerIds: string[], _daysAgo: number) { return new Map<string, number>(); }
 
   // Anti-gaming
   async createFlag(writerId: string, reason: AntiGamingFlagReason, details: string) {

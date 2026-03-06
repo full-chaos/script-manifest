@@ -24,6 +24,37 @@ export type GatewayContext = {
   industryAdminAllowlist: Set<string>;
 };
 
+// ── Auth token TTL cache (CHAOS-581) ─────────────────────────────────
+const AUTH_CACHE_TTL_MS = Number(process.env.AUTH_CACHE_TTL_MS ?? 30_000); // default 30s
+const AUTH_CACHE_MAX = Number(process.env.AUTH_CACHE_MAX ?? 1000);
+
+type AuthCacheEntry = { userId: string | null; expiresAt: number };
+const authCache = new Map<string, AuthCacheEntry>();
+
+function authCacheGet(token: string): string | null | undefined {
+  const entry = authCache.get(token);
+  if (!entry) return undefined;
+  if (Date.now() > entry.expiresAt) {
+    authCache.delete(token);
+    return undefined;
+  }
+  return entry.userId;
+}
+
+function authCacheSet(token: string, userId: string | null): void {
+  // Evict oldest entries if over max
+  if (authCache.size >= AUTH_CACHE_MAX) {
+    const firstKey = authCache.keys().next().value;
+    if (firstKey !== undefined) authCache.delete(firstKey);
+  }
+  authCache.set(token, { userId, expiresAt: Date.now() + AUTH_CACHE_TTL_MS });
+}
+
+/** Exposed for testing — clears the auth cache. */
+export function clearAuthCache(): void {
+  authCache.clear();
+}
+
 const devServiceTokenSecret = randomBytes(32).toString("hex");
 
 function resolveServiceTokenSecret(): string | null {
@@ -69,6 +100,12 @@ export async function getUserIdFromAuth(
     return null;
   }
 
+  // Check cache first (CHAOS-581)
+  const cached = authCacheGet(authorization);
+  if (cached !== undefined) {
+    return cached;
+  }
+
   try {
     const response = await requestFn(`${identityServiceBase}/internal/auth/me`, {
       method: "GET",
@@ -77,14 +114,17 @@ export async function getUserIdFromAuth(
 
     if (response.statusCode !== 200) {
       logger?.warn(`Auth verification failed with status ${response.statusCode}`);
+      authCacheSet(authorization, null);
       return null;
     }
 
     const body = (await response.body.json()) as { user?: { id?: string } };
     if (!body?.user?.id) {
       logger?.warn({ body }, "Auth response missing user.id");
+      authCacheSet(authorization, null);
       return null;
     }
+    authCacheSet(authorization, body.user.id);
     return body.user.id;
   } catch (error) {
     logger?.error(error, "Error verifying auth token");
@@ -191,9 +231,15 @@ export async function proxyJsonRequest(
         }
       : options;
     const upstream = await requestFn(url, mergedOptions);
+    // CHAOS-584: Pass raw body through to avoid double JSON parse+serialize.
+    // Read as text once, set content-type, and send the raw string — Fastify
+    // won't re-serialize a string when content-type is already set.
     const rawBody = await upstream.body.text();
-    const body = rawBody.length > 0 ? safeJsonParse(rawBody) : null;
-    return reply.status(upstream.statusCode).send(body);
+    const contentType = (upstream.headers as Record<string, string> | undefined)?.["content-type"];
+    if (contentType) {
+      void reply.header("content-type", contentType);
+    }
+    return reply.status(upstream.statusCode).send(rawBody || null);
   } catch (error) {
     return reply.status(502).send({
       error: "upstream_unavailable",

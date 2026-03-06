@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import { request } from "undici";
 import { validateRequiredEnv, bootstrapService, setupErrorReporting } from "@script-manifest/service-utils";
-import { type GatewayContext, type RequestFn, parseAllowlist } from "./helpers.js";
+import { type GatewayContext, type RequestFn, parseAllowlist, clearAuthCache } from "./helpers.js";
 import helmet from "@fastify/helmet";
 import { registerRateLimit } from "./plugins/rateLimit.js";
 import { registerRequestId } from "./plugins/requestId.js";
@@ -44,6 +44,9 @@ export type ApiGatewayOptions = {
 };
 
 export async function buildServer(options: ApiGatewayOptions = {}): Promise<FastifyInstance> {
+  // Reset auth cache so each server instance starts clean (important for tests)
+  clearAuthCache();
+
   const server = Fastify({
     logger: options.logger === false ? false : {
       level: process.env.LOG_LEVEL ?? "info",

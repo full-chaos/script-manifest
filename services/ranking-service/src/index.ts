@@ -215,7 +215,7 @@ export function buildServer(options: RankingServiceOptions = {}): FastifyInstanc
     // 5. Build submission lookup
     const submissionMap = new Map(submissions.map((s) => [s.id, s]));
 
-    // 6. Compute individual placement scores
+    // 6. Compute individual placement scores (CHAOS-583: batch instead of N+1)
     await repo.clearPlacementScores();
     const writerData = new Map<string, { totalScore: number; submissionIds: Set<string>; placementCount: number; lastUpdated: string }>();
 
@@ -230,7 +230,11 @@ export function buildServer(options: RankingServiceOptions = {}): FastifyInstanc
       }
     }
 
-    let badgesAwarded = 0;
+    // Collect all placement score rows in memory, then bulk-insert
+    const placementScoreRows: Array<import("./repository.js").PlacementScoreRow> = [];
+    // Collect badge candidates for batch hasBadges check
+    const badgeCandidates: Array<{ placement: typeof placements[number]; submission: Submission }> = [];
+
     for (const placement of placements) {
       const submission = submissionMap.get(placement.submissionId);
       if (!submission) continue;
@@ -246,7 +250,7 @@ export function buildServer(options: RankingServiceOptions = {}): FastifyInstanc
         evaluationCount: evaluationCount + 1
       });
 
-      await repo.upsertPlacementScore({
+      placementScoreRows.push({
         placementId: placement.id,
         writerId: submission.writerId,
         competitionId: submission.competitionId,
@@ -268,20 +272,27 @@ export function buildServer(options: RankingServiceOptions = {}): FastifyInstanc
       wd.placementCount += 1;
       if (placement.updatedAt > wd.lastUpdated) wd.lastUpdated = placement.updatedAt;
 
-      // Award badges for verified quarterfinalist+
-      if (
-        placement.verificationState === "verified" &&
-        placement.status !== "pending" &&
-        !(await repo.hasBadge(placement.id))
-      ) {
-        const comp = competitionMap.get(submission.competitionId);
-        const title = comp?.title ?? submission.competitionId;
-        const year = new Date(placement.createdAt).getFullYear();
-        const label = generateBadgeLabel(placement.status, title, year);
-        if (label) {
-          await repo.awardBadge(submission.writerId, label, placement.id, submission.competitionId);
-          badgesAwarded++;
-        }
+      // Collect badge candidates instead of checking one-by-one
+      if (placement.verificationState === "verified" && placement.status !== "pending") {
+        badgeCandidates.push({ placement, submission });
+      }
+    }
+
+    // Bulk insert all placement scores
+    await repo.bulkUpsertPlacementScores(placementScoreRows);
+
+    // Batch check which placements already have badges
+    const existingBadgeIds = await repo.hasBadges(badgeCandidates.map((c) => c.placement.id));
+    let badgesAwarded = 0;
+    for (const { placement, submission } of badgeCandidates) {
+      if (existingBadgeIds.has(placement.id)) continue;
+      const comp = competitionMap.get(submission.competitionId);
+      const title = comp?.title ?? submission.competitionId;
+      const year = new Date(placement.createdAt).getFullYear();
+      const label = generateBadgeLabel(placement.status, title, year);
+      if (label) {
+        await repo.awardBadge(submission.writerId, label, placement.id, submission.competitionId);
+        badgesAwarded++;
       }
     }
 
@@ -302,10 +313,12 @@ export function buildServer(options: RankingServiceOptions = {}): FastifyInstanc
       lastUpdatedAt: w.lastUpdated
     }));
 
-    // 8. Compute 30-day deltas
+    // 8. Compute 30-day deltas (CHAOS-583: batch query instead of N+1)
+    const allWriterIds = scoreRows.map((r) => r.writerId);
+    const snapshotMap = await repo.getSnapshotScores(allWriterIds, 30);
     for (const row of scoreRows) {
-      const oldScore = await repo.getSnapshotScore(row.writerId, 30);
-      if (oldScore !== null) {
+      const oldScore = snapshotMap.get(row.writerId);
+      if (oldScore !== undefined) {
         row.scoreChange30d = Math.round((row.totalScore - oldScore) * 100) / 100;
       }
     }

@@ -303,28 +303,29 @@ export class PgFeedbackExchangeRepository implements FeedbackExchangeRepository 
     return result.rowCount ?? 0;
   }
 
+  // CHAOS-587: Bulk update/delete instead of N+1 loop
   async expireOverdueReviews(): Promise<number> {
     const db = getPool();
     const client = await db.connect();
     try {
       await client.query("BEGIN");
-      const overdueListings = await client.query<{ id: string }>(
-        `SELECT id FROM feedback_listings
+      // Delete in-progress reviews for overdue listings in one statement
+      await client.query(
+        `DELETE FROM feedback_reviews
+         WHERE status = 'in_progress' AND listing_id IN (
+           SELECT id FROM feedback_listings
+           WHERE status = 'claimed' AND review_deadline < NOW()
+         )`
+      );
+      // Reset all overdue listings in one statement
+      const result = await client.query(
+        `UPDATE feedback_listings
+         SET status = 'open', claimed_by_user_id = NULL,
+             review_deadline = NULL, updated_at = NOW()
          WHERE status = 'claimed' AND review_deadline < NOW()`
       );
-      for (const row of overdueListings.rows) {
-        await client.query(
-          `UPDATE feedback_listings SET status = 'open', claimed_by_user_id = NULL,
-           review_deadline = NULL, updated_at = NOW() WHERE id = $1`,
-          [row.id]
-        );
-        await client.query(
-          `DELETE FROM feedback_reviews WHERE listing_id = $1 AND status = 'in_progress'`,
-          [row.id]
-        );
-      }
       await client.query("COMMIT");
-      return overdueListings.rows.length;
+      return result.rowCount ?? 0;
     } catch (error) {
       await client.query("ROLLBACK");
       throw error;
@@ -420,20 +421,23 @@ export class PgFeedbackExchangeRepository implements FeedbackExchangeRepository 
 
   // ── Reputation ───────────────────────────────────────────────────────
 
+  // CHAOS-585: Run independent queries in parallel
   async getReputation(userId: string): Promise<ReviewerReputation> {
     const db = getPool();
-    const avgResult = await db.query<{ avg_score: string | null; total: string }>(
-      `SELECT AVG(rr.score)::text AS avg_score, COUNT(*)::text AS total
-       FROM reviewer_ratings rr
-       JOIN feedback_reviews fr ON fr.id = rr.review_id
-       WHERE fr.reviewer_user_id = $1`,
-      [userId]
-    );
+    const [avgResult, activeStrikes, suspended] = await Promise.all([
+      db.query<{ avg_score: string | null; total: string }>(
+        `SELECT AVG(rr.score)::text AS avg_score, COUNT(*)::text AS total
+         FROM reviewer_ratings rr
+         JOIN feedback_reviews fr ON fr.id = rr.review_id
+         WHERE fr.reviewer_user_id = $1`,
+        [userId]
+      ),
+      this.getActiveStrikeCount(userId),
+      this.isSuspended(userId)
+    ]);
     const row = avgResult.rows[0];
     const averageRating = row?.avg_score ? Number(Number(row.avg_score).toFixed(2)) : null;
     const totalReviews = Number(row?.total ?? 0);
-    const activeStrikes = await this.getActiveStrikeCount(userId);
-    const suspended = await this.isSuspended(userId);
     return { userId, averageRating, totalReviews, activeStrikes, isSuspended: suspended };
   }
 

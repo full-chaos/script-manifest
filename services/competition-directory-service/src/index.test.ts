@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import type { Competition, CompetitionFilters } from "@script-manifest/contracts";
 import { buildServer } from "./index.js";
+import type { CompetitionDirectoryRepository } from "./repository.js";
 import { request } from "undici";
 
 type RequestResult = Awaited<ReturnType<typeof request>>;
@@ -15,8 +17,80 @@ function textResponse(payload: unknown, statusCode = 200): RequestResult {
   } as RequestResult;
 }
 
+class MemoryCompetitionDirectoryRepository implements CompetitionDirectoryRepository {
+  private readonly competitions = new Map<string, Competition>();
+
+  constructor() {
+    this.competitions.set("comp_001", {
+      id: "comp_001",
+      title: "Screenplay Sprint",
+      description: "Seed competition record for local development",
+      format: "feature",
+      genre: "drama",
+      feeUsd: 25,
+      deadline: "2026-05-01T23:59:59Z",
+    });
+  }
+
+  async init(): Promise<void> {
+    return;
+  }
+
+  async healthCheck(): Promise<{ database: boolean }> {
+    return { database: true };
+  }
+
+  async upsertCompetition(competition: Competition): Promise<{ existed: boolean }> {
+    const existed = this.competitions.has(competition.id);
+    this.competitions.set(competition.id, competition);
+    return { existed };
+  }
+
+  async getCompetition(id: string): Promise<Competition | null> {
+    return this.competitions.get(id) ?? null;
+  }
+
+  async listCompetitions(filters: CompetitionFilters): Promise<Competition[]> {
+    const loweredQuery = filters.query?.toLowerCase();
+    return Array.from(this.competitions.values()).filter((competition) => {
+      if (
+        loweredQuery &&
+        !`${competition.title} ${competition.description}`.toLowerCase().includes(loweredQuery)
+      ) {
+        return false;
+      }
+
+      if (filters.format && competition.format.toLowerCase() !== filters.format.toLowerCase()) {
+        return false;
+      }
+
+      if (filters.genre && competition.genre.toLowerCase() !== filters.genre.toLowerCase()) {
+        return false;
+      }
+
+      if (typeof filters.maxFeeUsd === "number" && competition.feeUsd > filters.maxFeeUsd) {
+        return false;
+      }
+
+      if (filters.deadlineBefore && new Date(competition.deadline) >= filters.deadlineBefore) {
+        return false;
+      }
+
+      return true;
+    });
+  }
+
+  async getAllCompetitions(): Promise<Competition[]> {
+    return Array.from(this.competitions.values());
+  }
+}
+
 test("competition directory filters seeded competitions", async (t) => {
-  const server = buildServer({ logger: false, requestFn: (async () => textResponse({})) as typeof request });
+  const server = buildServer({
+    logger: false,
+    repository: new MemoryCompetitionDirectoryRepository(),
+    requestFn: (async () => textResponse({})) as typeof request,
+  });
   t.after(async () => {
     await server.close();
   });
@@ -31,6 +105,7 @@ test("competition directory upsert indexes competition", async (t) => {
   const calls: string[] = [];
   const server = buildServer({
     logger: false,
+    repository: new MemoryCompetitionDirectoryRepository(),
     requestFn: (async (url) => {
       calls.push(String(url));
       return textResponse({ result: "ok" }, 201);
@@ -64,6 +139,7 @@ test("competition deadline reminder publishes notification event", async (t) => 
   const urls: string[] = [];
   const server = buildServer({
     logger: false,
+    repository: new MemoryCompetitionDirectoryRepository(),
     requestFn: (async (url) => {
       urls.push(String(url));
       return textResponse({ accepted: true }, 202);
@@ -92,6 +168,7 @@ test("competition admin curation route enforces allowlist header", async (t) => 
 
   const server = buildServer({
     logger: false,
+    repository: new MemoryCompetitionDirectoryRepository(),
     requestFn: (async () => textResponse({ ok: true }, 201)) as typeof request
   });
   t.after(async () => {

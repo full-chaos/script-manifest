@@ -1,5 +1,7 @@
 import { Pool } from "pg";
 
+export { runMigrations } from "./migrate.js";
+
 const DEFAULT_DATABASE_URL = "postgresql://manifest:manifest@localhost:5432/manifest";
 
 export type PoolConfig = {

@@ -2,14 +2,16 @@ import Fastify, { type FastifyInstance, type FastifyReply } from "fastify";
 import { randomUUID } from "node:crypto";
 import { request } from "undici";
 import { bootstrapService, registerMetrics, setupErrorReporting, validateRequiredEnv, isMainModule, readHeader } from "@script-manifest/service-utils";
+import { closePool } from "@script-manifest/db";
 import {
   CompetitionFiltersSchema,
-  CompetitionSchema,
   CompetitionUpsertRequestSchema,
   NotificationEventEnvelopeSchema,
   type Competition
 } from "@script-manifest/contracts";
 import { z } from "zod";
+import type { CompetitionDirectoryRepository } from "./repository.js";
+import { PgCompetitionDirectoryRepository } from "./pgRepository.js";
 
 type RequestFn = typeof request;
 
@@ -18,6 +20,7 @@ export type CompetitionDirectoryOptions = {
   requestFn?: RequestFn;
   searchIndexerBase?: string;
   notificationServiceBase?: string;
+  repository?: CompetitionDirectoryRepository;
 };
 
 export function buildServer(options: CompetitionDirectoryOptions = {}): FastifyInstance {
@@ -29,27 +32,24 @@ export function buildServer(options: CompetitionDirectoryOptions = {}): FastifyI
     requestIdHeader: "x-request-id",
   });
   const requestFn = options.requestFn ?? request;
+  const repository = options.repository ?? new PgCompetitionDirectoryRepository();
   const searchIndexerBase = options.searchIndexerBase ?? "http://localhost:4003";
   const notificationServiceBase = options.notificationServiceBase ?? "http://localhost:4010";
   const adminAllowlist = parseAllowlist(
     process.env.COMPETITION_ADMIN_ALLOWLIST ?? ""
   );
 
-  const seedCompetition = CompetitionSchema.parse({
-    id: "comp_001",
-    title: "Screenplay Sprint",
-    description: "Seed competition record for local development",
-    format: "feature",
-    genre: "drama",
-    feeUsd: 25,
-    deadline: "2026-05-01T23:59:59Z"
-  });
-
-  const competitions = new Map<string, Competition>([[seedCompetition.id, seedCompetition]]);
-
   const startedAt = Date.now();
 
-  // Deep health check: verify connectivity to external dependencies (indexer and notifier)
+  server.addHook("onReady", async () => {
+    await repository.init();
+  });
+
+  server.addHook("onClose", async () => {
+    await closePool();
+  });
+
+  // Deep health check: verify connectivity to database and external dependencies
   server.get("/health", async () => {
     const checkUrl = async (url: string): Promise<boolean> => {
       try {
@@ -60,16 +60,17 @@ export function buildServer(options: CompetitionDirectoryOptions = {}): FastifyI
       }
     };
 
+    const database = (await repository.healthCheck()).database;
     const indexerHealthy = await checkUrl(`${searchIndexerBase}/health/ready`);
     const notifierHealthy = await checkUrl(`${notificationServiceBase}/health/ready`);
-    const ok = indexerHealthy && notifierHealthy;
+    const ok = database && indexerHealthy && notifierHealthy;
     return {
       service: "competition-directory-service",
       ok,
       uptime: Math.floor((Date.now() - startedAt) / 1000),
+      database,
       indexer: indexerHealthy,
-      notifier: notifierHealthy,
-      count: competitions.size
+      notifier: notifierHealthy
     };
   });
 
@@ -85,13 +86,15 @@ export function buildServer(options: CompetitionDirectoryOptions = {}): FastifyI
       }
     };
 
+    const database = (await repository.healthCheck()).database;
     const indexerHealthy = await checkUrl(`${searchIndexerBase}/health/ready`);
     const notifierHealthy = await checkUrl(`${notificationServiceBase}/health/ready`);
-    const ok = indexerHealthy && notifierHealthy;
+    const ok = database && indexerHealthy && notifierHealthy;
     return {
       service: "competition-directory-service",
       ok,
       uptime: Math.floor((Date.now() - startedAt) / 1000),
+      database,
       indexer: indexerHealthy,
       notifier: notifierHealthy
     };
@@ -106,34 +109,7 @@ export function buildServer(options: CompetitionDirectoryOptions = {}): FastifyI
       });
     }
 
-    const filters = parsedFilters.data;
-    const loweredQuery = filters.query?.toLowerCase();
-    const results = Array.from(competitions.values()).filter((competition) => {
-      if (
-        loweredQuery &&
-        !`${competition.title} ${competition.description}`.toLowerCase().includes(loweredQuery)
-      ) {
-        return false;
-      }
-
-      if (filters.format && competition.format.toLowerCase() !== filters.format.toLowerCase()) {
-        return false;
-      }
-
-      if (filters.genre && competition.genre.toLowerCase() !== filters.genre.toLowerCase()) {
-        return false;
-      }
-
-      if (typeof filters.maxFeeUsd === "number" && competition.feeUsd > filters.maxFeeUsd) {
-        return false;
-      }
-
-      if (filters.deadlineBefore && new Date(competition.deadline) >= filters.deadlineBefore) {
-        return false;
-      }
-
-      return true;
-    });
+    const results = await repository.listCompetitions(parsedFilters.data);
 
     return reply.send({ competitions: results });
   });
@@ -147,7 +123,7 @@ export function buildServer(options: CompetitionDirectoryOptions = {}): FastifyI
       });
     }
 
-    return upsertCompetition(parsedBody.data, competitions, requestFn, searchIndexerBase, server, reply);
+    return upsertCompetition(parsedBody.data, repository, requestFn, searchIndexerBase, server, reply);
   });
 
   server.post("/internal/admin/competitions", async (req, reply) => {
@@ -164,7 +140,7 @@ export function buildServer(options: CompetitionDirectoryOptions = {}): FastifyI
       });
     }
 
-    return upsertCompetition(parsedBody.data, competitions, requestFn, searchIndexerBase, server, reply);
+    return upsertCompetition(parsedBody.data, repository, requestFn, searchIndexerBase, server, reply);
   });
 
   server.put<{ Params: { competitionId: string } }>("/internal/admin/competitions/:competitionId", async (req, reply) => {
@@ -185,11 +161,11 @@ export function buildServer(options: CompetitionDirectoryOptions = {}): FastifyI
       });
     }
 
-    return upsertCompetition(parsedBody.data, competitions, requestFn, searchIndexerBase, server, reply);
+    return upsertCompetition(parsedBody.data, repository, requestFn, searchIndexerBase, server, reply);
   });
 
   server.post("/internal/competitions/reindex", async (_req, reply) => {
-    const allCompetitions = Array.from(competitions.values());
+    const allCompetitions = await repository.getAllCompetitions();
 
     try {
       const upstream = await requestFn(`${searchIndexerBase}/internal/index/competition/bulk`, {
@@ -274,7 +250,7 @@ export async function startServer(): Promise<void> {
     }
     boot.phase("tracing initialized");
   }
-  validateRequiredEnv(["PORT", "SEARCH_INDEXER_URL"]);
+  validateRequiredEnv(["PORT", "SEARCH_INDEXER_URL", "DATABASE_URL"]);
   boot.phase("env validated");
   const port = Number(process.env.PORT ?? 4002);
   const server = buildServer({
@@ -325,14 +301,13 @@ async function readBody(upstream: Awaited<ReturnType<typeof request>>): Promise<
 
 async function upsertCompetition(
   competition: Competition,
-  competitions: Map<string, Competition>,
+  repository: CompetitionDirectoryRepository,
   requestFn: RequestFn,
   searchIndexerBase: string,
   server: FastifyInstance,
   reply: FastifyReply
 ) {
-  const existed = competitions.has(competition.id);
-  competitions.set(competition.id, competition);
+  const { existed } = await repository.upsertCompetition(competition);
 
   const indexing = await pushCompetitionToIndexer(requestFn, searchIndexerBase, competition);
   if (!indexing.ok) {

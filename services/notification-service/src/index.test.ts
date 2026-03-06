@@ -1,9 +1,32 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import type { NotificationEventEnvelope } from "@script-manifest/contracts";
 import { buildServer } from "./index.js";
+import type { NotificationRepository } from "./repository.js";
+
+class MemoryNotificationRepository implements NotificationRepository {
+  private readonly events: NotificationEventEnvelope[] = [];
+
+  async init(): Promise<void> {
+    return Promise.resolve();
+  }
+
+  async healthCheck(): Promise<{ database: boolean }> {
+    return { database: true };
+  }
+
+  async pushEvent(event: NotificationEventEnvelope): Promise<void> {
+    this.events.push(event);
+  }
+
+  async getEventsByTargetUser(targetUserId: string): Promise<NotificationEventEnvelope[]> {
+    return this.events.filter((event) => event.targetUserId === targetUserId);
+  }
+}
 
 test("notification service accepts valid events and lists by user", async (t) => {
-  const server = buildServer({ logger: false });
+  const memoryRepo = new MemoryNotificationRepository();
+  const server = buildServer({ logger: false, repository: memoryRepo });
   t.after(async () => {
     await server.close();
   });
@@ -34,7 +57,8 @@ test("notification service accepts valid events and lists by user", async (t) =>
 });
 
 test("notification service rejects invalid events", async (t) => {
-  const server = buildServer({ logger: false });
+  const memoryRepo = new MemoryNotificationRepository();
+  const server = buildServer({ logger: false, repository: memoryRepo });
   t.after(async () => {
     await server.close();
   });

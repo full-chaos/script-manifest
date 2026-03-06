@@ -1,13 +1,16 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import { randomUUID } from "node:crypto";
 import { bootstrapService, registerMetrics, setupErrorReporting, validateRequiredEnv, isMainModule } from "@script-manifest/service-utils";
+import { closePool } from "@script-manifest/db";
 import {
-  NotificationEventEnvelope,
   NotificationEventEnvelopeSchema
 } from "@script-manifest/contracts";
+import type { NotificationRepository } from "./repository.js";
+import { PgNotificationRepository } from "./pgRepository.js";
 
 export type NotificationServiceOptions = {
   logger?: boolean;
+  repository?: NotificationRepository;
 };
 
 export function buildServer(options: NotificationServiceOptions = {}): FastifyInstance {
@@ -18,23 +21,55 @@ export function buildServer(options: NotificationServiceOptions = {}): FastifyIn
     genReqId: (req) => (req.headers["x-request-id"] as string) ?? randomUUID(),
     requestIdHeader: "x-request-id",
   });
-  const eventLog: NotificationEventEnvelope[] = [];
+  const repository = options.repository ?? new PgNotificationRepository();
 
   const startedAt = Date.now();
 
-  server.get("/health", async () => ({
-    service: "notification-service",
-    ok: true,
-    uptime: Math.floor((Date.now() - startedAt) / 1000)
-  }));
+  server.addHook("onReady", async () => {
+    await repository.init();
+  });
+
+  server.addHook("onClose", async () => {
+    await closePool();
+  });
+
+  server.get("/health", async (_req, reply) => {
+    const checks: Record<string, boolean> = {};
+    try {
+      const result = await repository.healthCheck();
+      checks.database = result.database;
+    } catch {
+      checks.database = false;
+    }
+
+    const ok = Object.values(checks).every(Boolean);
+    return reply.status(ok ? 200 : 503).send({
+      service: "notification-service",
+      ok,
+      checks,
+      uptime: Math.floor((Date.now() - startedAt) / 1000)
+    });
+  });
 
   server.get("/health/live", async () => ({ ok: true }));
 
-  server.get("/health/ready", async () => ({
-    service: "notification-service",
-    ok: true,
-    uptime: Math.floor((Date.now() - startedAt) / 1000)
-  }));
+  server.get("/health/ready", async (_req, reply) => {
+    const checks: Record<string, boolean> = {};
+    try {
+      const result = await repository.healthCheck();
+      checks.database = result.database;
+    } catch {
+      checks.database = false;
+    }
+
+    const ok = Object.values(checks).every(Boolean);
+    return reply.status(ok ? 200 : 503).send({
+      service: "notification-service",
+      ok,
+      checks,
+      uptime: Math.floor((Date.now() - startedAt) / 1000)
+    });
+  });
 
   server.post("/internal/events", async (req, reply) => {
     const parseResult = NotificationEventEnvelopeSchema.safeParse(req.body);
@@ -45,13 +80,13 @@ export function buildServer(options: NotificationServiceOptions = {}): FastifyIn
       });
     }
 
-    eventLog.push(parseResult.data);
+    await repository.pushEvent(parseResult.data);
     return reply.status(202).send({ accepted: true, eventId: parseResult.data.eventId });
   });
 
   server.get<{ Params: { targetUserId: string } }>("/internal/events/:targetUserId", async (req, reply) => {
     const { targetUserId } = req.params;
-    const events = eventLog.filter((event) => event.targetUserId === targetUserId);
+    const events = await repository.getEventsByTargetUser(targetUserId);
     return reply.send({ events });
   });
 
@@ -66,12 +101,12 @@ export async function startServer(): Promise<void> {
     const tracingSdk = setupTracing("notification-service");
     if (tracingSdk) {
       process.once("SIGTERM", () => {
-        tracingSdk.shutdown().catch((err) => server.log.error(err, "OTel SDK shutdown error"));
+        tracingSdk.shutdown().catch((err: unknown) => server.log.error(err, "OTel SDK shutdown error"));
       });
     }
     boot.phase("tracing initialized");
   }
-  validateRequiredEnv(["PORT"]);
+  validateRequiredEnv(["PORT", "DATABASE_URL"]);
   boot.phase("env validated");
   const port = Number(process.env.PORT ?? 4010);
   const server = buildServer();

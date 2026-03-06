@@ -253,7 +253,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 20s
+      start_period: 60s
 
   search-indexer-service:
     <<: *node-dev
@@ -307,7 +307,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 20s
+      start_period: 60s
 
   script-storage-service:
     <<: *node-dev
@@ -362,7 +362,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 20s
+      start_period: 60s
 
   feedback-exchange-service:
     <<: *node-dev

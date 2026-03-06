@@ -2,6 +2,7 @@ import Fastify, { type FastifyInstance } from "fastify";
 import { randomUUID } from "node:crypto";
 import { Counter } from "prom-client";
 import { bootstrapService, registerMetrics, setupErrorReporting, validateRequiredEnv, getAuthUserId, isMainModule } from "@script-manifest/service-utils";
+import { closePool } from "@script-manifest/db";
 import {
   PlacementFiltersSchema,
   PlacementListItemSchema,
@@ -16,6 +17,8 @@ import {
   type PlacementListItem,
   type Submission
 } from "@script-manifest/contracts";
+import type { SubmissionTrackingRepository } from "./repository.js";
+import { PgSubmissionTrackingRepository } from "./pgRepository.js";
 
 const submissionsCounter = new Counter({
   name: "submissions_created_total",
@@ -24,6 +27,7 @@ const submissionsCounter = new Counter({
 
 export type SubmissionTrackingOptions = {
   logger?: boolean;
+  repository?: SubmissionTrackingRepository;
 };
 
 export function buildServer(options: SubmissionTrackingOptions = {}): FastifyInstance {
@@ -34,18 +38,28 @@ export function buildServer(options: SubmissionTrackingOptions = {}): FastifyIns
     genReqId: (req) => (req.headers["x-request-id"] as string) ?? randomUUID(),
     requestIdHeader: "x-request-id",
   });
-  const submissions = new Map<string, Submission>();
-  const placements = new Map<string, Placement>();
+  const repository = options.repository ?? new PgSubmissionTrackingRepository();
 
   const startedAt = Date.now();
 
-  server.get("/health", async () => ({
-    service: "submission-tracking-service",
-    ok: true,
-    uptime: Math.floor((Date.now() - startedAt) / 1000),
-    submissions: submissions.size,
-    placements: placements.size
-  }));
+  server.addHook("onReady", async () => {
+    await repository.init();
+  });
+
+  server.addHook("onClose", async () => {
+    await closePool();
+  });
+
+  server.get("/health", async (_req, reply) => {
+    const checks = await repository.healthCheck();
+    const ok = Object.values(checks).every(Boolean);
+    return reply.status(ok ? 200 : 503).send({
+      service: "submission-tracking-service",
+      ok,
+      uptime: Math.floor((Date.now() - startedAt) / 1000),
+      checks,
+    });
+  });
 
   server.get("/health/live", async () => ({ ok: true }));
 
@@ -72,14 +86,12 @@ export function buildServer(options: SubmissionTrackingOptions = {}): FastifyIns
       });
     }
 
-    const now = new Date().toISOString();
-    const submission = SubmissionSchema.parse({
-      id: `submission_${randomUUID()}`,
-      ...parsedBody.data,
-      createdAt: now,
-      updatedAt: now
-    });
-    submissions.set(submission.id, submission);
+    const submission = SubmissionSchema.parse(await repository.createSubmission({
+      writerId: parsedBody.data.writerId,
+      projectId: parsedBody.data.projectId,
+      competitionId: parsedBody.data.competitionId,
+      status: parsedBody.data.status,
+    }));
 
     submissionsCounter.inc();
     return reply.status(201).send({ submission });
@@ -92,7 +104,7 @@ export function buildServer(options: SubmissionTrackingOptions = {}): FastifyIns
       return reply.status(403).send({ error: "forbidden" });
     }
 
-    const submission = submissions.get(submissionId);
+    const submission = await repository.getSubmission(submissionId);
     if (!submission) {
       return reply.status(404).send({ error: "submission_not_found" });
     }
@@ -109,14 +121,12 @@ export function buildServer(options: SubmissionTrackingOptions = {}): FastifyIns
       });
     }
 
-    const updatedSubmission = SubmissionSchema.parse({
-      ...submission,
-      projectId: parsedBody.data.projectId,
-      updatedAt: new Date().toISOString()
-    });
-    submissions.set(submissionId, updatedSubmission);
+    const updatedSubmission = await repository.updateSubmissionProject(submissionId, parsedBody.data.projectId);
+    if (!updatedSubmission) {
+      return reply.status(404).send({ error: "submission_not_found" });
+    }
 
-    return reply.send({ submission: updatedSubmission });
+    return reply.send({ submission: SubmissionSchema.parse(updatedSubmission) });
   });
 
   server.get("/internal/submissions", async (req, reply) => {
@@ -129,32 +139,14 @@ export function buildServer(options: SubmissionTrackingOptions = {}): FastifyIns
     }
 
     const filters = parsedQuery.data;
-    const filteredSubmissions = Array.from(submissions.values()).filter((submission) => {
-      if (filters.writerId && submission.writerId !== filters.writerId) {
-        return false;
-      }
-
-      if (filters.projectId && submission.projectId !== filters.projectId) {
-        return false;
-      }
-
-      if (filters.competitionId && submission.competitionId !== filters.competitionId) {
-        return false;
-      }
-
-      if (filters.status && submission.status !== filters.status) {
-        return false;
-      }
-
-      return true;
-    });
+    const filteredSubmissions = (await repository.listSubmissions(filters)).map((submission) => SubmissionSchema.parse(submission));
 
     return reply.send({ submissions: filteredSubmissions });
   });
 
   server.post<{ Params: { submissionId: string } }>("/internal/submissions/:submissionId/placements", async (req, reply) => {
     const { submissionId } = req.params;
-    const submission = submissions.get(submissionId);
+    const submission = await repository.getSubmission(submissionId);
     if (!submission) {
       return reply.status(404).send({ error: "submission_not_found" });
     }
@@ -167,31 +159,18 @@ export function buildServer(options: SubmissionTrackingOptions = {}): FastifyIns
       });
     }
 
-    const now = new Date().toISOString();
-    const placement = PlacementSchema.parse({
-      id: `placement_${randomUUID()}`,
-      submissionId,
-      status: parsedBody.data.status,
-      verificationState: "pending",
-      createdAt: now,
-      updatedAt: now,
-      verifiedAt: null
-    });
-    placements.set(placement.id, placement);
+    const placement = PlacementSchema.parse(await repository.createPlacement(submissionId, parsedBody.data.status));
+    const updatedSubmission = await repository.updateSubmissionStatus(submissionId, placement.status);
+    if (!updatedSubmission) {
+      return reply.status(404).send({ error: "submission_not_found" });
+    }
 
-    const updatedSubmission = SubmissionSchema.parse({
-      ...submission,
-      status: placement.status,
-      updatedAt: now
-    });
-    submissions.set(updatedSubmission.id, updatedSubmission);
-
-    return reply.status(201).send({ placement, submission: updatedSubmission });
+    return reply.status(201).send({ placement, submission: SubmissionSchema.parse(updatedSubmission) });
   });
 
   server.get<{ Params: { submissionId: string } }>("/internal/submissions/:submissionId/placements", async (req, reply) => {
     const { submissionId } = req.params;
-    const submission = submissions.get(submissionId);
+    const submission = await repository.getSubmission(submissionId);
     if (!submission) {
       return reply.status(404).send({ error: "submission_not_found" });
     }
@@ -201,9 +180,8 @@ export function buildServer(options: SubmissionTrackingOptions = {}): FastifyIns
       return reply.status(403).send({ error: "forbidden" });
     }
 
-    const items = Array.from(placements.values())
-      .filter((placement) => placement.submissionId === submissionId)
-      .map((placement) => toPlacementListItem(placement, submission));
+    const items = (await repository.listPlacementsBySubmission(submissionId))
+      .map((placement) => toPlacementListItem(PlacementSchema.parse(placement), SubmissionSchema.parse(submission)));
 
     return reply.send({ placements: items });
   });
@@ -223,49 +201,24 @@ export function buildServer(options: SubmissionTrackingOptions = {}): FastifyIns
       return reply.status(403).send({ error: "forbidden" });
     }
 
-    const filteredPlacements = Array.from(placements.values()).flatMap((placement) => {
-      const submission = submissions.get(placement.submissionId);
-      if (!submission) {
-        return [];
-      }
-
-      if (authUserId && submission.writerId !== authUserId) {
-        return [];
-      }
-
-      if (filters.submissionId && placement.submissionId !== filters.submissionId) {
-        return [];
-      }
-      if (filters.writerId && submission.writerId !== filters.writerId) {
-        return [];
-      }
-      if (filters.projectId && submission.projectId !== filters.projectId) {
-        return [];
-      }
-      if (filters.competitionId && submission.competitionId !== filters.competitionId) {
-        return [];
-      }
-      if (filters.status && placement.status !== filters.status) {
-        return [];
-      }
-      if (filters.verificationState && placement.verificationState !== filters.verificationState) {
-        return [];
-      }
-
-      return [toPlacementListItem(placement, submission)];
-    });
+    const repositoryFilters = authUserId
+      ? { ...filters, writerId: authUserId }
+      : filters;
+    const filteredPlacements = (await repository.listPlacements(repositoryFilters)).map(({ placement, submission }) =>
+      toPlacementListItem(PlacementSchema.parse(placement), SubmissionSchema.parse(submission)),
+    );
 
     return reply.send({ placements: filteredPlacements });
   });
 
   server.get<{ Params: { placementId: string } }>("/internal/placements/:placementId", async (req, reply) => {
     const { placementId } = req.params;
-    const placement = placements.get(placementId);
+    const placement = await repository.getPlacement(placementId);
     if (!placement) {
       return reply.status(404).send({ error: "placement_not_found" });
     }
 
-    const submission = submissions.get(placement.submissionId);
+    const submission = await repository.getSubmission(placement.submissionId);
     if (!submission) {
       return reply.status(404).send({ error: "submission_not_found" });
     }
@@ -275,12 +228,12 @@ export function buildServer(options: SubmissionTrackingOptions = {}): FastifyIns
       return reply.status(403).send({ error: "forbidden" });
     }
 
-    return reply.send({ placement: toPlacementListItem(placement, submission) });
+    return reply.send({ placement: toPlacementListItem(PlacementSchema.parse(placement), SubmissionSchema.parse(submission)) });
   });
 
   server.post<{ Params: { placementId: string } }>("/internal/placements/:placementId/verify", async (req, reply) => {
     const { placementId } = req.params;
-    const placement = placements.get(placementId);
+    const placement = await repository.getPlacement(placementId);
     if (!placement) {
       return reply.status(404).send({ error: "placement_not_found" });
     }
@@ -293,16 +246,12 @@ export function buildServer(options: SubmissionTrackingOptions = {}): FastifyIns
       });
     }
 
-    const now = new Date().toISOString();
-    const updatedPlacement = PlacementSchema.parse({
-      ...placement,
-      verificationState: parsedBody.data.verificationState,
-      updatedAt: now,
-      verifiedAt: parsedBody.data.verificationState === "verified" ? now : null
-    });
-    placements.set(updatedPlacement.id, updatedPlacement);
+    const updatedPlacement = await repository.updatePlacementVerification(placementId, parsedBody.data.verificationState);
+    if (!updatedPlacement) {
+      return reply.status(404).send({ error: "placement_not_found" });
+    }
 
-    return reply.send({ placement: updatedPlacement });
+    return reply.send({ placement: PlacementSchema.parse(updatedPlacement) });
   });
 
   return server;
@@ -330,7 +279,7 @@ export async function startServer(): Promise<void> {
     }
     boot.phase("tracing initialized");
   }
-  validateRequiredEnv(["PORT"]);
+  validateRequiredEnv(["PORT", "DATABASE_URL"]);
   boot.phase("env validated");
   const port = Number(process.env.PORT ?? 4004);
   const server = buildServer();

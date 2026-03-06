@@ -1,9 +1,164 @@
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
 import test from "node:test";
+import type { Placement, PlacementFilters, Submission, SubmissionFilters } from "@script-manifest/contracts";
 import { buildServer } from "./index.js";
+import type { SubmissionTrackingRepository } from "./repository.js";
+
+class MemorySubmissionTrackingRepository implements SubmissionTrackingRepository {
+  private readonly submissions = new Map<string, Submission>();
+  private readonly placements = new Map<string, Placement>();
+
+  async init(): Promise<void> {
+  }
+
+  async healthCheck(): Promise<{ database: boolean }> {
+    return { database: true };
+  }
+
+  async createSubmission(data: {
+    writerId: string;
+    projectId: string;
+    competitionId: string;
+    status: string;
+  }): Promise<Submission> {
+    const now = new Date().toISOString();
+    const submission: Submission = {
+      id: `submission_${randomUUID()}`,
+      writerId: data.writerId,
+      projectId: data.projectId,
+      competitionId: data.competitionId,
+      status: data.status as Submission["status"],
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.submissions.set(submission.id, submission);
+    return submission;
+  }
+
+  async getSubmission(id: string): Promise<Submission | null> {
+    return this.submissions.get(id) ?? null;
+  }
+
+  async updateSubmissionProject(id: string, projectId: string): Promise<Submission | null> {
+    const submission = this.submissions.get(id);
+    if (!submission) {
+      return null;
+    }
+    const updated: Submission = {
+      ...submission,
+      projectId,
+      updatedAt: new Date().toISOString(),
+    };
+    this.submissions.set(id, updated);
+    return updated;
+  }
+
+  async updateSubmissionStatus(id: string, status: string): Promise<Submission | null> {
+    const submission = this.submissions.get(id);
+    if (!submission) {
+      return null;
+    }
+    const updated: Submission = {
+      ...submission,
+      status: status as Submission["status"],
+      updatedAt: new Date().toISOString(),
+    };
+    this.submissions.set(id, updated);
+    return updated;
+  }
+
+  async listSubmissions(filters: SubmissionFilters): Promise<Submission[]> {
+    return Array.from(this.submissions.values()).filter((submission) => {
+      if (filters.writerId && submission.writerId !== filters.writerId) {
+        return false;
+      }
+      if (filters.projectId && submission.projectId !== filters.projectId) {
+        return false;
+      }
+      if (filters.competitionId && submission.competitionId !== filters.competitionId) {
+        return false;
+      }
+      if (filters.status && submission.status !== filters.status) {
+        return false;
+      }
+      return true;
+    });
+  }
+
+  async createPlacement(submissionId: string, status: string): Promise<Placement> {
+    const now = new Date().toISOString();
+    const placement: Placement = {
+      id: `placement_${randomUUID()}`,
+      submissionId,
+      status: status as Placement["status"],
+      verificationState: "pending",
+      createdAt: now,
+      updatedAt: now,
+      verifiedAt: null,
+    };
+    this.placements.set(placement.id, placement);
+    return placement;
+  }
+
+  async getPlacement(id: string): Promise<Placement | null> {
+    return this.placements.get(id) ?? null;
+  }
+
+  async updatePlacementVerification(id: string, verificationState: string): Promise<Placement | null> {
+    const placement = this.placements.get(id);
+    if (!placement) {
+      return null;
+    }
+    const now = new Date().toISOString();
+    const updated: Placement = {
+      ...placement,
+      verificationState: verificationState as Placement["verificationState"],
+      updatedAt: now,
+      verifiedAt: verificationState === "verified" ? now : null,
+    };
+    this.placements.set(id, updated);
+    return updated;
+  }
+
+  async listPlacementsBySubmission(submissionId: string): Promise<Placement[]> {
+    return Array.from(this.placements.values()).filter((placement) => placement.submissionId === submissionId);
+  }
+
+  async listPlacements(filters: PlacementFilters): Promise<{ placement: Placement; submission: Submission }[]> {
+    return Array.from(this.placements.values()).flatMap((placement) => {
+      const submission = this.submissions.get(placement.submissionId);
+      if (!submission) {
+        return [];
+      }
+
+      if (filters.submissionId && placement.submissionId !== filters.submissionId) {
+        return [];
+      }
+      if (filters.writerId && submission.writerId !== filters.writerId) {
+        return [];
+      }
+      if (filters.projectId && submission.projectId !== filters.projectId) {
+        return [];
+      }
+      if (filters.competitionId && submission.competitionId !== filters.competitionId) {
+        return [];
+      }
+      if (filters.status && placement.status !== filters.status) {
+        return [];
+      }
+      if (filters.verificationState && placement.verificationState !== filters.verificationState) {
+        return [];
+      }
+
+      return [{ placement, submission }];
+    });
+  }
+}
 
 test("submission tracking create/list/placement/verify flow", async (t) => {
-  const server = buildServer({ logger: false });
+  const memoryRepo = new MemorySubmissionTrackingRepository();
+  const server = buildServer({ logger: false, repository: memoryRepo });
   t.after(async () => {
     await server.close();
   });
@@ -82,7 +237,8 @@ test("submission tracking create/list/placement/verify flow", async (t) => {
 });
 
 test("submission tracking enforces placement visibility by writer", async (t) => {
-  const server = buildServer({ logger: false });
+  const memoryRepo = new MemorySubmissionTrackingRepository();
+  const server = buildServer({ logger: false, repository: memoryRepo });
   t.after(async () => {
     await server.close();
   });

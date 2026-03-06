@@ -244,6 +244,9 @@ importers:
       '@script-manifest/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@script-manifest/db':
+        specifier: workspace:*
+        version: link:../../packages/db
       '@script-manifest/service-utils':
         specifier: workspace:*
         version: link:../../packages/service-utils
@@ -414,6 +417,9 @@ importers:
       '@script-manifest/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@script-manifest/db':
+        specifier: workspace:*
+        version: link:../../packages/db
       '@script-manifest/service-utils':
         specifier: workspace:*
         version: link:../../packages/service-utils
@@ -628,6 +634,9 @@ importers:
       '@script-manifest/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@script-manifest/db':
+        specifier: workspace:*
+        version: link:../../packages/db
       '@script-manifest/service-utils':
         specifier: workspace:*
         version: link:../../packages/service-utils

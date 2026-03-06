@@ -240,10 +240,14 @@ services:
       - .:/workspace
     environment:
       PORT: "4010"
+      DATABASE_URL: "postgresql://manifest:manifest@postgres:5432/manifest"
     command: >
       sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/notification-service dev"
     ports:
       - "4010:4010"
+    depends_on:
+      postgres:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:4010/health || exit 1"]
       interval: 10s
@@ -283,6 +287,7 @@ services:
       - .:/workspace
     environment:
       PORT: "4002"
+      DATABASE_URL: "postgresql://manifest:manifest@postgres:5432/manifest"
       SEARCH_INDEXER_URL: "http://search-indexer-service:4003"
       NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
     command: >
@@ -290,6 +295,8 @@ services:
     ports:
       - "4002:4002"
     depends_on:
+      postgres:
+        condition: service_healthy
       search-indexer-service:
         condition: service_started
       notification-service:
@@ -341,10 +348,14 @@ services:
       - .:/workspace
     environment:
       PORT: "4004"
+      DATABASE_URL: "postgresql://manifest:manifest@postgres:5432/manifest"
     command: >
       sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/submission-tracking-service dev"
     ports:
       - "4004:4004"
+    depends_on:
+      postgres:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:4004/health || exit 1"]
       interval: 10s

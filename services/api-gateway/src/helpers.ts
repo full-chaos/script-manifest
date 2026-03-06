@@ -5,6 +5,10 @@ import { signServiceToken, type Role } from "@script-manifest/service-utils";
 
 export type RequestFn = typeof request;
 type AuthLogger = Pick<FastifyBaseLogger, "warn" | "error">;
+const AUTH_CACHE_TTL_MS = Number(process.env.AUTH_CACHE_TTL_MS ?? 30000);
+const AUTH_CACHE_MAX_ENTRIES = 10000;
+
+export const authCache = new Map<string, { userId: string; expiresAt: number }>();
 
 export type GatewayContext = {
   requestFn: RequestFn;
@@ -25,6 +29,14 @@ export type GatewayContext = {
 };
 
 const devServiceTokenSecret = randomBytes(32).toString("hex");
+
+function evictExpiredAuthCacheEntries(now: number): void {
+  for (const [token, entry] of authCache.entries()) {
+    if (entry.expiresAt <= now) {
+      authCache.delete(token);
+    }
+  }
+}
 
 function resolveServiceTokenSecret(): string | null {
   const configured = process.env.SERVICE_TOKEN_SECRET;
@@ -69,6 +81,13 @@ export async function getUserIdFromAuth(
     return null;
   }
 
+  const now = Date.now();
+  evictExpiredAuthCacheEntries(now);
+  const cachedEntry = authCache.get(authorization);
+  if (cachedEntry) {
+    return cachedEntry.userId;
+  }
+
   try {
     const response = await requestFn(`${identityServiceBase}/internal/auth/me`, {
       method: "GET",
@@ -85,6 +104,14 @@ export async function getUserIdFromAuth(
       logger?.warn({ body }, "Auth response missing user.id");
       return null;
     }
+
+    if (authCache.size >= AUTH_CACHE_MAX_ENTRIES) {
+      authCache.clear();
+    }
+    authCache.set(authorization, {
+      userId: body.user.id,
+      expiresAt: Date.now() + AUTH_CACHE_TTL_MS
+    });
     return body.user.id;
   } catch (error) {
     logger?.error(error, "Error verifying auth token");
@@ -192,8 +219,18 @@ export async function proxyJsonRequest(
       : options;
     const upstream = await requestFn(url, mergedOptions);
     const rawBody = await upstream.body.text();
-    const body = rawBody.length > 0 ? safeJsonParse(rawBody) : null;
-    return reply.status(upstream.statusCode).send(body);
+    const response = reply.status(upstream.statusCode);
+    if (rawBody.length === 0) {
+      return response.send(null);
+    }
+
+    const maybeHeaderReply = response as FastifyReply & {
+      header?: (name: string, value: string) => FastifyReply;
+    };
+    if (typeof maybeHeaderReply.header === "function") {
+      return maybeHeaderReply.header("content-type", "application/json").send(rawBody);
+    }
+    return response.send(rawBody);
   } catch (error) {
     return reply.status(502).send({
       error: "upstream_unavailable",

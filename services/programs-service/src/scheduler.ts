@@ -28,6 +28,14 @@ export type ProgramsSchedulerJobResult = {
   errors: string[];
 };
 
+function chunkArray<T>(items: T[], chunkSize: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < items.length; i += chunkSize) {
+    chunks.push(items.slice(i, i + chunkSize));
+  }
+  return chunks;
+}
+
 async function publishNotification(
   deps: ProgramsSchedulerDependencies,
   event: {
@@ -84,6 +92,16 @@ export async function runProgramsSchedulerJob(
       config.limit ?? 100
     );
     result.scanned = candidates.length;
+    const notificationQueue: Array<{
+      candidate: (typeof candidates)[number];
+      event: {
+        eventType: string;
+        targetUserId: string;
+        resourceType: string;
+        resourceId: string;
+        payload: Record<string, unknown>;
+      };
+    }> = [];
     for (const candidate of candidates) {
       try {
         const sent = await deps.repository.hasApplicationReminderBeenSent(
@@ -94,24 +112,46 @@ export async function runProgramsSchedulerJob(
           result.skipped += 1;
           continue;
         }
-        await publishNotification(deps, {
-          eventType: "program_application_sla_reminder",
-          targetUserId: candidate.userId,
-          resourceType: "program_application",
-          resourceId: candidate.applicationId,
-          payload: {
-            programId: candidate.programId,
-            status: candidate.status,
-            applicationCreatedAt: candidate.applicationCreatedAt
+        notificationQueue.push({
+          candidate,
+          event: {
+            eventType: "program_application_sla_reminder",
+            targetUserId: candidate.userId,
+            resourceType: "program_application",
+            resourceId: candidate.applicationId,
+            payload: {
+              programId: candidate.programId,
+              status: candidate.status,
+              applicationCreatedAt: candidate.applicationCreatedAt
+            }
           }
         });
-        await deps.repository.markApplicationReminderSent(candidate.programId, candidate.applicationId);
-        result.processed += 1;
       } catch (error) {
         result.failed += 1;
         result.errors.push(String(error));
       }
     }
+
+    for (const batch of chunkArray(notificationQueue, 10)) {
+      const outcomes = await Promise.allSettled(batch.map(({ event }) => publishNotification(deps, event)));
+      for (let i = 0; i < batch.length; i++) {
+        const candidate = batch[i]!.candidate;
+        const outcome = outcomes[i];
+        if (outcome?.status === "fulfilled") {
+          try {
+            await deps.repository.markApplicationReminderSent(candidate.programId, candidate.applicationId);
+            result.processed += 1;
+          } catch (error) {
+            result.failed += 1;
+            result.errors.push(String(error));
+          }
+        } else {
+          result.failed += 1;
+          result.errors.push(String(outcome?.reason));
+        }
+      }
+    }
+
     return result;
   }
 
@@ -125,6 +165,16 @@ export async function runProgramsSchedulerJob(
     result.scanned = candidates.length;
 
     const now = Date.now();
+    const notificationQueue: Array<{
+      candidate: (typeof candidates)[number];
+      event: {
+        eventType: string;
+        targetUserId: string;
+        resourceType: string;
+        resourceId: string;
+        payload: Record<string, unknown>;
+      };
+    }> = [];
     for (const candidate of candidates) {
       const startsAtMs = new Date(candidate.startsAt).getTime();
       const minutesUntil = (startsAtMs - now) / 60000;
@@ -147,31 +197,53 @@ export async function runProgramsSchedulerJob(
           result.skipped += 1;
           continue;
         }
-        await publishNotification(deps, {
-          eventType: "program_session_reminder",
-          targetUserId: candidate.userId,
-          resourceType: "program_session",
-          resourceId: candidate.sessionId,
-          payload: {
-            programId: candidate.programId,
-            startsAt: candidate.startsAt,
-            provider: candidate.provider,
-            meetingUrl: candidate.meetingUrl,
-            reminderOffsetMinutes: candidate.reminderOffsetMinutes
+        notificationQueue.push({
+          candidate,
+          event: {
+            eventType: "program_session_reminder",
+            targetUserId: candidate.userId,
+            resourceType: "program_session",
+            resourceId: candidate.sessionId,
+            payload: {
+              programId: candidate.programId,
+              startsAt: candidate.startsAt,
+              provider: candidate.provider,
+              meetingUrl: candidate.meetingUrl,
+              reminderOffsetMinutes: candidate.reminderOffsetMinutes
+            }
           }
         });
-        await deps.repository.markSessionReminderSent(
-          candidate.programId,
-          candidate.sessionId,
-          candidate.userId,
-          candidate.reminderOffsetMinutes
-        );
-        result.processed += 1;
       } catch (error) {
         result.failed += 1;
         result.errors.push(String(error));
       }
     }
+
+    for (const batch of chunkArray(notificationQueue, 10)) {
+      const outcomes = await Promise.allSettled(batch.map(({ event }) => publishNotification(deps, event)));
+      for (let i = 0; i < batch.length; i++) {
+        const candidate = batch[i]!.candidate;
+        const outcome = outcomes[i];
+        if (outcome?.status === "fulfilled") {
+          try {
+            await deps.repository.markSessionReminderSent(
+              candidate.programId,
+              candidate.sessionId,
+              candidate.userId,
+              candidate.reminderOffsetMinutes
+            );
+            result.processed += 1;
+          } catch (error) {
+            result.failed += 1;
+            result.errors.push(String(error));
+          }
+        } else {
+          result.failed += 1;
+          result.errors.push(String(outcome?.reason));
+        }
+      }
+    }
+
     return result;
   }
 
@@ -258,17 +330,29 @@ export function startProgramsScheduler(
       if (new Date().getUTCMinutes() % 30 === 0) {
         jobs.push("cohort_transition", "kpi_aggregation");
       }
-      for (const job of jobs) {
-        const outcome = await runProgramsSchedulerJob(deps, job);
-        deps.logger?.info(
-          {
-            schedulerJob: outcome.job,
-            scanned: outcome.scanned,
-            processed: outcome.processed,
-            failed: outcome.failed
-          },
-          "program scheduler tick complete"
-        );
+      const results = await Promise.allSettled(
+        jobs.map((job) => runProgramsSchedulerJob(deps, job))
+      );
+      for (let i = 0; i < jobs.length; i++) {
+        const job = jobs[i]!;
+        const result = results[i];
+        if (result?.status === "fulfilled") {
+          const outcome = result.value;
+          deps.logger?.info(
+            {
+              schedulerJob: outcome.job,
+              scanned: outcome.scanned,
+              processed: outcome.processed,
+              failed: outcome.failed
+            },
+            "program scheduler tick complete"
+          );
+        } else {
+          deps.logger?.error(
+            { schedulerJob: job, error: result?.reason },
+            "program scheduler job failed"
+          );
+        }
       }
     } catch (error) {
       deps.logger?.error({ error }, "program scheduler tick failed");

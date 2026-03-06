@@ -58,18 +58,23 @@ export interface RankingRepository {
   // Placement scores
   upsertPlacementScore(row: PlacementScoreRow): Promise<void>;
   bulkUpsertPlacementScores(rows: PlacementScoreRow[]): Promise<void>;
+  bulkUpsertPlacementScoresReal?(rows: PlacementScoreRow[]): Promise<void>;
   getPlacementScores(writerId: string): Promise<PlacementScoreRow[]>;
   clearPlacementScores(): Promise<void>;
 
   // Badges
   awardBadge(writerId: string, label: string, placementId: string, competitionId: string): Promise<WriterBadge>;
+  bulkAwardBadges?(rows: Array<{ writerId: string; label: string; placementId: string; competitionId: string }>): Promise<void>;
   getBadges(writerId: string): Promise<WriterBadge[]>;
+  getBadgesByWriterIds?(writerIds: string[]): Promise<Map<string, WriterBadge[]>>;
   hasBadge(placementId: string): Promise<boolean>;
+  getExistingBadgePlacementIds?(placementIds: string[]): Promise<Set<string>>;
 
   // Snapshots
   createSnapshot(writerId: string, totalScore: number): Promise<void>;
   bulkCreateSnapshots(rows: Array<{ writerId: string; totalScore: number }>): Promise<void>;
   getSnapshotScore(writerId: string, daysAgo: number): Promise<number | null>;
+  bulkGetSnapshotScores?(writerIds: string[], daysAgo: number): Promise<Map<string, number>>;
 
   // Anti-gaming
   createFlag(writerId: string, reason: AntiGamingFlagReason, details: string): Promise<AntiGamingFlag>;
@@ -150,8 +155,37 @@ export class PgRankingRepository implements RankingRepository {
   }
 
   async bulkUpsertWriterScores(rows: WriterScoreRow[]): Promise<void> {
-    for (const row of rows) {
-      await this.upsertWriterScore(row);
+    for (const batch of chunkRows(rows, 500)) {
+      const values: unknown[] = [];
+      const placeholders: string[] = [];
+      batch.forEach((row, i) => {
+        const offset = i * 8;
+        placeholders.push(`($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6}, $${offset + 7}, $${offset + 8})`);
+        values.push(
+          row.writerId,
+          row.totalScore,
+          row.submissionCount,
+          row.placementCount,
+          row.rank ?? null,
+          row.tier ?? null,
+          row.scoreChange30d,
+          row.lastUpdatedAt
+        );
+      });
+
+      await getPool().query(
+        `INSERT INTO writer_scores (writer_id, total_score, submission_count, placement_count, rank, tier, score_change_30d, last_updated_at)
+         VALUES ${placeholders.join(", ")}
+         ON CONFLICT (writer_id) DO UPDATE SET
+           total_score = EXCLUDED.total_score,
+           submission_count = EXCLUDED.submission_count,
+           placement_count = EXCLUDED.placement_count,
+           rank = EXCLUDED.rank,
+           tier = EXCLUDED.tier,
+           score_change_30d = EXCLUDED.score_change_30d,
+           last_updated_at = EXCLUDED.last_updated_at`,
+        values
+      );
     }
   }
 
@@ -183,10 +217,13 @@ export class PgRankingRepository implements RankingRepository {
       [...params, limit, offset]
     );
 
+    const writerIds = rows.map((row: Record<string, unknown>) => String(row.writer_id));
+    const badgesByWriterId = await this.getBadgesByWriterIds(writerIds);
+
     const entries: RankedWriterEntry[] = [];
     for (const row of rows) {
       const score = mapWriterScore(row);
-      const badges = await this.getBadges(score.writerId);
+      const badges = badgesByWriterId.get(score.writerId) ?? [];
       entries.push({
         writerId: score.writerId,
         rank: score.rank ?? 0,
@@ -222,8 +259,47 @@ export class PgRankingRepository implements RankingRepository {
   }
 
   async bulkUpsertPlacementScores(rows: PlacementScoreRow[]): Promise<void> {
-    for (const row of rows) {
-      await this.upsertPlacementScore(row);
+    await this.bulkUpsertPlacementScoresReal(rows);
+  }
+
+  async bulkUpsertPlacementScoresReal(rows: PlacementScoreRow[]): Promise<void> {
+    for (const batch of chunkRows(rows, 500)) {
+      const values: unknown[] = [];
+      const placeholders: string[] = [];
+
+      batch.forEach((row, i) => {
+        const offset = i * 11;
+        placeholders.push(
+          `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6}, $${offset + 7}, $${offset + 8}, $${offset + 9}, $${offset + 10}, $${offset + 11}, NOW())`
+        );
+        values.push(
+          row.placementId,
+          row.writerId,
+          row.competitionId,
+          row.projectId,
+          row.statusWeight,
+          row.prestigeMultiplier,
+          row.verificationMultiplier,
+          row.timeDecayFactor,
+          row.confidenceFactor,
+          row.rawScore,
+          row.placementDate
+        );
+      });
+
+      await getPool().query(
+        `INSERT INTO placement_scores (placement_id, writer_id, competition_id, project_id, status_weight, prestige_multiplier, verification_multiplier, time_decay_factor, confidence_factor, raw_score, placement_date, computed_at)
+         VALUES ${placeholders.join(", ")}
+         ON CONFLICT (placement_id) DO UPDATE SET
+           status_weight = EXCLUDED.status_weight,
+           prestige_multiplier = EXCLUDED.prestige_multiplier,
+           verification_multiplier = EXCLUDED.verification_multiplier,
+           time_decay_factor = EXCLUDED.time_decay_factor,
+           confidence_factor = EXCLUDED.confidence_factor,
+           raw_score = EXCLUDED.raw_score,
+           computed_at = EXCLUDED.computed_at`,
+        values
+      );
     }
   }
 
@@ -252,6 +328,26 @@ export class PgRankingRepository implements RankingRepository {
     return { id, writerId, label, placementId, competitionId, awardedAt: now };
   }
 
+  async bulkAwardBadges(rows: Array<{ writerId: string; label: string; placementId: string; competitionId: string }>): Promise<void> {
+    for (const batch of chunkRows(rows, 500)) {
+      const values: unknown[] = [];
+      const placeholders: string[] = [];
+
+      batch.forEach((row, i) => {
+        const offset = i * 6;
+        placeholders.push(`($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6})`);
+        values.push(`badge_${randomUUID()}`, row.writerId, row.label, row.placementId, row.competitionId, new Date().toISOString());
+      });
+
+      await getPool().query(
+        `INSERT INTO writer_badges (id, writer_id, label, placement_id, competition_id, awarded_at)
+         VALUES ${placeholders.join(", ")}
+         ON CONFLICT (placement_id) DO NOTHING`,
+        values
+      );
+    }
+  }
+
   async getBadges(writerId: string): Promise<WriterBadge[]> {
     const { rows } = await getPool().query(
       "SELECT * FROM writer_badges WHERE writer_id = $1 ORDER BY awarded_at DESC",
@@ -260,12 +356,36 @@ export class PgRankingRepository implements RankingRepository {
     return rows.map(mapBadge);
   }
 
+  async getBadgesByWriterIds(writerIds: string[]): Promise<Map<string, WriterBadge[]>> {
+    if (writerIds.length === 0) return new Map();
+    const { rows } = await getPool().query(
+      `SELECT * FROM writer_badges WHERE writer_id = ANY($1) ORDER BY awarded_at DESC`,
+      [writerIds]
+    );
+    const map = new Map<string, WriterBadge[]>();
+    for (const row of rows) {
+      const badge = mapBadge(row);
+      if (!map.has(badge.writerId)) map.set(badge.writerId, []);
+      map.get(badge.writerId)!.push(badge);
+    }
+    return map;
+  }
+
   async hasBadge(placementId: string): Promise<boolean> {
     const { rows } = await getPool().query(
       "SELECT 1 FROM writer_badges WHERE placement_id = $1",
       [placementId]
     );
     return rows.length > 0;
+  }
+
+  async getExistingBadgePlacementIds(placementIds: string[]): Promise<Set<string>> {
+    if (placementIds.length === 0) return new Set();
+    const { rows } = await getPool().query(
+      `SELECT placement_id FROM writer_badges WHERE placement_id = ANY($1)`,
+      [placementIds]
+    );
+    return new Set(rows.map((row: Record<string, unknown>) => String(row.placement_id)));
   }
 
   // ── Snapshots ──
@@ -281,8 +401,22 @@ export class PgRankingRepository implements RankingRepository {
   }
 
   async bulkCreateSnapshots(rows: Array<{ writerId: string; totalScore: number }>): Promise<void> {
-    for (const row of rows) {
-      await this.createSnapshot(row.writerId, row.totalScore);
+    for (const batch of chunkRows(rows, 500)) {
+      const values: unknown[] = [];
+      const placeholders: string[] = [];
+
+      batch.forEach((row, i) => {
+        const offset = i * 3;
+        placeholders.push(`($${offset + 1}, $${offset + 2}, $${offset + 3}, CURRENT_DATE)`);
+        values.push(`snap_${randomUUID()}`, row.writerId, row.totalScore);
+      });
+
+      await getPool().query(
+        `INSERT INTO score_snapshots (id, writer_id, total_score, snapshot_date)
+         VALUES ${placeholders.join(", ")}
+         ON CONFLICT (writer_id, snapshot_date) DO UPDATE SET total_score = EXCLUDED.total_score`,
+        values
+      );
     }
   }
 
@@ -294,6 +428,18 @@ export class PgRankingRepository implements RankingRepository {
       [writerId, daysAgo]
     );
     return rows[0] ? Number(rows[0].total_score) : null;
+  }
+
+  async bulkGetSnapshotScores(writerIds: string[], daysAgo: number): Promise<Map<string, number>> {
+    if (writerIds.length === 0) return new Map();
+    const { rows } = await getPool().query(
+      `SELECT DISTINCT ON (writer_id) writer_id, total_score
+       FROM score_snapshots
+       WHERE writer_id = ANY($1) AND snapshot_date <= CURRENT_DATE - $2::int
+       ORDER BY writer_id, snapshot_date DESC`,
+      [writerIds, daysAgo]
+    );
+    return new Map(rows.map((row: Record<string, unknown>) => [String(row.writer_id), Number(row.total_score)]));
   }
 
   // ── Anti-gaming ──
@@ -440,4 +586,13 @@ function mapAppeal(row: Record<string, unknown>): RankingAppeal {
     createdAt: (row.created_at as Date).toISOString(),
     updatedAt: (row.updated_at as Date).toISOString()
   };
+}
+
+function chunkRows<T>(rows: T[], chunkSize: number): T[][] {
+  if (rows.length === 0) return [];
+  const chunks: T[][] = [];
+  for (let i = 0; i < rows.length; i += chunkSize) {
+    chunks.push(rows.slice(i, i + chunkSize));
+  }
+  return chunks;
 }

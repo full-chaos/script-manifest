@@ -230,7 +230,21 @@ export function buildServer(options: RankingServiceOptions = {}): FastifyInstanc
       }
     }
 
-    let badgesAwarded = 0;
+    const placementRows: Array<{
+      placementId: string;
+      writerId: string;
+      competitionId: string;
+      projectId: string;
+      statusWeight: number;
+      prestigeMultiplier: number;
+      verificationMultiplier: number;
+      timeDecayFactor: number;
+      confidenceFactor: number;
+      rawScore: number;
+      placementDate: string;
+    }> = [];
+    const badgeCandidates: Array<{ writerId: string; label: string; placementId: string; competitionId: string }> = [];
+
     for (const placement of placements) {
       const submission = submissionMap.get(placement.submissionId);
       if (!submission) continue;
@@ -246,7 +260,7 @@ export function buildServer(options: RankingServiceOptions = {}): FastifyInstanc
         evaluationCount: evaluationCount + 1
       });
 
-      await repo.upsertPlacementScore({
+      placementRows.push({
         placementId: placement.id,
         writerId: submission.writerId,
         competitionId: submission.competitionId,
@@ -271,19 +285,47 @@ export function buildServer(options: RankingServiceOptions = {}): FastifyInstanc
       // Award badges for verified quarterfinalist+
       if (
         placement.verificationState === "verified" &&
-        placement.status !== "pending" &&
-        !(await repo.hasBadge(placement.id))
+        placement.status !== "pending"
       ) {
         const comp = competitionMap.get(submission.competitionId);
         const title = comp?.title ?? submission.competitionId;
         const year = new Date(placement.createdAt).getFullYear();
         const label = generateBadgeLabel(placement.status, title, year);
         if (label) {
-          await repo.awardBadge(submission.writerId, label, placement.id, submission.competitionId);
-          badgesAwarded++;
+          badgeCandidates.push({
+            writerId: submission.writerId,
+            label,
+            placementId: placement.id,
+            competitionId: submission.competitionId
+          });
         }
       }
     }
+
+    if (repo.bulkUpsertPlacementScoresReal) {
+      await repo.bulkUpsertPlacementScoresReal(placementRows);
+    } else {
+      await repo.bulkUpsertPlacementScores(placementRows);
+    }
+
+    const existingBadgePlacementIds = repo.getExistingBadgePlacementIds
+      ? await repo.getExistingBadgePlacementIds(badgeCandidates.map((candidate) => candidate.placementId))
+      : new Set<string>(
+        (
+          await Promise.all(
+            badgeCandidates.map(async (candidate) => (await repo.hasBadge(candidate.placementId)) ? candidate.placementId : null)
+          )
+        ).filter((placementId): placementId is string => placementId !== null)
+      );
+    const badgesToAward = badgeCandidates.filter((candidate) => !existingBadgePlacementIds.has(candidate.placementId));
+    if (repo.bulkAwardBadges) {
+      await repo.bulkAwardBadges(badgesToAward);
+    } else {
+      for (const badge of badgesToAward) {
+        await repo.awardBadge(badge.writerId, badge.label, badge.placementId, badge.competitionId);
+      }
+    }
+    const badgesAwarded = badgesToAward.length;
 
     // 7. Assign ranks and tiers
     const sortedWriters = [...writerData.entries()]
@@ -303,8 +345,23 @@ export function buildServer(options: RankingServiceOptions = {}): FastifyInstanc
     }));
 
     // 8. Compute 30-day deltas
+    const snapshotScores = repo.bulkGetSnapshotScores
+      ? await repo.bulkGetSnapshotScores(
+        scoreRows.map((row) => row.writerId),
+        30
+      )
+      : new Map<string, number>(
+        (
+          await Promise.all(
+            scoreRows.map(async (row) => {
+              const score = await repo.getSnapshotScore(row.writerId, 30);
+              return score === null ? null : [row.writerId, score] as const;
+            })
+          )
+        ).filter((entry): entry is readonly [string, number] => entry !== null)
+      );
     for (const row of scoreRows) {
-      const oldScore = await repo.getSnapshotScore(row.writerId, 30);
+      const oldScore = snapshotScores.get(row.writerId) ?? null;
       if (oldScore !== null) {
         row.scoreChange30d = Math.round((row.totalScore - oldScore) * 100) / 100;
       }

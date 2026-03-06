@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type {
   IdentityRepository,
+  RefreshTokenIssue,
+  RefreshTokenRotateResult,
   IdentitySession,
   IdentityUser,
   OAuthStateRecord,
@@ -15,6 +17,13 @@ class MemoryRepo implements IdentityRepository {
   private usersByEmail = new Map<string, string>();
   private sessions = new Map<string, IdentitySession>();
   private oauthStates = new Map<string, OAuthStateRecord>();
+  private refreshTokens = new Map<string, {
+    userId: string;
+    familyId: string;
+    expiresAt: string;
+    usedAt?: string;
+    revokedAt?: string;
+  }>();
 
   async init(): Promise<void> {}
 
@@ -100,6 +109,53 @@ class MemoryRepo implements IdentityRepository {
       }
     }
   }
+
+  async createRefreshToken(userId: string, familyId?: string): Promise<RefreshTokenIssue> {
+    const token = `rfr_${this.refreshTokens.size + 1}`;
+    const finalFamilyId = familyId ?? `fam_${this.refreshTokens.size + 1}`;
+    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    this.refreshTokens.set(token, {
+      userId,
+      familyId: finalFamilyId,
+      expiresAt,
+    });
+    return {
+      refreshToken: token,
+      familyId: finalFamilyId,
+      expiresAt,
+    };
+  }
+
+  async rotateRefreshToken(rawToken: string): Promise<RefreshTokenRotateResult> {
+    const token = this.refreshTokens.get(rawToken);
+    if (!token) {
+      return { status: "invalid" };
+    }
+
+    if (token.usedAt) {
+      return { status: "reuse_detected", familyId: token.familyId };
+    }
+
+    if (token.revokedAt || new Date(token.expiresAt).getTime() <= Date.now()) {
+      return { status: "invalid" };
+    }
+
+    token.usedAt = new Date().toISOString();
+    const next = await this.createRefreshToken(token.userId, token.familyId);
+    return {
+      status: "rotated",
+      userId: token.userId,
+      ...next,
+    };
+  }
+
+  async revokeTokenFamily(familyId: string): Promise<void> {
+    for (const token of this.refreshTokens.values()) {
+      if (token.familyId === familyId) {
+        token.revokedAt = new Date().toISOString();
+      }
+    }
+  }
 }
 
 test("identity register/login/me/logout flow", async (t) => {
@@ -120,6 +176,7 @@ test("identity register/login/me/logout flow", async (t) => {
   assert.equal(register.statusCode, 201);
   const registerPayload = register.json();
   assert.ok(registerPayload.token);
+  assert.ok(registerPayload.refreshToken);
 
   const login = await server.inject({
     method: "POST",
@@ -131,6 +188,7 @@ test("identity register/login/me/logout flow", async (t) => {
   });
   assert.equal(login.statusCode, 200);
   const token = login.json().token as string;
+  assert.ok(login.json().refreshToken);
 
   const me = await server.inject({
     method: "GET",
@@ -257,6 +315,7 @@ test("identity oauth start/complete issues session and enforces one-time state",
   });
   assert.equal(complete.statusCode, 200);
   assert.ok(complete.json().token);
+  assert.ok(complete.json().refreshToken);
   assert.match(complete.json().user.email as string, /^google\+writer-two@oauth\.local$/);
 
   const replay = await server.inject({
@@ -290,4 +349,49 @@ test("identity oauth callback validates code", async (t) => {
   });
   assert.equal(callback.statusCode, 400);
   assert.equal(callback.json().error, "invalid_oauth_code");
+});
+
+test("identity refresh rotates token and blocks reuse", async (t) => {
+  const server = buildServer({ logger: false, repository: new MemoryRepo() });
+  t.after(async () => {
+    await server.close();
+  });
+
+  const login = await server.inject({
+    method: "POST",
+    url: "/internal/auth/register",
+    payload: {
+      email: "refresh@example.com",
+      password: "password123",
+      displayName: "Refresh User"
+    }
+  });
+  assert.equal(login.statusCode, 201);
+  const firstRefreshToken = login.json().refreshToken as string;
+
+  const refresh = await server.inject({
+    method: "POST",
+    url: "/internal/auth/refresh",
+    payload: { refreshToken: firstRefreshToken }
+  });
+  assert.equal(refresh.statusCode, 200);
+  const secondRefreshToken = refresh.json().refreshToken as string;
+  assert.ok(secondRefreshToken);
+  assert.notEqual(secondRefreshToken, firstRefreshToken);
+
+  const reused = await server.inject({
+    method: "POST",
+    url: "/internal/auth/refresh",
+    payload: { refreshToken: firstRefreshToken }
+  });
+  assert.equal(reused.statusCode, 401);
+  assert.equal(reused.json().error, "refresh_token_reuse_detected");
+
+  const revokedFamily = await server.inject({
+    method: "POST",
+    url: "/internal/auth/refresh",
+    payload: { refreshToken: secondRefreshToken }
+  });
+  assert.equal(revokedFamily.statusCode, 401);
+  assert.equal(revokedFamily.json().error, "invalid_refresh_token");
 });

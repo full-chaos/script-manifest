@@ -170,6 +170,9 @@ importers:
       fastify-metrics:
         specifier: ^12.1.0
         version: 12.1.0(fastify@5.8.1)
+      pino:
+        specifier: ^10.3.1
+        version: 10.3.1
     devDependencies:
       '@types/node':
         specifier: ^25.3.2

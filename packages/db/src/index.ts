@@ -61,6 +61,19 @@ export async function ensureCoreTables(): Promise<void> {
       );
     `);
 
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS refresh_tokens (
+        id TEXT PRIMARY KEY,
+        token_hash TEXT UNIQUE NOT NULL,
+        family_id TEXT NOT NULL,
+        user_id TEXT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+        expires_at TIMESTAMPTZ NOT NULL,
+        used_at TIMESTAMPTZ,
+        revoked_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+
   await db.query(`
     CREATE TABLE IF NOT EXISTS writer_profiles (
       writer_id TEXT PRIMARY KEY REFERENCES app_users(id) ON DELETE CASCADE,
@@ -188,6 +201,16 @@ export async function ensureCoreTables(): Promise<void> {
     await db.query(`
       CREATE INDEX IF NOT EXISTS idx_app_sessions_user_id
         ON app_sessions(user_id);
+    `);
+
+    await db.query(`
+      CREATE INDEX IF NOT EXISTS idx_refresh_tokens_family
+        ON refresh_tokens(family_id);
+    `);
+
+    await db.query(`
+      CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user
+        ON refresh_tokens(user_id);
     `);
   } finally {
     await db.query("SELECT pg_advisory_unlock($1)", [advisoryLockId]);

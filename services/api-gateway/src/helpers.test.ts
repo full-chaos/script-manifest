@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { FastifyReply } from "fastify";
 import type { request } from "undici";
+import { verifyServiceToken } from "@script-manifest/service-utils";
 import {
   addAuthUserIdHeader,
   buildQuerySuffix,
@@ -66,20 +67,38 @@ test("buildQuerySuffix includes strings and arrays only", () => {
 });
 
 test("header helpers keep auth behavior deterministic", () => {
-  assert.deepEqual(copyAuthHeader(undefined), {});
-  assert.deepEqual(copyAuthHeader("Bearer sess_1"), { authorization: "Bearer sess_1" });
-  assert.deepEqual(addAuthUserIdHeader({ a: "b" }, null), { a: "b" });
-  assert.deepEqual(addAuthUserIdHeader({ a: "b" }, "writer_1"), {
-    a: "b",
-    "x-auth-user-id": "writer_1"
-  });
-  assert.equal(readHeaderValue({ authorization: "Bearer sess_1" }, "authorization"), "Bearer sess_1");
-  assert.equal(readHeaderValue({ authorization: "" }, "authorization"), undefined);
-  assert.deepEqual(parseAllowlist(" admin_1,admin_2 , ,admin_3 "), [
-    "admin_1",
-    "admin_2",
-    "admin_3"
-  ]);
+  const previousSecret = process.env.SERVICE_TOKEN_SECRET;
+  process.env.SERVICE_TOKEN_SECRET = "test-secret";
+
+  try {
+    assert.deepEqual(copyAuthHeader(undefined), {});
+    assert.deepEqual(copyAuthHeader("Bearer sess_1"), { authorization: "Bearer sess_1" });
+    assert.deepEqual(addAuthUserIdHeader({ a: "b" }, null), { a: "b" });
+
+    const forwarded = addAuthUserIdHeader({ a: "b" }, "writer_1");
+    assert.equal(forwarded.a, "b");
+    assert.equal(forwarded["x-auth-user-id"], "writer_1");
+    assert.ok(forwarded["x-service-token"]);
+
+    const tokenPayload = verifyServiceToken(forwarded["x-service-token"], "test-secret");
+    assert.ok(tokenPayload);
+    assert.equal(tokenPayload.sub, "writer_1");
+    assert.equal(tokenPayload.role, "writer");
+
+    assert.equal(readHeaderValue({ authorization: "Bearer sess_1" }, "authorization"), "Bearer sess_1");
+    assert.equal(readHeaderValue({ authorization: "" }, "authorization"), undefined);
+    assert.deepEqual(parseAllowlist(" admin_1,admin_2 , ,admin_3 "), [
+      "admin_1",
+      "admin_2",
+      "admin_3"
+    ]);
+  } finally {
+    if (previousSecret === undefined) {
+      delete process.env.SERVICE_TOKEN_SECRET;
+    } else {
+      process.env.SERVICE_TOKEN_SECRET = previousSecret;
+    }
+  }
 });
 
 test("getUserIdFromAuth returns null when authorization is missing", async () => {

@@ -185,6 +185,7 @@ export type AuthUser = z.infer<typeof AuthUserSchema>;
 
 export const AuthSessionResponseSchema = z.object({
   token: z.string().min(1),
+  refreshToken: z.string().min(1).optional(),
   expiresAt: z.string().datetime({ offset: true }),
   user: AuthUserSchema
 });

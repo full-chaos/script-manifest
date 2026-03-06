@@ -166,11 +166,11 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
     );
   });
 
-  server.get("/internal/programs", {
+  server.get<{ Querystring: { status?: string } }>("/internal/programs", {
     config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
-      const query = req.query as { status?: string };
+      const query = req.query;
       const statusParsed = typeof query.status === "string"
         ? ProgramStatusSchema.safeParse(query.status)
         : null;
@@ -182,17 +182,17 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
     }
   });
 
-  server.get("/internal/programs/:programId/application-form", {
+  server.get<{ Params: { programId: string } }>("/internal/programs/:programId/application-form", {
     config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
-      const { programId } = req.params as { programId: string };
+      const { programId } = req.params;
       const form = await repository.getProgramApplicationForm(programId);
       return reply.send({ form });
     }
   });
 
-  server.post("/internal/programs/:programId/applications", {
+  server.post<{ Params: { programId: string } }>("/internal/programs/:programId/applications", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
@@ -200,7 +200,7 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
       if (!userId) {
         return reply.status(403).send({ error: "forbidden" });
       }
-      const { programId } = req.params as { programId: string };
+      const { programId } = req.params;
       const parsed = ProgramApplicationCreateRequestSchema.safeParse(req.body);
       if (!parsed.success) {
         return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
@@ -213,7 +213,7 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
     }
   });
 
-  server.get("/internal/programs/:programId/applications/me", {
+  server.get<{ Params: { programId: string } }>("/internal/programs/:programId/applications/me", {
     config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
@@ -221,13 +221,13 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
       if (!userId) {
         return reply.status(403).send({ error: "forbidden" });
       }
-      const { programId } = req.params as { programId: string };
+      const { programId } = req.params;
       const applications = await repository.listUserProgramApplications(programId, userId);
       return reply.send({ applications });
     }
   });
 
-  server.get("/internal/admin/programs/:programId/applications", {
+  server.get<{ Params: { programId: string } }>("/internal/admin/programs/:programId/applications", {
     config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
@@ -235,13 +235,13 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
-      const { programId } = req.params as { programId: string };
+      const { programId } = req.params;
       const applications = await repository.listProgramApplications(programId);
       return reply.send({ applications });
     }
   });
 
-  server.post("/internal/admin/programs/:programId/applications/:applicationId/review", {
+  server.post<{ Params: { programId: string; applicationId: string } }>("/internal/admin/programs/:programId/applications/:applicationId/review", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
@@ -249,7 +249,7 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
       if (!reviewerUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
-      const { programId, applicationId } = req.params as { programId: string; applicationId: string };
+      const { programId, applicationId } = req.params;
       const parsed = ProgramApplicationReviewRequestSchema.safeParse(req.body);
       if (!parsed.success) {
         return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
@@ -295,7 +295,7 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
     }
   });
 
-  server.put("/internal/admin/programs/:programId/application-form", {
+  server.put<{ Params: { programId: string } }>("/internal/admin/programs/:programId/application-form", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
@@ -307,7 +307,7 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
       if (!parsed.success) {
         return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
       }
-      const { programId } = req.params as { programId: string };
+      const { programId } = req.params;
       const form = await repository.upsertProgramApplicationForm(
         programId,
         adminUserId,
@@ -320,7 +320,7 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
     }
   });
 
-  server.put("/internal/admin/programs/:programId/scoring-rubric", {
+  server.put<{ Params: { programId: string } }>("/internal/admin/programs/:programId/scoring-rubric", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
@@ -332,7 +332,7 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
       if (!parsed.success) {
         return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
       }
-      const { programId } = req.params as { programId: string };
+      const { programId } = req.params;
       const rubric = await repository.upsertProgramScoringRubric(
         programId,
         adminUserId,
@@ -345,7 +345,7 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
     }
   });
 
-  server.get("/internal/admin/programs/:programId/scoring-rubric", {
+  server.get<{ Params: { programId: string } }>("/internal/admin/programs/:programId/scoring-rubric", {
     config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
@@ -353,13 +353,13 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
-      const { programId } = req.params as { programId: string };
+      const { programId } = req.params;
       const rubric = await repository.getProgramScoringRubric(programId);
       return reply.send({ rubric });
     }
   });
 
-  server.get("/internal/admin/programs/:programId/cohorts", {
+  server.get<{ Params: { programId: string } }>("/internal/admin/programs/:programId/cohorts", {
     config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
@@ -367,13 +367,13 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
-      const { programId } = req.params as { programId: string };
+      const { programId } = req.params;
       const cohorts = await repository.listProgramCohorts(programId);
       return reply.send({ cohorts });
     }
   });
 
-  server.post("/internal/admin/programs/:programId/cohorts", {
+  server.post<{ Params: { programId: string } }>("/internal/admin/programs/:programId/cohorts", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
@@ -381,7 +381,7 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
-      const { programId } = req.params as { programId: string };
+      const { programId } = req.params;
       const parsed = ProgramCohortCreateRequestSchema.safeParse(req.body);
       if (!parsed.success) {
         return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
@@ -394,7 +394,7 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
     }
   });
 
-  server.post("/internal/admin/programs/:programId/availability", {
+  server.post<{ Params: { programId: string } }>("/internal/admin/programs/:programId/availability", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
@@ -406,7 +406,7 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
       if (!parsed.success) {
         return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
       }
-      const { programId } = req.params as { programId: string };
+      const { programId } = req.params;
       const windows = await repository.replaceAvailabilityWindows(
         programId,
         parsed.data.windows.map((window) => ({ ...window }))
@@ -418,7 +418,7 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
     }
   });
 
-  server.post("/internal/admin/programs/:programId/scheduling/match", {
+  server.post<{ Params: { programId: string } }>("/internal/admin/programs/:programId/scheduling/match", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
@@ -430,7 +430,7 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
       if (!parsed.success) {
         return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
       }
-      const { programId } = req.params as { programId: string };
+      const { programId } = req.params;
       const windows = await repository.listAvailabilityWindows(programId);
       const targetWindows = parsed.data.attendeeUserIds.map((userId) =>
         windows.filter((window) => window.userId === userId)
@@ -485,7 +485,7 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
     }
   });
 
-  server.post("/internal/admin/programs/:programId/sessions", {
+  server.post<{ Params: { programId: string } }>("/internal/admin/programs/:programId/sessions", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
@@ -493,7 +493,7 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
-      const { programId } = req.params as { programId: string };
+      const { programId } = req.params;
       const parsed = ProgramSessionCreateRequestSchema.safeParse(req.body);
       if (!parsed.success) {
         return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
@@ -506,7 +506,7 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
     }
   });
 
-  server.post("/internal/admin/programs/:programId/sessions/:sessionId/attendance", {
+  server.post<{ Params: { programId: string; sessionId: string } }>("/internal/admin/programs/:programId/sessions/:sessionId/attendance", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
@@ -514,7 +514,7 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
-      const { programId, sessionId } = req.params as { programId: string; sessionId: string };
+      const { programId, sessionId } = req.params;
       const parsed = ProgramSessionAttendanceUpsertRequestSchema.safeParse(req.body);
       if (!parsed.success) {
         return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
@@ -532,7 +532,7 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
     }
   });
 
-  server.patch("/internal/admin/programs/:programId/sessions/:sessionId/integration", {
+  server.patch<{ Params: { programId: string; sessionId: string } }>("/internal/admin/programs/:programId/sessions/:sessionId/integration", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
@@ -540,7 +540,7 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
-      const { programId, sessionId } = req.params as { programId: string; sessionId: string };
+      const { programId, sessionId } = req.params;
       const parsed = ProgramSessionIntegrationUpdateSchema.safeParse(req.body);
       if (!parsed.success) {
         return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
@@ -553,7 +553,7 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
     }
   });
 
-  server.post("/internal/admin/programs/:programId/sessions/:sessionId/reminders/dispatch", {
+  server.post<{ Params: { programId: string; sessionId: string } }>("/internal/admin/programs/:programId/sessions/:sessionId/reminders/dispatch", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
@@ -561,7 +561,7 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
-      const { programId, sessionId } = req.params as { programId: string; sessionId: string };
+      const { programId, sessionId } = req.params;
       const integration = await repository.getProgramSessionIntegration(programId, sessionId);
       const attendees = await repository.listSessionAttendeeUserIds(programId, sessionId);
       if (!integration || !attendees) {
@@ -574,7 +574,7 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
     }
   });
 
-  server.post("/internal/admin/programs/:programId/mentorship/matches", {
+  server.post<{ Params: { programId: string } }>("/internal/admin/programs/:programId/mentorship/matches", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
@@ -582,7 +582,7 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
-      const { programId } = req.params as { programId: string };
+      const { programId } = req.params;
       const parsed = ProgramMentorshipMatchCreateRequestSchema.safeParse(req.body);
       if (!parsed.success) {
         return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
@@ -595,7 +595,7 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
     }
   });
 
-  server.post("/internal/admin/programs/:programId/outcomes", {
+  server.post<{ Params: { programId: string } }>("/internal/admin/programs/:programId/outcomes", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
@@ -603,7 +603,7 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
-      const { programId } = req.params as { programId: string };
+      const { programId } = req.params;
       const parsed = ProgramOutcomeCreateSchema.safeParse(req.body);
       if (!parsed.success) {
         return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
@@ -616,7 +616,7 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
     }
   });
 
-  server.post("/internal/admin/programs/:programId/crm-sync", {
+  server.post<{ Params: { programId: string } }>("/internal/admin/programs/:programId/crm-sync", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
@@ -624,7 +624,7 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
-      const { programId } = req.params as { programId: string };
+      const { programId } = req.params;
       const parsed = ProgramCrmSyncCreateSchema.safeParse(req.body);
       if (!parsed.success) {
         return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
@@ -640,7 +640,7 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
     }
   });
 
-  server.get("/internal/admin/programs/:programId/crm-sync", {
+  server.get<{ Params: { programId: string }; Querystring: { status?: string; limit?: string | number; offset?: string | number } }>("/internal/admin/programs/:programId/crm-sync", {
     config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
@@ -648,8 +648,8 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
-      const { programId } = req.params as { programId: string };
-      const query = req.query as { status?: string; limit?: string | number; offset?: string | number };
+      const { programId } = req.params;
+      const query = req.query;
       const validStatuses = new Set(["queued", "running", "succeeded", "failed", "dead_letter"]);
       const status = typeof query.status === "string" && validStatuses.has(query.status)
         ? query.status as "queued" | "running" | "succeeded" | "failed" | "dead_letter"
@@ -705,7 +705,7 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
     }
   });
 
-  server.get("/internal/admin/programs/:programId/analytics", {
+  server.get<{ Params: { programId: string } }>("/internal/admin/programs/:programId/analytics", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
@@ -713,7 +713,7 @@ export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstan
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
-      const { programId } = req.params as { programId: string };
+      const { programId } = req.params;
       const summary = await repository.getProgramAnalytics(programId);
       if (!summary) {
         return reply.status(404).send({ error: "program_not_found" });
@@ -737,7 +737,7 @@ export async function startServer(): Promise<void> {
     const tracingSdk = setupTracing("programs-service");
     if (tracingSdk) {
       process.once("SIGTERM", () => {
-        tracingSdk.shutdown().catch((err) => console.error("OTel SDK shutdown error", err));
+        tracingSdk.shutdown().catch((err) => server.log.error(err, "OTel SDK shutdown error"));
       });
     }
     boot.phase("tracing initialized");
@@ -761,8 +761,5 @@ function isMainModule(metaUrl: string): boolean {
 }
 
 if (isMainModule(import.meta.url)) {
-  startServer().catch((error) => {
-    console.error(error);
-    process.exit(1);
-  });
+  startServer().catch((error) => { process.stderr.write(String(error) + "\n"); process.exit(1); });
 }

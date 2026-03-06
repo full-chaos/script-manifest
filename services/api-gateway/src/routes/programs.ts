@@ -30,11 +30,11 @@ export function registerProgramsRoutes(server: FastifyInstance, ctx: GatewayCont
     }
   });
 
-  server.post("/api/v1/programs/:programId/applications", {
+  server.post<{ Params: { programId: string } }>("/api/v1/programs/:programId/applications", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
-      const { programId } = req.params as { programId: string };
-      const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
+      const { programId } = req.params;
+      const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
       if (!userId) {
         return reply.status(401).send({ error: "unauthorized", detail: "Could not resolve user from auth token" });
       }
@@ -55,11 +55,11 @@ export function registerProgramsRoutes(server: FastifyInstance, ctx: GatewayCont
     }
   });
 
-  server.get("/api/v1/programs/:programId/applications/me", {
+  server.get<{ Params: { programId: string } }>("/api/v1/programs/:programId/applications/me", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
-      const { programId } = req.params as { programId: string };
-      const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
+      const { programId } = req.params;
+      const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
       if (!userId) {
         return reply.status(401).send({ error: "unauthorized", detail: "Could not resolve user from auth token" });
       }
@@ -75,10 +75,10 @@ export function registerProgramsRoutes(server: FastifyInstance, ctx: GatewayCont
     }
   });
 
-  server.get("/api/v1/programs/:programId/application-form", {
+  server.get<{ Params: { programId: string } }>("/api/v1/programs/:programId/application-form", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
-      const { programId } = req.params as { programId: string };
+      const { programId } = req.params;
       return proxyJsonRequest(
         reply,
         ctx.requestFn,
@@ -88,16 +88,11 @@ export function registerProgramsRoutes(server: FastifyInstance, ctx: GatewayCont
     }
   });
 
-  server.get("/api/v1/admin/programs/:programId/applications", {
+  server.get<{ Params: { programId: string } }>("/api/v1/admin/programs/:programId/applications", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
-      const { programId } = req.params as { programId: string };
-      const adminUserId = await resolveAdminUserId(
-        ctx.requestFn,
-        ctx.identityServiceBase,
-        req.headers as Record<string, unknown>,
-        ctx.industryAdminAllowlist
-      );
+      const { programId } = req.params;
+      const adminUserId = await resolveAdminUserId(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, ctx.industryAdminAllowlist, req.log);
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -113,16 +108,11 @@ export function registerProgramsRoutes(server: FastifyInstance, ctx: GatewayCont
     }
   });
 
-  server.post("/api/v1/admin/programs/:programId/applications/:applicationId/review", {
+  server.post<{ Params: { programId: string; applicationId: string } }>("/api/v1/admin/programs/:programId/applications/:applicationId/review", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
-      const { programId, applicationId } = req.params as { programId: string; applicationId: string };
-      const adminUserId = await resolveAdminUserId(
-        ctx.requestFn,
-        ctx.identityServiceBase,
-        req.headers as Record<string, unknown>,
-        ctx.industryAdminAllowlist
-      );
+      const { programId, applicationId } = req.params;
+      const adminUserId = await resolveAdminUserId(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, ctx.industryAdminAllowlist, req.log);
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -146,16 +136,11 @@ export function registerProgramsRoutes(server: FastifyInstance, ctx: GatewayCont
     }
   });
 
-  server.put("/api/v1/admin/programs/:programId/application-form", {
+  server.put<{ Params: { programId: string } }>("/api/v1/admin/programs/:programId/application-form", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
-      const { programId } = req.params as { programId: string };
-      const adminUserId = await resolveAdminUserId(
-        ctx.requestFn,
-        ctx.identityServiceBase,
-        req.headers as Record<string, unknown>,
-        ctx.industryAdminAllowlist
-      );
+      const { programId } = req.params;
+      const adminUserId = await resolveAdminUserId(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, ctx.industryAdminAllowlist, req.log);
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -176,16 +161,11 @@ export function registerProgramsRoutes(server: FastifyInstance, ctx: GatewayCont
     }
   });
 
-  server.put("/api/v1/admin/programs/:programId/scoring-rubric", {
+  server.put<{ Params: { programId: string } }>("/api/v1/admin/programs/:programId/scoring-rubric", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
-      const { programId } = req.params as { programId: string };
-      const adminUserId = await resolveAdminUserId(
-        ctx.requestFn,
-        ctx.identityServiceBase,
-        req.headers as Record<string, unknown>,
-        ctx.industryAdminAllowlist
-      );
+      const { programId } = req.params;
+      const adminUserId = await resolveAdminUserId(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, ctx.industryAdminAllowlist, req.log);
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -206,16 +186,11 @@ export function registerProgramsRoutes(server: FastifyInstance, ctx: GatewayCont
     }
   });
 
-  server.get("/api/v1/admin/programs/:programId/cohorts", {
+  server.get<{ Params: { programId: string } }>("/api/v1/admin/programs/:programId/cohorts", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
-      const { programId } = req.params as { programId: string };
-      const adminUserId = await resolveAdminUserId(
-        ctx.requestFn,
-        ctx.identityServiceBase,
-        req.headers as Record<string, unknown>,
-        ctx.industryAdminAllowlist
-      );
+      const { programId } = req.params;
+      const adminUserId = await resolveAdminUserId(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, ctx.industryAdminAllowlist, req.log);
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -231,16 +206,11 @@ export function registerProgramsRoutes(server: FastifyInstance, ctx: GatewayCont
     }
   });
 
-  server.post("/api/v1/admin/programs/:programId/cohorts", {
+  server.post<{ Params: { programId: string } }>("/api/v1/admin/programs/:programId/cohorts", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
-      const { programId } = req.params as { programId: string };
-      const adminUserId = await resolveAdminUserId(
-        ctx.requestFn,
-        ctx.identityServiceBase,
-        req.headers as Record<string, unknown>,
-        ctx.industryAdminAllowlist
-      );
+      const { programId } = req.params;
+      const adminUserId = await resolveAdminUserId(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, ctx.industryAdminAllowlist, req.log);
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -264,16 +234,11 @@ export function registerProgramsRoutes(server: FastifyInstance, ctx: GatewayCont
     }
   });
 
-  server.post("/api/v1/admin/programs/:programId/availability", {
+  server.post<{ Params: { programId: string } }>("/api/v1/admin/programs/:programId/availability", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
-      const { programId } = req.params as { programId: string };
-      const adminUserId = await resolveAdminUserId(
-        ctx.requestFn,
-        ctx.identityServiceBase,
-        req.headers as Record<string, unknown>,
-        ctx.industryAdminAllowlist
-      );
+      const { programId } = req.params;
+      const adminUserId = await resolveAdminUserId(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, ctx.industryAdminAllowlist, req.log);
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -294,16 +259,11 @@ export function registerProgramsRoutes(server: FastifyInstance, ctx: GatewayCont
     }
   });
 
-  server.post("/api/v1/admin/programs/:programId/scheduling/match", {
+  server.post<{ Params: { programId: string } }>("/api/v1/admin/programs/:programId/scheduling/match", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
-      const { programId } = req.params as { programId: string };
-      const adminUserId = await resolveAdminUserId(
-        ctx.requestFn,
-        ctx.identityServiceBase,
-        req.headers as Record<string, unknown>,
-        ctx.industryAdminAllowlist
-      );
+      const { programId } = req.params;
+      const adminUserId = await resolveAdminUserId(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, ctx.industryAdminAllowlist, req.log);
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -324,16 +284,11 @@ export function registerProgramsRoutes(server: FastifyInstance, ctx: GatewayCont
     }
   });
 
-  server.post("/api/v1/admin/programs/:programId/sessions", {
+  server.post<{ Params: { programId: string } }>("/api/v1/admin/programs/:programId/sessions", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
-      const { programId } = req.params as { programId: string };
-      const adminUserId = await resolveAdminUserId(
-        ctx.requestFn,
-        ctx.identityServiceBase,
-        req.headers as Record<string, unknown>,
-        ctx.industryAdminAllowlist
-      );
+      const { programId } = req.params;
+      const adminUserId = await resolveAdminUserId(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, ctx.industryAdminAllowlist, req.log);
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -357,16 +312,11 @@ export function registerProgramsRoutes(server: FastifyInstance, ctx: GatewayCont
     }
   });
 
-  server.post("/api/v1/admin/programs/:programId/sessions/:sessionId/attendance", {
+  server.post<{ Params: { programId: string; sessionId: string } }>("/api/v1/admin/programs/:programId/sessions/:sessionId/attendance", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
-      const { programId, sessionId } = req.params as { programId: string; sessionId: string };
-      const adminUserId = await resolveAdminUserId(
-        ctx.requestFn,
-        ctx.identityServiceBase,
-        req.headers as Record<string, unknown>,
-        ctx.industryAdminAllowlist
-      );
+      const { programId, sessionId } = req.params;
+      const adminUserId = await resolveAdminUserId(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, ctx.industryAdminAllowlist, req.log);
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -390,16 +340,11 @@ export function registerProgramsRoutes(server: FastifyInstance, ctx: GatewayCont
     }
   });
 
-  server.patch("/api/v1/admin/programs/:programId/sessions/:sessionId/integration", {
+  server.patch<{ Params: { programId: string; sessionId: string } }>("/api/v1/admin/programs/:programId/sessions/:sessionId/integration", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
-      const { programId, sessionId } = req.params as { programId: string; sessionId: string };
-      const adminUserId = await resolveAdminUserId(
-        ctx.requestFn,
-        ctx.identityServiceBase,
-        req.headers as Record<string, unknown>,
-        ctx.industryAdminAllowlist
-      );
+      const { programId, sessionId } = req.params;
+      const adminUserId = await resolveAdminUserId(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, ctx.industryAdminAllowlist, req.log);
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -420,16 +365,11 @@ export function registerProgramsRoutes(server: FastifyInstance, ctx: GatewayCont
     }
   });
 
-  server.post("/api/v1/admin/programs/:programId/sessions/:sessionId/reminders/dispatch", {
+  server.post<{ Params: { programId: string; sessionId: string } }>("/api/v1/admin/programs/:programId/sessions/:sessionId/reminders/dispatch", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
-      const { programId, sessionId } = req.params as { programId: string; sessionId: string };
-      const adminUserId = await resolveAdminUserId(
-        ctx.requestFn,
-        ctx.identityServiceBase,
-        req.headers as Record<string, unknown>,
-        ctx.industryAdminAllowlist
-      );
+      const { programId, sessionId } = req.params;
+      const adminUserId = await resolveAdminUserId(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, ctx.industryAdminAllowlist, req.log);
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -446,16 +386,11 @@ export function registerProgramsRoutes(server: FastifyInstance, ctx: GatewayCont
     }
   });
 
-  server.post("/api/v1/admin/programs/:programId/mentorship/matches", {
+  server.post<{ Params: { programId: string } }>("/api/v1/admin/programs/:programId/mentorship/matches", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
-      const { programId } = req.params as { programId: string };
-      const adminUserId = await resolveAdminUserId(
-        ctx.requestFn,
-        ctx.identityServiceBase,
-        req.headers as Record<string, unknown>,
-        ctx.industryAdminAllowlist
-      );
+      const { programId } = req.params;
+      const adminUserId = await resolveAdminUserId(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, ctx.industryAdminAllowlist, req.log);
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -479,16 +414,11 @@ export function registerProgramsRoutes(server: FastifyInstance, ctx: GatewayCont
     }
   });
 
-  server.post("/api/v1/admin/programs/:programId/outcomes", {
+  server.post<{ Params: { programId: string } }>("/api/v1/admin/programs/:programId/outcomes", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
-      const { programId } = req.params as { programId: string };
-      const adminUserId = await resolveAdminUserId(
-        ctx.requestFn,
-        ctx.identityServiceBase,
-        req.headers as Record<string, unknown>,
-        ctx.industryAdminAllowlist
-      );
+      const { programId } = req.params;
+      const adminUserId = await resolveAdminUserId(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, ctx.industryAdminAllowlist, req.log);
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -509,16 +439,11 @@ export function registerProgramsRoutes(server: FastifyInstance, ctx: GatewayCont
     }
   });
 
-  server.post("/api/v1/admin/programs/:programId/crm-sync", {
+  server.post<{ Params: { programId: string } }>("/api/v1/admin/programs/:programId/crm-sync", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
-      const { programId } = req.params as { programId: string };
-      const adminUserId = await resolveAdminUserId(
-        ctx.requestFn,
-        ctx.identityServiceBase,
-        req.headers as Record<string, unknown>,
-        ctx.industryAdminAllowlist
-      );
+      const { programId } = req.params;
+      const adminUserId = await resolveAdminUserId(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, ctx.industryAdminAllowlist, req.log);
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -539,17 +464,12 @@ export function registerProgramsRoutes(server: FastifyInstance, ctx: GatewayCont
     }
   });
 
-  server.get("/api/v1/admin/programs/:programId/crm-sync", {
+  server.get<{ Params: { programId: string } }>("/api/v1/admin/programs/:programId/crm-sync", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
-      const { programId } = req.params as { programId: string };
+      const { programId } = req.params;
       const querySuffix = buildQuerySuffix(req.query);
-      const adminUserId = await resolveAdminUserId(
-        ctx.requestFn,
-        ctx.identityServiceBase,
-        req.headers as Record<string, unknown>,
-        ctx.industryAdminAllowlist
-      );
+      const adminUserId = await resolveAdminUserId(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, ctx.industryAdminAllowlist, req.log);
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -568,12 +488,7 @@ export function registerProgramsRoutes(server: FastifyInstance, ctx: GatewayCont
   server.post("/api/v1/admin/programs/jobs/run", {
     config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
-      const adminUserId = await resolveAdminUserId(
-        ctx.requestFn,
-        ctx.identityServiceBase,
-        req.headers as Record<string, unknown>,
-        ctx.industryAdminAllowlist
-      );
+      const adminUserId = await resolveAdminUserId(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, ctx.industryAdminAllowlist, req.log);
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -594,16 +509,11 @@ export function registerProgramsRoutes(server: FastifyInstance, ctx: GatewayCont
     }
   });
 
-  server.get("/api/v1/admin/programs/:programId/analytics", {
+  server.get<{ Params: { programId: string } }>("/api/v1/admin/programs/:programId/analytics", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
-      const { programId } = req.params as { programId: string };
-      const adminUserId = await resolveAdminUserId(
-        ctx.requestFn,
-        ctx.identityServiceBase,
-        req.headers as Record<string, unknown>,
-        ctx.industryAdminAllowlist
-      );
+      const { programId } = req.params;
+      const adminUserId = await resolveAdminUserId(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, ctx.industryAdminAllowlist, req.log);
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }

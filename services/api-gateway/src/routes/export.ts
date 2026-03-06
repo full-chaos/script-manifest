@@ -112,11 +112,7 @@ export function registerExportRoutes(server: FastifyInstance, ctx: GatewayContex
   server.get("/api/v1/export/csv", {
     config: { rateLimit: { max: 5, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
-      const userId = await getUserIdFromAuth(
-        ctx.requestFn,
-        ctx.identityServiceBase,
-        req.headers.authorization
-      );
+      const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
       if (!userId) {
         return reply.status(401).send({ error: "unauthorized" });
       }
@@ -140,11 +136,7 @@ export function registerExportRoutes(server: FastifyInstance, ctx: GatewayContex
   server.get("/api/v1/export/zip", {
     config: { rateLimit: { max: 5, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
-      const userId = await getUserIdFromAuth(
-        ctx.requestFn,
-        ctx.identityServiceBase,
-        req.headers.authorization
-      );
+      const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
       if (!userId) {
         return reply.status(401).send({ error: "unauthorized" });
       }

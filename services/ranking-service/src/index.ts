@@ -113,8 +113,8 @@ export function buildServer(options: RankingServiceOptions = {}): FastifyInstanc
 
   // ── Writer score + badges ──
 
-  server.get("/internal/writers/:writerId/score", async (req, reply) => {
-    const { writerId } = req.params as { writerId: string };
+  server.get<{ Params: { writerId: string } }>("/internal/writers/:writerId/score", async (req, reply) => {
+    const { writerId } = req.params;
     const score = await repo.getWriterScore(writerId);
     if (!score) return reply.status(404).send({ error: "writer_not_found" });
     const badges = await repo.getBadges(writerId);
@@ -131,8 +131,8 @@ export function buildServer(options: RankingServiceOptions = {}): FastifyInstanc
     };
   });
 
-  server.get("/internal/writers/:writerId/badges", async (req) => {
-    const { writerId } = req.params as { writerId: string };
+  server.get<{ Params: { writerId: string } }>("/internal/writers/:writerId/badges", async (req) => {
+    const { writerId } = req.params;
     const badges = await repo.getBadges(writerId);
     return { badges };
   });
@@ -155,17 +155,17 @@ export function buildServer(options: RankingServiceOptions = {}): FastifyInstanc
     return { prestige: configs };
   });
 
-  server.get("/internal/prestige/:competitionId", async (req, reply) => {
-    const { competitionId } = req.params as { competitionId: string };
+  server.get<{ Params: { competitionId: string } }>("/internal/prestige/:competitionId", async (req, reply) => {
+    const { competitionId } = req.params;
     const config = await repo.getPrestige(competitionId);
     if (!config) return reply.status(404).send({ error: "not_found" });
     return { prestige: config };
   });
 
-  server.put("/internal/prestige/:competitionId", async (req, reply) => {
+  server.put<{ Params: { competitionId: string } }>("/internal/prestige/:competitionId", async (req, reply) => {
     const userId = req.headers["x-auth-user-id"] as string | undefined;
     if (!userId) return reply.status(403).send({ error: "forbidden" });
-    const { competitionId } = req.params as { competitionId: string };
+    const { competitionId } = req.params;
     const parsed = CompetitionPrestigeUpsertRequestSchema.safeParse(req.body);
     if (!parsed.success) return reply.status(400).send({ error: "invalid_payload" });
     const config = await repo.upsertPrestige(competitionId, parsed.data.tier, parsed.data.multiplier);
@@ -174,7 +174,7 @@ export function buildServer(options: RankingServiceOptions = {}): FastifyInstanc
 
   // ── Recompute ──
 
-  server.post("/internal/recompute", async (req, reply) => {
+  server.post("/internal/recompute", async (_req, reply) => {
     const now = new Date().toISOString();
 
     // 1. Fetch all submissions
@@ -357,23 +357,23 @@ export function buildServer(options: RankingServiceOptions = {}): FastifyInstanc
     return reply.status(201).send({ appeal });
   });
 
-  server.get("/internal/appeals", async (req) => {
-    const status = (req.query as Record<string, string>).status as string | undefined;
+  server.get<{ Querystring: Record<string, string> }>("/internal/appeals", async (req) => {
+    const status = (req.query).status as string | undefined;
     const appeals = await repo.listAppeals(status as "open" | "under_review" | "upheld" | "rejected" | undefined);
     return { appeals };
   });
 
-  server.get("/internal/appeals/:appealId", async (req, reply) => {
-    const { appealId } = req.params as { appealId: string };
+  server.get<{ Params: { appealId: string } }>("/internal/appeals/:appealId", async (req, reply) => {
+    const { appealId } = req.params;
     const appeal = await repo.getAppeal(appealId);
     if (!appeal) return reply.status(404).send({ error: "not_found" });
     return { appeal };
   });
 
-  server.post("/internal/appeals/:appealId/resolve", async (req, reply) => {
+  server.post<{ Params: { appealId: string } }>("/internal/appeals/:appealId/resolve", async (req, reply) => {
     const userId = req.headers["x-auth-user-id"] as string | undefined;
     if (!userId) return reply.status(403).send({ error: "forbidden" });
-    const { appealId } = req.params as { appealId: string };
+    const { appealId } = req.params;
     const parsed = RankingAppealResolveRequestSchema.safeParse(req.body);
     if (!parsed.success) return reply.status(400).send({ error: "invalid_payload" });
     const appeal = await repo.resolveAppeal(appealId, userId, parsed.data.status, parsed.data.resolutionNote);
@@ -397,16 +397,16 @@ export function buildServer(options: RankingServiceOptions = {}): FastifyInstanc
 
   // ── Anti-gaming flags ──
 
-  server.get("/internal/flags", async (req) => {
-    const status = (req.query as Record<string, string>).status as string | undefined;
+  server.get<{ Querystring: Record<string, string> }>("/internal/flags", async (req) => {
+    const status = (req.query).status as string | undefined;
     const flags = await repo.listFlags(status as "open" | "dismissed" | "confirmed" | undefined);
     return { flags };
   });
 
-  server.post("/internal/flags/:flagId/resolve", async (req, reply) => {
+  server.post<{ Params: { flagId: string } }>("/internal/flags/:flagId/resolve", async (req, reply) => {
     const userId = req.headers["x-auth-user-id"] as string | undefined;
     if (!userId) return reply.status(403).send({ error: "forbidden" });
-    const { flagId } = req.params as { flagId: string };
+    const { flagId } = req.params;
     const parsed = z.object({ status: z.enum(["dismissed", "confirmed"]) }).safeParse(req.body);
     if (!parsed.success) return reply.status(400).send({ error: "invalid_payload" });
     const flag = await repo.resolveFlag(flagId, userId, parsed.data.status);
@@ -440,7 +440,7 @@ export async function startServer(): Promise<void> {
     const tracingSdk = setupTracing("ranking-service");
     if (tracingSdk) {
       process.once("SIGTERM", () => {
-        tracingSdk.shutdown().catch((err) => console.error("OTel SDK shutdown error", err));
+        tracingSdk.shutdown().catch((err) => server.log.error(err, "OTel SDK shutdown error"));
       });
     }
     boot.phase("tracing initialized");
@@ -459,8 +459,5 @@ export async function startServer(): Promise<void> {
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
-  startServer().catch((error) => {
-    console.error(error);
-    process.exit(1);
-  });
+  startServer().catch((error) => { process.stderr.write(String(error) + "\n"); process.exit(1); });
 }

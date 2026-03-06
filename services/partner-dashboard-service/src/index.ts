@@ -223,7 +223,7 @@ export function buildServer(options: PartnerDashboardServiceOptions = {}): Fasti
     }
   });
 
-  server.put("/internal/partners/competitions/:competitionId/memberships/:userId", {
+  server.put<{ Params: { competitionId: string; userId: string } }>("/internal/partners/competitions/:competitionId/memberships/:userId", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
@@ -231,7 +231,7 @@ export function buildServer(options: PartnerDashboardServiceOptions = {}): Fasti
       if (!actorUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
-      const { competitionId, userId } = req.params as { competitionId: string; userId: string };
+      const { competitionId, userId } = req.params;
       if (!(await ensureCompetitionExists(competitionId))) {
         return reply.status(404).send({ error: "competition_not_found" });
       }
@@ -250,7 +250,7 @@ export function buildServer(options: PartnerDashboardServiceOptions = {}): Fasti
     }
   });
 
-  server.put("/internal/partners/competitions/:competitionId/intake", {
+  server.put<{ Params: { competitionId: string } }>("/internal/partners/competitions/:competitionId/intake", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
@@ -258,7 +258,7 @@ export function buildServer(options: PartnerDashboardServiceOptions = {}): Fasti
       if (!actorUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
-      const { competitionId } = req.params as { competitionId: string };
+      const { competitionId } = req.params;
       if (!(await ensureCompetitionExists(competitionId))) {
         return reply.status(404).send({ error: "competition_not_found" });
       }
@@ -282,7 +282,7 @@ export function buildServer(options: PartnerDashboardServiceOptions = {}): Fasti
     }
   });
 
-  server.post("/internal/partners/competitions/:competitionId/submissions", {
+  server.post<{ Params: { competitionId: string } }>("/internal/partners/competitions/:competitionId/submissions", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
@@ -290,7 +290,7 @@ export function buildServer(options: PartnerDashboardServiceOptions = {}): Fasti
       if (!actorUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
-      const { competitionId } = req.params as { competitionId: string };
+      const { competitionId } = req.params;
       if (!(await ensureCompetitionExists(competitionId))) {
         return reply.status(404).send({ error: "competition_not_found" });
       }
@@ -333,7 +333,7 @@ export function buildServer(options: PartnerDashboardServiceOptions = {}): Fasti
     }
   });
 
-  server.get("/internal/partners/competitions/:competitionId/submissions", {
+  server.get<{ Params: { competitionId: string } }>("/internal/partners/competitions/:competitionId/submissions", {
     config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
@@ -341,7 +341,7 @@ export function buildServer(options: PartnerDashboardServiceOptions = {}): Fasti
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
-      const { competitionId } = req.params as { competitionId: string };
+      const { competitionId } = req.params;
       if (!(await ensureCompetitionExists(competitionId))) {
         return reply.status(404).send({ error: "competition_not_found" });
       }
@@ -356,7 +356,7 @@ export function buildServer(options: PartnerDashboardServiceOptions = {}): Fasti
     }
   });
 
-  server.post("/internal/partners/competitions/:competitionId/messages", {
+  server.post<{ Params: { competitionId: string } }>("/internal/partners/competitions/:competitionId/messages", {
     config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
@@ -364,7 +364,7 @@ export function buildServer(options: PartnerDashboardServiceOptions = {}): Fasti
       if (!actorUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
-      const { competitionId } = req.params as { competitionId: string };
+      const { competitionId } = req.params;
       if (!(await ensureCompetitionExists(competitionId))) {
         return reply.status(404).send({ error: "competition_not_found" });
       }
@@ -401,7 +401,7 @@ export function buildServer(options: PartnerDashboardServiceOptions = {}): Fasti
     }
   });
 
-  server.get("/internal/partners/competitions/:competitionId/messages", {
+  server.get<{ Params: { competitionId: string } }>("/internal/partners/competitions/:competitionId/messages", {
     config: { rateLimit: { max: 40, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
@@ -409,7 +409,7 @@ export function buildServer(options: PartnerDashboardServiceOptions = {}): Fasti
       if (!actorUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
-      const { competitionId } = req.params as { competitionId: string };
+      const { competitionId } = req.params;
       if (!(await ensureCompetitionExists(competitionId))) {
         return reply.status(404).send({ error: "competition_not_found" });
       }
@@ -430,7 +430,7 @@ export function buildServer(options: PartnerDashboardServiceOptions = {}): Fasti
     }
   });
 
-  server.post("/internal/partners/competitions/:competitionId/judges/assign", {
+  server.post<{ Params: { competitionId: string } }>("/internal/partners/competitions/:competitionId/judges/assign", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
@@ -442,7 +442,7 @@ export function buildServer(options: PartnerDashboardServiceOptions = {}): Fasti
       if (!parsed.success) {
         return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
       }
-      const { competitionId } = req.params as { competitionId: string };
+      const { competitionId } = req.params;
       if (!(await ensureCompetitionExists(competitionId))) {
         return reply.status(404).send({ error: "competition_not_found" });
       }
@@ -457,7 +457,7 @@ export function buildServer(options: PartnerDashboardServiceOptions = {}): Fasti
     }
   });
 
-  server.post("/internal/partners/competitions/:competitionId/judges/auto-assign", {
+  server.post<{ Params: { competitionId: string } }>("/internal/partners/competitions/:competitionId/judges/auto-assign", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
@@ -465,7 +465,7 @@ export function buildServer(options: PartnerDashboardServiceOptions = {}): Fasti
       if (!actorUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
-      const { competitionId } = req.params as { competitionId: string };
+      const { competitionId } = req.params;
       if (!(await ensureCompetitionExists(competitionId))) {
         return reply.status(404).send({ error: "competition_not_found" });
       }
@@ -534,7 +534,7 @@ export function buildServer(options: PartnerDashboardServiceOptions = {}): Fasti
     }
   });
 
-  server.post("/internal/partners/competitions/:competitionId/jobs/run", {
+  server.post<{ Params: { competitionId: string } }>("/internal/partners/competitions/:competitionId/jobs/run", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
@@ -542,7 +542,7 @@ export function buildServer(options: PartnerDashboardServiceOptions = {}): Fasti
       if (!actorUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
-      const { competitionId } = req.params as { competitionId: string };
+      const { competitionId } = req.params;
       if (!(await ensureCompetitionExists(competitionId))) {
         return reply.status(404).send({ error: "competition_not_found" });
       }
@@ -634,7 +634,7 @@ export function buildServer(options: PartnerDashboardServiceOptions = {}): Fasti
     }
   });
 
-  server.post("/internal/partners/competitions/:competitionId/evaluations", {
+  server.post<{ Params: { competitionId: string } }>("/internal/partners/competitions/:competitionId/evaluations", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
@@ -646,7 +646,7 @@ export function buildServer(options: PartnerDashboardServiceOptions = {}): Fasti
       if (!parsed.success) {
         return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
       }
-      const { competitionId } = req.params as { competitionId: string };
+      const { competitionId } = req.params;
       if (!(await ensureCompetitionExists(competitionId))) {
         return reply.status(404).send({ error: "competition_not_found" });
       }
@@ -661,7 +661,7 @@ export function buildServer(options: PartnerDashboardServiceOptions = {}): Fasti
     }
   });
 
-  server.post("/internal/partners/competitions/:competitionId/normalize", {
+  server.post<{ Params: { competitionId: string } }>("/internal/partners/competitions/:competitionId/normalize", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
@@ -673,7 +673,7 @@ export function buildServer(options: PartnerDashboardServiceOptions = {}): Fasti
       if (!parsed.success) {
         return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
       }
-      const { competitionId } = req.params as { competitionId: string };
+      const { competitionId } = req.params;
       if (!(await ensureCompetitionExists(competitionId))) {
         return reply.status(404).send({ error: "competition_not_found" });
       }
@@ -704,7 +704,7 @@ export function buildServer(options: PartnerDashboardServiceOptions = {}): Fasti
     }
   });
 
-  server.post("/internal/partners/competitions/:competitionId/publish-results", {
+  server.post<{ Params: { competitionId: string } }>("/internal/partners/competitions/:competitionId/publish-results", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
@@ -716,7 +716,7 @@ export function buildServer(options: PartnerDashboardServiceOptions = {}): Fasti
       if (!parsed.success) {
         return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
       }
-      const { competitionId } = req.params as { competitionId: string };
+      const { competitionId } = req.params;
       if (!(await ensureCompetitionExists(competitionId))) {
         return reply.status(404).send({ error: "competition_not_found" });
       }
@@ -776,7 +776,7 @@ export function buildServer(options: PartnerDashboardServiceOptions = {}): Fasti
     }
   });
 
-  server.post("/internal/partners/competitions/:competitionId/draft-swaps", {
+  server.post<{ Params: { competitionId: string } }>("/internal/partners/competitions/:competitionId/draft-swaps", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
@@ -788,7 +788,7 @@ export function buildServer(options: PartnerDashboardServiceOptions = {}): Fasti
       if (!parsed.success) {
         return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
       }
-      const { competitionId } = req.params as { competitionId: string };
+      const { competitionId } = req.params;
       if (!(await ensureCompetitionExists(competitionId))) {
         return reply.status(404).send({ error: "competition_not_found" });
       }
@@ -821,7 +821,7 @@ export function buildServer(options: PartnerDashboardServiceOptions = {}): Fasti
     }
   });
 
-  server.get("/internal/partners/competitions/:competitionId/analytics", {
+  server.get<{ Params: { competitionId: string } }>("/internal/partners/competitions/:competitionId/analytics", {
     config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
@@ -829,7 +829,7 @@ export function buildServer(options: PartnerDashboardServiceOptions = {}): Fasti
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
-      const { competitionId } = req.params as { competitionId: string };
+      const { competitionId } = req.params;
       if (!(await ensureCompetitionExists(competitionId))) {
         return reply.status(404).send({ error: "competition_not_found" });
       }
@@ -893,7 +893,7 @@ export function buildServer(options: PartnerDashboardServiceOptions = {}): Fasti
     }
   });
 
-  server.post("/internal/partners/integrations/filmfreeway/sync/jobs/:jobId/complete", {
+  server.post<{ Params: { jobId: string } }>("/internal/partners/integrations/filmfreeway/sync/jobs/:jobId/complete", {
     config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
@@ -905,7 +905,7 @@ export function buildServer(options: PartnerDashboardServiceOptions = {}): Fasti
       if (!parsed.success) {
         return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
       }
-      const { jobId } = req.params as { jobId: string };
+      const { jobId } = req.params;
       const job = await repository.completeFilmFreewaySyncJob(jobId, parsed.data.detail);
       if (!job) {
         return reply.status(404).send({ error: "job_not_found_or_not_running" });
@@ -914,7 +914,7 @@ export function buildServer(options: PartnerDashboardServiceOptions = {}): Fasti
     }
   });
 
-  server.post("/internal/partners/integrations/filmfreeway/sync/jobs/:jobId/fail", {
+  server.post<{ Params: { jobId: string } }>("/internal/partners/integrations/filmfreeway/sync/jobs/:jobId/fail", {
     config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       await repositoryReady;
@@ -926,7 +926,7 @@ export function buildServer(options: PartnerDashboardServiceOptions = {}): Fasti
       if (!parsed.success) {
         return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
       }
-      const { jobId } = req.params as { jobId: string };
+      const { jobId } = req.params;
       const job = await repository.failFilmFreewaySyncJob(jobId, parsed.data.detail);
       if (!job) {
         return reply.status(404).send({ error: "job_not_found_or_not_running" });
@@ -990,7 +990,7 @@ export async function startServer(): Promise<void> {
     const tracingSdk = setupTracing("partner-dashboard-service");
     if (tracingSdk) {
       process.once("SIGTERM", () => {
-        tracingSdk.shutdown().catch((err) => console.error("OTel SDK shutdown error", err));
+        tracingSdk.shutdown().catch((err) => server.log.error(err, "OTel SDK shutdown error"));
       });
     }
     boot.phase("tracing initialized");
@@ -1014,8 +1014,5 @@ function isMainModule(metaUrl: string): boolean {
 }
 
 if (isMainModule(import.meta.url)) {
-  startServer().catch((error) => {
-    console.error(error);
-    process.exit(1);
-  });
+  startServer().catch((error) => { process.stderr.write(String(error) + "\n"); process.exit(1); });
 }

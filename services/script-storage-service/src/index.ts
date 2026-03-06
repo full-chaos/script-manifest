@@ -226,9 +226,9 @@ export function buildServer(options: ScriptStorageServiceOptions = {}): FastifyI
     return reply.status(201).send(responsePayload);
   });
 
-  server.get("/internal/scripts/:scriptId/view", async (req, reply) => {
-    const { scriptId } = req.params as { scriptId: string };
-    const { viewerUserId } = req.query as { viewerUserId?: string };
+  server.get<{ Params: { scriptId: string }; Querystring: { viewerUserId?: string } }>("/internal/scripts/:scriptId/view", async (req, reply) => {
+    const { scriptId } = req.params;
+    const { viewerUserId } = req.query;
     const requestValidation = ScriptViewRequestSchema.safeParse({
       scriptId,
       viewerUserId
@@ -278,8 +278,8 @@ export function buildServer(options: ScriptStorageServiceOptions = {}): FastifyI
     return reply.send(responsePayload);
   });
 
-  server.post("/internal/scripts/:scriptId/approve-viewer", async (req, reply) => {
-    const { scriptId } = req.params as { scriptId: string };
+  server.post<{ Params: { scriptId: string } }>("/internal/scripts/:scriptId/approve-viewer", async (req, reply) => {
+    const { scriptId } = req.params;
     const ownerUserId = req.headers["x-auth-user-id"] as string | undefined;
     const body = req.body as { viewerUserId?: string };
 
@@ -309,8 +309,8 @@ export function buildServer(options: ScriptStorageServiceOptions = {}): FastifyI
     return reply.send({ scriptId, viewerUserId: body.viewerUserId, approved: true });
   });
 
-  server.patch("/internal/scripts/:scriptId/visibility", async (req, reply) => {
-    const { scriptId } = req.params as { scriptId: string };
+  server.patch<{ Params: { scriptId: string } }>("/internal/scripts/:scriptId/visibility", async (req, reply) => {
+    const { scriptId } = req.params;
     const body = req.body as { visibility?: string; ownerUserId?: string };
     const ownerUserId = body.ownerUserId ?? (req.headers["x-auth-user-id"] as string | undefined);
 
@@ -346,7 +346,7 @@ export async function startServer(): Promise<void> {
     const tracingSdk = setupTracing("script-storage-service");
     if (tracingSdk) {
       process.once("SIGTERM", () => {
-        tracingSdk.shutdown().catch((err) => console.error("OTel SDK shutdown error", err));
+        tracingSdk.shutdown().catch((err) => server.log.error(err, "OTel SDK shutdown error"));
       });
     }
     boot.phase("tracing initialized");
@@ -466,8 +466,5 @@ function isMainModule(metaUrl: string): boolean {
 }
 
 if (isMainModule(import.meta.url)) {
-  startServer().catch((error) => {
-    console.error(error);
-    process.exit(1);
-  });
+  startServer().catch((error) => { process.stderr.write(String(error) + "\n"); process.exit(1); });
 }

@@ -8,9 +8,9 @@ import {
 } from "../helpers.js";
 
 export function registerProfileRoutes(server: FastifyInstance, ctx: GatewayContext): void {
-  server.get("/api/v1/profiles/:writerId", async (req, reply) => {
-    const { writerId } = req.params as { writerId: string };
-    const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
+  server.get<{ Params: { writerId: string } }>("/api/v1/profiles/:writerId", async (req, reply) => {
+    const { writerId } = req.params;
+    const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
     return proxyJsonRequest(
       reply,
       ctx.requestFn,
@@ -22,9 +22,9 @@ export function registerProfileRoutes(server: FastifyInstance, ctx: GatewayConte
     );
   });
 
-  server.put("/api/v1/profiles/:writerId", async (req, reply) => {
-    const { writerId } = req.params as { writerId: string };
-    const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization);
+  server.put<{ Params: { writerId: string } }>("/api/v1/profiles/:writerId", async (req, reply) => {
+    const { writerId } = req.params;
+    const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
     const parsed = WriterProfileUpdateRequestSchema.safeParse(req.body);
     if (!parsed.success) {
       return reply.status(400).send({

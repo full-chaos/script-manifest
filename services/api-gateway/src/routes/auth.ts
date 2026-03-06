@@ -43,10 +43,10 @@ export function registerAuthRoutes(server: FastifyInstance, ctx: GatewayContext)
     });
   });
 
-  server.post("/api/v1/auth/oauth/:provider/start", {
+  server.post<{ Params: { provider: string } }>("/api/v1/auth/oauth/:provider/start", {
     config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
-      const { provider } = req.params as { provider: string };
+      const { provider } = req.params;
       return proxyJsonRequest(
         reply,
         ctx.requestFn,
@@ -60,8 +60,8 @@ export function registerAuthRoutes(server: FastifyInstance, ctx: GatewayContext)
     }
   });
 
-  server.post("/api/v1/auth/oauth/:provider/complete", async (req, reply) => {
-    const { provider } = req.params as { provider: string };
+  server.post<{ Params: { provider: string } }>("/api/v1/auth/oauth/:provider/complete", async (req, reply) => {
+    const { provider } = req.params;
     return proxyJsonRequest(
       reply,
       ctx.requestFn,
@@ -74,8 +74,8 @@ export function registerAuthRoutes(server: FastifyInstance, ctx: GatewayContext)
     );
   });
 
-  server.get("/api/v1/auth/oauth/:provider/callback", async (req, reply) => {
-    const { provider } = req.params as { provider: string };
+  server.get<{ Params: { provider: string } }>("/api/v1/auth/oauth/:provider/callback", async (req, reply) => {
+    const { provider } = req.params;
     const querySuffix = buildQuerySuffix(req.query);
     return proxyJsonRequest(
       reply,

@@ -1,16 +1,122 @@
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyReply } from "fastify";
+import {
+  AuthLoginRequestSchema,
+  AuthMeResponseSchema,
+  AuthRegisterRequestSchema,
+  AuthSessionResponseSchema
+} from "@script-manifest/contracts";
+import { z } from "zod";
 import {
   type GatewayContext,
   buildQuerySuffix,
   copyAuthHeader,
-  proxyJsonRequest
+  proxyJsonRequest,
+  safeJsonParse
 } from "../helpers.js";
+import { ApiErrorSchema, toOpenApiSchema, UnauthorizedErrorSchema } from "../openapi.js";
+
+const GLOBAL_RATE_MAX = Number(process.env.RATE_LIMIT_MAX ?? 100);
+const AUTH_RATE_MAX = Math.max(10, Math.ceil(GLOBAL_RATE_MAX * 0.1));
+const REFRESH_RATE_MAX = Math.max(30, Math.ceil(GLOBAL_RATE_MAX * 0.3));
+
+const SESSION_COOKIE_NAME = "session_token";
+const REFRESH_COOKIE_NAME = "refresh_token";
+const REFRESH_COOKIE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
+function secureCookie(): boolean {
+  return process.env.NODE_ENV === "production";
+}
+
+function setAuthCookies(reply: FastifyReply, payload: z.infer<typeof AuthSessionResponseSchema>): void {
+  const sessionExpiry = new Date(payload.expiresAt);
+  if (!Number.isNaN(sessionExpiry.getTime())) {
+    reply.setCookie(SESSION_COOKIE_NAME, payload.token, {
+      httpOnly: true,
+      secure: secureCookie(),
+      sameSite: "lax",
+      path: "/",
+      expires: sessionExpiry
+    });
+  }
+
+  if (payload.refreshToken) {
+    reply.setCookie(REFRESH_COOKIE_NAME, payload.refreshToken, {
+      httpOnly: true,
+      secure: secureCookie(),
+      sameSite: "lax",
+      path: "/",
+      expires: new Date(Date.now() + REFRESH_COOKIE_TTL_MS)
+    });
+  }
+}
+
+function clearAuthCookies(reply: FastifyReply): void {
+  const options = {
+    httpOnly: true,
+    secure: secureCookie(),
+    sameSite: "lax" as const,
+    path: "/"
+  };
+
+  reply.clearCookie(SESSION_COOKIE_NAME, options);
+  reply.clearCookie(REFRESH_COOKIE_NAME, options);
+}
+
+function readBearerToken(header: string | undefined): string | null {
+  if (!header) {
+    return null;
+  }
+
+  const [scheme, token] = header.split(" ");
+  if (scheme?.toLowerCase() !== "bearer" || !token) {
+    return null;
+  }
+
+  return token;
+}
+
+async function proxyAuthSessionRequest(
+  ctx: GatewayContext,
+  reply: FastifyReply,
+  url: string,
+  options: { method: string; headers: Record<string, string>; body: string }
+) {
+  try {
+    const upstream = await ctx.requestFn(url, options);
+    const rawBody = await upstream.body.text();
+    const parsedBody = safeJsonParse(rawBody);
+    const parsedSession = AuthSessionResponseSchema.safeParse(parsedBody);
+    if (parsedSession.success) {
+      setAuthCookies(reply, parsedSession.data);
+    }
+
+    const contentType = (upstream.headers as Record<string, string> | undefined)?.["content-type"];
+    if (contentType) {
+      void reply.header("content-type", contentType);
+    }
+    return reply.status(upstream.statusCode).send(rawBody || null);
+  } catch (error) {
+    return reply.status(502).send({
+      error: "upstream_unavailable",
+      detail: error instanceof Error ? error.message : "unknown_error"
+    });
+  }
+}
 
 export function registerAuthRoutes(server: FastifyInstance, ctx: GatewayContext): void {
   server.post("/api/v1/auth/register", {
-    config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
+    config: { rateLimit: { max: AUTH_RATE_MAX, timeWindow: "1 minute" } },
+    schema: {
+      tags: ["auth"],
+      summary: "Register user",
+      body: toOpenApiSchema(AuthRegisterRequestSchema),
+      response: {
+        200: toOpenApiSchema(AuthSessionResponseSchema),
+        400: toOpenApiSchema(ApiErrorSchema)
+      }
+    },
     handler: async (req, reply) => {
-      return proxyJsonRequest(reply, ctx.requestFn, `${ctx.identityServiceBase}/internal/auth/register`, {
+      return proxyAuthSessionRequest(ctx, reply, `${ctx.identityServiceBase}/internal/auth/register`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(req.body ?? {})
@@ -19,9 +125,18 @@ export function registerAuthRoutes(server: FastifyInstance, ctx: GatewayContext)
   });
 
   server.post("/api/v1/auth/login", {
-    config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
+    config: { rateLimit: { max: AUTH_RATE_MAX, timeWindow: "1 minute" } },
+    schema: {
+      tags: ["auth"],
+      summary: "Login user",
+      body: toOpenApiSchema(AuthLoginRequestSchema),
+      response: {
+        200: toOpenApiSchema(AuthSessionResponseSchema),
+        400: toOpenApiSchema(ApiErrorSchema)
+      }
+    },
     handler: async (req, reply) => {
-      return proxyJsonRequest(reply, ctx.requestFn, `${ctx.identityServiceBase}/internal/auth/login`, {
+      return proxyAuthSessionRequest(ctx, reply, `${ctx.identityServiceBase}/internal/auth/login`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(req.body ?? {})
@@ -29,22 +144,72 @@ export function registerAuthRoutes(server: FastifyInstance, ctx: GatewayContext)
     }
   });
 
-  server.get("/api/v1/auth/me", async (req, reply) => {
-    return proxyJsonRequest(reply, ctx.requestFn, `${ctx.identityServiceBase}/internal/auth/me`, {
-      method: "GET",
-      headers: copyAuthHeader(req.headers.authorization)
-    });
+  server.get("/api/v1/auth/me", {
+    schema: {
+      tags: ["auth"],
+      summary: "Get current user session",
+      security: [{ bearerAuth: [] }],
+      response: {
+        200: toOpenApiSchema(AuthMeResponseSchema),
+        401: toOpenApiSchema(UnauthorizedErrorSchema)
+      }
+    },
+    handler: async (req, reply) => {
+      return proxyJsonRequest(reply, ctx.requestFn, `${ctx.identityServiceBase}/internal/auth/me`, {
+        method: "GET",
+        headers: copyAuthHeader(req.headers.authorization)
+      });
+    }
   });
 
-  server.post("/api/v1/auth/logout", async (req, reply) => {
-    return proxyJsonRequest(reply, ctx.requestFn, `${ctx.identityServiceBase}/internal/auth/logout`, {
-      method: "POST",
-      headers: copyAuthHeader(req.headers.authorization)
-    });
+  server.post("/api/v1/auth/logout", {
+    schema: {
+      tags: ["auth"],
+      summary: "Logout current user session",
+      security: [{ bearerAuth: [] }],
+      response: {
+        200: toOpenApiSchema(z.object({ ok: z.boolean() }).passthrough()),
+        401: toOpenApiSchema(UnauthorizedErrorSchema)
+      }
+    },
+    handler: async (req, reply) => {
+      clearAuthCookies(reply);
+      const token = readBearerToken(req.headers.authorization);
+      return proxyJsonRequest(reply, ctx.requestFn, `${ctx.identityServiceBase}/internal/auth/logout`, {
+        method: "POST",
+        headers: copyAuthHeader(token ? `Bearer ${token}` : undefined)
+      });
+    }
+  });
+
+  server.post<{ Body: { refreshToken?: string } }>("/api/v1/auth/refresh", {
+    config: { rateLimit: { max: REFRESH_RATE_MAX, timeWindow: "1 minute" } },
+    schema: {
+      tags: ["auth"],
+      summary: "Refresh auth session",
+      body: toOpenApiSchema(z.object({ refreshToken: z.string().min(1).optional() }).passthrough()),
+      response: {
+        200: toOpenApiSchema(AuthSessionResponseSchema),
+        400: toOpenApiSchema(ApiErrorSchema),
+        401: toOpenApiSchema(UnauthorizedErrorSchema)
+      }
+    },
+    handler: async (req, reply) => {
+      const refreshToken = req.cookies[REFRESH_COOKIE_NAME] ?? req.body?.refreshToken;
+      if (!refreshToken) {
+        return reply.status(400).send({ error: "invalid_payload" });
+      }
+
+      return proxyAuthSessionRequest(ctx, reply, `${ctx.identityServiceBase}/internal/auth/refresh`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ refreshToken })
+      });
+    }
   });
 
   server.post<{ Params: { provider: string } }>("/api/v1/auth/oauth/:provider/start", {
-    config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
+    config: { rateLimit: { max: AUTH_RATE_MAX, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       const { provider } = req.params;
       return proxyJsonRequest(

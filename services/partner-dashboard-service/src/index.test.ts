@@ -12,6 +12,7 @@ import type {
   PartnerPublishResultsRequest,
   PartnerSubmission
 } from "@script-manifest/contracts";
+import { BaseMemoryRepository } from "@script-manifest/service-utils";
 import { buildServer } from "./index.js";
 import type {
   CompetitionRole,
@@ -29,7 +30,7 @@ import type {
   PartnerSyncJob
 } from "./repository.js";
 
-class MemoryPartnerRepository implements PartnerDashboardRepository {
+class MemoryPartnerRepository extends BaseMemoryRepository implements PartnerDashboardRepository {
   private competitions = new Map<string, PartnerCompetition>();
   private submissions = new Map<string, PartnerSubmissionWithFormResponses>();
   private users = new Set<string>(["admin_01", "judge_01", "judge_02", "writer_01", "writer_02"]);
@@ -43,7 +44,7 @@ class MemoryPartnerRepository implements PartnerDashboardRepository {
   private syncJobs = new Map<string, PartnerSyncJob>();
   private assignmentPairs = new Set<string>();
 
-  async init(): Promise<void> {
+  override async init(): Promise<void> {
     const now = new Date().toISOString();
     this.competitions.set("competition_1", {
       id: "competition_1",
@@ -76,10 +77,6 @@ class MemoryPartnerRepository implements PartnerDashboardRepository {
       createdAt: now,
       updatedAt: now
     });
-  }
-
-  async healthCheck(): Promise<{ database: boolean }> {
-    return { database: true };
   }
 
   async competitionExists(competitionId: string): Promise<boolean> {

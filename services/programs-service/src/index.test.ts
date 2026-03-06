@@ -15,6 +15,7 @@ import type {
   ProgramSessionAttendanceUpsertRequest,
   ProgramSessionCreateRequest
 } from "@script-manifest/contracts";
+import { BaseMemoryRepository } from "@script-manifest/service-utils";
 import { buildServer } from "./index.js";
 import type {
   ProgramApplicationForm,
@@ -27,7 +28,7 @@ import type {
   ProgramsRepository
 } from "./repository.js";
 
-class MemoryProgramsRepository implements ProgramsRepository {
+class MemoryProgramsRepository extends BaseMemoryRepository implements ProgramsRepository {
   private users = new Set<string>(["writer_01", "writer_02", "mentor_01", "admin_01"]);
   private programs = new Map<string, Program>([
     [
@@ -59,12 +60,6 @@ class MemoryProgramsRepository implements ProgramsRepository {
   private crmJobs = new Map<string, ProgramCrmSyncJobRow>();
   private notificationDedupe = new Set<string>();
   private cohortTransitionsToRun = 0;
-
-  async init(): Promise<void> {}
-
-  async healthCheck(): Promise<{ database: boolean }> {
-    return { database: true };
-  }
 
   async listPrograms(status?: Program["status"]): Promise<Program[]> {
     const values = [...this.programs.values()];

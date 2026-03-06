@@ -9,10 +9,11 @@ import type {
   OAuthStateRecord,
   RegisterUserInput
 } from "./repository.js";
+import { BaseMemoryRepository } from "@script-manifest/service-utils";
 import { buildServer } from "./index.js";
 import { hashPassword } from "./repository.js";
 
-class MemoryRepo implements IdentityRepository {
+class MemoryRepo extends BaseMemoryRepository implements IdentityRepository {
   private users = new Map<string, IdentityUser>();
   private usersByEmail = new Map<string, string>();
   private sessions = new Map<string, IdentitySession>();
@@ -25,20 +26,14 @@ class MemoryRepo implements IdentityRepository {
     revokedAt?: string;
   }>();
 
-  async init(): Promise<void> {}
-
-  async healthCheck(): Promise<{ database: boolean }> {
-    return { database: true };
-  }
-
   async registerUser(input: RegisterUserInput): Promise<IdentityUser | null> {
     const email = input.email.toLowerCase();
     if (this.usersByEmail.has(email)) {
       return null;
     }
 
-    const id = `user_${this.users.size + 1}`;
-    const passwordSalt = `salt_${this.users.size + 1}`;
+    const id = this.createId("user");
+    const passwordSalt = this.createId("salt");
     const user: IdentityUser = {
       id,
       email,
@@ -58,7 +53,7 @@ class MemoryRepo implements IdentityRepository {
   }
 
   async createSession(userId: string): Promise<IdentitySession> {
-    const token = `sess_${this.sessions.size + 1}`;
+    const token = this.createId("sess");
     const session: IdentitySession = {
       token,
       userId,
@@ -111,8 +106,8 @@ class MemoryRepo implements IdentityRepository {
   }
 
   async createRefreshToken(userId: string, familyId?: string): Promise<RefreshTokenIssue> {
-    const token = `rfr_${this.refreshTokens.size + 1}`;
-    const finalFamilyId = familyId ?? `fam_${this.refreshTokens.size + 1}`;
+    const token = this.createId("rfr");
+    const finalFamilyId = familyId ?? this.createId("fam");
     const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
     this.refreshTokens.set(token, {
       userId,

@@ -240,16 +240,20 @@ services:
       - .:/workspace
     environment:
       PORT: "4010"
+      DATABASE_URL: "postgresql://manifest:manifest@postgres:5432/manifest"
     command: >
       sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/notification-service dev"
     ports:
       - "4010:4010"
+    depends_on:
+      postgres:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:4010/health || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 20s
+      start_period: 60s
 
   search-indexer-service:
     <<: *node-dev
@@ -283,13 +287,17 @@ services:
       - .:/workspace
     environment:
       PORT: "4002"
+      DATABASE_URL: "postgresql://manifest:manifest@postgres:5432/manifest"
       SEARCH_INDEXER_URL: "http://search-indexer-service:4003"
       NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
+      COMPETITION_ADMIN_ALLOWLIST: "admin_01,user_admin_01"
     command: >
       sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/competition-directory-service dev"
     ports:
       - "4002:4002"
     depends_on:
+      postgres:
+        condition: service_healthy
       search-indexer-service:
         condition: service_started
       notification-service:
@@ -299,7 +307,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 20s
+      start_period: 60s
 
   script-storage-service:
     <<: *node-dev
@@ -341,16 +349,20 @@ services:
       - .:/workspace
     environment:
       PORT: "4004"
+      DATABASE_URL: "postgresql://manifest:manifest@postgres:5432/manifest"
     command: >
       sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/submission-tracking-service dev"
     ports:
       - "4004:4004"
+    depends_on:
+      postgres:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:4004/health || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 20s
+      start_period: 60s
 
   feedback-exchange-service:
     <<: *node-dev
@@ -550,9 +562,11 @@ services:
       INDUSTRY_PORTAL_SERVICE_URL: "http://industry-portal-service:4009"
       PROGRAMS_SERVICE_URL: "http://programs-service:4012"
       PARTNER_DASHBOARD_SERVICE_URL: "http://partner-dashboard-service:4013"
+      REDIS_URL: "redis://manifest-redis:6379"
       COVERAGE_ADMIN_ALLOWLIST: "admin_01,user_admin_01"
       INDUSTRY_ADMIN_ALLOWLIST: "admin_01,user_admin_01"
       COMPETITION_ADMIN_ALLOWLIST: "admin_01,user_admin_01"
+      RATE_LIMIT_MAX: "1000"
     command: >
       sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/api-gateway dev"
     ports:

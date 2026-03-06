@@ -5,8 +5,10 @@ import {
   ProjectDraftCreateRequestSchema,
   ProjectDraftPrimaryRequestSchema,
   ProjectDraftUpdateRequestSchema,
+  ProjectSchema,
   ProjectUpdateRequestSchema
 } from "@script-manifest/contracts";
+import { z } from "zod";
 import {
   type GatewayContext,
   addAuthUserIdHeader,
@@ -14,82 +16,140 @@ import {
   getUserIdFromAuth,
   proxyJsonRequest
 } from "../helpers.js";
+import { ApiErrorSchema, toOpenApiSchema, UnauthorizedErrorSchema } from "../openapi.js";
 
 export function registerProjectRoutes(server: FastifyInstance, ctx: GatewayContext): void {
-  server.get("/api/v1/projects", async (req, reply) => {
-    const querySuffix = buildQuerySuffix(req.query);
-    return proxyJsonRequest(
-      reply,
-      ctx.requestFn,
-      `${ctx.profileServiceBase}/internal/projects${querySuffix}`,
-      {
-        method: "GET"
+  server.get("/api/v1/projects", {
+    schema: {
+      tags: ["projects"],
+      summary: "List projects",
+      querystring: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          ownerUserId: { type: "string" },
+          genre: { type: "string" },
+          format: { type: "string" },
+          limit: { type: "string" },
+          offset: { type: "string" }
+        }
+      },
+      response: {
+        200: toOpenApiSchema(z.array(ProjectSchema))
       }
-    );
+    },
+    handler: async (req, reply) => {
+      const querySuffix = buildQuerySuffix(req.query);
+      return proxyJsonRequest(
+        reply,
+        ctx.requestFn,
+        `${ctx.profileServiceBase}/internal/projects${querySuffix}`,
+        {
+          method: "GET"
+        }
+      );
+    }
   });
 
-  server.post("/api/v1/projects", async (req, reply) => {
-    const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
-    if (!userId) {
-      return reply.status(401).send({ error: "unauthorized", detail: "Could not resolve user from auth token" });
-    }
-    const parsed = ProjectCreateRequestSchema.safeParse(req.body);
-    if (!parsed.success) {
-      return reply.status(400).send({
-        error: "invalid_payload",
-        details: parsed.error.flatten()
-      });
-    }
-
-    return proxyJsonRequest(reply, ctx.requestFn, `${ctx.profileServiceBase}/internal/projects`, {
-      method: "POST",
-      headers: addAuthUserIdHeader(
-        { "content-type": "application/json" },
-        userId
-      ),
-      body: JSON.stringify(parsed.data)
-    });
-  });
-
-  server.get<{ Params: { projectId: string } }>("/api/v1/projects/:projectId", async (req, reply) => {
-    const { projectId } = req.params;
-    return proxyJsonRequest(
-      reply,
-      ctx.requestFn,
-      `${ctx.profileServiceBase}/internal/projects/${encodeURIComponent(projectId)}`,
-      {
-        method: "GET"
+  server.post("/api/v1/projects", {
+    schema: {
+      tags: ["projects"],
+      summary: "Create project",
+      security: [{ bearerAuth: [] }],
+      body: toOpenApiSchema(ProjectCreateRequestSchema),
+      response: {
+        200: toOpenApiSchema(ProjectSchema),
+        400: toOpenApiSchema(ApiErrorSchema),
+        401: toOpenApiSchema(UnauthorizedErrorSchema)
       }
-    );
-  });
+    },
+    handler: async (req, reply) => {
+      const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
+      if (!userId) {
+        return reply.status(401).send({ error: "unauthorized", detail: "Could not resolve user from auth token" });
+      }
+      const parsed = ProjectCreateRequestSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return reply.status(400).send({
+          error: "invalid_payload",
+          details: parsed.error.flatten()
+        });
+      }
 
-  server.put<{ Params: { projectId: string } }>("/api/v1/projects/:projectId", async (req, reply) => {
-    const { projectId } = req.params;
-    const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
-    if (!userId) {
-      return reply.status(401).send({ error: "unauthorized", detail: "Could not resolve user from auth token" });
-    }
-    const parsed = ProjectUpdateRequestSchema.safeParse(req.body);
-    if (!parsed.success) {
-      return reply.status(400).send({
-        error: "invalid_payload",
-        details: parsed.error.flatten()
-      });
-    }
-
-    return proxyJsonRequest(
-      reply,
-      ctx.requestFn,
-      `${ctx.profileServiceBase}/internal/projects/${encodeURIComponent(projectId)}`,
-      {
-        method: "PUT",
+      return proxyJsonRequest(reply, ctx.requestFn, `${ctx.profileServiceBase}/internal/projects`, {
+        method: "POST",
         headers: addAuthUserIdHeader(
           { "content-type": "application/json" },
           userId
         ),
         body: JSON.stringify(parsed.data)
+      });
+    }
+  });
+
+  server.get("/api/v1/projects/:projectId", {
+    schema: {
+      tags: ["projects"],
+      summary: "Get project",
+      params: toOpenApiSchema(z.object({ projectId: z.string().min(1) })),
+      response: {
+        200: toOpenApiSchema(ProjectSchema)
       }
-    );
+    },
+    handler: async (req, reply) => {
+      const { projectId } = req.params as { projectId: string };
+      return proxyJsonRequest(
+        reply,
+        ctx.requestFn,
+        `${ctx.profileServiceBase}/internal/projects/${encodeURIComponent(projectId)}`,
+        {
+          method: "GET"
+        }
+      );
+    }
+  });
+
+  server.put("/api/v1/projects/:projectId", {
+    schema: {
+      tags: ["projects"],
+      summary: "Update project",
+      security: [{ bearerAuth: [] }],
+      params: toOpenApiSchema(z.object({ projectId: z.string().min(1) })),
+      body: toOpenApiSchema(ProjectUpdateRequestSchema),
+      response: {
+        200: toOpenApiSchema(ProjectSchema),
+        400: toOpenApiSchema(ApiErrorSchema),
+        401: toOpenApiSchema(UnauthorizedErrorSchema)
+      }
+    },
+    handler: async (req, reply) => {
+      const { projectId } = req.params as { projectId: string };
+      const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
+      if (!userId) {
+        return reply.status(401).send({ error: "unauthorized", detail: "Could not resolve user from auth token" });
+      }
+      const parsed = ProjectUpdateRequestSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return reply.status(400).send({
+          error: "invalid_payload",
+          details: parsed.error.flatten()
+        });
+      }
+
+      return proxyJsonRequest(
+        reply,
+        ctx.requestFn,
+        `${ctx.profileServiceBase}/internal/projects/${encodeURIComponent(projectId)}`,
+        {
+          method: "PUT",
+          headers: addAuthUserIdHeader(
+            { "content-type": "application/json" },
+            userId
+          ),
+          body: JSON.stringify(parsed.data)
+        }
+      );
+    }
   });
 
   server.delete<{ Params: { projectId: string } }>("/api/v1/projects/:projectId", async (req, reply) => {

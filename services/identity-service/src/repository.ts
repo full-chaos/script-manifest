@@ -57,6 +57,7 @@ export interface IdentityRepository {
   createRefreshToken(userId: string, familyId?: string): Promise<RefreshTokenIssue>;
   rotateRefreshToken(rawToken: string): Promise<RefreshTokenRotateResult>;
   revokeTokenFamily(familyId: string): Promise<void>;
+  revokeUserRefreshTokens?(userId: string): Promise<void>;
 }
 
 function hashRefreshToken(token: string): string {
@@ -461,6 +462,18 @@ export class PgIdentityRepository implements IdentityRepository {
         WHERE family_id = $1 AND revoked_at IS NULL
       `,
       [familyId]
+    );
+  }
+
+  async revokeUserRefreshTokens(userId: string): Promise<void> {
+    const db = getPool();
+    await db.query(
+      `
+        UPDATE refresh_tokens
+        SET revoked_at = NOW()
+        WHERE user_id = $1 AND revoked_at IS NULL AND expires_at > NOW()
+      `,
+      [userId]
     );
   }
 

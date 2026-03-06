@@ -32,6 +32,7 @@ import type {
   IndustryWeeklyDigestRunRequest,
   WriterProfile
 } from "@script-manifest/contracts";
+import { BaseMemoryRepository } from "@script-manifest/service-utils";
 import { buildServer } from "./index.js";
 import type {
   IndustryAccessContext,
@@ -54,7 +55,7 @@ type ProjectRecord = {
   isDiscoverable: boolean;
 };
 
-class MemoryRepository implements IndustryPortalRepository {
+class MemoryRepository extends BaseMemoryRepository implements IndustryPortalRepository {
   private users = new Set<string>(["writer_01", "writer_02", "industry_01", "industry_02", "admin_01"]);
   private accounts = new Map<string, IndustryAccount>();
   private entitlements = new Map<string, IndustryEntitlement>();
@@ -118,12 +119,6 @@ class MemoryRepository implements IndustryPortalRepository {
       isDiscoverable: true
     }]
   ]);
-
-  async init(): Promise<void> {}
-
-  async healthCheck(): Promise<{ database: boolean }> {
-    return { database: true };
-  }
 
   async userExists(userId: string): Promise<boolean> {
     return this.users.has(userId);

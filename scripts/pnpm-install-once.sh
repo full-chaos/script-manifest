@@ -5,11 +5,13 @@ WORKSPACE="${1:-/workspace}"
 LOCK_FILE="$WORKSPACE/.pnpm-install.lock"
 MARKER_FILE="$WORKSPACE/node_modules/.pnpm-install.complete"
 PLATFORM_MARKER_FILE="$WORKSPACE/node_modules/.pnpm-install.platform"
+LOCKFILE_HASH_FILE="$WORKSPACE/node_modules/.pnpm-lock.hash"
 BUILD_MARKER_FILE="$WORKSPACE/node_modules/.workspace-packages-built"
 
 current_platform="$(node -p '`${process.platform}-${process.arch}`')"
+current_lockfile_hash="$(md5sum "$WORKSPACE/pnpm-lock.yaml" 2>/dev/null | cut -d' ' -f1 || true)"
 
-export WORKSPACE MARKER_FILE PLATFORM_MARKER_FILE BUILD_MARKER_FILE current_platform
+export WORKSPACE MARKER_FILE PLATFORM_MARKER_FILE LOCKFILE_HASH_FILE BUILD_MARKER_FILE current_platform current_lockfile_hash
 
 flock "$LOCK_FILE" bash -lc '
 set -euo pipefail
@@ -20,11 +22,19 @@ if [[ -f "$PLATFORM_MARKER_FILE" ]]; then
   installed_platform="$(cat "$PLATFORM_MARKER_FILE" 2>/dev/null || true)"
 fi
 
+installed_lockfile_hash=""
+if [[ -f "$LOCKFILE_HASH_FILE" ]]; then
+  installed_lockfile_hash="$(cat "$LOCKFILE_HASH_FILE" 2>/dev/null || true)"
+fi
+
 needs_install=0
 if [[ "${FORCE_PNPM_INSTALL:-0}" == "1" || ! -f "$MARKER_FILE" ]]; then
   needs_install=1
 elif [[ "$installed_platform" != "$current_platform" ]]; then
   echo "pnpm install marker platform mismatch: have '"'"'$installed_platform'"'"', need '"'"'$current_platform'"'"'. Reinstalling." >&2
+  needs_install=1
+elif [[ -n "$current_lockfile_hash" && "$installed_lockfile_hash" != "$current_lockfile_hash" ]]; then
+  echo "pnpm-lock.yaml changed since last install. Reinstalling." >&2
   needs_install=1
 fi
 
@@ -41,6 +51,7 @@ if [[ "$needs_install" == "1" ]]; then
       mkdir -p "$(dirname "$MARKER_FILE")"
       touch "$MARKER_FILE"
       printf "%s" "$current_platform" > "$PLATFORM_MARKER_FILE"
+      printf "%s" "$current_lockfile_hash" > "$LOCKFILE_HASH_FILE"
       break
     fi
 

@@ -41,3 +41,11 @@
 - All services use `buildServer(options)` with injectable dependencies for tests
 - Commit format: `feat|refactor|docs|chore(scope): description (CHAOS-NNN)`
 - Branch: already on `feat/CHAOS-602-phase5-architecture`
+
+## 2026-03-06 Task 6 — Notification Kafka Consumer
+
+- `services/notification-service/src/consumer.ts` now owns Kafka ingestion with `startConsumer(repository, logger)` and returns an async stop function for lifecycle shutdown.
+- `getKafkaClient()` null path is non-blocking: missing `KAFKA_BROKERS` logs a warning and returns a no-op disconnect function so HTTP fallback still works.
+- Kafka message handling now mirrors HTTP validation by parsing JSON and validating with `NotificationEventEnvelopeSchema` before `repository.pushEvent(event)`.
+- Invalid Kafka messages are isolated to logging (`offset` included), then skipped without crashing consumer execution.
+- `buildServer()` stores `stopConsumer` in function scope; `onReady` initializes repository then starts consumer, `onClose` stops consumer then closes DB pool.

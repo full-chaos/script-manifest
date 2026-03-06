@@ -23,11 +23,12 @@ import type {
   CoverageDisputeEvent,
   CoverageDisputeStatus
 } from "@script-manifest/contracts";
+import { BaseMemoryRepository } from "@script-manifest/service-utils";
 import { buildServer } from "./index.js";
 import type { CoverageMarketplaceRepository } from "./repository.js";
 import { MemoryPaymentGateway } from "./paymentGateway.js";
 
-class MemoryCoverageMarketplaceRepository implements CoverageMarketplaceRepository {
+class MemoryCoverageMarketplaceRepository extends BaseMemoryRepository implements CoverageMarketplaceRepository {
   private providers = new Map<string, CoverageProvider>();
   private services = new Map<string, CoverageService>();
   private orders = new Map<string, CoverageOrder>();
@@ -36,22 +37,11 @@ class MemoryCoverageMarketplaceRepository implements CoverageMarketplaceReposito
   private disputes = new Map<string, CoverageDispute>();
   private providerReviews = new Map<string, CoverageProviderReview>();
   private disputeEvents = new Map<string, CoverageDisputeEvent>();
-  private nextId = 1;
-
-  async init() {}
-  async healthCheck() {
-    return { database: true };
-  }
-
-  private id(prefix: string) {
-    return `${prefix}_${String(this.nextId++)}`;
-  }
-
   // ── Providers ────────────────────────────────────────────────────────
 
   async createProvider(userId: string, input: CoverageProviderCreateRequest): Promise<CoverageProvider> {
     const provider: CoverageProvider = {
-      id: this.id("cprov"),
+      id: this.createId("cprov"),
       userId,
       displayName: input.displayName,
       bio: input.bio,
@@ -122,7 +112,7 @@ class MemoryCoverageMarketplaceRepository implements CoverageMarketplaceReposito
 
   async createProviderReview(providerId: string, reviewedByUserId: string, input: CoverageProviderReviewRequest): Promise<CoverageProviderReview> {
     const review: CoverageProviderReview = {
-      id: this.id("cprv"),
+      id: this.createId("cprv"),
       providerId,
       reviewedByUserId,
       decision: input.decision,
@@ -142,7 +132,7 @@ class MemoryCoverageMarketplaceRepository implements CoverageMarketplaceReposito
 
   async createService(providerId: string, input: CoverageServiceCreateRequest): Promise<CoverageService> {
     const service: CoverageService = {
-      id: this.id("csvc"),
+      id: this.createId("csvc"),
       providerId,
       title: input.title,
       description: input.description,
@@ -211,7 +201,7 @@ class MemoryCoverageMarketplaceRepository implements CoverageMarketplaceReposito
     stripePaymentIntentId: string;
   }): Promise<CoverageOrder> {
     const order: CoverageOrder = {
-      id: this.id("cord"),
+      id: this.createId("cord"),
       writerUserId: params.writerUserId,
       providerId: params.providerId,
       serviceId: params.serviceId,
@@ -271,7 +261,7 @@ class MemoryCoverageMarketplaceRepository implements CoverageMarketplaceReposito
 
   async createDelivery(orderId: string, input: CoverageDeliveryCreateRequest): Promise<CoverageDelivery> {
     const delivery: CoverageDelivery = {
-      id: this.id("cdel"),
+      id: this.createId("cdel"),
       orderId,
       summary: input.summary,
       strengths: input.strengths,
@@ -297,7 +287,7 @@ class MemoryCoverageMarketplaceRepository implements CoverageMarketplaceReposito
 
   async createReview(orderId: string, writerUserId: string, providerId: string, input: CoverageReviewCreateRequest): Promise<CoverageReview> {
     const review: CoverageReview = {
-      id: this.id("crev"),
+      id: this.createId("crev"),
       orderId,
       writerUserId,
       providerId,
@@ -340,7 +330,7 @@ class MemoryCoverageMarketplaceRepository implements CoverageMarketplaceReposito
 
   async createDispute(orderId: string, userId: string, input: CoverageDisputeCreateRequest): Promise<CoverageDispute> {
     const dispute: CoverageDispute = {
-      id: this.id("cdisp"),
+      id: this.createId("cdisp"),
       orderId,
       openedByUserId: userId,
       reason: input.reason,
@@ -395,7 +385,7 @@ class MemoryCoverageMarketplaceRepository implements CoverageMarketplaceReposito
     toStatus?: CoverageDisputeStatus | null;
   }): Promise<CoverageDisputeEvent> {
     const event: CoverageDisputeEvent = {
-      id: this.id("cdie"),
+      id: this.createId("cdie"),
       disputeId: params.disputeId,
       actorUserId: params.actorUserId,
       eventType: params.eventType,

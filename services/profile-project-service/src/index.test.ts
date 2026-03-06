@@ -18,10 +18,11 @@ import type {
   WriterProfile,
   WriterProfileUpdateRequest
 } from "@script-manifest/contracts";
+import { BaseMemoryRepository } from "@script-manifest/service-utils";
 import { buildServer } from "./index.js";
 import type { ProfileProjectRepository } from "./repository.js";
 
-class MemoryRepository implements ProfileProjectRepository {
+class MemoryRepository extends BaseMemoryRepository implements ProfileProjectRepository {
   private users = new Set<string>(["writer_01", "writer_02", "writer_03"]);
   private profiles = new Map<string, WriterProfile>();
   private projects = new Map<string, Project>();
@@ -33,6 +34,7 @@ class MemoryRepository implements ProfileProjectRepository {
   private nextAccessRequest = 1;
 
   constructor() {
+    super();
     this.profiles.set("writer_01", {
       id: "writer_01",
       displayName: "Writer One",
@@ -44,12 +46,6 @@ class MemoryRepository implements ProfileProjectRepository {
       customProfileUrl: "",
       isSearchable: true
     });
-  }
-
-  async init(): Promise<void> {}
-
-  async healthCheck(): Promise<{ database: boolean }> {
-    return { database: true };
   }
 
   async userExists(userId: string): Promise<boolean> {

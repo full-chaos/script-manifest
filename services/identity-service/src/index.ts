@@ -1,4 +1,5 @@
 import Fastify, { type FastifyInstance } from "fastify";
+import cookie from "@fastify/cookie";
 import rateLimit from "@fastify/rate-limit";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { request } from "undici";
@@ -67,6 +68,7 @@ export function buildServer(options: IdentityServiceOptions = {}): FastifyInstan
     timeWindow: "1 minute",
     allowList: []
   });
+  server.register(cookie);
 
   server.get("/health", {
     config: { rateLimit: { max: 60, timeWindow: "1 minute" } },
@@ -331,6 +333,10 @@ export function buildServer(options: IdentityServiceOptions = {}): FastifyInstan
       return reply.status(401).send({ error: "missing_bearer_token" });
     }
 
+      const sessionData = await repository.findUserBySessionToken(token);
+      if (sessionData && repository.revokeUserRefreshTokens) {
+        await repository.revokeUserRefreshTokens(sessionData.user.id);
+      }
       await repository.deleteSession(token);
       return reply.status(204).send();
     }

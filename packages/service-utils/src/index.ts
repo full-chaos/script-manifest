@@ -11,3 +11,4 @@ export { isMainModule } from "./isMainModule.js";
 export { getAuthUserId, readHeader } from "./headerHelpers.js";
 export { createFastifyServer, type CreateServerOptions } from "./server.js";
 export { registerHealthRoutes, type RegisterHealthRoutesOptions, type HealthCheckResult } from "./health.js";
+export { BaseMemoryRepository } from "./testing/BaseMemoryRepository.js";

@@ -15,6 +15,7 @@ import type {
   TierDesignation,
   WriterBadge
 } from "@script-manifest/contracts";
+import { BaseMemoryRepository } from "@script-manifest/service-utils";
 import { buildServer } from "./index.js";
 import type { RankingRepository, WriterScoreRow, PlacementScoreRow } from "./repository.js";
 import { request } from "undici";
@@ -33,7 +34,7 @@ function jsonResponse(payload: unknown, statusCode = 200): RequestResult {
 
 // ── MemoryRankingRepository ─────────────────────────────────────────
 
-class MemoryRankingRepository implements RankingRepository {
+class MemoryRankingRepository extends BaseMemoryRepository implements RankingRepository {
   prestige = new Map<string, CompetitionPrestige>();
   writerScores = new Map<string, WriterScoreRow>();
   placementScores: PlacementScoreRow[] = [];
@@ -41,13 +42,6 @@ class MemoryRankingRepository implements RankingRepository {
   snapshots: Array<{ writerId: string; totalScore: number; date: string }> = [];
   flags: AntiGamingFlag[] = [];
   appeals: RankingAppeal[] = [];
-  private nextId = 1;
-
-  private id(prefix: string) { return `${prefix}_${String(this.nextId++)}`; }
-
-  async init() {}
-  async healthCheck() { return { database: true }; }
-
   // Prestige
   async getPrestige(competitionId: string) { return this.prestige.get(competitionId) ?? null; }
   async upsertPrestige(competitionId: string, tier: PrestigeTier, multiplier: number) {
@@ -95,7 +89,7 @@ class MemoryRankingRepository implements RankingRepository {
   async awardBadge(writerId: string, label: string, placementId: string, competitionId: string) {
     const existing = this.badges.find((b) => b.placementId === placementId);
     if (existing) return existing;
-    const badge: WriterBadge = { id: this.id("badge"), writerId, label, placementId, competitionId, awardedAt: new Date().toISOString() };
+    const badge: WriterBadge = { id: this.createId("badge"), writerId, label, placementId, competitionId, awardedAt: new Date().toISOString() };
     this.badges.push(badge);
     return badge;
   }
@@ -123,7 +117,7 @@ class MemoryRankingRepository implements RankingRepository {
 
   // Anti-gaming
   async createFlag(writerId: string, reason: AntiGamingFlagReason, details: string) {
-    const flag: AntiGamingFlag = { id: this.id("flag"), writerId, reason, details, status: "open", resolvedByUserId: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+    const flag: AntiGamingFlag = { id: this.createId("flag"), writerId, reason, details, status: "open", resolvedByUserId: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
     this.flags.push(flag);
     return flag;
   }
@@ -139,7 +133,7 @@ class MemoryRankingRepository implements RankingRepository {
 
   // Appeals
   async createAppeal(writerId: string, reason: string) {
-    const appeal: RankingAppeal = { id: this.id("appeal"), writerId, reason, status: "open", resolutionNote: null, resolvedByUserId: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+    const appeal: RankingAppeal = { id: this.createId("appeal"), writerId, reason, status: "open", resolutionNote: null, resolvedByUserId: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
     this.appeals.push(appeal);
     return appeal;
   }

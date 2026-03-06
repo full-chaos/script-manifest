@@ -13,10 +13,11 @@ import type {
   TokenTransaction,
   TokenTransactionReason
 } from "@script-manifest/contracts";
+import { BaseMemoryRepository } from "@script-manifest/service-utils";
 import { buildServer } from "./index.js";
 import type { FeedbackExchangeRepository } from "./repository.js";
 
-class MemoryFeedbackExchangeRepository implements FeedbackExchangeRepository {
+class MemoryFeedbackExchangeRepository extends BaseMemoryRepository implements FeedbackExchangeRepository {
   private transactions: TokenTransaction[] = [];
   private listings = new Map<string, FeedbackListing>();
   private reviews = new Map<string, FeedbackReview>();
@@ -24,17 +25,6 @@ class MemoryFeedbackExchangeRepository implements FeedbackExchangeRepository {
   private strikes = new Map<string, { userId: string; reason: string; active: boolean; expiresAt: Date }[]>();
   private suspensions = new Set<string>();
   private disputes = new Map<string, FeedbackDispute>();
-  private nextId = 1;
-
-  async init() {}
-  async healthCheck() {
-    return { database: true };
-  }
-
-  private id(prefix: string) {
-    return `${prefix}_${String(this.nextId++)}`;
-  }
-
   // Tokens
   async getBalance(userId: string): Promise<number> {
     let credits = 0;
@@ -53,7 +43,7 @@ class MemoryFeedbackExchangeRepository implements FeedbackExchangeRepository {
     const existing = this.transactions.find((t) => t.idempotencyKey === params.idempotencyKey);
     if (existing) return existing;
     const txn: TokenTransaction = {
-      id: this.id("txn"),
+      id: this.createId("txn"),
       idempotencyKey: params.idempotencyKey,
       debitUserId: params.debitUserId,
       creditUserId: params.creditUserId,
@@ -94,7 +84,7 @@ class MemoryFeedbackExchangeRepository implements FeedbackExchangeRepository {
     genre: string; format: string; pageCount: number;
   }): Promise<FeedbackListing> {
     const listing: FeedbackListing = {
-      id: this.id("listing"),
+      id: this.createId("listing"),
       ownerUserId,
       projectId: input.projectId,
       scriptId: input.scriptId,
@@ -136,7 +126,7 @@ class MemoryFeedbackExchangeRepository implements FeedbackExchangeRepository {
     listing.updatedAt = new Date().toISOString();
 
     const review: FeedbackReview = {
-      id: this.id("review"),
+      id: this.createId("review"),
       listingId,
       reviewerUserId: claimerUserId,
       scoreStoryStructure: null,
@@ -233,7 +223,7 @@ class MemoryFeedbackExchangeRepository implements FeedbackExchangeRepository {
   async createRating(reviewId: string, raterUserId: string, score: number, comment: string): Promise<ReviewerRating | null> {
     if (this.ratings.has(reviewId)) return null;
     const rating: ReviewerRating = {
-      id: this.id("rating"),
+      id: this.createId("rating"),
       reviewId,
       raterUserId,
       score,
@@ -306,7 +296,7 @@ class MemoryFeedbackExchangeRepository implements FeedbackExchangeRepository {
       if (dispute.reviewId === reviewId && dispute.filedByUserId === filedByUserId) return null;
     }
     const dispute: FeedbackDispute = {
-      id: this.id("dispute"),
+      id: this.createId("dispute"),
       reviewId,
       filedByUserId,
       reason,

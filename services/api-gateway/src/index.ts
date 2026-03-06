@@ -1,5 +1,8 @@
 import Fastify, { type FastifyInstance } from "fastify";
+import cookie from "@fastify/cookie";
 import cors from "@fastify/cors";
+import swagger from "@fastify/swagger";
+import swaggerUi from "@fastify/swagger-ui";
 import { randomUUID } from "node:crypto";
 import { request } from "undici";
 import { validateRequiredEnv, bootstrapService, setupErrorReporting, isMainModule } from "@script-manifest/service-utils";
@@ -40,6 +43,7 @@ export type ApiGatewayOptions = {
   competitionAdminAllowlist?: string[];
   coverageAdminAllowlist?: string[];
   industryAdminAllowlist?: string[];
+  redisUrl?: string;
 };
 
 export async function buildServer(options: ApiGatewayOptions = {}): Promise<FastifyInstance> {
@@ -55,6 +59,7 @@ export async function buildServer(options: ApiGatewayOptions = {}): Promise<Fast
   });
 
   registerRequestId(server);
+  await server.register(cookie);
   await server.register(cors, {
     origin: process.env.CORS_ALLOWED_ORIGINS?.split(",") ?? ["http://localhost:3000"],
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
@@ -65,7 +70,28 @@ export async function buildServer(options: ApiGatewayOptions = {}): Promise<Fast
   await server.register(helmet, {
     contentSecurityPolicy: false,  // Disable CSP — frontend is separate origin
   });
-  await registerRateLimit(server);
+  await server.register(swagger, {
+    openapi: {
+      info: {
+        title: "Script Manifest API",
+        version: "1.0.0",
+        description: "API gateway endpoints for Script Manifest services."
+      },
+      components: {
+        securitySchemes: {
+          bearerAuth: {
+            type: "http",
+            scheme: "bearer",
+            bearerFormat: "JWT"
+          }
+        }
+      }
+    }
+  });
+  await server.register(swaggerUi, {
+    routePrefix: "/docs"
+  });
+  await registerRateLimit(server, options.redisUrl);
 
   const ctx: GatewayContext = {
     requestFn: options.requestFn ?? request,
@@ -168,7 +194,8 @@ export async function startServer(): Promise<void> {
     partnerDashboardServiceBase: process.env.PARTNER_DASHBOARD_SERVICE_URL,
     competitionAdminAllowlist: parseAllowlist(process.env.COMPETITION_ADMIN_ALLOWLIST ?? ""),
     coverageAdminAllowlist: parseAllowlist(process.env.COVERAGE_ADMIN_ALLOWLIST ?? ""),
-    industryAdminAllowlist: parseAllowlist(process.env.INDUSTRY_ADMIN_ALLOWLIST ?? "")
+    industryAdminAllowlist: parseAllowlist(process.env.INDUSTRY_ADMIN_ALLOWLIST ?? ""),
+    redisUrl: process.env.REDIS_URL,
   });
   boot.phase("server built");
 

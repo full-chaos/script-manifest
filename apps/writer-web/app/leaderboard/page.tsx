@@ -41,10 +41,10 @@ const tierLabels: Record<TierDesignation, string> = {
 };
 
 const tierColors: Record<TierDesignation, string> = {
-  top_1: "bg-amber-100 text-amber-800 border-amber-300",
+  top_1: "bg-amber-500/15 dark:bg-amber-500/20 text-amber-800 dark:text-amber-400 border-amber-400/60 dark:border-amber-300/45",
   top_2: "bg-slate-100 text-slate-700 border-slate-300",
   top_10: "bg-orange-100 text-orange-700 border-orange-300",
-  top_25: "bg-sky-100 text-sky-700 border-sky-300"
+  top_25: "bg-sky-500/15 dark:bg-sky-500/20 text-sky-700 dark:text-sky-400 border-sky-400/60 dark:border-sky-300/45"
 };
 
 function avatarGradient(id: string): string {
@@ -131,10 +131,10 @@ export default function LeaderboardPage() {
     <section className="space-y-4">
       <article className="hero-card hero-card--tide animate-in">
         <p className="eyebrow eyebrow--tide">Leaderboard</p>
-        <h1 className="text-4xl text-ink-900">Writer Spotlight</h1>
-        <p className="max-w-3xl text-ink-700">
+        <h1 className="text-4xl text-foreground">Writer Spotlight</h1>
+        <p className="max-w-3xl text-foreground-secondary">
           Prestige-weighted rankings with time decay, verification scoring, and transparent methodology.
-          Explore the <a href="/rankings/methodology" className="underline hover:text-tide-700">scoring methodology</a>.
+          Explore the <a href="/rankings/methodology" className="underline hover:text-tide-700 dark:text-tide-500">scoring methodology</a>.
         </p>
       </article>
 
@@ -212,7 +212,7 @@ export default function LeaderboardPage() {
         </div>
         {rows.length === 0 ? (
           <EmptyState
-            illustration={<EmptyIllustration variant="sparkle" className="h-16 w-16 text-ink-900" />}
+            illustration={<EmptyIllustration variant="sparkle" className="h-16 w-16 text-foreground" />}
             title="The spotlight is waiting"
             description="Writers appear here as they submit to competitions and record placements. Be the first to climb the ranks."
             actionLabel="Browse competitions"
@@ -226,7 +226,7 @@ export default function LeaderboardPage() {
               return (
                 <article key={entry.writerId} className="subcard flex gap-4">
                   <div className="flex flex-col items-center gap-1.5">
-                    <span className={`text-sm font-bold ${entry.rank <= 3 ? "text-ember-700" : "text-ink-500"}`}>
+                    <span className={`text-sm font-bold ${entry.rank <= 3 ? "text-primary-dark dark:text-primary" : "text-muted"}`}>
                       #{entry.rank}
                     </span>
                     <span className={`flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br text-sm font-bold text-white ${avatarGradient(entry.writerId)}`}>
@@ -236,7 +236,7 @@ export default function LeaderboardPage() {
 
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <p className="truncate font-semibold text-ink-900">{entry.writerId}</p>
+                      <p className="truncate font-semibold text-foreground">{entry.writerId}</p>
                       {entry.tier ? (
                         <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${tierColors[entry.tier]}`}>
                           {tierLabels[entry.tier]}
@@ -250,7 +250,7 @@ export default function LeaderboardPage() {
                           style={{ width: `${pct}%` }}
                         />
                       </div>
-                      <span className="shrink-0 text-xs font-semibold text-ember-700">
+                      <span className="shrink-0 text-xs font-semibold text-primary-dark dark:text-primary">
                         {entry.totalScore.toFixed(1)}
                       </span>
                     </div>
@@ -264,7 +264,7 @@ export default function LeaderboardPage() {
                         {entry.badges.map((label) => (
                           <span
                             key={label}
-                            className="inline-flex items-center rounded-full bg-tide-100 border border-tide-300 px-2 py-0.5 text-xs font-medium text-tide-800"
+                            className="inline-flex items-center rounded-full bg-tide-500/15 dark:bg-tide-500/20 border border-tide-400/60 dark:border-tide-300/45 px-2 py-0.5 text-xs font-medium text-tide-800 dark:text-tide-300"
                           >
                             {label}
                           </span>
@@ -293,7 +293,7 @@ function TrendingIndicator({ delta }: { delta: number }) {
   if (delta === 0) return null;
   const isPositive = delta > 0;
   return (
-    <span className={`stat-chip ${isPositive ? "text-green-700" : "text-red-700"}`}>
+    <span className={`stat-chip ${isPositive ? "text-green-700 dark:text-green-400" : "text-red-700 dark:text-red-300"}`}>
       {isPositive ? "\u25B2" : "\u25BC"} {Math.abs(delta).toFixed(1)} (30d)
     </span>
   );

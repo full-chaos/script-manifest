@@ -138,8 +138,8 @@ export default function AdminCompetitionsPage() {
     <section className="space-y-4">
       <article className="hero-card">
         <p className="eyebrow">Admin Curation</p>
-        <h1 className="text-4xl text-ink-900">Competition curation console</h1>
-        <p className="max-w-3xl text-ink-700">
+        <h1 className="text-4xl text-foreground">Competition curation console</h1>
+        <p className="max-w-3xl text-foreground-secondary">
           Curate vetted competitions and maintain metadata quality from one controlled workflow.
         </p>
       </article>

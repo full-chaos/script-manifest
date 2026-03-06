@@ -28,8 +28,8 @@ export default function MethodologyPage() {
     <section className="space-y-4">
       <article className="hero-card hero-card--tide animate-in">
         <p className="eyebrow eyebrow--tide">Rankings</p>
-        <h1 className="text-4xl text-ink-900">Scoring Methodology</h1>
-        <p className="max-w-3xl text-ink-700">
+        <h1 className="text-4xl text-foreground">Scoring Methodology</h1>
+        <p className="max-w-3xl text-foreground-secondary">
           Full transparency into how writer scores are calculated, weighted, and decayed over time.
         </p>
       </article>
@@ -42,7 +42,7 @@ export default function MethodologyPage() {
             <div className="subcard-header">
               <h2 className="section-title">Algorithm v{methodology.version}</h2>
             </div>
-            <p className="text-ink-700">
+            <p className="text-foreground-secondary">
               Each placement score is computed as:
               <code className="mx-1 rounded bg-ink-500/10 px-1.5 py-0.5 text-sm font-mono">
                 status_weight &times; prestige &times; verification &times; time_decay &times; confidence
@@ -57,8 +57,8 @@ export default function MethodologyPage() {
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
               {Object.entries(methodology.statusWeights).map(([status, weight]) => (
                 <div key={status} className="subcard flex items-center justify-between">
-                  <span className="capitalize text-ink-900">{status}</span>
-                  <span className="font-mono font-bold text-ember-700">{weight}</span>
+                  <span className="capitalize text-foreground">{status}</span>
+                  <span className="font-mono font-bold text-primary-dark dark:text-primary">{weight}</span>
                 </div>
               ))}
             </div>
@@ -71,8 +71,8 @@ export default function MethodologyPage() {
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
               {Object.entries(methodology.prestigeMultipliers).map(([tier, mult]) => (
                 <div key={tier} className="subcard flex items-center justify-between">
-                  <span className="capitalize text-ink-900">{tier}</span>
-                  <span className="font-mono font-bold text-tide-700">{mult}x</span>
+                  <span className="capitalize text-foreground">{tier}</span>
+                  <span className="font-mono font-bold text-tide-700 dark:text-tide-500">{mult}x</span>
                 </div>
               ))}
             </div>
@@ -84,16 +84,16 @@ export default function MethodologyPage() {
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="subcard">
-                <p className="text-sm text-ink-600">Time decay half-life</p>
-                <p className="text-2xl font-bold text-ink-900">{methodology.timeDecayHalfLifeDays} days</p>
-                <p className="text-xs text-ink-500 mt-1">
+                <p className="text-sm text-foreground-secondary">Time decay half-life</p>
+                <p className="text-2xl font-bold text-foreground">{methodology.timeDecayHalfLifeDays} days</p>
+                <p className="text-xs text-muted mt-1">
                   Scores halve in value after this period, encouraging ongoing participation.
                 </p>
               </div>
               <div className="subcard">
-                <p className="text-sm text-ink-600">Confidence threshold</p>
-                <p className="text-2xl font-bold text-ink-900">{methodology.confidenceThreshold} evaluations</p>
-                <p className="text-xs text-ink-500 mt-1">
+                <p className="text-sm text-foreground-secondary">Confidence threshold</p>
+                <p className="text-2xl font-bold text-foreground">{methodology.confidenceThreshold} evaluations</p>
+                <p className="text-xs text-muted mt-1">
                   Writers reach full scoring confidence after this many evaluations.
                 </p>
               </div>
@@ -107,8 +107,8 @@ export default function MethodologyPage() {
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
               {Object.entries(methodology.tierThresholds).map(([tier, pct]) => (
                 <div key={tier} className="subcard flex items-center justify-between">
-                  <span className="text-ink-900">{tier.replace("_", " ")}</span>
-                  <span className="font-mono font-bold text-sky-700">{((pct as number) * 100).toFixed(0)}%</span>
+                  <span className="text-foreground">{tier.replace("_", " ")}</span>
+                  <span className="font-mono font-bold text-sky-700 dark:text-sky-400">{((pct as number) * 100).toFixed(0)}%</span>
                 </div>
               ))}
             </div>
@@ -116,7 +116,7 @@ export default function MethodologyPage() {
         </>
       ) : !error ? (
         <article className="panel stack animate-in animate-in-delay-1">
-          <p className="text-ink-500">Loading methodology...</p>
+          <p className="text-muted">Loading methodology...</p>
         </article>
       ) : null}
     </section>

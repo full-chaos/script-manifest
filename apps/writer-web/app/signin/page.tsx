@@ -186,12 +186,12 @@ export default function SignInPage() {
       <article className="hero-card animate-in relative overflow-hidden">
         <div className="relative z-10">
           <p className="eyebrow">Account</p>
-          <h1 className="text-4xl text-ink-900">Sign in to your writer hub</h1>
-          <p className="max-w-3xl text-ink-700">
+          <h1 className="text-4xl text-foreground">Sign in to your writer hub</h1>
+          <p className="max-w-3xl text-foreground-secondary">
             Access your profile, manage projects, and track competition submissions — all in one place.
           </p>
         </div>
-        <SignInIllustration className="pointer-events-none absolute -right-2 -bottom-2 hidden w-48 text-ink-900 opacity-50 md:block" />
+        <SignInIllustration className="pointer-events-none absolute -right-2 -bottom-2 hidden w-48 text-foreground opacity-50 md:block" />
       </article>
 
       <article className="panel stack mx-auto max-w-md">
@@ -210,13 +210,13 @@ export default function SignInPage() {
           </div>
         ) : (
           <form className="stack" onSubmit={submit}>
-            <div className="flex overflow-hidden rounded-lg border border-ink-500/20">
+            <div className="flex overflow-hidden rounded-lg border border-border/65">
               <button
                 type="button"
                 className={
                   mode === "login"
                     ? "flex-1 px-4 py-2 text-sm font-semibold bg-ember-500 text-white transition-colors"
-                    : "flex-1 px-4 py-2 text-sm font-semibold bg-white text-ink-700 hover:bg-cream-100 transition-colors"
+                    : "flex-1 px-4 py-2 text-sm font-semibold bg-surface text-foreground-secondary hover:bg-background-secondary transition-colors"
                 }
                 onClick={() => setMode("login")}
               >
@@ -227,7 +227,7 @@ export default function SignInPage() {
                 className={
                   mode === "register"
                     ? "flex-1 px-4 py-2 text-sm font-semibold bg-ember-500 text-white transition-colors"
-                    : "flex-1 px-4 py-2 text-sm font-semibold bg-white text-ink-700 hover:bg-cream-100 transition-colors"
+                    : "flex-1 px-4 py-2 text-sm font-semibold bg-surface text-foreground-secondary hover:bg-background-secondary transition-colors"
                 }
                 onClick={() => setMode("register")}
               >
@@ -246,7 +246,7 @@ export default function SignInPage() {
 
             <div className="flex items-center gap-3">
               <div className="h-px flex-1 bg-ink-500/15" />
-              <span className="text-xs text-ink-500">or continue with email</span>
+              <span className="text-xs text-muted">or continue with email</span>
               <div className="h-px flex-1 bg-ink-500/15" />
             </div>
 

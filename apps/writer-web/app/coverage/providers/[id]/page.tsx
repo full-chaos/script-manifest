@@ -63,7 +63,7 @@ export default function ProviderProfilePage() {
     return (
       <div className="flex items-center gap-0.5">
         {[1, 2, 3, 4, 5].map((star) => (
-          <span key={star} className={star <= rating ? "text-amber-500" : "text-ink-500/30"}>
+          <span key={star} className={star <= rating ? "text-amber-500" : "text-muted/30"}>
             ★
           </span>
         ))}
@@ -85,7 +85,7 @@ export default function ProviderProfilePage() {
     return (
       <section className="space-y-4">
         <EmptyState
-          illustration={<EmptyIllustration variant="search" className="h-14 w-14 text-ink-900" />}
+          illustration={<EmptyIllustration variant="search" className="h-14 w-14 text-foreground" />}
           title="Provider not found"
           description="The provider you're looking for doesn't exist or has been removed."
         />
@@ -97,8 +97,8 @@ export default function ProviderProfilePage() {
     <section className="space-y-4">
       <article className="hero-card hero-card--violet animate-in">
         <p className="eyebrow">Coverage Provider</p>
-        <h1 className="text-4xl text-ink-900">{provider.displayName}</h1>
-        {provider.bio ? <p className="max-w-3xl text-ink-700">{provider.bio}</p> : null}
+        <h1 className="text-4xl text-foreground">{provider.displayName}</h1>
+        {provider.bio ? <p className="max-w-3xl text-foreground-secondary">{provider.bio}</p> : null}
         <div className="mt-4 flex flex-wrap items-center gap-2">
           {provider.specialties.map((specialty) => (
             <span key={specialty} className="badge">
@@ -110,12 +110,12 @@ export default function ProviderProfilePage() {
           {provider.avgRating !== null ? (
             <div className="flex items-center gap-2">
               {renderStars(Math.round(provider.avgRating))}
-              <span className="text-sm text-ink-700">{provider.avgRating.toFixed(1)}</span>
+              <span className="text-sm text-foreground-secondary">{provider.avgRating.toFixed(1)}</span>
             </div>
           ) : (
-            <span className="text-sm text-ink-500">No ratings yet</span>
+            <span className="text-sm text-muted">No ratings yet</span>
           )}
-          <span className="text-sm text-ink-700">
+          <span className="text-sm text-foreground-secondary">
             {provider.totalOrdersCompleted} {provider.totalOrdersCompleted === 1 ? "order" : "orders"} completed
           </span>
         </div>
@@ -125,7 +125,7 @@ export default function ProviderProfilePage() {
         <h2 className="section-title">Services Offered</h2>
         {services.length === 0 ? (
           <EmptyState
-            illustration={<EmptyIllustration variant="search" className="h-14 w-14 text-ink-900" />}
+            illustration={<EmptyIllustration variant="search" className="h-14 w-14 text-foreground" />}
             title="No services available"
             description="This provider hasn't listed any services yet."
           />
@@ -135,13 +135,13 @@ export default function ProviderProfilePage() {
               <article key={service.id} className="subcard">
                 <div className="stack-tight">
                   <div className="flex items-start justify-between gap-2">
-                    <strong className="text-lg text-ink-900">{service.title}</strong>
-                    <span className="inline-flex items-center rounded-full border border-tide-500/30 bg-tide-500/10 px-2.5 py-0.5 text-[11px] font-semibold text-tide-700">
+                    <strong className="text-lg text-foreground">{service.title}</strong>
+                    <span className="inline-flex items-center rounded-full border border-tide-500/30 dark:border-tide-500/40 bg-tide-500/10 dark:bg-tide-500/20 px-2.5 py-0.5 text-[11px] font-semibold text-tide-700 dark:text-tide-500">
                       {formatTier(service.tier)}
                     </span>
                   </div>
                   {service.description ? (
-                    <p className="text-sm text-ink-700 line-clamp-2">{service.description}</p>
+                    <p className="text-sm text-foreground-secondary line-clamp-2">{service.description}</p>
                   ) : null}
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="badge">{formatPrice(service.priceCents)}</span>
@@ -167,7 +167,7 @@ export default function ProviderProfilePage() {
         <h2 className="section-title">Reviews</h2>
         {reviews.length === 0 ? (
           <EmptyState
-            illustration={<EmptyIllustration variant="search" className="h-14 w-14 text-ink-900" />}
+            illustration={<EmptyIllustration variant="search" className="h-14 w-14 text-foreground" />}
             title="No reviews yet"
             description="This provider hasn't received any reviews yet."
           />
@@ -179,9 +179,9 @@ export default function ProviderProfilePage() {
                   <div className="stack-tight flex-1">
                     {renderStars(review.rating)}
                     {review.comment ? (
-                      <p className="text-sm text-ink-700">{review.comment}</p>
+                      <p className="text-sm text-foreground-secondary">{review.comment}</p>
                     ) : null}
-                    <span className="text-xs text-ink-500">
+                    <span className="text-xs text-muted">
                       {new Date(review.createdAt).toLocaleDateString()}
                     </span>
                   </div>

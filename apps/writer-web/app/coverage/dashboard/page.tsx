@@ -92,13 +92,13 @@ export default function ProviderDashboardPage() {
 
   function getStatusColor(status: string): string {
     const colors: Record<string, string> = {
-      payment_held: "border-amber-300 bg-amber-50 text-amber-700",
-      claimed: "border-tide-500/30 bg-tide-500/10 text-tide-700",
+      payment_held: "border-amber-400/60 dark:border-amber-300/45 bg-amber-500/10 dark:bg-amber-500/15 text-amber-700 dark:text-amber-500",
+      claimed: "border-tide-500/30 dark:border-tide-500/40 bg-tide-500/10 dark:bg-tide-500/20 text-tide-700 dark:text-tide-500",
       in_progress: "border-blue-300 bg-blue-50 text-blue-700",
-      delivered: "border-violet-300 bg-violet-50 text-violet-700",
-      completed: "border-green-300 bg-green-50 text-green-700"
+  delivered: "border-violet-400/60 dark:border-violet-300/45 bg-violet-500/10 dark:bg-violet-500/15 text-violet-700 dark:text-violet-400",
+      completed: "border-green-300 bg-green-500/10 dark:bg-green-500/15 text-green-700 dark:text-green-400"
     };
-    return colors[status] ?? "border-ink-500/20 bg-ink-500/10 text-ink-700";
+    return colors[status] ?? "border-border/65 bg-ink-500/10 text-foreground-secondary";
   }
 
   const incomingOrders = orders.filter((o) => o.status === "payment_held");
@@ -125,15 +125,15 @@ export default function ProviderDashboardPage() {
       <section className="space-y-4">
         <article className="hero-card hero-card--violet animate-in">
           <p className="eyebrow">Coverage Provider Dashboard</p>
-          <h1 className="text-4xl text-ink-900">Become a provider</h1>
-          <p className="max-w-3xl text-ink-700">
+          <h1 className="text-4xl text-foreground">Become a provider</h1>
+          <p className="max-w-3xl text-foreground-secondary">
             Join our marketplace and offer professional script coverage services to writers.
           </p>
         </article>
 
         <article className="panel stack animate-in animate-in-delay-1">
           <EmptyState
-            illustration={<EmptyIllustration variant="search" className="h-14 w-14 text-ink-900" />}
+            illustration={<EmptyIllustration variant="search" className="h-14 w-14 text-foreground" />}
             title="Not a provider yet"
             description="Register as a coverage provider to start accepting orders."
             actionLabel="Become a Provider"
@@ -148,36 +148,36 @@ export default function ProviderDashboardPage() {
     <section className="space-y-4">
       <article className="hero-card hero-card--violet animate-in">
         <p className="eyebrow">Coverage Provider Dashboard</p>
-        <h1 className="text-4xl text-ink-900">{provider.displayName}</h1>
-        <p className="max-w-3xl text-ink-700">Manage your orders and track your performance.</p>
+        <h1 className="text-4xl text-foreground">{provider.displayName}</h1>
+        <p className="max-w-3xl text-foreground-secondary">Manage your orders and track your performance.</p>
         <div className="mt-4 flex flex-wrap items-center gap-4">
-          <div className="rounded-lg border border-ink-500/15 bg-white px-4 py-2">
-            <span className="text-xs text-ink-500">Total Orders</span>
-            <p className="text-2xl font-semibold text-ink-900">{provider.totalOrdersCompleted}</p>
+          <div className="rounded-lg border border-border/55 bg-surface px-4 py-2">
+            <span className="text-xs text-muted">Total Orders</span>
+            <p className="text-2xl font-semibold text-foreground">{provider.totalOrdersCompleted}</p>
           </div>
-          <div className="rounded-lg border border-ink-500/15 bg-white px-4 py-2">
-            <span className="text-xs text-ink-500">Avg Rating</span>
-            <p className="text-2xl font-semibold text-ink-900">
+          <div className="rounded-lg border border-border/55 bg-surface px-4 py-2">
+            <span className="text-xs text-muted">Avg Rating</span>
+            <p className="text-2xl font-semibold text-foreground">
               {provider.avgRating !== null ? provider.avgRating.toFixed(1) : "N/A"}
             </p>
           </div>
-          <div className="rounded-lg border border-ink-500/15 bg-white px-4 py-2">
-            <span className="text-xs text-ink-500">Active Orders</span>
-            <p className="text-2xl font-semibold text-ink-900">{activeOrders.length}</p>
+          <div className="rounded-lg border border-border/55 bg-surface px-4 py-2">
+            <span className="text-xs text-muted">Active Orders</span>
+            <p className="text-2xl font-semibold text-foreground">{activeOrders.length}</p>
           </div>
         </div>
       </article>
 
       <article className="panel stack animate-in animate-in-delay-1">
-        <nav className="flex gap-2 border-b border-ink-500/15 pb-3">
+        <nav className="flex gap-2 border-b border-border/55 pb-3">
           {tabs.map((tab) => (
             <button
               key={tab.key}
               type="button"
               className={
                 activeTab === tab.key
-                  ? "rounded-md border border-ember-500/40 bg-ember-500/10 px-3 py-1.5 text-xs font-semibold text-ember-700"
-                  : "rounded-md border border-transparent px-3 py-1.5 text-xs font-medium text-ink-700 hover:border-ink-500/20 hover:bg-cream-100"
+                  ? "rounded-md border border-primary/45 bg-primary/15 px-3 py-1.5 text-xs font-semibold text-primary-dark dark:text-primary"
+                  : "rounded-md border border-transparent px-3 py-1.5 text-xs font-medium text-foreground-secondary hover:border-border/65 hover:bg-background-secondary"
               }
               onClick={() => setActiveTab(tab.key)}
             >
@@ -189,7 +189,7 @@ export default function ProviderDashboardPage() {
         {activeTab === "incoming" ? (
           incomingOrders.length === 0 ? (
             <EmptyState
-              illustration={<EmptyIllustration variant="search" className="h-14 w-14 text-ink-900" />}
+              illustration={<EmptyIllustration variant="search" className="h-14 w-14 text-foreground" />}
               title="No incoming orders"
               description="New orders awaiting claim will appear here."
             />
@@ -200,7 +200,7 @@ export default function ProviderDashboardPage() {
                   <div className="flex items-start justify-between gap-3">
                     <div className="stack-tight flex-1">
                       <div className="flex items-center gap-2">
-                        <strong className="text-ink-900">Order {order.id}</strong>
+                        <strong className="text-foreground">Order {order.id}</strong>
                         <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.1em] ${getStatusColor(order.status)}`}>
                           {order.status.replace(/_/g, " ")}
                         </span>
@@ -208,7 +208,7 @@ export default function ProviderDashboardPage() {
                       <div className="flex items-center gap-2">
                         <span className="badge">{formatPrice(order.providerPayoutCents)}</span>
                         {order.slaDeadline ? (
-                          <span className="text-xs text-ink-500">
+                          <span className="text-xs text-muted">
                             Due: {new Date(order.slaDeadline).toLocaleDateString()}
                           </span>
                         ) : null}
@@ -231,7 +231,7 @@ export default function ProviderDashboardPage() {
         ) : activeTab === "active" ? (
           activeOrders.length === 0 ? (
             <EmptyState
-              illustration={<EmptyIllustration variant="search" className="h-14 w-14 text-ink-900" />}
+              illustration={<EmptyIllustration variant="search" className="h-14 w-14 text-foreground" />}
               title="No active orders"
               description="Orders you've claimed will appear here."
             />
@@ -242,7 +242,7 @@ export default function ProviderDashboardPage() {
                   <div className="flex items-start justify-between gap-3">
                     <div className="stack-tight flex-1">
                       <div className="flex items-center gap-2">
-                        <strong className="text-ink-900">Order {order.id}</strong>
+                        <strong className="text-foreground">Order {order.id}</strong>
                         <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.1em] ${getStatusColor(order.status)}`}>
                           {order.status.replace(/_/g, " ")}
                         </span>
@@ -250,7 +250,7 @@ export default function ProviderDashboardPage() {
                       <div className="flex items-center gap-2">
                         <span className="badge">{formatPrice(order.providerPayoutCents)}</span>
                         {order.slaDeadline ? (
-                          <span className="text-xs text-ink-500">
+                          <span className="text-xs text-muted">
                             Due: {new Date(order.slaDeadline).toLocaleDateString()}
                           </span>
                         ) : null}
@@ -271,7 +271,7 @@ export default function ProviderDashboardPage() {
           )
         ) : completedOrders.length === 0 ? (
           <EmptyState
-            illustration={<EmptyIllustration variant="search" className="h-14 w-14 text-ink-900" />}
+            illustration={<EmptyIllustration variant="search" className="h-14 w-14 text-foreground" />}
             title="No completed orders"
             description="Your completed orders will appear here."
           />
@@ -282,7 +282,7 @@ export default function ProviderDashboardPage() {
                 <div className="flex items-start justify-between gap-3">
                   <div className="stack-tight flex-1">
                     <div className="flex items-center gap-2">
-                      <strong className="text-ink-900">Order {order.id}</strong>
+                      <strong className="text-foreground">Order {order.id}</strong>
                       <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.1em] ${getStatusColor(order.status)}`}>
                         {order.status.replace(/_/g, " ")}
                       </span>
@@ -290,7 +290,7 @@ export default function ProviderDashboardPage() {
                     <div className="flex items-center gap-2">
                       <span className="badge">{formatPrice(order.providerPayoutCents)}</span>
                       {order.deliveredAt ? (
-                        <span className="text-xs text-ink-500">
+                        <span className="text-xs text-muted">
                           Delivered: {new Date(order.deliveredAt).toLocaleDateString()}
                         </span>
                       ) : null}

@@ -623,8 +623,8 @@ export default function ProjectsPage() {
     <section className="space-y-4">
       <article className="hero-card hero-card--sky animate-in">
         <p className="eyebrow eyebrow--sky">Project Workspace</p>
-        <h1 className="text-4xl text-ink-900">Your script workspace</h1>
-        <p className="max-w-3xl text-ink-700">
+        <h1 className="text-4xl text-foreground">Your script workspace</h1>
+        <p className="max-w-3xl text-foreground-secondary">
           Manage projects, co-writers, and draft versions in one place. Upload scripts, track
           lifecycle transitions, and control access — all from a single dashboard.
         </p>
@@ -679,15 +679,15 @@ export default function ProjectsPage() {
                   key={project.id}
                   className={
                     active
-                      ? "subcard border-ember-500/60 bg-ember-500/10"
+                      ? "subcard border-ember-500/60 bg-primary/15"
                       : "subcard"
                   }
                 >
                   <div className="subcard-header">
-                    <strong className="text-lg text-ink-900">{project.title}</strong>
+                    <strong className="text-lg text-foreground">{project.title}</strong>
                     <span className="badge">{project.format}</span>
                   </div>
-                  <p className="mt-2 text-sm text-ink-700">{project.logline || "No logline provided."}</p>
+                  <p className="mt-2 text-sm text-foreground-secondary">{project.logline || "No logline provided."}</p>
                   <p className="muted mt-2">
                     {project.genre} | {project.pageCount} pages | {project.isDiscoverable ? "Discoverable" : "Private"}
                   </p>
@@ -736,7 +736,7 @@ export default function ProjectsPage() {
             <section className="grid gap-3 md:grid-cols-2">
               <article className="subcard stack">
                 <div className="subcard-header">
-                  <h3 className="text-2xl text-ink-900">Co-Writers</h3>
+                  <h3 className="text-2xl text-foreground">Co-Writers</h3>
                   <button
                     type="button"
                     className="btn btn-secondary"
@@ -749,7 +749,7 @@ export default function ProjectsPage() {
 
                 {coWriters.length === 0 ? <p className="muted">No co-writers added.</p> : null}
                 {coWriters.map((coWriter) => (
-                  <article key={coWriter.coWriterUserId} className="rounded-xl border border-zinc-300/60 bg-white p-3">
+                  <article key={coWriter.coWriterUserId} className="rounded-xl border border-zinc-300/60 bg-surface p-3">
                     <div className="subcard-header">
                       <strong>{coWriter.coWriterUserId}</strong>
                       <button
@@ -768,7 +768,7 @@ export default function ProjectsPage() {
 
               <article className="subcard stack">
                 <div className="subcard-header">
-                  <h3 className="text-2xl text-ink-900">Draft Lifecycle</h3>
+                  <h3 className="text-2xl text-foreground">Draft Lifecycle</h3>
                   <button
                     type="button"
                     className="btn btn-secondary"
@@ -781,7 +781,7 @@ export default function ProjectsPage() {
 
                 {drafts.length === 0 ? <p className="muted">No drafts added yet.</p> : null}
                 {drafts.map((draft) => (
-                  <article key={draft.id} className="rounded-xl border border-zinc-300/60 bg-white p-3">
+                  <article key={draft.id} className="rounded-xl border border-zinc-300/60 bg-surface p-3">
                     <div className="subcard-header">
                       <strong>
                         {draft.versionLabel} ({draft.scriptId})
@@ -791,7 +791,7 @@ export default function ProjectsPage() {
                         {draft.isPrimary ? " | primary" : ""}
                       </span>
                     </div>
-                    {draft.changeSummary ? <p className="mt-2 text-sm text-ink-700">{draft.changeSummary}</p> : null}
+                    {draft.changeSummary ? <p className="mt-2 text-sm text-foreground-secondary">{draft.changeSummary}</p> : null}
                     <p className="muted mt-2">{draft.pageCount} pages</p>
                     <div className="inline-form mt-3">
                       <button
@@ -828,7 +828,7 @@ export default function ProjectsPage() {
             </section>
 
             <div className="subcard-header">
-              <h3 className="text-2xl text-ink-900">Script Access Workflow + Audit Trail</h3>
+              <h3 className="text-2xl text-foreground">Script Access Workflow + Audit Trail</h3>
               <span className="badge">Script: {selectedScriptId || "Select a draft"}</span>
             </div>
 
@@ -866,13 +866,13 @@ export default function ProjectsPage() {
                 />
               ) : null}
               {accessRequests.map((entry) => (
-                <article key={entry.id} className="rounded-xl border border-zinc-300/60 bg-white p-3">
+                <article key={entry.id} className="rounded-xl border border-zinc-300/60 bg-surface p-3">
                   <div className="subcard-header">
                     <strong>{entry.requesterUserId}</strong>
                     <span className="badge">{entry.status}</span>
                   </div>
                   <p className="muted mt-2">Requested: {new Date(entry.requestedAt).toLocaleString()}</p>
-                  {entry.reason ? <p className="mt-2 text-sm text-ink-700">{entry.reason}</p> : null}
+                  {entry.reason ? <p className="mt-2 text-sm text-foreground-secondary">{entry.reason}</p> : null}
                   {entry.status === "pending" ? (
                     <div className="inline-form mt-3">
                       <input
@@ -1081,8 +1081,8 @@ export default function ProjectsPage() {
 
           {uploadStep !== "idle" && uploadStep !== "done" ? (
             <div className="space-y-1">
-              <p className="text-sm font-semibold text-tide-700">{uploadStepLabels[uploadStep]}</p>
-              <div className="h-2 overflow-hidden rounded-full bg-cream-200">
+              <p className="text-sm font-semibold text-tide-700 dark:text-tide-500">{uploadStepLabels[uploadStep]}</p>
+              <div className="h-2 overflow-hidden rounded-full bg-background-secondary">
                 <div
                   className="h-full rounded-full bg-tide-500 transition-all duration-500"
                   style={{

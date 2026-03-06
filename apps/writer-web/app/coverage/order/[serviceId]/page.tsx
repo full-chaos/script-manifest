@@ -95,7 +95,7 @@ export default function OrderFlowPage() {
     return (
       <section className="space-y-4">
         <EmptyState
-          illustration={<EmptyIllustration variant="search" className="h-14 w-14 text-ink-900" />}
+          illustration={<EmptyIllustration variant="search" className="h-14 w-14 text-foreground" />}
           title="Service not found"
           description="The service you're looking for doesn't exist or has been removed."
         />
@@ -108,8 +108,8 @@ export default function OrderFlowPage() {
       <section className="space-y-4">
         <article className="hero-card hero-card--violet animate-in">
           <p className="eyebrow">Order Placed</p>
-          <h1 className="text-4xl text-ink-900">Order confirmed</h1>
-          <p className="max-w-3xl text-ink-700">
+          <h1 className="text-4xl text-foreground">Order confirmed</h1>
+          <p className="max-w-3xl text-foreground-secondary">
             Your order has been placed successfully. Payment is being processed.
           </p>
         </article>
@@ -119,21 +119,21 @@ export default function OrderFlowPage() {
           <div className="subcard">
             <div className="stack-tight">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-ink-700">Order ID</span>
-                <span className="text-sm font-medium text-ink-900">{order.id}</span>
+                <span className="text-sm text-foreground-secondary">Order ID</span>
+                <span className="text-sm font-medium text-foreground">{order.id}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-sm text-ink-700">Total</span>
-                <span className="text-sm font-medium text-ink-900">
+                <span className="text-sm text-foreground-secondary">Total</span>
+                <span className="text-sm font-medium text-foreground">
                   {formatPrice(order.priceCents + order.platformFeeCents)}
                 </span>
               </div>
               {order.stripePaymentIntentId ? (
-                <div className="mt-2 pt-2 border-t border-ink-500/10">
-                  <p className="text-xs text-ink-500">
+                <div className="mt-2 pt-2 border-t border-border/40">
+                  <p className="text-xs text-muted">
                     Stripe Payment Intent: {order.stripePaymentIntentId}
                   </p>
-                  <p className="text-xs text-ink-500 mt-1">
+                  <p className="text-xs text-muted mt-1">
                     Note: Real Stripe Elements UI will be added later. For now, payment is automatically held.
                   </p>
                 </div>
@@ -160,8 +160,8 @@ export default function OrderFlowPage() {
     <section className="space-y-4">
       <article className="hero-card hero-card--violet animate-in">
         <p className="eyebrow">Order Coverage</p>
-        <h1 className="text-4xl text-ink-900">{service.title}</h1>
-        {service.description ? <p className="max-w-3xl text-ink-700">{service.description}</p> : null}
+        <h1 className="text-4xl text-foreground">{service.title}</h1>
+        {service.description ? <p className="max-w-3xl text-foreground-secondary">{service.description}</p> : null}
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <span className="badge">{formatTier(service.tier)}</span>
           <span className="badge">{service.turnaroundDays}d turnaround</span>
@@ -174,16 +174,16 @@ export default function OrderFlowPage() {
         <div className="subcard">
           <div className="stack-tight">
             <div className="flex items-center justify-between">
-              <span className="text-sm text-ink-700">Service price</span>
-              <span className="text-sm font-medium text-ink-900">{formatPrice(service.priceCents)}</span>
+              <span className="text-sm text-foreground-secondary">Service price</span>
+              <span className="text-sm font-medium text-foreground">{formatPrice(service.priceCents)}</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-sm text-ink-700">Platform fee (15%)</span>
-              <span className="text-sm font-medium text-ink-900">{formatPrice(platformFee)}</span>
+              <span className="text-sm text-foreground-secondary">Platform fee (15%)</span>
+              <span className="text-sm font-medium text-foreground">{formatPrice(platformFee)}</span>
             </div>
-            <div className="flex items-center justify-between pt-2 border-t border-ink-500/10">
-              <span className="text-base font-semibold text-ink-900">Total</span>
-              <span className="text-base font-semibold text-ink-900">{formatPrice(total)}</span>
+            <div className="flex items-center justify-between pt-2 border-t border-border/40">
+              <span className="text-base font-semibold text-foreground">Total</span>
+              <span className="text-base font-semibold text-foreground">{formatPrice(total)}</span>
             </div>
           </div>
         </div>
@@ -193,7 +193,7 @@ export default function OrderFlowPage() {
         <h2 className="section-title">Order Form</h2>
         <form className="stack" onSubmit={handlePlaceOrder}>
           <label className="stack-tight">
-            <span className="text-sm font-medium text-ink-900">Script ID</span>
+            <span className="text-sm font-medium text-foreground">Script ID</span>
             <input
               className="input"
               type="text"
@@ -201,12 +201,12 @@ export default function OrderFlowPage() {
               onChange={(e) => setScriptId(e.target.value)}
               placeholder="script_abc123"
             />
-            <span className="text-xs text-ink-500">
+            <span className="text-xs text-muted">
               The ID of the script you want coverage for (optional)
             </span>
           </label>
           <label className="stack-tight">
-            <span className="text-sm font-medium text-ink-900">Project ID</span>
+            <span className="text-sm font-medium text-foreground">Project ID</span>
             <input
               className="input"
               type="text"
@@ -214,7 +214,7 @@ export default function OrderFlowPage() {
               onChange={(e) => setProjectId(e.target.value)}
               placeholder="proj_abc123"
             />
-            <span className="text-xs text-ink-500">
+            <span className="text-xs text-muted">
               The ID of the project this coverage is for (optional)
             </span>
           </label>

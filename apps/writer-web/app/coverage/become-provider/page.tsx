@@ -169,8 +169,8 @@ export default function BecomeProviderPage() {
       <section className="space-y-4">
         <article className="hero-card hero-card--violet animate-in">
           <p className="eyebrow">Become a Provider</p>
-          <h1 className="text-4xl text-ink-900">Join our marketplace</h1>
-          <p className="max-w-3xl text-ink-700">
+          <h1 className="text-4xl text-foreground">Join our marketplace</h1>
+          <p className="max-w-3xl text-foreground-secondary">
             Sign in to register as a coverage provider and start offering services.
           </p>
         </article>
@@ -185,26 +185,26 @@ export default function BecomeProviderPage() {
       <section className="space-y-4">
         <article className="hero-card hero-card--violet animate-in">
           <p className="eyebrow">Provider Status</p>
-          <h1 className="text-4xl text-ink-900">{provider.displayName}</h1>
-          <p className="max-w-3xl text-ink-700">{provider.bio}</p>
+          <h1 className="text-4xl text-foreground">{provider.displayName}</h1>
+          <p className="max-w-3xl text-foreground-secondary">{provider.bio}</p>
           <div className="mt-4 flex flex-wrap items-center gap-2">
             <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${
               provider.status === "active"
-                ? "border-green-300 bg-green-50 text-green-700"
+                ? "border-green-300 bg-green-500/10 dark:bg-green-500/15 text-green-700 dark:text-green-400"
                 : provider.status === "pending_verification"
-                ? "border-amber-300 bg-amber-50 text-amber-700"
+                ? "border-amber-400/60 dark:border-amber-300/45 bg-amber-500/10 dark:bg-amber-500/15 text-amber-700 dark:text-amber-500"
                 : provider.status === "suspended"
-                ? "border-red-300 bg-red-50 text-red-700"
-                : "border-ink-500/20 bg-ink-500/10 text-ink-700"
+                ? "border-red-400/60 dark:border-red-300/45 bg-red-500/10 dark:bg-red-500/15 text-red-700 dark:text-red-300"
+                : "border-border/65 bg-ink-500/10 text-foreground-secondary"
             }`}>
               {formatProviderStatus(provider.status)}
             </span>
             {provider.stripeOnboardingComplete ? (
-              <span className="inline-flex items-center rounded-full border border-green-300 bg-green-50 px-2.5 py-0.5 text-xs font-semibold text-green-700">
+              <span className="inline-flex items-center rounded-full border border-green-300 bg-green-500/10 dark:bg-green-500/15 px-2.5 py-0.5 text-xs font-semibold text-green-700 dark:text-green-400">
                 Stripe connected
               </span>
             ) : (
-              <span className="inline-flex items-center rounded-full border border-amber-300 bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-700">
+              <span className="inline-flex items-center rounded-full border border-amber-400/60 dark:border-amber-300/45 bg-amber-500/10 dark:bg-amber-500/15 px-2.5 py-0.5 text-xs font-semibold text-amber-700 dark:text-amber-500">
                 Stripe setup incomplete
               </span>
             )}
@@ -234,26 +234,26 @@ export default function BecomeProviderPage() {
           <article className="panel stack animate-in animate-in-delay-2">
             <div className={`rounded-lg border p-4 ${
               statusNotice.tone === "amber"
-                ? "border-amber-300 bg-amber-50"
+                ? "border-amber-400/60 dark:border-amber-300/45 bg-amber-500/10 dark:bg-amber-500/15"
                 : statusNotice.tone === "red"
-                ? "border-red-300 bg-red-50"
-                : "border-ink-500/20 bg-ink-500/5"
+                ? "border-red-400/60 dark:border-red-300/45 bg-red-500/10 dark:bg-red-500/15"
+                : "border-border/65 bg-ink-500/5"
             }`}>
               <strong className={`text-sm font-semibold ${
                 statusNotice.tone === "amber"
-                  ? "text-amber-900"
+                  ? "text-amber-900 dark:text-amber-300"
                   : statusNotice.tone === "red"
                   ? "text-red-900"
-                  : "text-ink-900"
+                  : "text-foreground"
               }`}>
                 {statusNotice.title}
               </strong>
               <p className={`mt-1 text-sm ${
                 statusNotice.tone === "amber"
-                  ? "text-amber-700"
+                  ? "text-amber-700 dark:text-amber-500"
                   : statusNotice.tone === "red"
-                  ? "text-red-700"
-                  : "text-ink-700"
+                  ? "text-red-700 dark:text-red-300"
+                  : "text-foreground-secondary"
               }`}>
                 {statusNotice.message}
               </p>
@@ -268,8 +268,8 @@ export default function BecomeProviderPage() {
     <section className="space-y-4">
       <article className="hero-card hero-card--violet animate-in">
         <p className="eyebrow">Become a Provider</p>
-        <h1 className="text-4xl text-ink-900">Join our marketplace</h1>
-        <p className="max-w-3xl text-ink-700">
+        <h1 className="text-4xl text-foreground">Join our marketplace</h1>
+        <p className="max-w-3xl text-foreground-secondary">
           Register as a coverage provider to offer professional script feedback services.
           After registration, you&apos;ll complete Stripe onboarding to receive payments.
         </p>
@@ -279,7 +279,7 @@ export default function BecomeProviderPage() {
         <h2 className="section-title">Provider Registration</h2>
         <form className="stack" onSubmit={handleRegister}>
           <label className="stack-tight">
-            <span className="text-sm font-medium text-ink-900">Display Name</span>
+            <span className="text-sm font-medium text-foreground">Display Name</span>
             <input
               className="input"
               type="text"
@@ -289,12 +289,12 @@ export default function BecomeProviderPage() {
               required
               maxLength={200}
             />
-            <span className="text-xs text-ink-500">
+            <span className="text-xs text-muted">
               The name that will appear on your provider profile
             </span>
           </label>
           <label className="stack-tight">
-            <span className="text-sm font-medium text-ink-900">Bio</span>
+            <span className="text-sm font-medium text-foreground">Bio</span>
             <textarea
               className="input min-h-32"
               value={bio}
@@ -302,12 +302,12 @@ export default function BecomeProviderPage() {
               placeholder="Tell writers about your experience and approach to coverage..."
               maxLength={5000}
             />
-            <span className="text-xs text-ink-500">
+            <span className="text-xs text-muted">
               Describe your background and what writers can expect from your coverage
             </span>
           </label>
           <label className="stack-tight">
-            <span className="text-sm font-medium text-ink-900">Specialties</span>
+            <span className="text-sm font-medium text-foreground">Specialties</span>
             <input
               className="input"
               type="text"
@@ -315,7 +315,7 @@ export default function BecomeProviderPage() {
               onChange={(e) => setSpecialties(e.target.value)}
               placeholder="Drama, Sci-Fi, Character-driven stories"
             />
-            <span className="text-xs text-ink-500">
+            <span className="text-xs text-muted">
               Comma-separated list of genres or types of scripts you specialize in
             </span>
           </label>
@@ -331,43 +331,43 @@ export default function BecomeProviderPage() {
         <h2 className="section-title">What happens next?</h2>
         <div className="stack-tight">
           <div className="flex gap-3">
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-tide-500/10 text-sm font-semibold text-tide-700">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-tide-500/10 dark:bg-tide-500/20 text-sm font-semibold text-tide-700 dark:text-tide-500">
               1
             </span>
             <div className="flex-1">
-              <strong className="text-sm text-ink-900">Complete registration</strong>
-              <p className="text-sm text-ink-700">Fill out the form above to create your provider profile.</p>
+              <strong className="text-sm text-foreground">Complete registration</strong>
+              <p className="text-sm text-foreground-secondary">Fill out the form above to create your provider profile.</p>
             </div>
           </div>
           <div className="flex gap-3">
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-tide-500/10 text-sm font-semibold text-tide-700">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-tide-500/10 dark:bg-tide-500/20 text-sm font-semibold text-tide-700 dark:text-tide-500">
               2
             </span>
             <div className="flex-1">
-              <strong className="text-sm text-ink-900">Stripe onboarding</strong>
-              <p className="text-sm text-ink-700">
+              <strong className="text-sm text-foreground">Stripe onboarding</strong>
+              <p className="text-sm text-foreground-secondary">
                 Connect your Stripe account to receive payments for your services.
               </p>
             </div>
           </div>
           <div className="flex gap-3">
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-tide-500/10 text-sm font-semibold text-tide-700">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-tide-500/10 dark:bg-tide-500/20 text-sm font-semibold text-tide-700 dark:text-tide-500">
               3
             </span>
             <div className="flex-1">
-              <strong className="text-sm text-ink-900">Create services</strong>
-              <p className="text-sm text-ink-700">
+              <strong className="text-sm text-foreground">Create services</strong>
+              <p className="text-sm text-foreground-secondary">
                 Set up coverage service offerings with pricing and turnaround times.
               </p>
             </div>
           </div>
           <div className="flex gap-3">
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-tide-500/10 text-sm font-semibold text-tide-700">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-tide-500/10 dark:bg-tide-500/20 text-sm font-semibold text-tide-700 dark:text-tide-500">
               4
             </span>
             <div className="flex-1">
-              <strong className="text-sm text-ink-900">Start accepting orders</strong>
-              <p className="text-sm text-ink-700">
+              <strong className="text-sm text-foreground">Start accepting orders</strong>
+              <p className="text-sm text-foreground-secondary">
                 Writers can now discover your services and place orders through the marketplace.
               </p>
             </div>

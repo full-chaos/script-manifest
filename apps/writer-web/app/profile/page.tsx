@@ -205,8 +205,8 @@ export default function ProfilePage() {
     <section className="space-y-4">
       <article className="hero-card hero-card--amber animate-in">
         <p className="eyebrow eyebrow--amber">Writer Profile</p>
-        <h1 className="text-4xl text-ink-900">Your public writer resume</h1>
-        <p className="max-w-2xl text-ink-700">
+        <h1 className="text-4xl text-foreground">Your public writer resume</h1>
+        <p className="max-w-2xl text-foreground-secondary">
           Keep your bio, genres, demographics, profile links, and search visibility current.
           This profile underpins discovery and ranking surfaces.
         </p>
@@ -360,7 +360,7 @@ export default function ProfilePage() {
       {writerId ? (
         <article className="panel">
           <p className="eyebrow">Data Export</p>
-          <p className="text-ink-700">Download a copy of all your account data.</p>
+          <p className="text-foreground-secondary">Download a copy of all your account data.</p>
           <div className="inline-form">
             <button
               type="button"

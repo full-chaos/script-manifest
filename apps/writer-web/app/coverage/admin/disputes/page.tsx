@@ -91,11 +91,11 @@ export default function AdminDisputesPage() {
 
   function getStatusColor(status: CoverageDisputeStatus): string {
     const colors: Record<CoverageDisputeStatus, string> = {
-      open: "border-amber-300 bg-amber-50 text-amber-700",
+      open: "border-amber-400/60 dark:border-amber-300/45 bg-amber-500/10 dark:bg-amber-500/15 text-amber-700 dark:text-amber-500",
       under_review: "border-blue-300 bg-blue-50 text-blue-700",
-      resolved_refund: "border-green-300 bg-green-50 text-green-700",
-      resolved_no_refund: "border-ink-500/20 bg-ink-500/10 text-ink-700",
-      resolved_partial: "border-tide-500/30 bg-tide-500/10 text-tide-700"
+      resolved_refund: "border-green-300 bg-green-500/10 dark:bg-green-500/15 text-green-700 dark:text-green-400",
+      resolved_no_refund: "border-border/65 bg-ink-500/10 text-foreground-secondary",
+      resolved_partial: "border-tide-500/30 dark:border-tide-500/40 bg-tide-500/10 dark:bg-tide-500/20 text-tide-700 dark:text-tide-500"
     };
     return colors[status] ?? colors.open;
   }
@@ -108,8 +108,8 @@ export default function AdminDisputesPage() {
     <section className="space-y-4">
       <article className="hero-card hero-card--violet animate-in">
         <p className="eyebrow">Admin</p>
-        <h1 className="text-4xl text-ink-900">Dispute Management</h1>
-        <p className="max-w-3xl text-ink-700">
+        <h1 className="text-4xl text-foreground">Dispute Management</h1>
+        <p className="max-w-3xl text-foreground-secondary">
           Review and resolve disputes between writers and coverage providers.
         </p>
       </article>
@@ -124,7 +124,7 @@ export default function AdminDisputesPage() {
           </div>
         ) : disputes.length === 0 ? (
           <EmptyState
-            illustration={<EmptyIllustration variant="search" className="h-14 w-14 text-ink-900" />}
+            illustration={<EmptyIllustration variant="search" className="h-14 w-14 text-foreground" />}
             title="No disputes"
             description="There are no disputes to review at this time."
           />
@@ -136,35 +136,35 @@ export default function AdminDisputesPage() {
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
-                        <strong className="text-ink-900">Order {dispute.orderId}</strong>
+                        <strong className="text-foreground">Order {dispute.orderId}</strong>
                         <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.1em] ${getStatusColor(dispute.status)}`}>
                           {dispute.status.replace(/_/g, " ")}
                         </span>
                       </div>
                       <div className="mt-2 flex flex-wrap items-center gap-2">
                         <span className="badge">{formatReason(dispute.reason)}</span>
-                        <span className="text-xs text-ink-500">
+                        <span className="text-xs text-muted">
                           Opened: {new Date(dispute.createdAt).toLocaleDateString()}
                         </span>
                       </div>
                       {dispute.description ? (
-                        <p className="mt-2 text-sm text-ink-700">{dispute.description}</p>
+                        <p className="mt-2 text-sm text-foreground-secondary">{dispute.description}</p>
                       ) : null}
                       {dispute.adminNotes ? (
-                        <div className="mt-2 rounded-lg border border-ink-500/15 bg-cream-50 p-2">
-                          <strong className="text-xs text-ink-900">Admin Notes:</strong>
-                          <p className="text-xs text-ink-700">{dispute.adminNotes}</p>
+                        <div className="mt-2 rounded-lg border border-border/55 bg-background p-2">
+                          <strong className="text-xs text-foreground">Admin Notes:</strong>
+                          <p className="text-xs text-foreground-secondary">{dispute.adminNotes}</p>
                         </div>
                       ) : null}
                       {dispute.refundAmountCents !== null ? (
-                        <p className="mt-2 text-xs text-ink-700">
+                        <p className="mt-2 text-xs text-foreground-secondary">
                           Refund: ${(dispute.refundAmountCents / 100).toFixed(2)}
                         </p>
                       ) : null}
                     </div>
                   </div>
                   {dispute.status === "open" || dispute.status === "under_review" ? (
-                    <div className="mt-3 pt-3 border-t border-ink-500/10">
+                    <div className="mt-3 pt-3 border-t border-border/40">
                       <button
                         type="button"
                         className="btn btn-primary"
@@ -188,7 +188,7 @@ export default function AdminDisputesPage() {
       >
         <form className="stack" onSubmit={handleResolve}>
           <label className="stack-tight">
-            <span className="text-sm font-medium text-ink-900">Resolution</span>
+            <span className="text-sm font-medium text-foreground">Resolution</span>
             <select
               className="input"
               value={resolveStatus}
@@ -201,7 +201,7 @@ export default function AdminDisputesPage() {
           </label>
           {resolveStatus === "resolved_partial" ? (
             <label className="stack-tight">
-              <span className="text-sm font-medium text-ink-900">Refund Amount ($)</span>
+              <span className="text-sm font-medium text-foreground">Refund Amount ($)</span>
               <input
                 className="input"
                 type="number"
@@ -215,7 +215,7 @@ export default function AdminDisputesPage() {
             </label>
           ) : null}
           <label className="stack-tight">
-            <span className="text-sm font-medium text-ink-900">Admin Notes</span>
+            <span className="text-sm font-medium text-foreground">Admin Notes</span>
             <textarea
               className="input min-h-32"
               value={adminNotes}

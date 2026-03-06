@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { AuthUser } from "@script-manifest/contracts";
 import { SESSION_CHANGED_EVENT, readStoredSession } from "../lib/authSession";
 import { Menu, X } from "lucide-react";
+import { ThemeToggle } from "./themeToggle";
 
 type NavLink = {
   href: Route;
@@ -81,18 +82,19 @@ export function SiteHeader() {
   }, [pathname, visibleLinks]);
 
   return (
-    <header className="panel sticky top-3 z-40 border-ink-500/15 bg-white/90">
+    <header className="panel sticky top-3 z-40">
       <div className="flex items-center justify-between gap-4">
         <div className="space-y-0.5">
-          <Link href="/" className="font-display text-3xl font-semibold text-ink-900 no-underline">
+          <Link href="/" className="font-display text-3xl font-semibold text-foreground no-underline">
             Script Manifest
           </Link>
-          <p className="text-xs font-medium uppercase tracking-[0.16em] text-ink-500">Writer Hub</p>
+          <p className="text-xs font-medium uppercase tracking-[0.16em] text-foreground-secondary">Writer Hub</p>
         </div>
 
         <div className="flex items-center gap-2 lg:hidden">
+          <ThemeToggle />
           {!mobileOpen && currentLabel ? (
-            <span className="text-xs font-medium text-ink-500">{currentLabel}</span>
+            <span className="text-xs font-medium text-foreground-secondary">{currentLabel}</span>
           ) : null}
           <button
             type="button"
@@ -122,8 +124,8 @@ export function SiteHeader() {
                       aria-current={active ? "page" : undefined}
                       className={
                         active
-                          ? "rounded-md border border-ember-500/40 bg-ember-500/10 px-2.5 py-1 text-xs font-semibold text-ember-700 no-underline"
-                          : "rounded-md border border-transparent px-2.5 py-1 text-xs font-medium text-ink-700 no-underline hover:border-ink-500/20 hover:bg-cream-100"
+                          ? "rounded-md border border-primary/45 bg-primary/15 px-2.5 py-1 text-xs font-semibold text-primary-dark no-underline dark:text-primary"
+                          : "rounded-md border border-transparent px-2.5 py-1 text-xs font-medium text-foreground-secondary no-underline hover:border-border/60 hover:bg-background-secondary"
                       }
                     >
                       {link.label}
@@ -134,13 +136,14 @@ export function SiteHeader() {
             </ul>
           </nav>
 
-          <div className="flex items-center gap-2 border-l border-ink-500/15 pl-4">
+          <div className="flex items-center gap-2 border-l border-border/60 pl-4">
+            <ThemeToggle />
             {user ? (
-              <span className="rounded-full border border-ink-500/20 bg-cream-100 px-2.5 py-0.5 text-xs text-ink-700">
+              <span className="rounded-full border border-border/65 bg-background-secondary px-2.5 py-0.5 text-xs text-foreground-secondary">
                 {user.displayName}
               </span>
             ) : (
-              <span className="rounded-full border border-ink-500/20 bg-cream-100 px-2.5 py-0.5 text-xs text-ink-500">
+              <span className="rounded-full border border-border/65 bg-background-secondary px-2.5 py-0.5 text-xs text-foreground-secondary">
                 Guest
               </span>
             )}
@@ -152,7 +155,7 @@ export function SiteHeader() {
       </div>
 
       {mobileOpen ? (
-        <div id="mobile-primary-nav" className="mt-4 space-y-3 border-t border-ink-500/15 pt-4 lg:hidden">
+        <div id="mobile-primary-nav" className="mt-4 space-y-3 border-t border-border/60 pt-4 lg:hidden">
           <nav aria-label="Primary Mobile">
             <ul className="space-y-2">
               {visibleLinks.map((link) => {
@@ -165,8 +168,8 @@ export function SiteHeader() {
                       onClick={() => setMobileOpen(false)}
                       className={
                         active
-                          ? "block rounded-md border border-ember-500/40 bg-ember-500/10 px-3 py-2 text-sm font-semibold text-ember-700 no-underline"
-                          : "block rounded-md border border-ink-500/10 bg-white px-3 py-2 text-sm font-medium text-ink-700 no-underline"
+                          ? "block rounded-md border border-primary/45 bg-primary/15 px-3 py-2 text-sm font-semibold text-primary-dark no-underline dark:text-primary"
+                          : "block rounded-md border border-border/55 bg-surface px-3 py-2 text-sm font-medium text-foreground-secondary no-underline"
                       }
                     >
                       {link.label}
@@ -178,6 +181,7 @@ export function SiteHeader() {
           </nav>
 
           <div className="inline-form">
+            <ThemeToggle />
             <Link href="/signin" className="btn btn-primary no-underline" onClick={() => setMobileOpen(false)}>
               {user ? "Account" : "Sign in"}
             </Link>

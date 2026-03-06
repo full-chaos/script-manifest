@@ -15,6 +15,10 @@ import {
 } from "../helpers.js";
 import { ApiErrorSchema, toOpenApiSchema, UnauthorizedErrorSchema } from "../openapi.js";
 
+const GLOBAL_RATE_MAX = Number(process.env.RATE_LIMIT_MAX ?? 100);
+const AUTH_RATE_MAX = Math.max(10, Math.ceil(GLOBAL_RATE_MAX * 0.1));
+const REFRESH_RATE_MAX = Math.max(30, Math.ceil(GLOBAL_RATE_MAX * 0.3));
+
 const SESSION_COOKIE_NAME = "session_token";
 const REFRESH_COOKIE_NAME = "refresh_token";
 const REFRESH_COOKIE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
@@ -101,7 +105,7 @@ async function proxyAuthSessionRequest(
 
 export function registerAuthRoutes(server: FastifyInstance, ctx: GatewayContext): void {
   server.post("/api/v1/auth/register", {
-    config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
+    config: { rateLimit: { max: AUTH_RATE_MAX, timeWindow: "1 minute" } },
     schema: {
       tags: ["auth"],
       summary: "Register user",
@@ -121,7 +125,7 @@ export function registerAuthRoutes(server: FastifyInstance, ctx: GatewayContext)
   });
 
   server.post("/api/v1/auth/login", {
-    config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
+    config: { rateLimit: { max: AUTH_RATE_MAX, timeWindow: "1 minute" } },
     schema: {
       tags: ["auth"],
       summary: "Login user",
@@ -179,7 +183,7 @@ export function registerAuthRoutes(server: FastifyInstance, ctx: GatewayContext)
   });
 
   server.post<{ Body: { refreshToken?: string } }>("/api/v1/auth/refresh", {
-    config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
+    config: { rateLimit: { max: REFRESH_RATE_MAX, timeWindow: "1 minute" } },
     schema: {
       tags: ["auth"],
       summary: "Refresh auth session",
@@ -205,7 +209,7 @@ export function registerAuthRoutes(server: FastifyInstance, ctx: GatewayContext)
   });
 
   server.post<{ Params: { provider: string } }>("/api/v1/auth/oauth/:provider/start", {
-    config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
+    config: { rateLimit: { max: AUTH_RATE_MAX, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       const { provider } = req.params;
       return proxyJsonRequest(

@@ -27,8 +27,8 @@ function createLogger() {
   const errors: Array<{ context: unknown; message: string }> = [];
 
   const logger = {
-    warn: (message: string) => {
-      warnings.push(message);
+    warn: (contextOrMessage: unknown, message?: string) => {
+      warnings.push(message ?? (contextOrMessage as string));
     },
     error: (context: unknown, message: string) => {
       errors.push({ context, message });
@@ -162,4 +162,29 @@ test("startConsumer logs and skips invalid JSON messages", async () => {
   assert.equal(repo.pushedEvents.length, 0);
   assert.equal(errors.length, 1);
   assert.equal(errors[0]?.message, "failed to process notification event from kafka");
+});
+
+test("startConsumer degrades gracefully when Kafka is set but unreachable", async () => {
+  process.env.KAFKA_BROKERS = "localhost:9092";
+  _resetKafkaClient();
+
+  const repo = new MemoryNotificationRepository();
+  const { logger, warnings } = createLogger();
+
+  // Override consumer to throw on connect (simulates unreachable broker)
+  const kafka = getKafkaClient();
+  assert.ok(kafka);
+  (kafka as unknown as { consumer: () => unknown }).consumer = () => ({
+    connect: async () => { throw new Error("Connection timeout"); },
+    subscribe: async () => {},
+    run: async () => {},
+    disconnect: async () => {},
+  });
+
+  const stopConsumer = await startConsumer(repo, logger);
+  // Should return a no-op disconnect, not throw
+  assert.equal(typeof stopConsumer, "function");
+  await stopConsumer(); // no-op, should not throw
+  assert.equal(warnings.length, 1);
+  assert.ok(warnings[0]?.includes("Kafka consumer failed to start"), `unexpected warning: ${warnings[0]}`);
 });

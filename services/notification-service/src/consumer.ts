@@ -14,19 +14,24 @@ export async function startConsumer(
   }
 
   const consumer = kafka.consumer({ groupId: "notification-service" });
-  await consumer.connect();
-  await consumer.subscribe({ topic: "notification-events", fromBeginning: false });
-  await consumer.run({
-    eachMessage: async ({ message }) => {
-      try {
-        const raw = JSON.parse(message.value!.toString());
-        const event = NotificationEventEnvelopeSchema.parse(raw);
-        await repository.pushEvent(event);
-      } catch (err) {
-        logger.error({ err, offset: message.offset }, "failed to process notification event from kafka");
-      }
-    },
-  });
+  try {
+    await consumer.connect();
+    await consumer.subscribe({ topic: "notification-events", fromBeginning: false });
+    await consumer.run({
+      eachMessage: async ({ message }) => {
+        try {
+          const raw = JSON.parse(message.value!.toString());
+          const event = NotificationEventEnvelopeSchema.parse(raw);
+          await repository.pushEvent(event);
+        } catch (err) {
+          logger.error({ err, offset: message.offset }, "failed to process notification event from kafka");
+        }
+      },
+    });
+  } catch (err) {
+    logger.warn({ err }, "Kafka consumer failed to start — falling back to HTTP-only mode");
+    return async () => {};
+  }
 
   return async () => {
     await consumer.disconnect();

@@ -93,20 +93,41 @@ export function buildServer(options: ScriptStorageServiceOptions = {}): FastifyI
   scripts.set(demoScript.scriptId, demoScript);
 
   server.get("/health", async (_req, reply) => {
+    // Deep health check: verify that the configured storage bucket is reachable.
     const checks: Record<string, boolean> = {
       storage: Boolean(storageBucket)
     };
-    const ok = Object.values(checks).every(Boolean);
+    const ok = Object.values(checks).every(Boolean) && Boolean(s3Client);
+    if (ok) {
+      try {
+        // Probe the S3 endpoint by issuing a simple HeadBucket command
+        await s3Client!.send(new HeadBucketCommand({ Bucket: storageBucket }));
+        // If we reach here, bucket is accessible
+        return reply.status(200).send({ service: "script-storage-service", ok: true, checks: { ...checks, storage: true } });
+      } catch {
+        // Fall through to non-ok path
+        return reply.status(503).send({ service: "script-storage-service", ok: false, checks: { ...checks, storage: false } });
+      }
+    }
     return reply.status(ok ? 200 : 503).send({ service: "script-storage-service", ok, checks });
   });
 
   server.get("/health/live", async () => ({ ok: true }));
 
   server.get("/health/ready", async (_req, reply) => {
+    // Deep readiness check: ensure storage is ready for operations
     const checks: Record<string, boolean> = {
       storage: Boolean(storageBucket)
     };
-    const ok = Object.values(checks).every(Boolean);
+    const ok = Object.values(checks).every(Boolean) && Boolean(s3Client);
+    if (ok) {
+      try {
+        await s3Client!.send(new HeadBucketCommand({ Bucket: storageBucket }));
+        return reply.status(200).send({ service: "script-storage-service", ok: true, checks: { ...checks, storage: true } });
+      } catch {
+        return reply.status(503).send({ service: "script-storage-service", ok: false, checks: { ...checks, storage: false } });
+      }
+    }
     return reply.status(ok ? 200 : 503).send({ service: "script-storage-service", ok, checks });
   });
 

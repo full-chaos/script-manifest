@@ -22,6 +22,7 @@ export type GatewayContext = {
   competitionAdminAllowlist: Set<string>;
   coverageAdminAllowlist: Set<string>;
   industryAdminAllowlist: Set<string>;
+  adminAllowlist: Set<string>;
 };
 
 // ── Auth token TTL cache (CHAOS-581) ─────────────────────────────────

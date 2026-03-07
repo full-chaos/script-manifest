@@ -28,6 +28,8 @@ import {
   PgIdentityRepository,
   verifyPassword
 } from "./repository.js";
+import { type AdminRepository, PgAdminRepository, MemoryAdminRepository } from "./admin-repository.js";
+import { registerAdminRoutes } from "./admin-routes.js";
 import type { EmailService } from "@script-manifest/email";
 import { registerMetrics } from "@script-manifest/service-utils";
 
@@ -44,12 +46,15 @@ const DUMMY_HASH = "000000000000000000000000000000000000000000000000000000000000
 export type IdentityServiceOptions = {
   logger?: boolean;
   repository?: IdentityRepository;
+  adminRepository?: AdminRepository;
   emailService?: EmailService;
 };
 
 // lgtm [js/missing-rate-limiting]
 export function buildServer(options: IdentityServiceOptions = {}): FastifyInstance {
   const repository = options.repository ?? new PgIdentityRepository();
+  // Use MemoryAdminRepository when a custom repository is provided (tests)
+  const adminRepo = options.adminRepository ?? (options.repository ? new MemoryAdminRepository() : new PgAdminRepository());
   const emailService = options.emailService;
   const runHealthCheck = options.repository ? () => repository.healthCheck() : healthCheck;
   const server = Fastify({
@@ -68,6 +73,7 @@ export function buildServer(options: IdentityServiceOptions = {}): FastifyInstan
 
   server.addHook("onReady", async () => {
     await repository.init();
+    await adminRepo.init();
   });
 
   server.register(rateLimit, {
@@ -552,6 +558,8 @@ export function buildServer(options: IdentityServiceOptions = {}): FastifyInstan
       return reply.send(payload);
     }
   });
+
+  registerAdminRoutes(server, adminRepo);
 
   return server;
 }

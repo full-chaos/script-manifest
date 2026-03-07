@@ -143,14 +143,14 @@ services:
     environment:
       COLLECTOR_OTLP_ENABLED: "true"
     ports:
-      - "16686:16686"  # Jaeger UI
-      - "4318:4318"    # OTLP HTTP receiver (services send traces here)
+      - "16686:16686" # Jaeger UI
+      - "4318:4318" # OTLP HTTP receiver (services send traces here)
 
   # BugSink - Sentry-compatible error tracking (CHAOS-768)
   # UI: http://localhost:8800
   bugsink:
     # Pinned: BugSink 0.6.2
-    image: bugsink/bugsink:0.6.2
+    image: bugsink/bugsink:latest
     container_name: manifest-bugsink
     ports:
       - "8800:8000"

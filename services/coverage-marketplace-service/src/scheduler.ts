@@ -29,12 +29,13 @@ export function createScheduler(deps: SchedulerDeps) {
         continue;
       }
       if (order.stripePaymentIntentId) {
-        await deps.paymentGateway.capturePayment(order.stripePaymentIntentId);
+        await deps.paymentGateway.capturePayment(order.stripePaymentIntentId, `idem_capture_${order.id}`);
       }
       const { transferId } = await deps.paymentGateway.transferToProvider({
         amountCents: order.providerPayoutCents,
         stripeAccountId: provider.stripeAccountId,
         transferGroup: order.id,
+        idempotencyKey: `idem_transfer_${order.id}`,
       });
       await deps.repository.updateOrderStatus(order.id, "completed", { stripeTransferId: transferId });
       autoCompleted += 1;

@@ -2027,3 +2027,275 @@ test("account.updated webhook with missing fields falls back to getAccountStatus
   const refreshed = await repo.getProvider(provider.id);
   assert.equal(refreshed!.stripeOnboardingComplete, true);
 });
+
+// ── Idempotency Key Tests ───────────────────────────────────────────
+
+class SpyPaymentGateway extends MemoryPaymentGateway {
+  public createPaymentIntentKeys: Array<string | undefined> = [];
+  public capturePaymentKeys: Array<string | undefined> = [];
+  public transferToProviderKeys: Array<string | undefined> = [];
+  public refundKeys: Array<string | undefined> = [];
+
+  override async createPaymentIntent(params: {
+    amountCents: number;
+    currency: string;
+    metadata?: Record<string, string>;
+    idempotencyKey?: string;
+  }): Promise<{ intentId: string; clientSecret: string }> {
+    this.createPaymentIntentKeys.push(params.idempotencyKey);
+    return super.createPaymentIntent(params);
+  }
+
+  override async capturePayment(intentId: string, idempotencyKey?: string): Promise<void> {
+    this.capturePaymentKeys.push(idempotencyKey);
+    return super.capturePayment(intentId, idempotencyKey);
+  }
+
+  override async transferToProvider(params: {
+    amountCents: number;
+    stripeAccountId: string;
+    transferGroup?: string;
+    idempotencyKey?: string;
+  }): Promise<{ transferId: string }> {
+    this.transferToProviderKeys.push(params.idempotencyKey);
+    return super.transferToProvider(params);
+  }
+
+  override async refund(intentId: string, amountCents?: number, idempotencyKey?: string): Promise<{ refundId: string }> {
+    this.refundKeys.push(idempotencyKey);
+    return super.refund(intentId, amountCents, idempotencyKey);
+  }
+}
+
+function createSpyServer() {
+  const repo = new MemoryCoverageMarketplaceRepository();
+  const gateway = new SpyPaymentGateway();
+  const server = buildServer({
+    logger: false,
+    repository: repo,
+    paymentGateway: gateway,
+    commissionRate: 0.15
+  });
+  return { server, repo, gateway };
+}
+
+test("createPaymentIntent receives idempotency key on order creation", async (t) => {
+  const { server, gateway } = createSpyServer();
+  t.after(() => server.close());
+
+  // Setup provider and service
+  const providerRes = await server.inject({
+    method: "POST",
+    url: "/internal/providers",
+    headers: { "x-auth-user-id": "provider_01", "content-type": "application/json" },
+    payload: { displayName: "John Doe", bio: "Bio", specialties: ["drama"] }
+  });
+  const provider = providerRes.json().provider;
+  gateway.completeOnboarding(provider.stripeAccountId!);
+  await server.inject({
+    method: "GET",
+    url: `/internal/providers/${provider.id}/stripe-onboarding`,
+    headers: { "x-auth-user-id": "provider_01" }
+  });
+  const serviceRes = await server.inject({
+    method: "POST",
+    url: `/internal/providers/${provider.id}/services`,
+    headers: { "x-auth-user-id": "provider_01", "content-type": "application/json" },
+    payload: {
+      title: "Coverage", description: "Analysis", tier: "competition_ready",
+      priceCents: 10000, currency: "usd", turnaroundDays: 5, maxPages: 100
+    }
+  });
+  const service = serviceRes.json().service;
+
+  const res = await server.inject({
+    method: "POST",
+    url: "/internal/orders",
+    headers: { "x-auth-user-id": "writer_01", "content-type": "application/json" },
+    payload: { serviceId: service.id, scriptId: "script_01", projectId: "project_01" }
+  });
+
+  assert.equal(res.statusCode, 201);
+  assert.equal(gateway.createPaymentIntentKeys.length, 1);
+  assert.ok(gateway.createPaymentIntentKeys[0]?.startsWith("idem_pi_"));
+});
+
+test("capturePayment and transferToProvider receive idempotency keys on order completion", async (t) => {
+  const { server, gateway, repo } = createSpyServer();
+  t.after(() => server.close());
+
+  const providerRes = await server.inject({
+    method: "POST",
+    url: "/internal/providers",
+    headers: { "x-auth-user-id": "provider_01", "content-type": "application/json" },
+    payload: { displayName: "John Doe", bio: "Bio", specialties: ["drama"] }
+  });
+  const provider = providerRes.json().provider;
+  gateway.completeOnboarding(provider.stripeAccountId!);
+  await server.inject({
+    method: "GET",
+    url: `/internal/providers/${provider.id}/stripe-onboarding`,
+    headers: { "x-auth-user-id": "provider_01" }
+  });
+  const serviceRes = await server.inject({
+    method: "POST",
+    url: `/internal/providers/${provider.id}/services`,
+    headers: { "x-auth-user-id": "provider_01", "content-type": "application/json" },
+    payload: {
+      title: "Coverage", description: "Analysis", tier: "competition_ready",
+      priceCents: 10000, currency: "usd", turnaroundDays: 5, maxPages: 100
+    }
+  });
+  const service = serviceRes.json().service;
+
+  const orderRes = await server.inject({
+    method: "POST",
+    url: "/internal/orders",
+    headers: { "x-auth-user-id": "writer_01", "content-type": "application/json" },
+    payload: { serviceId: service.id, scriptId: "script_01", projectId: "project_01" }
+  });
+  const order = orderRes.json().order;
+  await repo.updateOrderStatus(order.id, "delivered");
+
+  const completeRes = await server.inject({
+    method: "POST",
+    url: `/internal/orders/${order.id}/complete`,
+    headers: { "x-auth-user-id": "writer_01" }
+  });
+
+  assert.equal(completeRes.statusCode, 200);
+  assert.equal(gateway.capturePaymentKeys.length, 1);
+  assert.equal(gateway.capturePaymentKeys[0], `idem_capture_${order.id}`);
+  assert.equal(gateway.transferToProviderKeys.length, 1);
+  assert.equal(gateway.transferToProviderKeys[0], `idem_transfer_${order.id}`);
+});
+
+test("refund receives idempotency key on order cancellation", async (t) => {
+  const { server, gateway } = createSpyServer();
+  t.after(() => server.close());
+
+  const providerRes = await server.inject({
+    method: "POST",
+    url: "/internal/providers",
+    headers: { "x-auth-user-id": "provider_01", "content-type": "application/json" },
+    payload: { displayName: "John Doe", bio: "Bio", specialties: ["drama"] }
+  });
+  const provider = providerRes.json().provider;
+  gateway.completeOnboarding(provider.stripeAccountId!);
+  await server.inject({
+    method: "GET",
+    url: `/internal/providers/${provider.id}/stripe-onboarding`,
+    headers: { "x-auth-user-id": "provider_01" }
+  });
+  const serviceRes = await server.inject({
+    method: "POST",
+    url: `/internal/providers/${provider.id}/services`,
+    headers: { "x-auth-user-id": "provider_01", "content-type": "application/json" },
+    payload: {
+      title: "Coverage", description: "Analysis", tier: "competition_ready",
+      priceCents: 10000, currency: "usd", turnaroundDays: 5, maxPages: 100
+    }
+  });
+  const service = serviceRes.json().service;
+
+  const orderRes = await server.inject({
+    method: "POST",
+    url: "/internal/orders",
+    headers: { "x-auth-user-id": "writer_01", "content-type": "application/json" },
+    payload: { serviceId: service.id, scriptId: "script_01", projectId: "project_01" }
+  });
+  const order = orderRes.json().order;
+
+  const cancelRes = await server.inject({
+    method: "POST",
+    url: `/internal/orders/${order.id}/cancel`,
+    headers: { "x-auth-user-id": "writer_01" }
+  });
+
+  assert.equal(cancelRes.statusCode, 200);
+  assert.equal(gateway.refundKeys.length, 1);
+  assert.equal(gateway.refundKeys[0], `idem_refund_${order.id}`);
+});
+
+test("dispute resolution passes idempotency keys for refund and no-refund paths", async (t) => {
+  const { server, gateway, repo } = createSpyServer();
+  t.after(() => server.close());
+
+  const providerRes = await server.inject({
+    method: "POST",
+    url: "/internal/providers",
+    headers: { "x-auth-user-id": "provider_01", "content-type": "application/json" },
+    payload: { displayName: "John Doe", bio: "Bio", specialties: ["drama"] }
+  });
+  const provider = providerRes.json().provider;
+  gateway.completeOnboarding(provider.stripeAccountId!);
+  await server.inject({
+    method: "GET",
+    url: `/internal/providers/${provider.id}/stripe-onboarding`,
+    headers: { "x-auth-user-id": "provider_01" }
+  });
+  const serviceRes = await server.inject({
+    method: "POST",
+    url: `/internal/providers/${provider.id}/services`,
+    headers: { "x-auth-user-id": "provider_01", "content-type": "application/json" },
+    payload: {
+      title: "Coverage", description: "Analysis", tier: "competition_ready",
+      priceCents: 10000, currency: "usd", turnaroundDays: 5, maxPages: 100
+    }
+  });
+  const service = serviceRes.json().service;
+
+  // Test refund path
+  const orderRes1 = await server.inject({
+    method: "POST",
+    url: "/internal/orders",
+    headers: { "x-auth-user-id": "writer_01", "content-type": "application/json" },
+    payload: { serviceId: service.id, scriptId: "script_01", projectId: "project_01" }
+  });
+  const order1 = orderRes1.json().order;
+  await repo.updateOrderStatus(order1.id, "delivered");
+  const disputeRes1 = await server.inject({
+    method: "POST",
+    url: `/internal/orders/${order1.id}/dispute`,
+    headers: { "x-auth-user-id": "writer_01", "content-type": "application/json" },
+    payload: { reason: "quality", description: "Poor quality" }
+  });
+  const dispute1 = disputeRes1.json().dispute;
+  await server.inject({
+    method: "PATCH",
+    url: `/internal/disputes/${dispute1.id}`,
+    headers: { "x-auth-user-id": "admin_01", "content-type": "application/json" },
+    payload: { status: "resolved_refund", adminNotes: "Approved" }
+  });
+
+  assert.equal(gateway.refundKeys.length, 1);
+  assert.equal(gateway.refundKeys[0], `idem_refund_${order1.id}`);
+
+  // Test no-refund path (capture + transfer)
+  const orderRes2 = await server.inject({
+    method: "POST",
+    url: "/internal/orders",
+    headers: { "x-auth-user-id": "writer_02", "content-type": "application/json" },
+    payload: { serviceId: service.id, scriptId: "script_02", projectId: "project_02" }
+  });
+  const order2 = orderRes2.json().order;
+  await repo.updateOrderStatus(order2.id, "delivered");
+  const disputeRes2 = await server.inject({
+    method: "POST",
+    url: `/internal/orders/${order2.id}/dispute`,
+    headers: { "x-auth-user-id": "writer_02", "content-type": "application/json" },
+    payload: { reason: "quality", description: "Needs review" }
+  });
+  const dispute2 = disputeRes2.json().dispute;
+  await server.inject({
+    method: "PATCH",
+    url: `/internal/disputes/${dispute2.id}`,
+    headers: { "x-auth-user-id": "admin_01", "content-type": "application/json" },
+    payload: { status: "resolved_no_refund", adminNotes: "Valid coverage" }
+  });
+
+  assert.equal(gateway.capturePaymentKeys.length, 1);
+  assert.equal(gateway.capturePaymentKeys[0], `idem_capture_${order2.id}`);
+  assert.equal(gateway.transferToProviderKeys.length, 1);
+  assert.equal(gateway.transferToProviderKeys[0], `idem_transfer_${order2.id}`);
+});

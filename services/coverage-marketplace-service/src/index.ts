@@ -422,7 +422,8 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
         serviceId: service.id,
         providerId: provider.id,
         writerUserId: authUserId
-      }
+      },
+      idempotencyKey: `idem_pi_${req.id}`
     });
 
     // Create order
@@ -569,14 +570,15 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
     }
 
     if (order.stripePaymentIntentId) {
-      await paymentGateway.capturePayment(order.stripePaymentIntentId);
+      await paymentGateway.capturePayment(order.stripePaymentIntentId, `idem_capture_${orderId}`);
     }
 
     // Transfer payment to provider
     const { transferId } = await paymentGateway.transferToProvider({
       amountCents: order.providerPayoutCents,
       stripeAccountId: provider.stripeAccountId!,
-      transferGroup: orderId
+      transferGroup: orderId,
+      idempotencyKey: `idem_transfer_${orderId}`
     });
 
     // Update order status
@@ -608,7 +610,7 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
 
     // Refund payment
     if (order.stripePaymentIntentId) {
-      await paymentGateway.refund(order.stripePaymentIntentId);
+      await paymentGateway.refund(order.stripePaymentIntentId, undefined, `idem_refund_${orderId}`);
     }
 
     // Update order status
@@ -834,7 +836,7 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
 
     if (parsed.data.status === "resolved_refund" || parsed.data.status === "resolved_partial") {
       if (order.stripePaymentIntentId) {
-        await paymentGateway.refund(order.stripePaymentIntentId, parsed.data.refundAmountCents);
+        await paymentGateway.refund(order.stripePaymentIntentId, parsed.data.refundAmountCents, `idem_refund_${order.id}`);
         await repository.updateOrderStatus(order.id, "refunded");
       }
     } else if (parsed.data.status === "resolved_no_refund") {
@@ -843,12 +845,13 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
         return reply.status(400).send({ error: "provider_stripe_not_configured" });
       }
       if (order.stripePaymentIntentId) {
-        await paymentGateway.capturePayment(order.stripePaymentIntentId);
+        await paymentGateway.capturePayment(order.stripePaymentIntentId, `idem_capture_${order.id}`);
       }
       const { transferId } = await paymentGateway.transferToProvider({
         amountCents: order.providerPayoutCents,
         stripeAccountId: provider.stripeAccountId,
-        transferGroup: order.id
+        transferGroup: order.id,
+        idempotencyKey: `idem_transfer_${order.id}`
       });
       await repository.updateOrderStatus(order.id, "completed", { stripeTransferId: transferId });
     }

@@ -69,7 +69,8 @@ export async function registerUser(label: string): Promise<SessionInfo> {
   const payload = {
     email: `${slug}@example.com`,
     password: "password123",
-    displayName: `Integration ${label}`
+    displayName: `Integration ${label}`,
+    acceptTerms: true
   };
   return expectOkJson<SessionInfo>(
     `${API_BASE_URL}/api/v1/auth/register`,

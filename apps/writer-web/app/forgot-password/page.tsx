@@ -41,7 +41,7 @@ export default function ForgotPasswordPage() {
         <p className="eyebrow">Account</p>
         <h1 className="text-4xl text-foreground">Reset your password</h1>
         <p className="max-w-3xl text-foreground-secondary">
-          Enter your email address and we'll send you a link to reset your password.
+          Enter your email address and we&apos;ll send you a link to reset your password.
         </p>
       </article>
 
@@ -50,7 +50,7 @@ export default function ForgotPasswordPage() {
           <div className="stack">
             <p className="text-foreground">Check your email</p>
             <p className="text-foreground-secondary text-sm">
-              If an account exists for <strong>{email}</strong>, we've sent a password reset link.
+              If an account exists for <strong>{email}</strong>, we&apos;ve sent a password reset link.
               Check your inbox and spam folder.
             </p>
             <Link href="/signin" className="btn btn-secondary w-full justify-center">

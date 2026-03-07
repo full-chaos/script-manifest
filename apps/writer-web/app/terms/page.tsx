@@ -25,12 +25,12 @@ export default function TermsPage() {
 
         <h2 className="text-xl font-semibold text-foreground">3. Content Ownership</h2>
         <p className="text-foreground-secondary">
-          You retain all rights to scripts and content you upload. By using Script Manifest, you grant us a limited license to store and display your content as part of the platform's functionality.
+          You retain all rights to scripts and content you upload. By using Script Manifest, you grant us a limited license to store and display your content as part of the platform&apos;s functionality.
         </p>
 
         <h2 className="text-xl font-semibold text-foreground">4. Acceptable Use</h2>
         <p className="text-foreground-secondary">
-          You agree not to misuse the platform, including uploading content that infringes on others' intellectual property or engaging in harassment.
+          You agree not to misuse the platform, including uploading content that infringes on others&apos; intellectual property or engaging in harassment.
         </p>
 
         <h2 className="text-xl font-semibold text-foreground">5. Termination</h2>

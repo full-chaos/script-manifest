@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import Link from "next/link";
 import { clearStoredSession, readStoredSession } from "../../lib/authSession";
 
 export default function AccountSettingsPage() {
@@ -73,9 +74,9 @@ export default function AccountSettingsPage() {
             Your account has been scheduled for deletion. You have 30 days to change your mind
             by contacting support. After that, all your data will be permanently removed.
           </p>
-          <a href="/" className="btn btn-secondary w-full justify-center">
+          <Link href="/" className="btn btn-secondary w-full justify-center">
             Go to homepage
-          </a>
+          </Link>
         </article>
       </section>
     );

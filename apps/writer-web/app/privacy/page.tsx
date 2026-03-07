@@ -20,7 +20,7 @@ export default function PrivacyPage() {
 
         <h2 className="text-xl font-semibold text-foreground">2. How We Use Your Data</h2>
         <p className="text-foreground-secondary">
-          Your data is used to provide the platform's features, send transactional emails (verification, password resets), and improve the service.
+          Your data is used to provide the platform&apos;s features, send transactional emails (verification, password resets), and improve the service.
         </p>
 
         <h2 className="text-xl font-semibold text-foreground">3. Data Sharing</h2>

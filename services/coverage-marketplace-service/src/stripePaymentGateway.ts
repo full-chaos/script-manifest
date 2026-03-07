@@ -47,39 +47,54 @@ export class StripePaymentGateway implements PaymentGateway {
     amountCents: number;
     currency: string;
     metadata?: Record<string, string>;
+    idempotencyKey?: string;
   }): Promise<{ intentId: string; clientSecret: string }> {
-    const intent = await this.stripe.paymentIntents.create({
-      amount: params.amountCents,
-      currency: params.currency,
-      capture_method: "manual",
-      metadata: params.metadata ?? {}
-    });
+    const intent = await this.stripe.paymentIntents.create(
+      {
+        amount: params.amountCents,
+        currency: params.currency,
+        capture_method: "manual",
+        metadata: params.metadata ?? {}
+      },
+      params.idempotencyKey ? { idempotencyKey: params.idempotencyKey } : undefined
+    );
     return { intentId: intent.id, clientSecret: intent.client_secret! };
   }
 
-  async capturePayment(intentId: string): Promise<void> {
-    await this.stripe.paymentIntents.capture(intentId);
+  async capturePayment(intentId: string, idempotencyKey?: string): Promise<void> {
+    await this.stripe.paymentIntents.capture(
+      intentId,
+      undefined,
+      idempotencyKey ? { idempotencyKey } : undefined
+    );
   }
 
   async transferToProvider(params: {
     amountCents: number;
     stripeAccountId: string;
     transferGroup?: string;
+    idempotencyKey?: string;
   }): Promise<{ transferId: string }> {
-    const transfer = await this.stripe.transfers.create({
-      amount: params.amountCents,
-      currency: "usd",
-      destination: params.stripeAccountId,
-      transfer_group: params.transferGroup
-    });
+    const transfer = await this.stripe.transfers.create(
+      {
+        amount: params.amountCents,
+        currency: "usd",
+        destination: params.stripeAccountId,
+        transfer_group: params.transferGroup
+      },
+      params.idempotencyKey ? { idempotencyKey: params.idempotencyKey } : undefined
+    );
     return { transferId: transfer.id };
   }
 
-  async refund(intentId: string, amountCents?: number): Promise<{ refundId: string }> {
-    const refund = await this.stripe.refunds.create({
-      payment_intent: intentId,
-      ...(amountCents != null ? { amount: amountCents } : {})
-    });
+  async refund(intentId: string, amountCents?: number, idempotencyKey?: string): Promise<{ refundId: string }> {
+    const refund = await this.stripe.refunds.create(
+      {
+        payment_intent: intentId,
+        ...(amountCents != null ? { amount: amountCents } : {})
+      },
+      idempotencyKey ? { idempotencyKey } : undefined
+    );
     return { refundId: refund.id };
   }
 

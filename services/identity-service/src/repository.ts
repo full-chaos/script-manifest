@@ -52,6 +52,7 @@ export interface IdentityRepository {
   createSession(userId: string): Promise<IdentitySession>;
   findUserBySessionToken(token: string): Promise<{ user: IdentityUser; session: IdentitySession } | null>;
   deleteSession(token: string): Promise<void>;
+  deleteUserSessions(userId: string): Promise<void>;
   saveOAuthState(state: string, record: OAuthStateRecord): Promise<void>;
   getAndDeleteOAuthState(state: string): Promise<OAuthStateRecord | null>;
   cleanExpiredOAuthState(): Promise<void>;
@@ -59,6 +60,16 @@ export interface IdentityRepository {
   rotateRefreshToken(rawToken: string): Promise<RefreshTokenRotateResult>;
   revokeTokenFamily(familyId: string): Promise<void>;
   revokeUserRefreshTokens?(userId: string): Promise<void>;
+
+  // Email verification
+  createEmailVerificationToken(userId: string): Promise<{ code: string }>;
+  verifyEmailCode(userId: string, code: string): Promise<boolean>;
+  markEmailVerified(userId: string): Promise<void>;
+
+  // Password reset
+  createPasswordResetToken(userId: string): Promise<{ token: string }>;
+  consumePasswordResetToken(token: string): Promise<{ userId: string } | null>;
+  updatePassword(userId: string, password: string): Promise<void>;
 }
 
 function hashRefreshToken(token: string): string {
@@ -102,6 +113,37 @@ export class PgIdentityRepository implements IdentityRepository {
     await db.query(`
       ALTER TABLE app_users
       ADD COLUMN IF NOT EXISTS terms_accepted_at TIMESTAMPTZ;
+    `);
+    await db.query(`
+      ALTER TABLE app_users
+      ADD COLUMN IF NOT EXISTS email_verified BOOLEAN NOT NULL DEFAULT false;
+    `);
+    await db.query(`
+      ALTER TABLE app_users
+      ADD COLUMN IF NOT EXISTS email_verified_at TIMESTAMPTZ;
+    `);
+    await db.query(`
+      ALTER TABLE app_users
+      ADD COLUMN IF NOT EXISTS account_status TEXT NOT NULL DEFAULT 'active';
+    `);
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS email_verification_tokens (
+        id TEXT PRIMARY KEY,
+        token_hash TEXT NOT NULL,
+        user_id TEXT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+        expires_at TIMESTAMPTZ NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS password_reset_tokens (
+        id TEXT PRIMARY KEY,
+        token_hash TEXT NOT NULL,
+        user_id TEXT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+        expires_at TIMESTAMPTZ NOT NULL,
+        used_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
     `);
     await db.query(`
       CREATE TABLE IF NOT EXISTS oauth_state (
@@ -314,6 +356,11 @@ export class PgIdentityRepository implements IdentityRepository {
     await db.query(`DELETE FROM app_sessions WHERE token = $1`, [token]);
   }
 
+  async deleteUserSessions(userId: string): Promise<void> {
+    const db = getPool();
+    await db.query(`DELETE FROM app_sessions WHERE user_id = $1`, [userId]);
+  }
+
   async saveOAuthState(state: string, record: OAuthStateRecord): Promise<void> {
     const db = getPool();
     await db.query(
@@ -479,6 +526,82 @@ export class PgIdentityRepository implements IdentityRepository {
         WHERE user_id = $1 AND revoked_at IS NULL AND expires_at > NOW()
       `,
       [userId]
+    );
+  }
+
+  async createEmailVerificationToken(userId: string): Promise<{ code: string }> {
+    const db = getPool();
+    const id = `evt_${randomUUID()}`;
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    const tokenHash = createHash("sha256").update(code).digest("hex");
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString(); // 15 min
+
+    // Delete existing tokens for this user
+    await db.query(`DELETE FROM email_verification_tokens WHERE user_id = $1`, [userId]);
+
+    await db.query(
+      `INSERT INTO email_verification_tokens (id, token_hash, user_id, expires_at) VALUES ($1, $2, $3, $4)`,
+      [id, tokenHash, userId, expiresAt]
+    );
+
+    return { code };
+  }
+
+  async verifyEmailCode(userId: string, code: string): Promise<boolean> {
+    const db = getPool();
+    const tokenHash = createHash("sha256").update(code).digest("hex");
+
+    const result = await db.query<{ id: string }>(
+      `DELETE FROM email_verification_tokens WHERE user_id = $1 AND token_hash = $2 AND expires_at > NOW() RETURNING id`,
+      [userId, tokenHash]
+    );
+
+    return result.rows.length > 0;
+  }
+
+  async markEmailVerified(userId: string): Promise<void> {
+    const db = getPool();
+    await db.query(
+      `UPDATE app_users SET email_verified = true, email_verified_at = NOW() WHERE id = $1`,
+      [userId]
+    );
+  }
+
+  async createPasswordResetToken(userId: string): Promise<{ token: string }> {
+    const db = getPool();
+    const id = `prt_${randomUUID()}`;
+    const token = randomBytes(32).toString("base64url");
+    const tokenHash = createHash("sha256").update(token).digest("hex");
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // 1 hour
+
+    await db.query(
+      `INSERT INTO password_reset_tokens (id, token_hash, user_id, expires_at) VALUES ($1, $2, $3, $4)`,
+      [id, tokenHash, userId, expiresAt]
+    );
+
+    return { token };
+  }
+
+  async consumePasswordResetToken(token: string): Promise<{ userId: string } | null> {
+    const db = getPool();
+    const tokenHash = createHash("sha256").update(token).digest("hex");
+
+    const result = await db.query<{ user_id: string }>(
+      `UPDATE password_reset_tokens SET used_at = NOW() WHERE token_hash = $1 AND used_at IS NULL AND expires_at > NOW() RETURNING user_id`,
+      [tokenHash]
+    );
+
+    const row = result.rows[0];
+    return row ? { userId: row.user_id } : null;
+  }
+
+  async updatePassword(userId: string, password: string): Promise<void> {
+    const db = getPool();
+    const passwordSalt = randomUUID().replace(/-/g, "");
+    const newHash = hashPassword(password, passwordSalt);
+    await db.query(
+      `UPDATE app_users SET password_hash = $1, password_salt = $2 WHERE id = $3`,
+      [newHash, passwordSalt, userId]
     );
   }
 

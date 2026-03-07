@@ -74,3 +74,30 @@ export const OAuthCompleteRequestSchema = z.object({
 });
 
 export type OAuthCompleteRequest = z.infer<typeof OAuthCompleteRequestSchema>;
+
+// Email verification
+export const EmailVerificationRequestSchema = z.object({
+  code: z.string().length(6)
+});
+
+export type EmailVerificationRequest = z.infer<typeof EmailVerificationRequestSchema>;
+
+export const ResendVerificationRequestSchema = z.object({
+  email: z.string().email()
+});
+
+export type ResendVerificationRequest = z.infer<typeof ResendVerificationRequestSchema>;
+
+// Password reset
+export const ForgotPasswordRequestSchema = z.object({
+  email: z.string().email()
+});
+
+export type ForgotPasswordRequest = z.infer<typeof ForgotPasswordRequestSchema>;
+
+export const ResetPasswordRequestSchema = z.object({
+  token: z.string().min(1),
+  password: z.string().min(8).max(200)
+});
+
+export type ResetPasswordRequest = z.infer<typeof ResetPasswordRequestSchema>;

@@ -18,6 +18,8 @@ class MemoryRepo extends BaseMemoryRepository implements IdentityRepository {
   private usersByEmail = new Map<string, string>();
   private sessions = new Map<string, IdentitySession>();
   private oauthStates = new Map<string, OAuthStateRecord>();
+  private emailVerifCodes = new Map<string, { codeHash: string; expiresAt: number }>();
+  private resetTokens = new Map<string, { userId: string; usedAt?: string; expiresAt: number }>();
   private refreshTokens = new Map<string, {
     userId: string;
     familyId: string;
@@ -83,6 +85,12 @@ class MemoryRepo extends BaseMemoryRepository implements IdentityRepository {
     this.sessions.delete(token);
   }
 
+  async deleteUserSessions(userId: string): Promise<void> {
+    for (const [token, session] of this.sessions) {
+      if (session.userId === userId) this.sessions.delete(token);
+    }
+  }
+
   async saveOAuthState(state: string, record: OAuthStateRecord): Promise<void> {
     this.oauthStates.set(state, record);
   }
@@ -102,6 +110,53 @@ class MemoryRepo extends BaseMemoryRepository implements IdentityRepository {
       if (record.expiresAt < now) {
         this.oauthStates.delete(state);
       }
+    }
+  }
+
+  async createEmailVerificationToken(userId: string): Promise<{ code: string }> {
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    const { createHash } = await import("node:crypto");
+    const codeHash = createHash("sha256").update(code).digest("hex");
+    this.emailVerifCodes.set(userId, { codeHash, expiresAt: Date.now() + 15 * 60 * 1000 });
+    return { code };
+  }
+
+  async verifyEmailCode(userId: string, code: string): Promise<boolean> {
+    const entry = this.emailVerifCodes.get(userId);
+    if (!entry || entry.expiresAt <= Date.now()) return false;
+    const { createHash } = await import("node:crypto");
+    const codeHash = createHash("sha256").update(code).digest("hex");
+    if (entry.codeHash !== codeHash) return false;
+    this.emailVerifCodes.delete(userId);
+    return true;
+  }
+
+  async markEmailVerified(userId: string): Promise<void> {
+    const user = this.users.get(userId);
+    if (user) {
+      // In-memory only — no actual column to set
+    }
+  }
+
+  async createPasswordResetToken(userId: string): Promise<{ token: string }> {
+    const token = this.createId("prt");
+    this.resetTokens.set(token, { userId, expiresAt: Date.now() + 60 * 60 * 1000 });
+    return { token };
+  }
+
+  async consumePasswordResetToken(token: string): Promise<{ userId: string } | null> {
+    const entry = this.resetTokens.get(token);
+    if (!entry || entry.usedAt || entry.expiresAt <= Date.now()) return null;
+    entry.usedAt = new Date().toISOString();
+    return { userId: entry.userId };
+  }
+
+  async updatePassword(userId: string, password: string): Promise<void> {
+    const user = this.users.get(userId);
+    if (user) {
+      const salt = this.createId("salt");
+      user.passwordSalt = salt;
+      user.passwordHash = hashPassword(password, salt);
     }
   }
 
@@ -412,6 +467,173 @@ test("register rejects missing acceptTerms", async (t) => {
   });
   assert.equal(res.statusCode, 400);
   assert.equal(res.json().error, "invalid_payload");
+});
+
+test("email verification flow", async (t) => {
+  const { MemoryEmailService } = await import("@script-manifest/email");
+  const emailService = new MemoryEmailService();
+  const server = buildServer({ logger: false, repository: new MemoryRepo(), emailService });
+  t.after(async () => { await server.close(); });
+
+  // Register sends verification email
+  const reg = await server.inject({
+    method: "POST",
+    url: "/internal/auth/register",
+    payload: { email: "verify@example.com", password: "password123", displayName: "Verify User", acceptTerms: true }
+  });
+  assert.equal(reg.statusCode, 201);
+  const token = reg.json().token as string;
+  assert.equal(emailService.sentEmails.length, 1);
+  assert.equal(emailService.sentEmails[0]!.template, "verification-code");
+
+  // Extract code from the email service (in real code this would be in the email)
+  const code = emailService.sentEmails[0]!.data.code!;
+
+  // Wrong code fails
+  const bad = await server.inject({
+    method: "POST",
+    url: "/internal/auth/verify-email",
+    headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+    payload: { code: "000000" }
+  });
+  assert.equal(bad.statusCode, 400);
+
+  // Correct code works and sends welcome email
+  const good = await server.inject({
+    method: "POST",
+    url: "/internal/auth/verify-email",
+    headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+    payload: { code }
+  });
+  assert.equal(good.statusCode, 200);
+  assert.equal(good.json().ok, true);
+  assert.equal(emailService.sentEmails.length, 2);
+  assert.equal(emailService.sentEmails[1]!.template, "welcome");
+});
+
+test("resend verification requires auth", async (t) => {
+  const server = buildServer({ logger: false, repository: new MemoryRepo() });
+  t.after(async () => { await server.close(); });
+
+  const res = await server.inject({
+    method: "POST",
+    url: "/internal/auth/resend-verification"
+  });
+  assert.equal(res.statusCode, 401);
+});
+
+test("forgot-password does not reveal email existence", async (t) => {
+  const { MemoryEmailService } = await import("@script-manifest/email");
+  const emailService = new MemoryEmailService();
+  const server = buildServer({ logger: false, repository: new MemoryRepo(), emailService });
+  t.after(async () => { await server.close(); });
+
+  // Non-existent email: still returns ok
+  const res = await server.inject({
+    method: "POST",
+    url: "/internal/auth/forgot-password",
+    payload: { email: "nobody@example.com" }
+  });
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.json().ok, true);
+  assert.equal(emailService.sentEmails.length, 0); // No email sent
+});
+
+test("password reset flow: forgot → reset → login with new password", async (t) => {
+  const { MemoryEmailService } = await import("@script-manifest/email");
+  const emailService = new MemoryEmailService();
+  const repo = new MemoryRepo();
+  const server = buildServer({ logger: false, repository: repo, emailService });
+  t.after(async () => { await server.close(); });
+
+  // Register
+  await server.inject({
+    method: "POST",
+    url: "/internal/auth/register",
+    payload: { email: "reset@example.com", password: "oldpassword1", displayName: "Reset User", acceptTerms: true }
+  });
+  emailService.clear();
+
+  // Forgot password
+  const forgot = await server.inject({
+    method: "POST",
+    url: "/internal/auth/forgot-password",
+    payload: { email: "reset@example.com" }
+  });
+  assert.equal(forgot.statusCode, 200);
+  assert.equal(emailService.sentEmails.length, 1);
+  assert.equal(emailService.sentEmails[0]!.template, "password-reset");
+
+  // Extract token from email data
+  const resetUrl = emailService.sentEmails[0]!.data.resetUrl!;
+  const resetToken = new URL(resetUrl).searchParams.get("token")!;
+
+  // Reset password
+  const reset = await server.inject({
+    method: "POST",
+    url: "/internal/auth/reset-password",
+    payload: { token: resetToken, password: "newpassword1" }
+  });
+  assert.equal(reset.statusCode, 200);
+  assert.equal(reset.json().ok, true);
+
+  // Login with old password fails
+  const oldLogin = await server.inject({
+    method: "POST",
+    url: "/internal/auth/login",
+    payload: { email: "reset@example.com", password: "oldpassword1" }
+  });
+  assert.equal(oldLogin.statusCode, 401);
+
+  // Login with new password works
+  const newLogin = await server.inject({
+    method: "POST",
+    url: "/internal/auth/login",
+    payload: { email: "reset@example.com", password: "newpassword1" }
+  });
+  assert.equal(newLogin.statusCode, 200);
+  assert.ok(newLogin.json().token);
+});
+
+test("password reset rejects used token", async (t) => {
+  const { MemoryEmailService } = await import("@script-manifest/email");
+  const emailService = new MemoryEmailService();
+  const repo = new MemoryRepo();
+  const server = buildServer({ logger: false, repository: repo, emailService });
+  t.after(async () => { await server.close(); });
+
+  await server.inject({
+    method: "POST",
+    url: "/internal/auth/register",
+    payload: { email: "reuse@example.com", password: "password123", displayName: "Reuse User", acceptTerms: true }
+  });
+  emailService.clear();
+
+  await server.inject({
+    method: "POST",
+    url: "/internal/auth/forgot-password",
+    payload: { email: "reuse@example.com" }
+  });
+
+  const resetUrl = emailService.sentEmails[0]!.data.resetUrl!;
+  const resetToken = new URL(resetUrl).searchParams.get("token")!;
+
+  // First use succeeds
+  const first = await server.inject({
+    method: "POST",
+    url: "/internal/auth/reset-password",
+    payload: { token: resetToken, password: "newpassword1" }
+  });
+  assert.equal(first.statusCode, 200);
+
+  // Second use fails (token already consumed)
+  const second = await server.inject({
+    method: "POST",
+    url: "/internal/auth/reset-password",
+    payload: { token: resetToken, password: "anotherpass1" }
+  });
+  assert.equal(second.statusCode, 400);
+  assert.equal(second.json().error, "invalid_or_expired_token");
 });
 
 test("register rejects acceptTerms: false", async (t) => {

@@ -286,6 +286,14 @@ export default function SignInPage() {
               />
             </label>
 
+            {mode === "login" ? (
+              <div className="text-right">
+                <a href="/forgot-password" className="text-sm text-ember-500 hover:underline">
+                  Forgot password?
+                </a>
+              </div>
+            ) : null}
+
             {mode === "register" ? (
               <label className="flex items-start gap-2 text-sm">
                 <input

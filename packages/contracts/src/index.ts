@@ -11,3 +11,4 @@ export * from "./submission.js";
 export * from "./ranking.js";
 export * from "./feedback.js";
 export * from "./coverage.js";
+export * from "./admin.js";

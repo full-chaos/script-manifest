@@ -23,6 +23,7 @@ import { registerCoverageRoutes } from "./routes/coverage.js";
 import { registerIndustryRoutes } from "./routes/industry.js";
 import { registerProgramsRoutes } from "./routes/programs.js";
 import { registerPartnerRoutes } from "./routes/partners.js";
+import { registerAdminRoutes } from "./routes/admin.js";
 import { registerHealthRoutes } from "./routes/health.js";
 import { registerMetrics } from "@script-manifest/service-utils";
 
@@ -43,6 +44,7 @@ export type ApiGatewayOptions = {
   competitionAdminAllowlist?: string[];
   coverageAdminAllowlist?: string[];
   industryAdminAllowlist?: string[];
+  adminAllowlist?: string[];
   redisUrl?: string;
 };
 
@@ -117,6 +119,10 @@ export async function buildServer(options: ApiGatewayOptions = {}): Promise<Fast
     industryAdminAllowlist: new Set(
       options.industryAdminAllowlist ??
         parseAllowlist(process.env.INDUSTRY_ADMIN_ALLOWLIST ?? "")
+    ),
+    adminAllowlist: new Set(
+      options.adminAllowlist ??
+        parseAllowlist(process.env.ADMIN_ALLOWLIST ?? "")
     )
   };
 
@@ -135,6 +141,7 @@ export async function buildServer(options: ApiGatewayOptions = {}): Promise<Fast
   registerIndustryRoutes(server, ctx);
   registerProgramsRoutes(server, ctx);
   registerPartnerRoutes(server, ctx);
+  registerAdminRoutes(server, ctx);
 
   return server;
 }
@@ -195,6 +202,7 @@ export async function startServer(): Promise<void> {
     competitionAdminAllowlist: parseAllowlist(process.env.COMPETITION_ADMIN_ALLOWLIST ?? ""),
     coverageAdminAllowlist: parseAllowlist(process.env.COVERAGE_ADMIN_ALLOWLIST ?? ""),
     industryAdminAllowlist: parseAllowlist(process.env.INDUSTRY_ADMIN_ALLOWLIST ?? ""),
+    adminAllowlist: parseAllowlist(process.env.ADMIN_ALLOWLIST ?? ""),
     redisUrl: process.env.REDIS_URL,
   });
   boot.phase("server built");

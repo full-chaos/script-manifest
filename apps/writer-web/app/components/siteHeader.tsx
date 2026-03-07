@@ -26,7 +26,7 @@ const navLinks: NavLink[] = [
   { href: "/feedback" as Route, label: "Feedback", signedInOnly: true },
   { href: "/coverage" as Route, label: "Coverage", signedInOnly: true },
   { href: "/coverage/dashboard" as Route, label: "Provider Dashboard", signedInOnly: true },
-  { href: "/admin/competitions" as Route, label: "Admin", signedInOnly: true, adminOnly: true }
+  { href: "/admin" as Route, label: "Admin", signedInOnly: true, adminOnly: true }
 ];
 
 function isActive(pathname: string, href: string): boolean {

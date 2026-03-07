@@ -64,7 +64,7 @@ describe("SiteHeader", () => {
     render(<SiteHeader />);
 
     expect(await screen.findByText("Admin User")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Admin" })).toHaveAttribute("href", "/admin/competitions");
+    expect(screen.getByRole("link", { name: "Admin" })).toHaveAttribute("href", "/admin");
   });
 
   it("shows current page label on mobile when menu is closed", async () => {

@@ -11,6 +11,7 @@ import {
   AuthMeResponseSchema,
   AuthRegisterRequestSchema,
   AuthSessionResponseSchema,
+  DeleteAccountRequestSchema,
   EmailVerificationRequestSchema,
   ForgotPasswordRequestSchema,
   OAuthCompleteRequestSchema,
@@ -258,6 +259,40 @@ export function buildServer(options: IdentityServiceOptions = {}): FastifyInstan
       if (repository.revokeUserRefreshTokens) {
         await repository.revokeUserRefreshTokens(result.userId);
       }
+
+      return reply.send({ ok: true });
+    }
+  });
+
+  server.delete("/internal/auth/account", {
+    config: { rateLimit: { max: 5, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
+      const parsedBody = DeleteAccountRequestSchema.safeParse(req.body);
+      if (!parsedBody.success) {
+        return reply.status(400).send({ error: "invalid_payload", details: parsedBody.error.flatten() });
+      }
+
+      const token = readBearerToken(req.headers.authorization);
+      if (!token) {
+        return reply.status(401).send({ error: "missing_bearer_token" });
+      }
+
+      const sessionData = await repository.findUserBySessionToken(token);
+      if (!sessionData) {
+        return reply.status(401).send({ error: "invalid_session" });
+      }
+
+      // Verify password before deletion
+      const isValid = verifyPassword(
+        parsedBody.data.password,
+        sessionData.user.passwordHash,
+        sessionData.user.passwordSalt
+      );
+      if (!isValid) {
+        return reply.status(403).send({ error: "invalid_password" });
+      }
+
+      await repository.softDeleteUser(sessionData.user.id);
 
       return reply.send({ ok: true });
     }

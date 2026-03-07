@@ -4,6 +4,7 @@ import {
   AuthMeResponseSchema,
   AuthRegisterRequestSchema,
   AuthSessionResponseSchema,
+  DeleteAccountRequestSchema,
   EmailVerificationRequestSchema,
   ForgotPasswordRequestSchema,
   ResendVerificationRequestSchema,
@@ -208,6 +209,29 @@ export function registerAuthRoutes(server: FastifyInstance, ctx: GatewayContext)
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ refreshToken })
+      });
+    }
+  });
+
+  server.delete("/api/v1/auth/account", {
+    config: { rateLimit: { max: AUTH_RATE_MAX, timeWindow: "1 minute" } },
+    schema: {
+      tags: ["auth"],
+      summary: "Delete user account (soft-delete with 30-day grace period)",
+      security: [{ bearerAuth: [] }],
+      body: toOpenApiSchema(DeleteAccountRequestSchema),
+      response: {
+        200: toOpenApiSchema(z.object({ ok: z.boolean() })),
+        400: toOpenApiSchema(ApiErrorSchema),
+        401: toOpenApiSchema(UnauthorizedErrorSchema)
+      }
+    },
+    handler: async (req, reply) => {
+      clearAuthCookies(reply);
+      return proxyJsonRequest(reply, ctx.requestFn, `${ctx.identityServiceBase}/internal/auth/account`, {
+        method: "DELETE",
+        headers: { "content-type": "application/json", ...copyAuthHeader(req.headers.authorization) },
+        body: JSON.stringify(req.body ?? {})
       });
     }
   });

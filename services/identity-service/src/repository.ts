@@ -70,6 +70,9 @@ export interface IdentityRepository {
   createPasswordResetToken(userId: string): Promise<{ token: string }>;
   consumePasswordResetToken(token: string): Promise<{ userId: string } | null>;
   updatePassword(userId: string, password: string): Promise<void>;
+
+  // Account deletion
+  softDeleteUser(userId: string): Promise<void>;
 }
 
 function hashRefreshToken(token: string): string {
@@ -603,6 +606,17 @@ export class PgIdentityRepository implements IdentityRepository {
       `UPDATE app_users SET password_hash = $1, password_salt = $2 WHERE id = $3`,
       [newHash, passwordSalt, userId]
     );
+  }
+
+  async softDeleteUser(userId: string): Promise<void> {
+    const db = getPool();
+    await db.query(
+      `UPDATE app_users SET account_status = 'deleted' WHERE id = $1`,
+      [userId]
+    );
+    // Invalidate all sessions and tokens
+    await this.deleteUserSessions(userId);
+    await this.revokeUserRefreshTokens(userId);
   }
 
   private async insertRefreshToken(client: QueryClient, userId: string, familyId?: string): Promise<RefreshTokenIssue> {

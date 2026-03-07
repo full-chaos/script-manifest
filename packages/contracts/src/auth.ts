@@ -101,3 +101,10 @@ export const ResetPasswordRequestSchema = z.object({
 });
 
 export type ResetPasswordRequest = z.infer<typeof ResetPasswordRequestSchema>;
+
+// Account deletion
+export const DeleteAccountRequestSchema = z.object({
+  password: z.string().min(1)
+});
+
+export type DeleteAccountRequest = z.infer<typeof DeleteAccountRequestSchema>;

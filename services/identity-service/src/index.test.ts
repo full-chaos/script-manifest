@@ -160,6 +160,11 @@ class MemoryRepo extends BaseMemoryRepository implements IdentityRepository {
     }
   }
 
+  async softDeleteUser(userId: string): Promise<void> {
+    // Mark as deleted, remove sessions
+    await this.deleteUserSessions(userId);
+  }
+
   async createRefreshToken(userId: string, familyId?: string): Promise<RefreshTokenIssue> {
     const token = this.createId("rfr");
     const finalFamilyId = familyId ?? this.createId("fam");
@@ -654,4 +659,48 @@ test("register rejects acceptTerms: false", async (t) => {
   });
   assert.equal(res.statusCode, 400);
   assert.equal(res.json().error, "invalid_payload");
+});
+
+test("account deletion requires password confirmation", async (t) => {
+  const server = buildServer({ logger: false, repository: new MemoryRepo() });
+  t.after(async () => { await server.close(); });
+
+  const reg = await server.inject({
+    method: "POST",
+    url: "/internal/auth/register",
+    payload: { email: "delete@example.com", password: "password123", displayName: "Delete Me", acceptTerms: true }
+  });
+  const token = reg.json().token as string;
+
+  // Wrong password
+  const bad = await server.inject({
+    method: "DELETE",
+    url: "/internal/auth/account",
+    headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+    payload: { password: "wrongpassword" }
+  });
+  assert.equal(bad.statusCode, 403);
+  assert.equal(bad.json().error, "invalid_password");
+
+  // Correct password
+  const good = await server.inject({
+    method: "DELETE",
+    url: "/internal/auth/account",
+    headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+    payload: { password: "password123" }
+  });
+  assert.equal(good.statusCode, 200);
+  assert.equal(good.json().ok, true);
+});
+
+test("account deletion requires auth", async (t) => {
+  const server = buildServer({ logger: false, repository: new MemoryRepo() });
+  t.after(async () => { await server.close(); });
+
+  const res = await server.inject({
+    method: "DELETE",
+    url: "/internal/auth/account",
+    payload: { password: "anything" }
+  });
+  assert.equal(res.statusCode, 401);
 });

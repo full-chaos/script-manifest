@@ -1068,12 +1068,17 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
       return reply.status(400).send({ error: "invalid_signature" });
     }
 
-    // Log the webhook event
+    // Log the webhook event (deduplicates by event ID)
     const logEntry = await repository.logWebhookEvent({
       eventId: event.id ?? `unknown_${randomUUID()}`,
       eventType: event.type,
       payload: event
     });
+
+    if (logEntry.alreadyProcessed) {
+      server.log.info({ eventId: event.id }, "duplicate webhook event skipped");
+      return reply.send({ received: true });
+    }
 
     try {
       // Handle events
@@ -1119,11 +1124,7 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
               payoutsEnabled = webhookPayoutsEnabled ?? accountStatus.payoutsEnabled;
             }
             const onboardingComplete = Boolean(chargesEnabled && payoutsEnabled);
-            if (provider.status === "pending_verification") {
-              await repository.updateProviderStripe(provider.id, accountId, onboardingComplete);
-            } else {
-              await repository.updateProviderStripe(provider.id, accountId, onboardingComplete);
-            }
+            await repository.updateProviderStripe(provider.id, accountId, onboardingComplete);
           }
         }
       } else if (event.type === "charge.failed") {

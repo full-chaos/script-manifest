@@ -410,11 +410,11 @@ class MemoryCoverageMarketplaceRepository extends BaseMemoryRepository implement
     eventId: string;
     eventType: string;
     payload: unknown;
-  }): Promise<{ id: string }> {
+  }): Promise<{ id: string; alreadyProcessed: boolean }> {
     // Check for duplicate event IDs (idempotency)
     for (const log of this.webhookLogs.values()) {
       if (log.eventId === params.eventId) {
-        return { id: log.id };
+        return { id: log.id, alreadyProcessed: true };
       }
     }
     const id = this.createId("swl");
@@ -426,7 +426,7 @@ class MemoryCoverageMarketplaceRepository extends BaseMemoryRepository implement
       processingStatus: "received",
       errorMessage: null
     });
-    return { id };
+    return { id, alreadyProcessed: false };
   }
 
   async updateWebhookLogStatus(id: string, status: string, errorMessage?: string): Promise<void> {

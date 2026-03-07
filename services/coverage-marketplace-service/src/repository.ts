@@ -96,6 +96,6 @@ export interface CoverageMarketplaceRepository {
     eventId: string;
     eventType: string;
     payload: unknown;
-  }): Promise<{ id: string }>;
+  }): Promise<{ id: string; alreadyProcessed: boolean }>;
   updateWebhookLogStatus(id: string, status: string, errorMessage?: string): Promise<void>;
 }

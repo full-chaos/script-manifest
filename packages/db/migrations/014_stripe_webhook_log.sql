@@ -7,7 +7,8 @@ CREATE TABLE IF NOT EXISTS stripe_webhook_log (
   processing_status TEXT NOT NULL DEFAULT 'received'
     CHECK (processing_status IN ('received', 'processed', 'failed')),
   error_message TEXT,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  processed_at TIMESTAMPTZ
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_stripe_webhook_log_event_id ON stripe_webhook_log(event_id);

@@ -594,22 +594,26 @@ export class PgCoverageMarketplaceRepository implements CoverageMarketplaceRepos
     eventId: string;
     eventType: string;
     payload: unknown;
-  }): Promise<{ id: string }> {
+  }): Promise<{ id: string; alreadyProcessed: boolean }> {
     const db = getPool();
     const id = `swl_${randomUUID()}`;
-    await db.query(
+    const result = await db.query(
       `INSERT INTO stripe_webhook_log (id, event_id, event_type, payload, processing_status)
        VALUES ($1, $2, $3, $4, 'received')
-       ON CONFLICT (event_id) DO NOTHING`,
+       ON CONFLICT (event_id) DO NOTHING
+       RETURNING id`,
       [id, params.eventId, params.eventType, JSON.stringify(params.payload)]
     );
-    return { id };
+    if (result.rowCount === 0) {
+      return { id, alreadyProcessed: true };
+    }
+    return { id, alreadyProcessed: false };
   }
 
   async updateWebhookLogStatus(id: string, status: string, errorMessage?: string): Promise<void> {
     const db = getPool();
     await db.query(
-      `UPDATE stripe_webhook_log SET processing_status = $2, error_message = $3
+      `UPDATE stripe_webhook_log SET processing_status = $2, error_message = $3, processed_at = NOW()
        WHERE id = $1`,
       [id, status, errorMessage ?? null]
     );

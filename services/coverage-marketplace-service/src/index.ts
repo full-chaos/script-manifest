@@ -1068,56 +1068,102 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
       return reply.status(400).send({ error: "invalid_signature" });
     }
 
-    // Handle events
-    if (event.type === "payment_intent.amount_capturable_updated") {
-      const intentId = event.data?.object?.id;
-      if (intentId) {
-        // Find order and update status
-        const orders = await repository.listOrders({ offset: 0, limit: 1000 });
-        const order = orders.find((o) => o.stripePaymentIntentId === intentId);
-        if (order && order.status === "placed") {
-          await repository.updateOrderStatus(order.id, "payment_held");
-        }
-      }
-    } else if (event.type === "account.updated") {
-      const accountId = event.data?.object?.id;
-      if (accountId) {
-        // Find provider and update status
-        const providers = await repository.listProviders({ offset: 0, limit: 1000 });
-        const provider = providers.find((p) => p.stripeAccountId === accountId);
-        if (provider) {
-          const object = event.data?.object ?? {};
-          const webhookChargesEnabled =
-            typeof object.charges_enabled === "boolean"
-              ? object.charges_enabled
-              : typeof object.chargesEnabled === "boolean"
-                ? object.chargesEnabled
-                : undefined;
-          const webhookPayoutsEnabled =
-            typeof object.payouts_enabled === "boolean"
-              ? object.payouts_enabled
-              : typeof object.payoutsEnabled === "boolean"
-                ? object.payoutsEnabled
-                : undefined;
+    // Log the webhook event
+    const logEntry = await repository.logWebhookEvent({
+      eventId: event.id ?? `unknown_${randomUUID()}`,
+      eventType: event.type,
+      payload: event
+    });
 
-          let chargesEnabled: boolean;
-          let payoutsEnabled: boolean;
-          if (webhookChargesEnabled !== undefined && webhookPayoutsEnabled !== undefined) {
-            chargesEnabled = webhookChargesEnabled;
-            payoutsEnabled = webhookPayoutsEnabled;
-          } else {
-            const accountStatus = await paymentGateway.getAccountStatus(accountId);
-            chargesEnabled = webhookChargesEnabled ?? accountStatus.chargesEnabled;
-            payoutsEnabled = webhookPayoutsEnabled ?? accountStatus.payoutsEnabled;
-          }
-          const onboardingComplete = Boolean(chargesEnabled && payoutsEnabled);
-          if (provider.status === "pending_verification") {
-            await repository.updateProviderStripe(provider.id, accountId, onboardingComplete);
-          } else {
-            await repository.updateProviderStripe(provider.id, accountId, onboardingComplete);
+    try {
+      // Handle events
+      if (event.type === "payment_intent.amount_capturable_updated") {
+        const intentId = event.data?.object?.id;
+        if (intentId) {
+          // Find order and update status
+          const orders = await repository.listOrders({ offset: 0, limit: 1000 });
+          const order = orders.find((o) => o.stripePaymentIntentId === intentId);
+          if (order && order.status === "placed") {
+            await repository.updateOrderStatus(order.id, "payment_held");
           }
         }
+      } else if (event.type === "account.updated") {
+        const accountId = event.data?.object?.id;
+        if (accountId) {
+          // Find provider and update status
+          const providers = await repository.listProviders({ offset: 0, limit: 1000 });
+          const provider = providers.find((p) => p.stripeAccountId === accountId);
+          if (provider) {
+            const object = event.data?.object ?? {};
+            const webhookChargesEnabled =
+              typeof object.charges_enabled === "boolean"
+                ? object.charges_enabled
+                : typeof object.chargesEnabled === "boolean"
+                  ? object.chargesEnabled
+                  : undefined;
+            const webhookPayoutsEnabled =
+              typeof object.payouts_enabled === "boolean"
+                ? object.payouts_enabled
+                : typeof object.payoutsEnabled === "boolean"
+                  ? object.payoutsEnabled
+                  : undefined;
+
+            let chargesEnabled: boolean;
+            let payoutsEnabled: boolean;
+            if (webhookChargesEnabled !== undefined && webhookPayoutsEnabled !== undefined) {
+              chargesEnabled = webhookChargesEnabled;
+              payoutsEnabled = webhookPayoutsEnabled;
+            } else {
+              const accountStatus = await paymentGateway.getAccountStatus(accountId);
+              chargesEnabled = webhookChargesEnabled ?? accountStatus.chargesEnabled;
+              payoutsEnabled = webhookPayoutsEnabled ?? accountStatus.payoutsEnabled;
+            }
+            const onboardingComplete = Boolean(chargesEnabled && payoutsEnabled);
+            if (provider.status === "pending_verification") {
+              await repository.updateProviderStripe(provider.id, accountId, onboardingComplete);
+            } else {
+              await repository.updateProviderStripe(provider.id, accountId, onboardingComplete);
+            }
+          }
+        }
+      } else if (event.type === "charge.failed") {
+        const paymentIntentId = event.data?.object?.payment_intent;
+        if (paymentIntentId) {
+          const orders = await repository.listOrders({ offset: 0, limit: 1000 });
+          const order = orders.find((o) => o.stripePaymentIntentId === paymentIntentId);
+          if (order && (order.status === "placed" || order.status === "payment_held")) {
+            await repository.updateOrderStatus(order.id, "payment_failed");
+          }
+        }
+      } else if (event.type === "charge.refunded") {
+        const paymentIntentId = event.data?.object?.payment_intent;
+        if (paymentIntentId) {
+          const orders = await repository.listOrders({ offset: 0, limit: 1000 });
+          const order = orders.find((o) => o.stripePaymentIntentId === paymentIntentId);
+          if (order && order.status !== "refunded") {
+            await repository.updateOrderStatus(order.id, "refunded");
+          }
+        }
+      } else if (event.type === "charge.dispute.created") {
+        const paymentIntentId = event.data?.object?.payment_intent;
+        if (paymentIntentId) {
+          const orders = await repository.listOrders({ offset: 0, limit: 1000 });
+          const order = orders.find((o) => o.stripePaymentIntentId === paymentIntentId);
+          if (order && order.status !== "disputed") {
+            await repository.updateOrderStatus(order.id, "disputed");
+          }
+        }
+      } else if (event.type === "transfer.failed") {
+        server.log.warn({ eventId: event.id, transfer: event.data?.object?.id }, "transfer.failed webhook received");
+      } else if (event.type === "payout.failed") {
+        server.log.warn({ eventId: event.id, payout: event.data?.object?.id }, "payout.failed webhook received");
       }
+
+      await repository.updateWebhookLogStatus(logEntry.id, "processed");
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      await repository.updateWebhookLogStatus(logEntry.id, "failed", errorMessage);
+      server.log.error({ error: err, eventType: event.type }, "webhook processing failed");
     }
 
     return reply.send({ received: true });

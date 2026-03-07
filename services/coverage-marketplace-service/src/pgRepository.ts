@@ -587,6 +587,33 @@ export class PgCoverageMarketplaceRepository implements CoverageMarketplaceRepos
     );
     return result.rows.map(mapDisputeEvent);
   }
+
+  // ── Webhook Log ─────────────────────────────────────────────────────
+
+  async logWebhookEvent(params: {
+    eventId: string;
+    eventType: string;
+    payload: unknown;
+  }): Promise<{ id: string }> {
+    const db = getPool();
+    const id = `swl_${randomUUID()}`;
+    await db.query(
+      `INSERT INTO stripe_webhook_log (id, event_id, event_type, payload, processing_status)
+       VALUES ($1, $2, $3, $4, 'received')
+       ON CONFLICT (event_id) DO NOTHING`,
+      [id, params.eventId, params.eventType, JSON.stringify(params.payload)]
+    );
+    return { id };
+  }
+
+  async updateWebhookLogStatus(id: string, status: string, errorMessage?: string): Promise<void> {
+    const db = getPool();
+    await db.query(
+      `UPDATE stripe_webhook_log SET processing_status = $2, error_message = $3
+       WHERE id = $1`,
+      [id, status, errorMessage ?? null]
+    );
+  }
 }
 
 // ── Row types & mappers ────────────────────────────────────────────────

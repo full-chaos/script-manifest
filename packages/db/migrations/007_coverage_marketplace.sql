@@ -14,11 +14,11 @@ CREATE TABLE IF NOT EXISTS coverage_providers (
       total_orders_completed INTEGER NOT NULL DEFAULT 0,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
+    );
 
-CREATE INDEX IF NOT EXISTS idx_coverage_providers_user ON coverage_providers(user_id)
+CREATE INDEX IF NOT EXISTS idx_coverage_providers_user ON coverage_providers(user_id);
 
-CREATE INDEX IF NOT EXISTS idx_coverage_providers_status ON coverage_providers(status)
+CREATE INDEX IF NOT EXISTS idx_coverage_providers_status ON coverage_providers(status);
 
 CREATE TABLE IF NOT EXISTS coverage_services (
       id TEXT PRIMARY KEY,
@@ -33,11 +33,11 @@ CREATE TABLE IF NOT EXISTS coverage_services (
       active BOOLEAN NOT NULL DEFAULT TRUE,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
+    );
 
-CREATE INDEX IF NOT EXISTS idx_coverage_services_provider ON coverage_services(provider_id)
+CREATE INDEX IF NOT EXISTS idx_coverage_services_provider ON coverage_services(provider_id);
 
-CREATE INDEX IF NOT EXISTS idx_coverage_services_active ON coverage_services(active) WHERE active = TRUE
+CREATE INDEX IF NOT EXISTS idx_coverage_services_active ON coverage_services(active) WHERE active = TRUE;
 
 CREATE TABLE IF NOT EXISTS coverage_orders (
       id TEXT PRIMARY KEY,
@@ -57,17 +57,17 @@ CREATE TABLE IF NOT EXISTS coverage_orders (
       delivered_at TIMESTAMPTZ,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
+    );
 
-CREATE INDEX IF NOT EXISTS idx_coverage_orders_writer ON coverage_orders(writer_user_id)
+CREATE INDEX IF NOT EXISTS idx_coverage_orders_writer ON coverage_orders(writer_user_id);
 
-CREATE INDEX IF NOT EXISTS idx_coverage_orders_provider ON coverage_orders(provider_id)
+CREATE INDEX IF NOT EXISTS idx_coverage_orders_provider ON coverage_orders(provider_id);
 
-CREATE INDEX IF NOT EXISTS idx_coverage_orders_status ON coverage_orders(status)
+CREATE INDEX IF NOT EXISTS idx_coverage_orders_status ON coverage_orders(status);
 
-CREATE INDEX IF NOT EXISTS idx_coverage_orders_delivered_at ON coverage_orders(delivered_at)
+CREATE INDEX IF NOT EXISTS idx_coverage_orders_delivered_at ON coverage_orders(delivered_at);
 
-CREATE INDEX IF NOT EXISTS idx_coverage_orders_sla_deadline ON coverage_orders(sla_deadline)
+CREATE INDEX IF NOT EXISTS idx_coverage_orders_sla_deadline ON coverage_orders(sla_deadline);
 
 CREATE TABLE IF NOT EXISTS coverage_deliveries (
       id TEXT PRIMARY KEY,
@@ -80,7 +80,7 @@ CREATE TABLE IF NOT EXISTS coverage_deliveries (
       file_key TEXT,
       file_name TEXT,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
+    );
 
 CREATE TABLE IF NOT EXISTS coverage_reviews (
       id TEXT PRIMARY KEY,
@@ -90,9 +90,9 @@ CREATE TABLE IF NOT EXISTS coverage_reviews (
       rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
       comment TEXT NOT NULL DEFAULT '',
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
+    );
 
-CREATE INDEX IF NOT EXISTS idx_coverage_reviews_provider ON coverage_reviews(provider_id)
+CREATE INDEX IF NOT EXISTS idx_coverage_reviews_provider ON coverage_reviews(provider_id);
 
 CREATE TABLE IF NOT EXISTS coverage_disputes (
       id TEXT PRIMARY KEY,
@@ -107,11 +107,11 @@ CREATE TABLE IF NOT EXISTS coverage_disputes (
       resolved_at TIMESTAMPTZ,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
+    );
 
-CREATE INDEX IF NOT EXISTS idx_coverage_disputes_status ON coverage_disputes(status)
+CREATE INDEX IF NOT EXISTS idx_coverage_disputes_status ON coverage_disputes(status);
 
-CREATE INDEX IF NOT EXISTS idx_coverage_disputes_order ON coverage_disputes(order_id)
+CREATE INDEX IF NOT EXISTS idx_coverage_disputes_order ON coverage_disputes(order_id);
 
 CREATE TABLE IF NOT EXISTS coverage_provider_reviews (
       id TEXT PRIMARY KEY,
@@ -121,11 +121,11 @@ CREATE TABLE IF NOT EXISTS coverage_provider_reviews (
       reason TEXT,
       checklist TEXT[] NOT NULL DEFAULT '{}',
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
+    );
 
-CREATE INDEX IF NOT EXISTS idx_coverage_provider_reviews_provider ON coverage_provider_reviews(provider_id)
+CREATE INDEX IF NOT EXISTS idx_coverage_provider_reviews_provider ON coverage_provider_reviews(provider_id);
 
-CREATE INDEX IF NOT EXISTS idx_coverage_provider_reviews_created ON coverage_provider_reviews(created_at DESC)
+CREATE INDEX IF NOT EXISTS idx_coverage_provider_reviews_created ON coverage_provider_reviews(created_at DESC);
 
 CREATE TABLE IF NOT EXISTS coverage_dispute_events (
       id TEXT PRIMARY KEY,
@@ -138,6 +138,6 @@ CREATE TABLE IF NOT EXISTS coverage_dispute_events (
       to_status TEXT
         CHECK (to_status IS NULL OR to_status IN ('open', 'under_review', 'resolved_refund', 'resolved_no_refund', 'resolved_partial')),
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
+    );
 
-CREATE INDEX IF NOT EXISTS idx_coverage_dispute_events_dispute ON coverage_dispute_events(dispute_id)
+CREATE INDEX IF NOT EXISTS idx_coverage_dispute_events_dispute ON coverage_dispute_events(dispute_id);

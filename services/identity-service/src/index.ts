@@ -572,8 +572,13 @@ export async function startServer(): Promise<void> {
 
   validateRequiredEnv(["DATABASE_URL"]);
   boot.phase("env validated");
+
+  const { createEmailService } = await import("@script-manifest/email");
+  const emailService = await createEmailService();
+  boot.phase(emailService ? "email service ready" : "email service not configured (skipping)");
+
   const port = Number(process.env.PORT ?? 4005);
-  const server = buildServer();
+  const server = buildServer({ emailService });
   boot.phase("server built");
   // Register Prometheus metrics endpoint (only in production server startup, not tests).
   await registerMetrics(server);

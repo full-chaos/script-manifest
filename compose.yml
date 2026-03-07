@@ -221,6 +221,10 @@ services:
       DATABASE_URL: "postgresql://manifest:manifest@postgres:5432/manifest"
       GOOGLE_CLIENT_ID: ""
       GOOGLE_CLIENT_SECRET: ""
+      SMTP_HOST: "mailpit"
+      SMTP_PORT: "1025"
+      EMAIL_FROM: "Script Manifest <noreply@scriptmanifest.com>"
+      FRONTEND_URL: "http://localhost:3100"
     command: >
       sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/identity-service dev"
     ports:
@@ -228,6 +232,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      mailpit:
+        condition: service_started
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:4005/health || exit 1"]
       interval: 10s

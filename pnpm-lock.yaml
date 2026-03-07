@@ -161,6 +161,9 @@ importers:
 
   packages/email:
     dependencies:
+      nodemailer:
+        specifier: ^8.0.1
+        version: 8.0.1
       resend:
         specifier: ^4.1.2
         version: 4.8.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -168,6 +171,9 @@ importers:
       '@types/node':
         specifier: ^25.3.4
         version: 25.3.4
+      '@types/nodemailer':
+        specifier: ^7.0.11
+        version: 7.0.11
       tsx:
         specifier: ^4.19.2
         version: 4.21.0
@@ -3022,6 +3028,9 @@ packages:
   '@types/node@25.3.4':
     resolution: {integrity: sha512-NB1qVMIPsjfYtrY+9cCTj2VqLBh/TIDmsZXtmM2Xsn+W2yMlkA9Q1Okpr9W3f1fyGgvelw8ojumDsv8Vc0xufQ==}
 
+  '@types/nodemailer@7.0.11':
+    resolution: {integrity: sha512-E+U4RzR2dKrx+u3N4DlsmLaDC6mMZOM/TPROxA0UAPiTgI0y4CEFBmZE+coGWTjakDriRsXG368lNk1u9Q0a2g==}
+
   '@types/pg-pool@2.0.6':
     resolution: {integrity: sha512-TaAUE5rq2VQYxab5Ts7WZhKNmuN78Q6PiFonTDdpbx8a1H0M1vhy3rhiMjl+e2iHmogyMw7jZF4FrE6eJUy5HQ==}
 
@@ -4863,6 +4872,10 @@ packages:
 
   node-releases@2.0.27:
     resolution: {integrity: sha512-nmh3lCkYZ3grZvqcCH+fjmQ7X+H0OeZgP40OierEaAptX4XofMh5kwNbWh7lBduUzCcV/8kZ+NDLCwm2iorIlA==}
+
+  nodemailer@8.0.1:
+    resolution: {integrity: sha512-5kcldIXmaEjZcHR6F28IKGSgpmZHaF1IXLWFTG+Xh3S+Cce4MiakLtWY+PlBU69fLbRa8HlaGIrC/QolUpHkhg==}
+    engines: {node: '>=6.0.0'}
 
   normalize-path@3.0.0:
     resolution: {integrity: sha512-6eZs5Ls3WtCisHWp9S2GUy8dqkpGi4BVSz3GaqiE6ezub0512ESztXUwUB6C6IKbQkY2Pnb/mD4WYojCRwcwLA==}
@@ -8971,6 +8984,10 @@ snapshots:
     dependencies:
       undici-types: 7.18.2
 
+  '@types/nodemailer@7.0.11':
+    dependencies:
+      '@types/node': 25.3.4
+
   '@types/pg-pool@2.0.6':
     dependencies:
       '@types/pg': 8.18.0
@@ -10096,7 +10113,7 @@ snapshots:
       eslint: 9.20.0(jiti@1.21.7)
       eslint-import-resolver-node: 0.3.9
       eslint-import-resolver-typescript: 3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.56.0(eslint@9.20.0(jiti@1.21.7))(typescript@5.9.3))(eslint@9.20.0(jiti@1.21.7)))(eslint@9.20.0(jiti@1.21.7))
-      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.56.0(eslint@9.20.0(jiti@1.21.7))(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.56.0(eslint@9.20.0(jiti@1.21.7))(typescript@5.9.3))(eslint@9.20.0(jiti@1.21.7)))(eslint@9.20.0(jiti@1.21.7)))(eslint@9.20.0(jiti@1.21.7))
+      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.56.0(eslint@9.20.0(jiti@1.21.7))(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1)(eslint@9.20.0(jiti@1.21.7))
       eslint-plugin-jsx-a11y: 6.10.2(eslint@9.20.0(jiti@1.21.7))
       eslint-plugin-react: 7.37.5(eslint@9.20.0(jiti@1.21.7))
       eslint-plugin-react-hooks: 7.0.1(eslint@9.20.0(jiti@1.21.7))
@@ -10129,7 +10146,7 @@ snapshots:
       tinyglobby: 0.2.15
       unrs-resolver: 1.11.1
     optionalDependencies:
-      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.56.0(eslint@9.20.0(jiti@1.21.7))(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.56.0(eslint@9.20.0(jiti@1.21.7))(typescript@5.9.3))(eslint@9.20.0(jiti@1.21.7)))(eslint@9.20.0(jiti@1.21.7)))(eslint@9.20.0(jiti@1.21.7))
+      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.56.0(eslint@9.20.0(jiti@1.21.7))(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1)(eslint@9.20.0(jiti@1.21.7))
     transitivePeerDependencies:
       - supports-color
 
@@ -10144,7 +10161,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.56.0(eslint@9.20.0(jiti@1.21.7))(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.56.0(eslint@9.20.0(jiti@1.21.7))(typescript@5.9.3))(eslint@9.20.0(jiti@1.21.7)))(eslint@9.20.0(jiti@1.21.7)))(eslint@9.20.0(jiti@1.21.7)):
+  eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.56.0(eslint@9.20.0(jiti@1.21.7))(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1)(eslint@9.20.0(jiti@1.21.7)):
     dependencies:
       '@rtsao/scc': 1.1.0
       array-includes: 3.1.9
@@ -11125,6 +11142,8 @@ snapshots:
       whatwg-url: 5.0.0
 
   node-releases@2.0.27: {}
+
+  nodemailer@8.0.1: {}
 
   normalize-path@3.0.0: {}
 

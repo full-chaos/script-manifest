@@ -5,7 +5,10 @@ import { OptionalUrlStringSchema } from "./common.js";
 export const AuthRegisterRequestSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8).max(200),
-  displayName: z.string().min(1).max(120)
+  displayName: z.string().min(1).max(120),
+  acceptTerms: z.literal(true, {
+    errorMap: () => ({ message: "You must accept the terms of service" })
+  })
 });
 
 export type AuthRegisterRequest = z.infer<typeof AuthRegisterRequestSchema>;

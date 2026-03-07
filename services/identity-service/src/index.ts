@@ -116,7 +116,12 @@ export function buildServer(options: IdentityServiceOptions = {}): FastifyInstan
       });
     }
 
-    const user = await repository.registerUser(parsedBody.data);
+    const user = await repository.registerUser({
+      email: parsedBody.data.email,
+      password: parsedBody.data.password,
+      displayName: parsedBody.data.displayName,
+      acceptTerms: parsedBody.data.acceptTerms,
+    });
     if (!user) {
       return reply.status(409).send({ error: "email_already_registered" });
     }

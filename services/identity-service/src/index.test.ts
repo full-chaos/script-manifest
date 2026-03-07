@@ -165,7 +165,8 @@ test("identity register/login/me/logout flow", async (t) => {
     payload: {
       email: "writer@example.com",
       password: "password123",
-      displayName: "Writer One"
+      displayName: "Writer One",
+      acceptTerms: true
     }
   });
   assert.equal(register.statusCode, 201);
@@ -213,7 +214,8 @@ test("identity register rejects duplicate email", async (t) => {
   const payload = {
     email: "writer@example.com",
     password: "password123",
-    displayName: "Writer One"
+    displayName: "Writer One",
+    acceptTerms: true as const
   };
 
   const first = await server.inject({
@@ -244,7 +246,8 @@ test("identity login rejects invalid credentials", async (t) => {
     payload: {
       email: "writer@example.com",
       password: "password123",
-      displayName: "Writer One"
+      displayName: "Writer One",
+      acceptTerms: true
     }
   });
 
@@ -358,7 +361,8 @@ test("identity refresh rotates token and blocks reuse", async (t) => {
     payload: {
       email: "refresh@example.com",
       password: "password123",
-      displayName: "Refresh User"
+      displayName: "Refresh User",
+      acceptTerms: true
     }
   });
   assert.equal(login.statusCode, 201);
@@ -389,4 +393,43 @@ test("identity refresh rotates token and blocks reuse", async (t) => {
   });
   assert.equal(revokedFamily.statusCode, 401);
   assert.equal(revokedFamily.json().error, "invalid_refresh_token");
+});
+
+test("register rejects missing acceptTerms", async (t) => {
+  const server = buildServer({ logger: false, repository: new MemoryRepo() });
+  t.after(async () => {
+    await server.close();
+  });
+
+  const res = await server.inject({
+    method: "POST",
+    url: "/internal/auth/register",
+    payload: {
+      email: "noterms@example.com",
+      password: "password123",
+      displayName: "No Terms"
+    }
+  });
+  assert.equal(res.statusCode, 400);
+  assert.equal(res.json().error, "invalid_payload");
+});
+
+test("register rejects acceptTerms: false", async (t) => {
+  const server = buildServer({ logger: false, repository: new MemoryRepo() });
+  t.after(async () => {
+    await server.close();
+  });
+
+  const res = await server.inject({
+    method: "POST",
+    url: "/internal/auth/register",
+    payload: {
+      email: "falseterms@example.com",
+      password: "password123",
+      displayName: "False Terms",
+      acceptTerms: false
+    }
+  });
+  assert.equal(res.statusCode, 400);
+  assert.equal(res.json().error, "invalid_payload");
 });

@@ -20,6 +20,7 @@ export type RegisterUserInput = {
   email: string;
   password: string;
   displayName: string;
+  acceptTerms?: boolean;
 };
 
 export type OAuthStateRecord = {
@@ -99,6 +100,10 @@ export class PgIdentityRepository implements IdentityRepository {
       ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'writer';
     `);
     await db.query(`
+      ALTER TABLE app_users
+      ADD COLUMN IF NOT EXISTS terms_accepted_at TIMESTAMPTZ;
+    `);
+    await db.query(`
       CREATE TABLE IF NOT EXISTS oauth_state (
         state TEXT PRIMARY KEY,
         code_verifier TEXT NOT NULL,
@@ -150,11 +155,11 @@ export class PgIdentityRepository implements IdentityRepository {
         role: string;
       }>(
         `
-          INSERT INTO app_users (id, email, display_name, password_hash, password_salt)
-          VALUES ($1, $2, $3, $4, $5)
+          INSERT INTO app_users (id, email, display_name, password_hash, password_salt, terms_accepted_at)
+          VALUES ($1, $2, $3, $4, $5, $6)
           RETURNING id, email, display_name, password_hash, password_salt, role
         `,
-        [id, input.email.toLowerCase(), input.displayName, passwordHash, passwordSalt]
+        [id, input.email.toLowerCase(), input.displayName, passwordHash, passwordSalt, input.acceptTerms ? new Date().toISOString() : null]
       );
 
       const user = result.rows[0];

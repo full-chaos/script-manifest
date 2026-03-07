@@ -41,6 +41,7 @@ describe("SignInPage", () => {
     await user.type(screen.getByLabelText("Display name"), "Writer One");
     await user.type(screen.getByLabelText("Email"), "writer@example.com");
     await user.type(screen.getByLabelText("Password"), "password123");
+    await user.click(screen.getByRole("checkbox"));
     // Both the toggle and submit say "Create account" — target the submit button
     const createButtons = screen.getAllByRole("button", { name: "Create account" });
     await user.click(createButtons.find(b => (b as HTMLButtonElement).type === "submit")!);

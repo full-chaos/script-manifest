@@ -21,6 +21,7 @@ export default function SignInPage() {
   const [status, setStatus] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
   const [oauthSubmitting, setOauthSubmitting] = useState(false);
+  const [acceptTerms, setAcceptTerms] = useState(false);
 
   // On mount: restore session + handle Google OAuth callback redirect
   useEffect(() => {
@@ -76,7 +77,7 @@ export default function SignInPage() {
     try {
       const payload =
         mode === "register"
-          ? { email, password, displayName }
+          ? { email, password, displayName, acceptTerms }
           : {
               email,
               password
@@ -285,7 +286,36 @@ export default function SignInPage() {
               />
             </label>
 
-            <button type="submit" className="btn btn-secondary w-full justify-center" disabled={submitting}>
+            {mode === "login" ? (
+              <div className="text-right">
+                <a href="/forgot-password" className="text-sm text-ember-500 hover:underline">
+                  Forgot password?
+                </a>
+              </div>
+            ) : null}
+
+            {mode === "register" ? (
+              <label className="flex items-start gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={acceptTerms}
+                  onChange={(e) => setAcceptTerms(e.target.checked)}
+                  className="mt-0.5"
+                />
+                <span>
+                  I agree to the{" "}
+                  <a href="/terms" className="text-ember-500 hover:underline">Terms of Service</a>
+                  {" "}and{" "}
+                  <a href="/privacy" className="text-ember-500 hover:underline">Privacy Policy</a>
+                </span>
+              </label>
+            ) : null}
+
+            <button
+              type="submit"
+              className="btn btn-secondary w-full justify-center"
+              disabled={submitting || (mode === "register" && !acceptTerms)}
+            >
               {submitting ? "Submitting..." : modeLabel}
             </button>
           </form>

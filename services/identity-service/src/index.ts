@@ -11,10 +11,15 @@ import {
   AuthMeResponseSchema,
   AuthRegisterRequestSchema,
   AuthSessionResponseSchema,
+  DeleteAccountRequestSchema,
+  EmailVerificationRequestSchema,
+  ForgotPasswordRequestSchema,
   OAuthCompleteRequestSchema,
   OAuthProviderSchema,
   OAuthStartRequestSchema,
   OAuthStartResponseSchema,
+  ResendVerificationRequestSchema,
+  ResetPasswordRequestSchema,
   type OAuthProvider
 } from "@script-manifest/contracts";
 import {
@@ -23,6 +28,7 @@ import {
   PgIdentityRepository,
   verifyPassword
 } from "./repository.js";
+import type { EmailService } from "@script-manifest/email";
 import { registerMetrics } from "@script-manifest/service-utils";
 
 const loginCounter = new Counter({
@@ -38,11 +44,13 @@ const DUMMY_HASH = "000000000000000000000000000000000000000000000000000000000000
 export type IdentityServiceOptions = {
   logger?: boolean;
   repository?: IdentityRepository;
+  emailService?: EmailService;
 };
 
 // lgtm [js/missing-rate-limiting]
 export function buildServer(options: IdentityServiceOptions = {}): FastifyInstance {
   const repository = options.repository ?? new PgIdentityRepository();
+  const emailService = options.emailService;
   const runHealthCheck = options.repository ? () => repository.healthCheck() : healthCheck;
   const server = Fastify({
     logger: options.logger === false ? false : {
@@ -116,14 +124,177 @@ export function buildServer(options: IdentityServiceOptions = {}): FastifyInstan
       });
     }
 
-    const user = await repository.registerUser(parsedBody.data);
+    const user = await repository.registerUser({
+      email: parsedBody.data.email,
+      password: parsedBody.data.password,
+      displayName: parsedBody.data.displayName,
+      acceptTerms: parsedBody.data.acceptTerms,
+    });
     if (!user) {
       return reply.status(409).send({ error: "email_already_registered" });
     }
 
     const payload = await createAuthSessionPayload(repository, user);
 
+      // Send verification email if email service is available
+      if (emailService) {
+        const { code } = await repository.createEmailVerificationToken(user.id);
+        await emailService.sendEmail({
+          to: user.email,
+          template: "verification-code",
+          data: { code, displayName: user.displayName },
+        });
+      }
+
       return reply.status(201).send(payload);
+    }
+  });
+
+  server.post("/internal/auth/verify-email", {
+    config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
+      const parsedBody = EmailVerificationRequestSchema.safeParse(req.body);
+      if (!parsedBody.success) {
+        return reply.status(400).send({ error: "invalid_payload", details: parsedBody.error.flatten() });
+      }
+
+      const token = readBearerToken(req.headers.authorization);
+      if (!token) {
+        return reply.status(401).send({ error: "missing_bearer_token" });
+      }
+
+      const sessionData = await repository.findUserBySessionToken(token);
+      if (!sessionData) {
+        return reply.status(401).send({ error: "invalid_session" });
+      }
+
+      const valid = await repository.verifyEmailCode(sessionData.user.id, parsedBody.data.code);
+      if (!valid) {
+        return reply.status(400).send({ error: "invalid_or_expired_code" });
+      }
+
+      await repository.markEmailVerified(sessionData.user.id);
+
+      // Send welcome email
+      if (emailService) {
+        await emailService.sendEmail({
+          to: sessionData.user.email,
+          template: "welcome",
+          data: { displayName: sessionData.user.displayName },
+        });
+      }
+
+      return reply.send({ ok: true });
+    }
+  });
+
+  server.post("/internal/auth/resend-verification", {
+    config: { rateLimit: { max: 3, timeWindow: "1 hour" } },
+    handler: async (req, reply) => {
+      const token = readBearerToken(req.headers.authorization);
+      if (!token) {
+        return reply.status(401).send({ error: "missing_bearer_token" });
+      }
+
+      const sessionData = await repository.findUserBySessionToken(token);
+      if (!sessionData) {
+        return reply.status(401).send({ error: "invalid_session" });
+      }
+
+      if (emailService) {
+        const { code } = await repository.createEmailVerificationToken(sessionData.user.id);
+        await emailService.sendEmail({
+          to: sessionData.user.email,
+          template: "verification-code",
+          data: { code, displayName: sessionData.user.displayName },
+        });
+      }
+
+      return reply.send({ ok: true });
+    }
+  });
+
+  server.post("/internal/auth/forgot-password", {
+    config: { rateLimit: { max: 5, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
+      const parsedBody = ForgotPasswordRequestSchema.safeParse(req.body);
+      if (!parsedBody.success) {
+        return reply.status(400).send({ error: "invalid_payload", details: parsedBody.error.flatten() });
+      }
+
+      // Always return success to prevent email enumeration
+      const user = await repository.findUserByEmail(parsedBody.data.email);
+      if (user && emailService) {
+        const { token: resetToken } = await repository.createPasswordResetToken(user.id);
+        const resetBase = process.env.FRONTEND_URL ?? "http://localhost:3000";
+        const resetUrl = `${resetBase}/reset-password?token=${encodeURIComponent(resetToken)}`;
+        await emailService.sendEmail({
+          to: user.email,
+          template: "password-reset",
+          data: { resetUrl, displayName: user.displayName },
+        });
+      }
+
+      return reply.send({ ok: true });
+    }
+  });
+
+  server.post("/internal/auth/reset-password", {
+    config: { rateLimit: { max: 5, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
+      const parsedBody = ResetPasswordRequestSchema.safeParse(req.body);
+      if (!parsedBody.success) {
+        return reply.status(400).send({ error: "invalid_payload", details: parsedBody.error.flatten() });
+      }
+
+      const result = await repository.consumePasswordResetToken(parsedBody.data.token);
+      if (!result) {
+        return reply.status(400).send({ error: "invalid_or_expired_token" });
+      }
+
+      await repository.updatePassword(result.userId, parsedBody.data.password);
+
+      // Invalidate all sessions and refresh tokens
+      await repository.deleteUserSessions(result.userId);
+      if (repository.revokeUserRefreshTokens) {
+        await repository.revokeUserRefreshTokens(result.userId);
+      }
+
+      return reply.send({ ok: true });
+    }
+  });
+
+  server.delete("/internal/auth/account", {
+    config: { rateLimit: { max: 5, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
+      const parsedBody = DeleteAccountRequestSchema.safeParse(req.body);
+      if (!parsedBody.success) {
+        return reply.status(400).send({ error: "invalid_payload", details: parsedBody.error.flatten() });
+      }
+
+      const token = readBearerToken(req.headers.authorization);
+      if (!token) {
+        return reply.status(401).send({ error: "missing_bearer_token" });
+      }
+
+      const sessionData = await repository.findUserBySessionToken(token);
+      if (!sessionData) {
+        return reply.status(401).send({ error: "invalid_session" });
+      }
+
+      // Verify password before deletion
+      const isValid = verifyPassword(
+        parsedBody.data.password,
+        sessionData.user.passwordHash,
+        sessionData.user.passwordSalt
+      );
+      if (!isValid) {
+        return reply.status(403).send({ error: "invalid_password" });
+      }
+
+      await repository.softDeleteUser(sessionData.user.id);
+
+      return reply.send({ ok: true });
     }
   });
 
@@ -401,8 +572,13 @@ export async function startServer(): Promise<void> {
 
   validateRequiredEnv(["DATABASE_URL"]);
   boot.phase("env validated");
+
+  const { createEmailService } = await import("@script-manifest/email");
+  const emailService = await createEmailService();
+  boot.phase(emailService ? "email service ready" : "email service not configured (skipping)");
+
   const port = Number(process.env.PORT ?? 4005);
-  const server = buildServer();
+  const server = buildServer({ emailService });
   boot.phase("server built");
   // Register Prometheus metrics endpoint (only in production server startup, not tests).
   await registerMetrics(server);

@@ -3,7 +3,12 @@ import {
   AuthLoginRequestSchema,
   AuthMeResponseSchema,
   AuthRegisterRequestSchema,
-  AuthSessionResponseSchema
+  AuthSessionResponseSchema,
+  DeleteAccountRequestSchema,
+  EmailVerificationRequestSchema,
+  ForgotPasswordRequestSchema,
+  ResendVerificationRequestSchema,
+  ResetPasswordRequestSchema
 } from "@script-manifest/contracts";
 import { z } from "zod";
 import {
@@ -204,6 +209,110 @@ export function registerAuthRoutes(server: FastifyInstance, ctx: GatewayContext)
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ refreshToken })
+      });
+    }
+  });
+
+  server.delete("/api/v1/auth/account", {
+    config: { rateLimit: { max: AUTH_RATE_MAX, timeWindow: "1 minute" } },
+    schema: {
+      tags: ["auth"],
+      summary: "Delete user account (soft-delete with 30-day grace period)",
+      security: [{ bearerAuth: [] }],
+      body: toOpenApiSchema(DeleteAccountRequestSchema),
+      response: {
+        200: toOpenApiSchema(z.object({ ok: z.boolean() })),
+        400: toOpenApiSchema(ApiErrorSchema),
+        401: toOpenApiSchema(UnauthorizedErrorSchema)
+      }
+    },
+    handler: async (req, reply) => {
+      clearAuthCookies(reply);
+      return proxyJsonRequest(reply, ctx.requestFn, `${ctx.identityServiceBase}/internal/auth/account`, {
+        method: "DELETE",
+        headers: { "content-type": "application/json", ...copyAuthHeader(req.headers.authorization) },
+        body: JSON.stringify(req.body ?? {})
+      });
+    }
+  });
+
+  server.post("/api/v1/auth/verify-email", {
+    config: { rateLimit: { max: AUTH_RATE_MAX, timeWindow: "1 minute" } },
+    schema: {
+      tags: ["auth"],
+      summary: "Verify email with 6-digit code",
+      security: [{ bearerAuth: [] }],
+      body: toOpenApiSchema(EmailVerificationRequestSchema),
+      response: {
+        200: toOpenApiSchema(z.object({ ok: z.boolean() })),
+        400: toOpenApiSchema(ApiErrorSchema),
+        401: toOpenApiSchema(UnauthorizedErrorSchema)
+      }
+    },
+    handler: async (req, reply) => {
+      return proxyJsonRequest(reply, ctx.requestFn, `${ctx.identityServiceBase}/internal/auth/verify-email`, {
+        method: "POST",
+        headers: { "content-type": "application/json", ...copyAuthHeader(req.headers.authorization) },
+        body: JSON.stringify(req.body ?? {})
+      });
+    }
+  });
+
+  server.post("/api/v1/auth/resend-verification", {
+    config: { rateLimit: { max: 3, timeWindow: "1 hour" } },
+    schema: {
+      tags: ["auth"],
+      summary: "Resend email verification code",
+      security: [{ bearerAuth: [] }],
+      response: {
+        200: toOpenApiSchema(z.object({ ok: z.boolean() })),
+        401: toOpenApiSchema(UnauthorizedErrorSchema)
+      }
+    },
+    handler: async (req, reply) => {
+      return proxyJsonRequest(reply, ctx.requestFn, `${ctx.identityServiceBase}/internal/auth/resend-verification`, {
+        method: "POST",
+        headers: copyAuthHeader(req.headers.authorization)
+      });
+    }
+  });
+
+  server.post("/api/v1/auth/forgot-password", {
+    config: { rateLimit: { max: AUTH_RATE_MAX, timeWindow: "1 minute" } },
+    schema: {
+      tags: ["auth"],
+      summary: "Request password reset email",
+      body: toOpenApiSchema(ForgotPasswordRequestSchema),
+      response: {
+        200: toOpenApiSchema(z.object({ ok: z.boolean() })),
+        400: toOpenApiSchema(ApiErrorSchema)
+      }
+    },
+    handler: async (req, reply) => {
+      return proxyJsonRequest(reply, ctx.requestFn, `${ctx.identityServiceBase}/internal/auth/forgot-password`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(req.body ?? {})
+      });
+    }
+  });
+
+  server.post("/api/v1/auth/reset-password", {
+    config: { rateLimit: { max: AUTH_RATE_MAX, timeWindow: "1 minute" } },
+    schema: {
+      tags: ["auth"],
+      summary: "Reset password with token",
+      body: toOpenApiSchema(ResetPasswordRequestSchema),
+      response: {
+        200: toOpenApiSchema(z.object({ ok: z.boolean() })),
+        400: toOpenApiSchema(ApiErrorSchema)
+      }
+    },
+    handler: async (req, reply) => {
+      return proxyJsonRequest(reply, ctx.requestFn, `${ctx.identityServiceBase}/internal/auth/reset-password`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(req.body ?? {})
       });
     }
   });

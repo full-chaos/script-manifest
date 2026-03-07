@@ -15,6 +15,7 @@
     "@fastify/rate-limit": "^10.2.1",
     "@script-manifest/contracts": "workspace:*",
     "@script-manifest/db": "workspace:*",
+    "@script-manifest/email": "workspace:*",
     "@script-manifest/service-utils": "workspace:*",
     "fastify": "^5.8.1",
     "prom-client": "^15.1.3",

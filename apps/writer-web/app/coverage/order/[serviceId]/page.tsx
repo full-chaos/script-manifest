@@ -8,6 +8,8 @@ import { EmptyIllustration } from "../../../components/illustrations";
 import { SkeletonCard } from "../../../components/skeleton";
 import { useToast } from "../../../components/toast";
 import { getAuthHeaders, readStoredSession } from "../../../lib/authSession";
+import { StripeProvider } from "../../components/StripeProvider";
+import { PaymentForm } from "../../components/PaymentForm";
 
 export default function OrderFlowPage() {
   const params = useParams();
@@ -20,6 +22,8 @@ export default function OrderFlowPage() {
   const [projectId, setProjectId] = useState("");
   const [placing, setPlacing] = useState(false);
   const [order, setOrder] = useState<CoverageOrder | null>(null);
+  const [clientSecret, setClientSecret] = useState<string | null>(null);
+  const [paymentConfirmed, setPaymentConfirmed] = useState(false);
 
   useEffect(() => {
     const session = readStoredSession();
@@ -60,14 +64,17 @@ export default function OrderFlowPage() {
         body: JSON.stringify({ serviceId, scriptId, projectId })
       });
 
-      const body = (await response.json()) as { order?: CoverageOrder; error?: string };
+      const body = (await response.json()) as { order?: CoverageOrder; clientSecret?: string; error?: string };
       if (!response.ok) {
         toast.error(body.error ?? "Failed to place order.");
         return;
       }
 
       setOrder(body.order ?? null);
-      toast.success("Order placed successfully!");
+      if (body.clientSecret) {
+        setClientSecret(body.clientSecret);
+      }
+      toast.success("Order placed! Please complete payment below.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to place order.");
     } finally {
@@ -103,14 +110,63 @@ export default function OrderFlowPage() {
     );
   }
 
-  if (order) {
+  if (order && clientSecret && !paymentConfirmed) {
+    return (
+      <section className="space-y-4">
+        <article className="hero-card hero-card--violet animate-in">
+          <p className="eyebrow">Complete Payment</p>
+          <h1 className="text-4xl text-foreground">Enter payment details</h1>
+          <p className="max-w-3xl text-foreground-secondary">
+            Your order has been placed. Please enter your card details to complete payment.
+          </p>
+        </article>
+
+        <article className="panel stack animate-in animate-in-delay-1">
+          <h2 className="section-title">Order Summary</h2>
+          <div className="subcard">
+            <div className="stack-tight">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-foreground-secondary">Order ID</span>
+                <span className="text-sm font-medium text-foreground">{order.id}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-foreground-secondary">Total</span>
+                <span className="text-sm font-medium text-foreground">
+                  {formatPrice(order.priceCents + order.platformFeeCents)}
+                </span>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <article className="panel stack animate-in animate-in-delay-2">
+          <h2 className="section-title">Payment</h2>
+          <StripeProvider clientSecret={clientSecret}>
+            <PaymentForm
+              clientSecret={clientSecret}
+              onSuccess={() => {
+                setPaymentConfirmed(true);
+                toast.success("Payment confirmed successfully!");
+              }}
+            />
+          </StripeProvider>
+        </article>
+      </section>
+    );
+  }
+
+  if (order && (paymentConfirmed || !clientSecret)) {
     return (
       <section className="space-y-4">
         <article className="hero-card hero-card--violet animate-in">
           <p className="eyebrow">Order Placed</p>
-          <h1 className="text-4xl text-foreground">Order confirmed</h1>
+          <h1 className="text-4xl text-foreground">
+            {paymentConfirmed ? "Payment confirmed" : "Order confirmed"}
+          </h1>
           <p className="max-w-3xl text-foreground-secondary">
-            Your order has been placed successfully. Payment is being processed.
+            {paymentConfirmed
+              ? "Your payment has been processed successfully. Your coverage provider will begin work shortly."
+              : "Your order has been placed successfully."}
           </p>
         </article>
 
@@ -128,16 +184,6 @@ export default function OrderFlowPage() {
                   {formatPrice(order.priceCents + order.platformFeeCents)}
                 </span>
               </div>
-              {order.stripePaymentIntentId ? (
-                <div className="mt-2 pt-2 border-t border-border/40">
-                  <p className="text-xs text-muted">
-                    Stripe Payment Intent: {order.stripePaymentIntentId}
-                  </p>
-                  <p className="text-xs text-muted mt-1">
-                    Note: Real Stripe Elements UI will be added later. For now, payment is automatically held.
-                  </p>
-                </div>
-              ) : null}
               <div className="mt-3">
                 <a
                   href={`/coverage/orders/${encodeURIComponent(order.id)}`}

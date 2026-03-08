@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent, useEffect } from "react";
 import Link from "next/link";
+import { PasswordStrengthMeter } from "../components/PasswordStrengthMeter";
 
 export default function ResetPasswordPage() {
   const [token, setToken] = useState("");
@@ -107,6 +108,7 @@ export default function ResetPasswordPage() {
                 autoFocus
               />
             </label>
+            <PasswordStrengthMeter password={password} />
 
             <label className="stack-tight">
               <span>Confirm password</span>

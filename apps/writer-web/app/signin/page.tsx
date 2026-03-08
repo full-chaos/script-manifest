@@ -9,6 +9,7 @@ import {
   writeStoredSession
 } from "../lib/authSession";
 import { SignInIllustration } from "../components/illustrations";
+import { PasswordStrengthMeter } from "../components/PasswordStrengthMeter";
 
 type AuthMode = "register" | "login";
 
@@ -285,6 +286,9 @@ export default function SignInPage() {
                 required
               />
             </label>
+            {mode === "register" && (
+              <PasswordStrengthMeter password={password} />
+            )}
 
             {mode === "login" ? (
               <div className="text-right">

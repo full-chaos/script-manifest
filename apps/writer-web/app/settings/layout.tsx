@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import type { Route } from "next";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 
 const settingsNav = [
-  { href: "/settings/account", label: "Account" },
-  { href: "/settings/security", label: "Security" }
+  { href: "/settings/account" as Route, label: "Account" },
+  { href: "/settings/security" as Route, label: "Security" }
 ];
 
 export default function SettingsLayout({ children }: { children: ReactNode }) {

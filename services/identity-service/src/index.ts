@@ -30,6 +30,8 @@ import {
 } from "./repository.js";
 import { type AdminRepository, PgAdminRepository, MemoryAdminRepository } from "./admin-repository.js";
 import { registerAdminRoutes } from "./admin-routes.js";
+import { type MfaRepository, PgMfaRepository, MemoryMfaRepository } from "./mfa-repository.js";
+import { registerMfaRoutes, createMfaChallenge } from "./mfa-routes.js";
 import type { EmailService } from "@script-manifest/email";
 import { registerMetrics } from "@script-manifest/service-utils";
 
@@ -47,6 +49,7 @@ export type IdentityServiceOptions = {
   logger?: boolean;
   repository?: IdentityRepository;
   adminRepository?: AdminRepository;
+  mfaRepository?: MfaRepository;
   emailService?: EmailService;
 };
 
@@ -55,6 +58,7 @@ export function buildServer(options: IdentityServiceOptions = {}): FastifyInstan
   const repository = options.repository ?? new PgIdentityRepository();
   // Use MemoryAdminRepository when a custom repository is provided (tests)
   const adminRepo = options.adminRepository ?? (options.repository ? new MemoryAdminRepository() : new PgAdminRepository());
+  const mfaRepo = options.mfaRepository ?? (options.repository ? new MemoryMfaRepository() : new PgMfaRepository());
   const emailService = options.emailService;
   const runHealthCheck = options.repository ? () => repository.healthCheck() : healthCheck;
   const server = Fastify({
@@ -74,6 +78,7 @@ export function buildServer(options: IdentityServiceOptions = {}): FastifyInstan
   server.addHook("onReady", async () => {
     await repository.init();
     await adminRepo.init();
+    await mfaRepo.init();
   });
 
   server.register(rateLimit, {
@@ -327,6 +332,12 @@ export function buildServer(options: IdentityServiceOptions = {}): FastifyInstan
       return reply.status(401).send({ error: "invalid_credentials" });
     }
 
+    // Check if user has MFA enabled
+    if (user.mfaEnabled) {
+      const mfaToken = createMfaChallenge(user.id);
+      return reply.send({ requiresMfa: true, mfaToken });
+    }
+
     const payload = await createAuthSessionPayload(repository, user);
 
       loginCounter.inc({ method: "password" });
@@ -559,6 +570,7 @@ export function buildServer(options: IdentityServiceOptions = {}): FastifyInstan
     }
   });
 
+  registerMfaRoutes(server, mfaRepo, repository);
   registerAdminRoutes(server, adminRepo);
 
   return server;

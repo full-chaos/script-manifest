@@ -24,6 +24,7 @@ import { registerIndustryRoutes } from "./routes/industry.js";
 import { registerProgramsRoutes } from "./routes/programs.js";
 import { registerPartnerRoutes } from "./routes/partners.js";
 import { registerAdminRoutes } from "./routes/admin.js";
+import { registerMfaRoutes } from "./routes/mfa.js";
 import { registerHealthRoutes } from "./routes/health.js";
 import { registerMetrics } from "@script-manifest/service-utils";
 
@@ -129,6 +130,7 @@ export async function buildServer(options: ApiGatewayOptions = {}): Promise<Fast
   registerHealthRoutes(server, ctx);
 
   registerAuthRoutes(server, ctx);
+  registerMfaRoutes(server, ctx);
   registerProfileRoutes(server, ctx);
   registerProjectRoutes(server, ctx);
   registerCompetitionRoutes(server, ctx);

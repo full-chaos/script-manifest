@@ -8,6 +8,7 @@ export type IdentityUser = {
   passwordHash: string;
   passwordSalt: string;
   role: string;
+  mfaEnabled: boolean;
 };
 
 export type IdentitySession = {
@@ -230,7 +231,8 @@ export class PgIdentityRepository implements IdentityRepository {
         displayName: user.display_name,
         passwordHash: user.password_hash,
         passwordSalt: user.password_salt,
-        role: user.role
+        role: user.role,
+        mfaEnabled: false
       };
     } catch (error) {
       await client.query("ROLLBACK");
@@ -254,9 +256,10 @@ export class PgIdentityRepository implements IdentityRepository {
       password_hash: string;
       password_salt: string;
       role: string;
+      mfa_enabled: boolean;
     }>(
       `
-        SELECT id, email, display_name, password_hash, password_salt, role
+        SELECT id, email, display_name, password_hash, password_salt, role, mfa_enabled
         FROM app_users
         WHERE email = $1
       `,
@@ -274,7 +277,8 @@ export class PgIdentityRepository implements IdentityRepository {
       displayName: user.display_name,
       passwordHash: user.password_hash,
       passwordSalt: user.password_salt,
-      role: user.role
+      role: user.role,
+      mfaEnabled: user.mfa_enabled
     };
   }
 
@@ -308,6 +312,7 @@ export class PgIdentityRepository implements IdentityRepository {
       password_hash: string;
       password_salt: string;
       role: string;
+      mfa_enabled: boolean;
     }>(
       `
         SELECT
@@ -319,7 +324,8 @@ export class PgIdentityRepository implements IdentityRepository {
           u.display_name,
           u.password_hash,
           u.password_salt,
-          u.role
+          u.role,
+          u.mfa_enabled
         FROM app_sessions s
         JOIN app_users u ON u.id = s.user_id
         WHERE s.token = $1
@@ -349,7 +355,8 @@ export class PgIdentityRepository implements IdentityRepository {
         displayName: row.display_name,
         passwordHash: row.password_hash,
         passwordSalt: row.password_salt,
-        role: row.role
+        role: row.role,
+        mfaEnabled: row.mfa_enabled
       }
     };
   }

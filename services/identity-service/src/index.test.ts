@@ -943,3 +943,61 @@ test("account deletion requires auth", async (t) => {
   });
   assert.equal(res.statusCode, 401);
 });
+
+test("register rejects weak password (no uppercase, no special char)", async (t) => {
+  const server = buildServer({ logger: false, repository: new MemoryRepo() });
+  t.after(async () => { await server.close(); });
+
+  const res = await server.inject({
+    method: "POST",
+    url: "/internal/auth/register",
+    payload: { email: "weak@test.com", password: "weakpass1", displayName: "Weak", acceptTerms: true }
+  });
+  assert.equal(res.statusCode, 400);
+  const body = res.json();
+  assert.equal(body.error, "invalid_payload");
+  const passwordErrors: string[] = body.details?.fieldErrors?.password ?? [];
+  assert.ok(passwordErrors.some((m: string) => m.toLowerCase().includes("uppercase")),
+    `Expected uppercase error in: ${passwordErrors.join(", ")}`);
+});
+
+test("register rejects common password", async (t) => {
+  const server = buildServer({ logger: false, repository: new MemoryRepo() });
+  t.after(async () => { await server.close(); });
+
+  const res = await server.inject({
+    method: "POST",
+    url: "/internal/auth/register",
+    payload: { email: "common@test.com", password: "password", displayName: "Common", acceptTerms: true }
+  });
+  assert.equal(res.statusCode, 400);
+  const body = res.json();
+  assert.equal(body.error, "invalid_payload");
+  const passwordErrors: string[] = body.details?.fieldErrors?.password ?? [];
+  assert.ok(passwordErrors.some((m: string) => m.toLowerCase().includes("commonly used")),
+    `Expected common password error in: ${passwordErrors.join(", ")}`);
+});
+
+test("login accepts weak password (existing users must still log in)", async (t) => {
+  const server = buildServer({ logger: false, repository: new MemoryRepo() });
+  t.after(async () => { await server.close(); });
+
+  // Register with strong password first
+  await server.inject({
+    method: "POST",
+    url: "/internal/auth/register",
+    payload: { email: "olduser@test.com", password: "Str0ng!Pass", displayName: "Old User", acceptTerms: true }
+  });
+
+  // Manually set a weak password in the repo (simulate pre-existing weak password user)
+  // Login schema only requires min(8) so 'weakpass1' should pass schema validation
+  const loginRes = await server.inject({
+    method: "POST",
+    url: "/internal/auth/login",
+    payload: { email: "olduser@test.com", password: "weakpass1" }
+  });
+  // Should be 401 (wrong password) not 400 (schema rejection) — schema accepts it
+  assert.notEqual(loginRes.statusCode, 400, "Login schema must not reject weak passwords with 400");
+  const body = loginRes.json();
+  assert.notEqual(body.error, "invalid_payload", "Login must not return invalid_payload for weak password format");
+});

@@ -16,6 +16,7 @@ export type GatewayContext = {
   feedbackExchangeBase: string;
   rankingServiceBase: string;
   coverageMarketplaceBase: string;
+  notificationServiceBase: string;
   industryPortalBase: string;
   programsServiceBase: string;
   partnerDashboardServiceBase: string;

@@ -8,10 +8,14 @@ import {
 import type { NotificationRepository } from "./repository.js";
 import { startConsumer } from "./consumer.js";
 import { PgNotificationRepository } from "./pgRepository.js";
+import type { NotificationAdminRepository } from "./admin-repository.js";
+import { PgNotificationAdminRepository } from "./admin-repository.js";
+import { registerNotificationAdminRoutes } from "./admin-routes.js";
 
 export type NotificationServiceOptions = {
   logger?: boolean;
   repository?: NotificationRepository;
+  adminRepository?: NotificationAdminRepository;
 };
 
 export function buildServer(options: NotificationServiceOptions = {}): FastifyInstance {
@@ -23,12 +27,14 @@ export function buildServer(options: NotificationServiceOptions = {}): FastifyIn
     requestIdHeader: "x-request-id",
   });
   const repository = options.repository ?? new PgNotificationRepository();
+  const adminRepository = options.adminRepository ?? new PgNotificationAdminRepository();
   let stopConsumer: () => Promise<void> = async () => {};
 
   const startedAt = Date.now();
 
   server.addHook("onReady", async () => {
     await repository.init();
+    await adminRepository.init();
     stopConsumer = await startConsumer(repository, server.log);
   });
 
@@ -93,6 +99,9 @@ export function buildServer(options: NotificationServiceOptions = {}): FastifyIn
     const events = await repository.getEventsByTargetUser(targetUserId);
     return reply.send({ events });
   });
+
+  // Register admin routes for notification management
+  registerNotificationAdminRoutes(server, adminRepository);
 
   return server;
 }

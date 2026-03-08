@@ -24,6 +24,7 @@ import { registerIndustryRoutes } from "./routes/industry.js";
 import { registerProgramsRoutes } from "./routes/programs.js";
 import { registerPartnerRoutes } from "./routes/partners.js";
 import { registerAdminRoutes } from "./routes/admin.js";
+import { registerNotificationAdminRoutes } from "./routes/notification-admin.js";
 import { registerHealthRoutes } from "./routes/health.js";
 import { registerMetrics } from "@script-manifest/service-utils";
 
@@ -38,6 +39,7 @@ export type ApiGatewayOptions = {
   feedbackExchangeBase?: string;
   rankingServiceBase?: string;
   coverageMarketplaceBase?: string;
+  notificationServiceBase?: string;
   industryPortalBase?: string;
   programsServiceBase?: string;
   partnerDashboardServiceBase?: string;
@@ -105,6 +107,7 @@ export async function buildServer(options: ApiGatewayOptions = {}): Promise<Fast
     feedbackExchangeBase: options.feedbackExchangeBase ?? "http://localhost:4006",
     rankingServiceBase: options.rankingServiceBase ?? "http://localhost:4007",
     coverageMarketplaceBase: options.coverageMarketplaceBase ?? "http://localhost:4008",
+    notificationServiceBase: options.notificationServiceBase ?? "http://localhost:4010",
     industryPortalBase: options.industryPortalBase ?? "http://localhost:4009",
     programsServiceBase: options.programsServiceBase ?? "http://localhost:4012",
     partnerDashboardServiceBase: options.partnerDashboardServiceBase ?? "http://localhost:4013",
@@ -142,6 +145,7 @@ export async function buildServer(options: ApiGatewayOptions = {}): Promise<Fast
   registerProgramsRoutes(server, ctx);
   registerPartnerRoutes(server, ctx);
   registerAdminRoutes(server, ctx);
+  registerNotificationAdminRoutes(server, ctx);
 
   return server;
 }
@@ -196,6 +200,7 @@ export async function startServer(): Promise<void> {
     feedbackExchangeBase: process.env.FEEDBACK_EXCHANGE_SERVICE_URL,
     rankingServiceBase: process.env.RANKING_SERVICE_URL,
     coverageMarketplaceBase: process.env.COVERAGE_MARKETPLACE_SERVICE_URL,
+    notificationServiceBase: process.env.NOTIFICATION_SERVICE_URL,
     industryPortalBase: process.env.INDUSTRY_PORTAL_SERVICE_URL,
     programsServiceBase: process.env.PROGRAMS_SERVICE_URL,
     partnerDashboardServiceBase: process.env.PARTNER_DASHBOARD_SERVICE_URL,

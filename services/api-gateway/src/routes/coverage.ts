@@ -217,6 +217,18 @@ export function registerCoverageRoutes(server: FastifyInstance, ctx: GatewayCont
     );
   });
 
+  server.post<{ Params: { orderId: string } }>("/api/v1/coverage/orders/:orderId/retry-payment", {
+    config: { rateLimit: { max: 30, timeWindow: "1 minute" } }
+  }, async (req, reply) => {
+    const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
+    if (!userId) return reply.status(401).send({ error: "unauthorized" });
+    const { orderId } = req.params;
+    return proxyJsonRequest(reply, ctx.requestFn,
+      `${ctx.coverageMarketplaceBase}/internal/coverage/orders/${encodeURIComponent(orderId)}/retry-payment`,
+      { method: "POST", headers: addAuthUserIdHeader({}, userId) }
+    );
+  });
+
   // Order action routes (claim, deliver, complete, cancel)
   for (const action of ["claim", "deliver", "complete", "cancel"] as const) {
     server.post<{ Params: { orderId: string } }>(`/api/v1/coverage/orders/:orderId/${action}`, {
@@ -374,6 +386,32 @@ export function registerCoverageRoutes(server: FastifyInstance, ctx: GatewayCont
     return proxyJsonRequest(reply, ctx.requestFn,
       `${ctx.coverageMarketplaceBase}/internal/jobs/sla-maintenance`,
       { method: "POST", headers: addAuthUserIdHeader({}, adminId) }
+    );
+  });
+
+  // My orders (transaction history)
+  server.get("/api/v1/coverage/my-orders", {
+    config: { rateLimit: { max: 60, timeWindow: "1 minute" } }
+  }, async (req, reply) => {
+    const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
+    if (!userId) return reply.status(401).send({ error: "unauthorized" });
+    const qs = buildQuerySuffix(req.query);
+    return proxyJsonRequest(reply, ctx.requestFn,
+      `${ctx.coverageMarketplaceBase}/internal/coverage/my-orders${qs}`,
+      { method: "GET", headers: addAuthUserIdHeader({}, userId) }
+    );
+  });
+
+  // Invoice endpoint
+  server.get<{ Params: { orderId: string } }>("/api/v1/coverage/orders/:orderId/invoice", {
+    config: { rateLimit: { max: 60, timeWindow: "1 minute" } }
+  }, async (req, reply) => {
+    const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
+    if (!userId) return reply.status(401).send({ error: "unauthorized" });
+    const { orderId } = req.params;
+    return proxyJsonRequest(reply, ctx.requestFn,
+      `${ctx.coverageMarketplaceBase}/internal/coverage/orders/${encodeURIComponent(orderId)}/invoice`,
+      { method: "GET", headers: addAuthUserIdHeader({}, userId) }
     );
   });
 

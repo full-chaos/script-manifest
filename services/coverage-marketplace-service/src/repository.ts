@@ -64,7 +64,18 @@ export interface CoverageMarketplaceRepository {
     stripeTransferId: string;
     slaDeadline: string;
     deliveredAt: string;
+    receiptUrl: string;
+    paymentFailureReason: string | null;
   }>): Promise<CoverageOrder | null>;
+  createRetryQueueEntry(orderId: string, nextRetryAt: string): Promise<void>;
+  getPendingRetries(): Promise<Array<{
+    id: string;
+    orderId: string;
+    attemptNumber: number;
+    nextRetryAt: string;
+    status: "pending" | "processing" | "succeeded" | "abandoned";
+  }>>;
+  updateRetryStatus(id: string, status: "pending" | "processing" | "succeeded" | "abandoned", nextRetryAt?: string): Promise<void>;
 
   // Deliveries
   createDelivery(orderId: string, input: CoverageDeliveryCreateRequest): Promise<CoverageDelivery>;

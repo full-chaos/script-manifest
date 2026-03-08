@@ -14,7 +14,7 @@ export type CoverageTier = z.infer<typeof CoverageTierSchema>;
 
 export const CoverageOrderStatusSchema = z.enum([
   "placed", "payment_held", "claimed", "in_progress", "delivered",
-  "completed", "disputed", "cancelled", "payment_failed", "refunded"
+  "completed", "disputed", "cancelled", "payment_failed", "refunded", "abandoned"
 ]);
 export type CoverageOrderStatus = z.infer<typeof CoverageOrderStatusSchema>;
 
@@ -135,6 +135,8 @@ export const CoverageOrderSchema = z.object({
   stripeTransferId: z.string().nullable(),
   slaDeadline: z.string().nullable(),
   deliveredAt: z.string().nullable(),
+  receiptUrl: z.string().nullable(),
+  paymentFailureReason: z.string().nullable(),
   createdAt: z.string(),
   updatedAt: z.string()
 });
@@ -155,6 +157,16 @@ export const CoverageOrderFiltersSchema = z.object({
   offset: z.coerce.number().int().min(0).default(0)
 });
 export type CoverageOrderFilters = z.infer<typeof CoverageOrderFiltersSchema>;
+
+export const TransactionHistoryItemSchema = z.object({
+  id: z.string().min(1),
+  createdAt: z.string(),
+  status: CoverageOrderStatusSchema,
+  priceCents: z.number().int().nonnegative(),
+  serviceName: z.string(),
+  receiptUrl: z.string().nullable()
+});
+export type TransactionHistoryItem = z.infer<typeof TransactionHistoryItemSchema>;
 
 export const CoverageDeliverySchema = z.object({
   id: z.string().min(1),

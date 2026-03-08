@@ -25,6 +25,7 @@ import { type PaymentGateway, MemoryPaymentGateway } from "./paymentGateway.js";
 import { StripePaymentGateway } from "./stripePaymentGateway.js";
 import { createScheduler } from "./scheduler.js";
 import { PgUserPaymentProfileRepository, type UserPaymentProfileRepository } from "./userPaymentProfileRepository.js";
+import { getInitialRetryAt } from "./paymentRetry.js";
 
 const coverageOrdersCounter = new Counter({
   name: "coverage_orders_total",
@@ -73,6 +74,46 @@ function csvEscape(value: string | number | null | undefined): string {
     return `"${str.replace(/"/g, "\"\"")}"`;
   }
   return str;
+}
+
+const DECLINE_REASON_BY_CODE: Record<string, string> = {
+  insufficient_funds: "Insufficient funds",
+  expired_card: "Card expired",
+  card_declined: "Card declined",
+  incorrect_cvc: "Incorrect security code",
+  lost_card: "Card reported lost",
+  stolen_card: "Card reported stolen",
+};
+
+function mapDeclineCodeToReason(declineCode?: string): string {
+  if (!declineCode) {
+    return "Payment declined";
+  }
+  return DECLINE_REASON_BY_CODE[declineCode] ?? "Payment declined";
+}
+
+async function transferToProviderOrQueueRetry(params: {
+  orderId: string;
+  amountCents: number;
+  stripeAccountId: string;
+  idempotencyKey: string;
+  paymentGateway: PaymentGateway;
+  repository: CoverageMarketplaceRepository;
+  logger: FastifyInstance["log"];
+}): Promise<{ transferId: string | null; queued: boolean }> {
+  try {
+    const { transferId } = await params.paymentGateway.transferToProvider({
+      amountCents: params.amountCents,
+      stripeAccountId: params.stripeAccountId,
+      transferGroup: params.orderId,
+      idempotencyKey: params.idempotencyKey,
+    });
+    return { transferId, queued: false };
+  } catch (error) {
+    await params.repository.createRetryQueueEntry(params.orderId, getInitialRetryAt());
+    params.logger.warn({ error, orderId: params.orderId }, "provider transfer failed; queued retry");
+    return { transferId: null, queued: true };
+  }
 }
 
 export function buildServer(options: CoverageMarketplaceServiceOptions = {}): FastifyInstance {
@@ -501,6 +542,107 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
     return reply.send({ order });
   });
 
+  server.post<{ Params: { id: string } }>("/internal/coverage/orders/:id/retry-payment", async (req, reply) => {
+    const authUserId = getAuthUserId(req);
+    if (!authUserId) {
+      return reply.status(403).send({ error: "forbidden" });
+    }
+
+    const order = await repository.getOrder(req.params.id);
+    if (!order) {
+      return reply.status(404).send({ error: "order_not_found" });
+    }
+    if (order.writerUserId !== authUserId) {
+      return reply.status(403).send({ error: "forbidden" });
+    }
+    if (order.status !== "payment_failed") {
+      return reply.status(409).send({ error: "order_not_retryable" });
+    }
+
+    const userPaymentProfile = await userPaymentProfileRepository.findByUserId(authUserId);
+    if (!userPaymentProfile) {
+      return reply.status(409).send({ error: "payment_profile_not_found" });
+    }
+
+    const { intentId, clientSecret } = await paymentGateway.createPaymentIntentWithCustomer({
+      amountCents: order.priceCents,
+      currency: "usd",
+      customerId: userPaymentProfile.stripeCustomerId,
+      setupFutureUsage: "on_session",
+      metadata: {
+        serviceId: order.serviceId,
+        providerId: order.providerId,
+        writerUserId: authUserId,
+      },
+      idempotencyKey: `idem_retry_pi_${req.id}`,
+    });
+
+    await repository.updateOrderStatus(order.id, "placed", {
+      stripePaymentIntentId: intentId,
+      paymentFailureReason: null,
+    });
+
+    return reply.send({ clientSecret });
+  });
+
+  // ── My Orders (transaction history) ──────────────────────────────
+
+  server.get("/internal/coverage/my-orders", async (req, reply) => {
+    const authUserId = getAuthUserId(req);
+    if (!authUserId) {
+      return reply.status(403).send({ error: "forbidden" });
+    }
+
+    const rawQuery = req.query as Record<string, unknown>;
+    const limit = Math.min(Math.max(Number(rawQuery.limit ?? 20), 1), 100);
+    const offset = Math.max(Number(rawQuery.offset ?? 0), 0);
+    const status = typeof rawQuery.status === "string" ? rawQuery.status : undefined;
+
+    const orders = await repository.listOrders({
+      writerUserId: authUserId,
+      limit,
+      offset,
+      ...(status ? { status: status as Parameters<typeof repository.listOrders>[0]["status"] } : {})
+    });
+
+    // Enrich with service name
+    const items = await Promise.all(orders.map(async (o) => {
+      const svc = await repository.getService(o.serviceId);
+      return {
+        id: o.id,
+        createdAt: o.createdAt,
+        status: o.status,
+        priceCents: o.priceCents,
+        serviceName: svc?.title ?? "",
+        receiptUrl: o.receiptUrl ?? null
+      };
+    }));
+
+    return reply.send({ orders: items });
+  });
+
+  // ── Invoice endpoint ───────────────────────────────────────────────
+
+  server.get<{ Params: { orderId: string } }>("/internal/coverage/orders/:orderId/invoice", async (req, reply) => {
+    const { orderId } = req.params;
+    const authUserId = getAuthUserId(req);
+    if (!authUserId) {
+      return reply.status(403).send({ error: "forbidden" });
+    }
+
+    const order = await repository.getOrder(orderId);
+    if (!order) {
+      return reply.status(404).send({ error: "order_not_found" });
+    }
+
+    // Only the writer who placed the order can fetch the invoice
+    if (order.writerUserId !== authUserId) {
+      return reply.status(403).send({ error: "forbidden" });
+    }
+
+    return reply.send({ invoiceUrl: order.receiptUrl ?? null });
+  });
+
   server.post<{ Params: { orderId: string } }>("/internal/orders/:orderId/claim", async (req, reply) => {
     const { orderId } = req.params;
     const authUserId = getAuthUserId(req);
@@ -595,13 +737,19 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
       await paymentGateway.capturePayment(order.stripePaymentIntentId, `idem_capture_${orderId}`);
     }
 
-    // Transfer payment to provider
-    const { transferId } = await paymentGateway.transferToProvider({
+    const { transferId, queued } = await transferToProviderOrQueueRetry({
+      orderId,
       amountCents: order.providerPayoutCents,
-      stripeAccountId: provider.stripeAccountId!,
-      transferGroup: orderId,
-      idempotencyKey: `idem_transfer_${orderId}`
+      stripeAccountId: provider.stripeAccountId,
+      idempotencyKey: `idem_transfer_${orderId}`,
+      paymentGateway,
+      repository,
+      logger: server.log,
     });
+
+    if (queued || !transferId) {
+      return reply.status(202).send({ order, queuedForRetry: true });
+    }
 
     // Update order status
     const updated = await repository.updateOrderStatus(orderId, "completed", { stripeTransferId: transferId });
@@ -869,12 +1017,18 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
       if (order.stripePaymentIntentId) {
         await paymentGateway.capturePayment(order.stripePaymentIntentId, `idem_capture_${order.id}`);
       }
-      const { transferId } = await paymentGateway.transferToProvider({
+      const { transferId, queued } = await transferToProviderOrQueueRetry({
+        orderId: order.id,
         amountCents: order.providerPayoutCents,
         stripeAccountId: provider.stripeAccountId,
-        transferGroup: order.id,
-        idempotencyKey: `idem_transfer_${order.id}`
+        idempotencyKey: `idem_transfer_${order.id}`,
+        paymentGateway,
+        repository,
+        logger: server.log,
       });
+      if (queued || !transferId) {
+        return reply.status(202).send({ dispute: resolved, queuedForRetry: true });
+      }
       await repository.updateOrderStatus(order.id, "completed", { stripeTransferId: transferId });
     }
 
@@ -1111,6 +1265,15 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
           const order = await repository.findOrderByPaymentIntentId(intentId);
           if (order && order.status === "placed") {
             await repository.updateOrderStatus(order.id, "payment_held");
+            // Store receipt URL from the charge
+            try {
+              const receiptUrl = await paymentGateway.getReceiptUrl(intentId);
+              if (receiptUrl) {
+                await repository.updateOrderStatus(order.id, "payment_held", { receiptUrl });
+              }
+            } catch (receiptErr) {
+              server.log.warn({ receiptErr }, "failed to fetch receipt URL");
+            }
           }
         }
       } else if (event.type === "account.updated") {
@@ -1150,10 +1313,12 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
         }
       } else if (event.type === "charge.failed") {
         const paymentIntentId = event.data?.object?.payment_intent;
+        const declineCode = event.data?.object?.payment_method_details?.card?.decline_code ?? event.data?.object?.decline_code;
+        const paymentFailureReason = mapDeclineCodeToReason(declineCode);
         if (paymentIntentId) {
           const order = await repository.findOrderByPaymentIntentId(paymentIntentId);
           if (order && (order.status === "placed" || order.status === "payment_held")) {
-            await repository.updateOrderStatus(order.id, "payment_failed");
+            await repository.updateOrderStatus(order.id, "payment_failed", { paymentFailureReason });
           }
         }
       } else if (event.type === "charge.refunded") {

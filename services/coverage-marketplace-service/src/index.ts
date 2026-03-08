@@ -2,7 +2,7 @@ import Fastify, { type FastifyInstance } from "fastify";
 import rateLimit from "@fastify/rate-limit";
 import { randomUUID } from "node:crypto";
 import { Counter } from "prom-client";
-import { bootstrapService, registerMetrics, setupErrorReporting, validateRequiredEnv, getAuthUserId, isMainModule } from "@script-manifest/service-utils";
+import { bootstrapService, registerMetrics, setupErrorReporting, validateRequiredEnv, getAuthUserId, isMainModule, readHeader } from "@script-manifest/service-utils";
 import { closePool, healthCheck } from "@script-manifest/db";
 import {
   CoverageProviderCreateRequestSchema,
@@ -24,6 +24,7 @@ import { PgCoverageMarketplaceRepository } from "./pgRepository.js";
 import { type PaymentGateway, MemoryPaymentGateway } from "./paymentGateway.js";
 import { StripePaymentGateway } from "./stripePaymentGateway.js";
 import { createScheduler } from "./scheduler.js";
+import { PgUserPaymentProfileRepository, type UserPaymentProfileRepository } from "./userPaymentProfileRepository.js";
 
 const coverageOrdersCounter = new Counter({
   name: "coverage_orders_total",
@@ -34,6 +35,7 @@ const coverageOrdersCounter = new Counter({
 export type CoverageMarketplaceServiceOptions = {
   logger?: boolean;
   repository?: CoverageMarketplaceRepository;
+  userPaymentProfileRepository?: UserPaymentProfileRepository;
   paymentGateway?: PaymentGateway;
   commissionRate?: number;
 };
@@ -81,6 +83,7 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
   });
 
   const repository = options.repository ?? new PgCoverageMarketplaceRepository();
+  const userPaymentProfileRepository = options.userPaymentProfileRepository ?? new PgUserPaymentProfileRepository();
   const runHealthCheck = options.repository ? () => repository.healthCheck() : healthCheck;
   const paymentGateway = options.paymentGateway ?? createPaymentGatewayFromEnv();
   const commissionRate = options.commissionRate ?? Number(process.env.PLATFORM_COMMISSION_RATE ?? "0.15");
@@ -414,10 +417,29 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
     const platformFeeCents = Math.round(priceCents * commissionRate);
     const providerPayoutCents = priceCents - platformFeeCents;
 
+    let userPaymentProfile = await userPaymentProfileRepository.findByUserId(authUserId);
+    if (!userPaymentProfile) {
+      const email = readHeader(req, "x-auth-user-email") ?? `${authUserId}@example.com`;
+      const name =
+        readHeader(req, "x-auth-user-display-name") ??
+        readHeader(req, "x-auth-user-name") ??
+        authUserId;
+      const { customerId } = await paymentGateway.createCustomer({
+        email,
+        name,
+        metadata: { userId: authUserId },
+        idempotencyKey: `idem_cust_${authUserId}`
+      });
+      await userPaymentProfileRepository.create(authUserId, customerId);
+      userPaymentProfile = { stripeCustomerId: customerId };
+    }
+
     // Create payment intent
-    const { intentId, clientSecret } = await paymentGateway.createPaymentIntent({
+    const { intentId, clientSecret } = await paymentGateway.createPaymentIntentWithCustomer({
       amountCents: priceCents,
       currency: "usd",
+      customerId: userPaymentProfile.stripeCustomerId,
+      setupFutureUsage: "on_session",
       metadata: {
         serviceId: service.id,
         providerId: provider.id,

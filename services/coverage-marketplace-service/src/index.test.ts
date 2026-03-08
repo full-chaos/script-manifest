@@ -27,6 +27,7 @@ import { BaseMemoryRepository } from "@script-manifest/service-utils";
 import { buildServer } from "./index.js";
 import type { CoverageMarketplaceRepository } from "./repository.js";
 import { MemoryPaymentGateway } from "./paymentGateway.js";
+import { MemoryUserPaymentProfileRepository } from "./userPaymentProfileRepository.js";
 
 class MemoryCoverageMarketplaceRepository extends BaseMemoryRepository implements CoverageMarketplaceRepository {
   private providers = new Map<string, CoverageProvider>();
@@ -445,13 +446,15 @@ class MemoryCoverageMarketplaceRepository extends BaseMemoryRepository implement
 function createServer() {
   const repo = new MemoryCoverageMarketplaceRepository();
   const gateway = new MemoryPaymentGateway();
+  const userPaymentProfileRepo = new MemoryUserPaymentProfileRepository();
   const server = buildServer({
     logger: false,
     repository: repo,
+    userPaymentProfileRepository: userPaymentProfileRepo,
     paymentGateway: gateway,
     commissionRate: 0.15
   });
-  return { server, repo, gateway };
+  return { server, repo, gateway, userPaymentProfileRepo };
 }
 
 // ── Health Tests ─────────────────────────────────────────────────────
@@ -808,7 +811,7 @@ test("list services returns active services", async (t) => {
 // ── Order Flow Tests ─────────────────────────────────────────────────
 
 test("place order returns 201 with clientSecret", async (t) => {
-  const { server, gateway } = createServer();
+  const { server, gateway, userPaymentProfileRepo } = createServer();
   t.after(() => server.close());
 
   // Setup: create provider and service
@@ -851,7 +854,12 @@ test("place order returns 201 with clientSecret", async (t) => {
   const res = await server.inject({
     method: "POST",
     url: "/internal/orders",
-    headers: { "x-auth-user-id": "writer_01", "content-type": "application/json" },
+    headers: {
+      "x-auth-user-id": "writer_01",
+      "x-auth-user-email": "writer@example.com",
+      "x-auth-user-display-name": "Writer One",
+      "content-type": "application/json"
+    },
     payload: {
       serviceId: service.id,
       scriptId: "script_01",
@@ -865,6 +873,95 @@ test("place order returns 201 with clientSecret", async (t) => {
   assert.ok(body.clientSecret);
   assert.equal(body.order.status, "placed");
   assert.equal(body.order.priceCents, 15000);
+  const profile = await userPaymentProfileRepo.findByUserId("writer_01");
+  assert.ok(profile);
+  assert.equal(gateway.getCustomers().length, 1);
+  const intent = gateway.intents.get(body.order.stripePaymentIntentId);
+  assert.equal(intent?.customerId, profile?.stripeCustomerId);
+  assert.equal(intent?.setupFutureUsage, "on_session");
+});
+
+test("second order reuses existing Stripe customer", async (t) => {
+  const { server, gateway, userPaymentProfileRepo } = createServer();
+  t.after(() => server.close());
+
+  const providerRes = await server.inject({
+    method: "POST",
+    url: "/internal/providers",
+    headers: { "x-auth-user-id": "provider_01", "content-type": "application/json" },
+    payload: {
+      displayName: "John Doe",
+      bio: "Professional script consultant",
+      specialties: ["drama"]
+    }
+  });
+  const provider = providerRes.json().provider;
+
+  gateway.completeOnboarding(provider.stripeAccountId!);
+  await server.inject({
+    method: "GET",
+    url: `/internal/providers/${provider.id}/stripe-onboarding`,
+    headers: { "x-auth-user-id": "provider_01" }
+  });
+
+  const serviceRes = await server.inject({
+    method: "POST",
+    url: `/internal/providers/${provider.id}/services`,
+    headers: { "x-auth-user-id": "provider_01", "content-type": "application/json" },
+    payload: {
+      title: "Professional Coverage",
+      description: "In-depth script analysis",
+      tier: "competition_ready",
+      priceCents: 15000,
+      currency: "usd",
+      turnaroundDays: 7,
+      maxPages: 120
+    }
+  });
+  const service = serviceRes.json().service;
+
+  const firstOrderRes = await server.inject({
+    method: "POST",
+    url: "/internal/orders",
+    headers: {
+      "x-auth-user-id": "writer_01",
+      "x-auth-user-email": "writer@example.com",
+      "x-auth-user-display-name": "Writer One",
+      "content-type": "application/json"
+    },
+    payload: {
+      serviceId: service.id,
+      scriptId: "script_01",
+      projectId: "project_01"
+    }
+  });
+  assert.equal(firstOrderRes.statusCode, 201);
+
+  const secondOrderRes = await server.inject({
+    method: "POST",
+    url: "/internal/orders",
+    headers: {
+      "x-auth-user-id": "writer_01",
+      "x-auth-user-email": "writer@example.com",
+      "x-auth-user-display-name": "Writer One",
+      "content-type": "application/json"
+    },
+    payload: {
+      serviceId: service.id,
+      scriptId: "script_02",
+      projectId: "project_01"
+    }
+  });
+  assert.equal(secondOrderRes.statusCode, 201);
+
+  const profile = await userPaymentProfileRepo.findByUserId("writer_01");
+  assert.ok(profile);
+  assert.equal(gateway.getCustomers().length, 1);
+
+  const firstIntent = gateway.intents.get(firstOrderRes.json().order.stripePaymentIntentId);
+  const secondIntent = gateway.intents.get(secondOrderRes.json().order.stripePaymentIntentId);
+  assert.equal(firstIntent?.customerId, profile?.stripeCustomerId);
+  assert.equal(secondIntent?.customerId, profile?.stripeCustomerId);
 });
 
 test("claim order after payment_held returns 200", async (t) => {
@@ -2070,10 +2167,17 @@ test("account.updated webhook with missing fields falls back to getAccountStatus
 // ── Idempotency Key Tests ───────────────────────────────────────────
 
 class SpyPaymentGateway extends MemoryPaymentGateway {
+  public createCustomerKeys: Array<string | undefined> = [];
   public createPaymentIntentKeys: Array<string | undefined> = [];
+  public createPaymentIntentWithCustomerKeys: Array<string | undefined> = [];
   public capturePaymentKeys: Array<string | undefined> = [];
   public transferToProviderKeys: Array<string | undefined> = [];
   public refundKeys: Array<string | undefined> = [];
+
+  override async createCustomer(params: { email: string; name: string; metadata?: Record<string, string>; idempotencyKey?: string }): Promise<{ customerId: string }> {
+    this.createCustomerKeys.push(params.idempotencyKey);
+    return super.createCustomer(params);
+  }
 
   override async createPaymentIntent(params: {
     amountCents: number;
@@ -2083,6 +2187,19 @@ class SpyPaymentGateway extends MemoryPaymentGateway {
   }): Promise<{ intentId: string; clientSecret: string }> {
     this.createPaymentIntentKeys.push(params.idempotencyKey);
     return super.createPaymentIntent(params);
+  }
+
+  override async createPaymentIntentWithCustomer(params: {
+    amountCents: number;
+    currency: string;
+    customerId: string;
+    paymentMethodId?: string;
+    setupFutureUsage?: "on_session" | "off_session";
+    metadata?: Record<string, string>;
+    idempotencyKey?: string;
+  }): Promise<{ intentId: string; clientSecret: string }> {
+    this.createPaymentIntentWithCustomerKeys.push(params.idempotencyKey);
+    return super.createPaymentIntentWithCustomer(params);
   }
 
   override async capturePayment(intentId: string, idempotencyKey?: string): Promise<void> {
@@ -2109,13 +2226,15 @@ class SpyPaymentGateway extends MemoryPaymentGateway {
 function createSpyServer() {
   const repo = new MemoryCoverageMarketplaceRepository();
   const gateway = new SpyPaymentGateway();
+  const userPaymentProfileRepo = new MemoryUserPaymentProfileRepository();
   const server = buildServer({
     logger: false,
     repository: repo,
+    userPaymentProfileRepository: userPaymentProfileRepo,
     paymentGateway: gateway,
     commissionRate: 0.15
   });
-  return { server, repo, gateway };
+  return { server, repo, gateway, userPaymentProfileRepo };
 }
 
 test("createPaymentIntent receives idempotency key on order creation", async (t) => {
@@ -2155,8 +2274,10 @@ test("createPaymentIntent receives idempotency key on order creation", async (t)
   });
 
   assert.equal(res.statusCode, 201);
-  assert.equal(gateway.createPaymentIntentKeys.length, 1);
-  assert.ok(gateway.createPaymentIntentKeys[0]?.startsWith("idem_pi_"));
+  assert.equal(gateway.createPaymentIntentKeys.length, 0);
+  assert.equal(gateway.createPaymentIntentWithCustomerKeys.length, 1);
+  assert.ok(gateway.createPaymentIntentWithCustomerKeys[0]?.startsWith("idem_pi_"));
+  assert.deepEqual(gateway.createCustomerKeys, ["idem_cust_writer_01"]);
 });
 
 test("capturePayment and transferToProvider receive idempotency keys on order completion", async (t) => {

@@ -3,9 +3,11 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 const mockCreateIssue = vi.fn();
 
 vi.mock("@linear/sdk", () => ({
-  LinearClient: vi.fn(() => ({
+  LinearClient: vi.fn(function LinearClientMock() {
+    return {
     createIssue: mockCreateIssue
-  }))
+    };
+  })
 }));
 
 import { POST } from "./route";

@@ -11,15 +11,12 @@ export function OnboardingChecklist() {
   const [state, setState] = useState({ mounted: false, dismissed: true, emailVerified: false });
 
   useEffect(() => {
-    const timeoutId = window.setTimeout(() => {
-      const isDismissed = window.localStorage.getItem(ONBOARDING_DISMISSED_KEY) === "true";
-      const session = readStoredSession() as { user?: { emailVerified?: boolean }; emailVerified?: boolean } | null;
-      const isVerified = (session?.user?.emailVerified ?? session?.emailVerified) === true;
+    const isDismissed = window.localStorage.getItem(ONBOARDING_DISMISSED_KEY) === "true";
+    const session = readStoredSession() as { user?: { emailVerified?: boolean }; emailVerified?: boolean } | null;
+    const isVerified = (session?.user?.emailVerified ?? session?.emailVerified) === true;
 
-      setState({ mounted: true, dismissed: isDismissed, emailVerified: isVerified });
-    }, 0);
-
-    return () => window.clearTimeout(timeoutId);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- mounted pattern requires client-side localStorage access
+    setState({ mounted: true, dismissed: isDismissed, emailVerified: isVerified });
   }, []);
 
   if (!state.mounted || state.dismissed) {

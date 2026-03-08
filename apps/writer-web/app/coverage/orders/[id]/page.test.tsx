@@ -168,7 +168,7 @@ describe("OrderDetailPage", () => {
     });
   });
   it("shows payment failure recovery UI for writer on failed order", async () => {
-    const failedOrder = makeOrder({ status: "payment_failed", paymentFailureReason: "Insufficient funds" } as any);
+    const failedOrder = makeOrder({ status: "payment_failed", paymentFailureReason: "Insufficient funds" });
     const provider = makeProvider();
 
     const fetchMock = vi.fn<typeof fetch>(async (input) => {
@@ -188,7 +188,7 @@ describe("OrderDetailPage", () => {
   });
 
   it("does not show retry button for provider on failed order", async () => {
-    const failedOrder = makeOrder({ status: "payment_failed", writerUserId: "different_writer" } as any);
+    const failedOrder = makeOrder({ status: "payment_failed", writerUserId: "different_writer" });
     const provider = makeProvider({ userId: "user_provider_01" });
 
     const fetchMock = vi.fn<typeof fetch>(async (input) => {

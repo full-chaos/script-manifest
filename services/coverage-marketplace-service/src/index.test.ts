@@ -3358,3 +3358,130 @@ test("my-orders returns 403 when unauthenticated", async (t) => {
   });
   assert.equal(res.statusCode, 403);
 });
+
+test("complete order queues transfer retry with 1 minute backoff on provider transfer failure", async (t) => {
+  class FailingTransferGateway extends MemoryPaymentGateway {
+    override async transferToProvider(): Promise<{ transferId: string }> {
+      throw new Error("transfer failed");
+    }
+  }
+
+  const repo = new MemoryCoverageMarketplaceRepository();
+  const gateway = new FailingTransferGateway();
+  const userPaymentProfileRepo = new MemoryUserPaymentProfileRepository();
+  const server = buildServer({
+    logger: false,
+    repository: repo,
+    userPaymentProfileRepository: userPaymentProfileRepo,
+    paymentGateway: gateway,
+    commissionRate: 0.15,
+  });
+  t.after(() => server.close());
+
+  const provider = await repo.createProvider("provider_01", {
+    displayName: "Provider",
+    bio: "Bio",
+    specialties: ["drama"],
+  });
+  await repo.updateProviderStripe(provider.id, "acct_1", true);
+  const service = await repo.createService(provider.id, {
+    title: "Service",
+    description: "desc",
+    tier: "competition_ready",
+    priceCents: 10000,
+    currency: "usd",
+    turnaroundDays: 5,
+    maxPages: 120,
+  });
+  const order = await repo.createOrder({
+    writerUserId: "writer_01",
+    providerId: provider.id,
+    serviceId: service.id,
+    scriptId: "script_01",
+    projectId: "project_01",
+    priceCents: 10000,
+    platformFeeCents: 1500,
+    providerPayoutCents: 8500,
+    stripePaymentIntentId: "pi_1",
+  });
+  await repo.updateOrderStatus(order.id, "delivered");
+
+  const startedAt = Date.now();
+  const completeRes = await server.inject({
+    method: "POST",
+    url: `/internal/orders/${order.id}/complete`,
+    headers: { "x-auth-user-id": "writer_01" },
+  });
+
+  assert.equal(completeRes.statusCode, 202);
+  const retryEntry = repo.getRetryEntries()[0];
+  assert.ok(retryEntry);
+  assert.equal(retryEntry.status, "pending");
+  const delayMs = new Date(retryEntry.nextRetryAt).getTime() - startedAt;
+  assert.ok(delayMs >= 55_000 && delayMs <= 65_000);
+});
+
+test("retry scheduler applies exponential backoff and abandons after fourth failed retry", async () => {
+  class AlwaysFailTransferGateway extends MemoryPaymentGateway {
+    override async transferToProvider(): Promise<{ transferId: string }> {
+      throw new Error("retry transfer failed");
+    }
+  }
+
+  const repo = new MemoryCoverageMarketplaceRepository();
+  const gateway = new AlwaysFailTransferGateway();
+  const provider = await repo.createProvider("provider_01", {
+    displayName: "Provider",
+    bio: "Bio",
+    specialties: ["drama"],
+  });
+  await repo.updateProviderStripe(provider.id, "acct_1", true);
+  const service = await repo.createService(provider.id, {
+    title: "Service",
+    description: "desc",
+    tier: "competition_ready",
+    priceCents: 10000,
+    currency: "usd",
+    turnaroundDays: 5,
+    maxPages: 120,
+  });
+  const order = await repo.createOrder({
+    writerUserId: "writer_01",
+    providerId: provider.id,
+    serviceId: service.id,
+    scriptId: "script_01",
+    projectId: "project_01",
+    priceCents: 10000,
+    platformFeeCents: 1500,
+    providerPayoutCents: 8500,
+    stripePaymentIntentId: "pi_1",
+  });
+  await repo.createRetryQueueEntry(order.id, new Date(Date.now() - 1000).toISOString());
+
+  const scheduler = createScheduler({
+    repository: repo,
+    paymentGateway: gateway,
+    autoCompleteDays: 7,
+    systemUserId: "system",
+    logger: {
+      error: () => undefined,
+      warn: () => undefined,
+    } as any,
+  });
+
+  for (const expectedDelay of [300_000, 1_800_000, 7_200_000]) {
+    const startedAt = Date.now();
+    await scheduler.runRetryQueueOnce();
+    const retry = repo.getRetryEntries()[0]!;
+    assert.equal(retry.status, "pending");
+    const nextRetryDelay = new Date(retry.nextRetryAt).getTime() - startedAt;
+    assert.ok(nextRetryDelay >= expectedDelay - 5_000 && nextRetryDelay <= expectedDelay + 5_000);
+    retry.nextRetryAt = new Date(Date.now() - 1).toISOString();
+  }
+
+  await scheduler.runRetryQueueOnce();
+  const finalRetry = repo.getRetryEntries()[0]!;
+  assert.equal(finalRetry.status, "abandoned");
+  const updatedOrder = await repo.getOrder(order.id);
+  assert.equal(updatedOrder?.status, "abandoned");
+});

@@ -101,4 +101,56 @@ export class StripePaymentGateway implements PaymentGateway {
   constructWebhookEvent(payload: string, signature: string): Stripe.Event {
     return this.stripe.webhooks.constructEvent(payload, signature, this.webhookSecret);
   }
+
+  async createCustomer(params: { email: string; name: string; metadata?: Record<string, string> }): Promise<{ customerId: string }> {
+    const customer = await this.stripe.customers.create({ email: params.email, name: params.name, metadata: params.metadata ?? {} });
+    return { customerId: customer.id };
+  }
+
+  async listPaymentMethods(customerId: string): Promise<Array<{ id: string; brand: string; last4: string; expMonth: number; expYear: number }>> {
+    const res = await this.stripe.paymentMethods.list({ customer: customerId, type: 'card' });
+    return (res.data ?? []).map((pm) => ({
+      id: pm.id,
+      brand: pm.card?.brand ?? '',
+      last4: pm.card?.last4 ?? '',
+      expMonth: pm.card?.exp_month ?? 0,
+      expYear: pm.card?.exp_year ?? 0,
+    }));
+  }
+
+  async detachPaymentMethod(paymentMethodId: string): Promise<void> {
+    await this.stripe.paymentMethods.detach(paymentMethodId);
+  }
+
+  async createPaymentIntentWithCustomer(params: {
+    amountCents: number;
+    currency: string;
+    customerId: string;
+    paymentMethodId?: string;
+    setupFutureUsage?: 'on_session' | 'off_session';
+    metadata?: Record<string, string>;
+    idempotencyKey?: string;
+  }): Promise<{ intentId: string; clientSecret: string }> {
+    const intent = await this.stripe.paymentIntents.create(
+      {
+        amount: params.amountCents,
+        currency: params.currency,
+        customer: params.customerId,
+        payment_method: params.paymentMethodId,
+        setup_future_usage: params.setupFutureUsage,
+        metadata: params.metadata ?? {},
+        capture_method: 'manual',
+      },
+      params.idempotencyKey ? { idempotencyKey: params.idempotencyKey } : undefined
+    );
+    return { intentId: intent.id, clientSecret: intent.client_secret! };
+  }
+
+  async getReceiptUrl(paymentIntentId: string): Promise<string | null> {
+    const intent = await this.stripe.paymentIntents.retrieve(paymentIntentId, {
+      expand: ['latest_charge'],
+    });
+    const latest = (intent as any).latest_charge as Stripe.Charge | undefined;
+    return latest?.receipt_url ?? null;
+  }
 }

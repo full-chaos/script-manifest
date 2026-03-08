@@ -62,11 +62,19 @@ linear i create "[Subtask] <subtask title>" \
 - Add every mirrored issue to the `Script Manifest` project in Linear.
 - **NEVER commit or push directly to `main`.** ALL changes go through feature branches + PRs.
   - This applies to every change, no matter how small — config files, one-liners, CI tweaks, everything.
+  - **Always create a git worktree** for new work to isolate changes from the main checkout:
+    ```bash
+    git fetch origin
+    git worktree add ../script-manifest-<feature> -b <branch-name> origin/main
+    cd ../script-manifest-<feature>
+    ```
   - Branch format: `<change-type:feat,chore,sec,fix,docs>/<issue>-<short description>` (example: `feat/TICK-111-add-new-thing`).
-  - Create from latest default branch: `git fetch origin && git checkout main && git pull --ff-only`.
-  - Create branch: `git checkout -b`<change-type:feat,chore,sec,fix,docs>/<issue>-<short description>`.
   - Keep all commits for that feature on its dedicated branch until merged.
   - Open a PR for review before merging.
+  - Clean up worktrees after the PR is merged:
+    ```bash
+    git worktree remove ../script-manifest-<feature>
+    ```
 - Keep Linear issue status aligned when work starts/completes.
 
 ## Landing the Plane (Session Completion)

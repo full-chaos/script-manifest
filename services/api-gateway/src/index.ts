@@ -50,6 +50,7 @@ export type ApiGatewayOptions = {
   programsServiceBase?: string;
   partnerDashboardServiceBase?: string;
   searchIndexerBase?: string;
+  enableIpBlocklist?: boolean;
   competitionAdminAllowlist?: string[];
   coverageAdminAllowlist?: string[];
   industryAdminAllowlist?: string[];
@@ -156,7 +157,9 @@ export async function buildServer(options: ApiGatewayOptions = {}): Promise<Fast
   registerAdminRoutes(server, ctx);
   registerSuspensionRoutes(server, ctx);
   registerIpBlockingRoutes(server, ctx);
-  registerIpBlocklist(server, ctx.requestFn, ctx.identityServiceBase);
+  if (options.enableIpBlocklist) {
+    registerIpBlocklist(server, ctx.requestFn, ctx.identityServiceBase);
+  }
   registerNotificationAdminRoutes(server, ctx);
   registerSearchAdminRoutes(server, ctx);
   registerFeatureFlagRoutes(server, ctx);
@@ -219,6 +222,7 @@ export async function startServer(): Promise<void> {
     programsServiceBase: process.env.PROGRAMS_SERVICE_URL,
     partnerDashboardServiceBase: process.env.PARTNER_DASHBOARD_SERVICE_URL,
     searchIndexerBase: process.env.SEARCH_INDEXER_SERVICE_URL,
+    enableIpBlocklist: true,
     competitionAdminAllowlist: parseAllowlist(process.env.COMPETITION_ADMIN_ALLOWLIST ?? ""),
     coverageAdminAllowlist: parseAllowlist(process.env.COVERAGE_ADMIN_ALLOWLIST ?? ""),
     industryAdminAllowlist: parseAllowlist(process.env.INDUSTRY_ADMIN_ALLOWLIST ?? ""),

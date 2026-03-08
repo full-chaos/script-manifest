@@ -13,9 +13,10 @@ import { BaseMemoryRepository, signServiceToken } from "@script-manifest/service
 import { buildServer } from "./index.js";
 import { hashPassword } from "./repository.js";
 import { MemoryAdminRepository } from "./admin-repository.js";
+import { MemoryFeatureFlagRepository } from "./feature-flag-repository.js";
 import { createHash, randomUUID } from "node:crypto";
 
-// ── Memory identity repo (same as index.test.ts) ────────────────
+// ── Memory identity repo ─────────────────────────────────────────
 
 class MemoryRepo extends BaseMemoryRepository implements IdentityRepository {
   private users = new Map<string, IdentityUser>();
@@ -38,8 +39,7 @@ class MemoryRepo extends BaseMemoryRepository implements IdentityRepository {
     const id = this.createId("user");
     const passwordSalt = this.createId("salt");
     const user: IdentityUser = {
-      id,
-      email,
+      id, email,
       displayName: input.displayName,
       passwordSalt,
       passwordHash: hashPassword(input.password, passwordSalt),
@@ -59,8 +59,7 @@ class MemoryRepo extends BaseMemoryRepository implements IdentityRepository {
   async createSession(userId: string): Promise<IdentitySession> {
     const token = this.createId("sess");
     const session: IdentitySession = {
-      token,
-      userId,
+      token, userId,
       expiresAt: new Date(Date.now() + 60_000).toISOString()
     };
     this.sessions.set(token, session);
@@ -81,28 +80,19 @@ class MemoryRepo extends BaseMemoryRepository implements IdentityRepository {
       if (session.userId === userId) this.sessions.delete(token);
     }
   }
-
-  async saveOAuthState(state: string, record: OAuthStateRecord): Promise<void> {
-    this.oauthStates.set(state, record);
-  }
-
+  async saveOAuthState(state: string, record: OAuthStateRecord): Promise<void> { this.oauthStates.set(state, record); }
   async getAndDeleteOAuthState(state: string): Promise<OAuthStateRecord | null> {
     const record = this.oauthStates.get(state);
     if (!record) return null;
     this.oauthStates.delete(state);
     return record;
   }
-
   async cleanExpiredOAuthState(): Promise<void> { /* noop */ }
 
   async createRefreshToken(userId: string, familyId?: string): Promise<RefreshTokenIssue> {
     const token = `rfr_${randomUUID()}`;
     const fid = familyId ?? `fam_${randomUUID()}`;
-    this.refreshTokens.set(token, {
-      userId,
-      familyId: fid,
-      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
-    });
+    this.refreshTokens.set(token, { userId, familyId: fid, expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() });
     return { refreshToken: token, familyId: fid, expiresAt: this.refreshTokens.get(token)!.expiresAt };
   }
 
@@ -117,26 +107,17 @@ class MemoryRepo extends BaseMemoryRepository implements IdentityRepository {
   }
 
   async revokeTokenFamily(familyId: string): Promise<void> {
-    for (const entry of this.refreshTokens.values()) {
-      if (entry.familyId === familyId) entry.revokedAt = new Date().toISOString();
-    }
+    for (const entry of this.refreshTokens.values()) { if (entry.familyId === familyId) entry.revokedAt = new Date().toISOString(); }
   }
-
   async revokeUserRefreshTokens(userId: string): Promise<void> {
-    for (const entry of this.refreshTokens.values()) {
-      if (entry.userId === userId) entry.revokedAt = new Date().toISOString();
-    }
+    for (const entry of this.refreshTokens.values()) { if (entry.userId === userId) entry.revokedAt = new Date().toISOString(); }
   }
 
   async createEmailVerificationToken(userId: string): Promise<{ code: string }> {
     const code = "123456";
-    this.emailVerifCodes.set(userId, {
-      codeHash: createHash("sha256").update(code).digest("hex"),
-      expiresAt: Date.now() + 15 * 60 * 1000
-    });
+    this.emailVerifCodes.set(userId, { codeHash: createHash("sha256").update(code).digest("hex"), expiresAt: Date.now() + 15 * 60 * 1000 });
     return { code };
   }
-
   async verifyEmailCode(userId: string, code: string): Promise<boolean> {
     const stored = this.emailVerifCodes.get(userId);
     if (!stored || Date.now() > stored.expiresAt) return false;
@@ -145,29 +126,25 @@ class MemoryRepo extends BaseMemoryRepository implements IdentityRepository {
     this.emailVerifCodes.delete(userId);
     return true;
   }
-
   async markEmailVerified(): Promise<void> { /* noop */ }
-
   async createPasswordResetToken(userId: string): Promise<{ token: string }> {
     const token = `reset_${randomUUID()}`;
     this.resetTokens.set(token, { userId, expiresAt: Date.now() + 60 * 60 * 1000 });
     return { token };
   }
-
   async consumePasswordResetToken(token: string): Promise<{ userId: string } | null> {
     const entry = this.resetTokens.get(token);
     if (!entry || entry.usedAt || Date.now() > entry.expiresAt) return null;
     entry.usedAt = new Date().toISOString();
     return { userId: entry.userId };
   }
-
   async updatePassword(): Promise<void> { /* noop */ }
   async softDeleteUser(): Promise<void> { /* noop */ }
 }
 
 // ── Helpers ──────────────────────────────────────────────────────
 
-const SERVICE_SECRET = "test-secret-for-admin-routes";
+const SERVICE_SECRET = "test-secret-for-feature-flags";
 
 function adminHeaders(userId: string): Record<string, string> {
   return {
@@ -187,16 +164,17 @@ function createTestServer() {
   const prevSecret = process.env.SERVICE_TOKEN_SECRET;
   process.env.SERVICE_TOKEN_SECRET = SERVICE_SECRET;
 
-  const adminRepo = new MemoryAdminRepository();
+  const flagRepo = new MemoryFeatureFlagRepository();
   const server = buildServer({
     logger: false,
     repository: new MemoryRepo(),
-    adminRepository: adminRepo
+    adminRepository: new MemoryAdminRepository(),
+    featureFlagRepository: flagRepo
   });
 
   return {
     server,
-    adminRepo,
+    flagRepo,
     cleanup: () => {
       if (prevSecret !== undefined) {
         process.env.SERVICE_TOKEN_SECRET = prevSecret;
@@ -209,12 +187,12 @@ function createTestServer() {
 
 // ── Tests ────────────────────────────────────────────────────────
 
-test("admin user list returns 403 for non-admin", async () => {
+test("list flags requires admin", async () => {
   const { server, cleanup } = createTestServer();
   try {
     const res = await server.inject({
       method: "GET",
-      url: "/internal/admin/users",
+      url: "/internal/admin/feature-flags",
       headers: writerHeaders("user_1")
     });
     assert.equal(res.statusCode, 403);
@@ -223,128 +201,196 @@ test("admin user list returns 403 for non-admin", async () => {
   }
 });
 
-test("admin user list returns empty list", async () => {
+test("list flags returns empty list", async () => {
   const { server, cleanup } = createTestServer();
   try {
     const res = await server.inject({
       method: "GET",
-      url: "/internal/admin/users?page=1&limit=20",
+      url: "/internal/admin/feature-flags",
       headers: adminHeaders("admin_1")
     });
     assert.equal(res.statusCode, 200);
-    const body = JSON.parse(res.payload) as { users: unknown[]; total: number };
-    assert.equal(body.total, 0);
-    assert.deepEqual(body.users, []);
+    const body = JSON.parse(res.payload) as { flags: unknown[] };
+    assert.deepEqual(body.flags, []);
   } finally {
     cleanup();
   }
 });
 
-test("admin audit log returns entries", async () => {
-  const { server, adminRepo, cleanup } = createTestServer();
-  try {
-    await adminRepo.createAuditLogEntry({
-      adminUserId: "admin_1",
-      action: "test_action",
-      targetType: "user",
-      targetId: "user_99"
-    });
-
-    const res = await server.inject({
-      method: "GET",
-      url: "/internal/admin/audit-log?page=1&limit=50",
-      headers: adminHeaders("admin_1")
-    });
-    assert.equal(res.statusCode, 200);
-    const body = JSON.parse(res.payload) as { entries: unknown[]; total: number };
-    assert.equal(body.total, 1);
-    assert.equal(body.entries.length, 1);
-  } finally {
-    cleanup();
-  }
-});
-
-test("content report creation requires auth", async () => {
+test("create flag succeeds", async () => {
   const { server, cleanup } = createTestServer();
   try {
     const res = await server.inject({
       method: "POST",
-      url: "/internal/reports",
-      headers: { "content-type": "application/json" },
-      payload: { contentType: "script", contentId: "s1", reason: "spam" }
-    });
-    assert.equal(res.statusCode, 401);
-  } finally {
-    cleanup();
-  }
-});
-
-test("content report creation and moderation queue", async () => {
-  const { server, cleanup } = createTestServer();
-  try {
-    // Create a report as a regular user
-    const createRes = await server.inject({
-      method: "POST",
-      url: "/internal/reports",
-      headers: { "content-type": "application/json", ...writerHeaders("user_1") },
-      payload: { contentType: "script", contentId: "script_123", reason: "plagiarism", description: "Copied my work" }
-    });
-    assert.equal(createRes.statusCode, 201);
-    const { report } = JSON.parse(createRes.payload) as { report: { id: string; status: string } };
-    assert.equal(report.status, "pending");
-
-    // Admin views the queue
-    const queueRes = await server.inject({
-      method: "GET",
-      url: "/internal/admin/moderation/queue?page=1&limit=20",
-      headers: adminHeaders("admin_1")
-    });
-    assert.equal(queueRes.statusCode, 200);
-    const queue = JSON.parse(queueRes.payload) as { reports: { id: string }[]; total: number };
-    assert.equal(queue.total, 1);
-    assert.equal(queue.reports[0]?.id, report.id);
-
-    // Admin takes action
-    const actionRes = await server.inject({
-      method: "POST",
-      url: `/internal/admin/moderation/${report.id}/action`,
+      url: "/internal/admin/feature-flags",
       headers: { "content-type": "application/json", ...adminHeaders("admin_1") },
-      payload: { actionType: "warning", reason: "First offense warning" }
+      payload: { key: "test_feature", description: "A test feature" }
     });
-    assert.equal(actionRes.statusCode, 200);
-    const resolved = JSON.parse(actionRes.payload) as { report: { status: string } };
-    assert.equal(resolved.report.status, "reviewed");
+    assert.equal(res.statusCode, 201);
+    const body = JSON.parse(res.payload) as { flag: { key: string; enabled: boolean } };
+    assert.equal(body.flag.key, "test_feature");
+    assert.equal(body.flag.enabled, false);
   } finally {
     cleanup();
   }
 });
 
-test("admin metrics endpoint returns data", async () => {
+test("create flag validates key format", async () => {
   const { server, cleanup } = createTestServer();
   try {
     const res = await server.inject({
-      method: "GET",
-      url: "/internal/admin/metrics",
-      headers: adminHeaders("admin_1")
+      method: "POST",
+      url: "/internal/admin/feature-flags",
+      headers: { "content-type": "application/json", ...adminHeaders("admin_1") },
+      payload: { key: "Invalid-Key!", description: "Bad" }
+    });
+    assert.equal(res.statusCode, 400);
+  } finally {
+    cleanup();
+  }
+});
+
+test("create duplicate flag returns 409", async () => {
+  const { server, cleanup } = createTestServer();
+  try {
+    await server.inject({
+      method: "POST",
+      url: "/internal/admin/feature-flags",
+      headers: { "content-type": "application/json", ...adminHeaders("admin_1") },
+      payload: { key: "dup_flag", description: "First" }
+    });
+
+    const res = await server.inject({
+      method: "POST",
+      url: "/internal/admin/feature-flags",
+      headers: { "content-type": "application/json", ...adminHeaders("admin_1") },
+      payload: { key: "dup_flag", description: "Duplicate" }
+    });
+    assert.equal(res.statusCode, 409);
+  } finally {
+    cleanup();
+  }
+});
+
+test("update flag succeeds", async () => {
+  const { server, cleanup } = createTestServer();
+  try {
+    await server.inject({
+      method: "POST",
+      url: "/internal/admin/feature-flags",
+      headers: { "content-type": "application/json", ...adminHeaders("admin_1") },
+      payload: { key: "update_me", description: "Original" }
+    });
+
+    const res = await server.inject({
+      method: "PUT",
+      url: "/internal/admin/feature-flags/update_me",
+      headers: { "content-type": "application/json", ...adminHeaders("admin_1") },
+      payload: { enabled: true, rolloutPct: 75 }
     });
     assert.equal(res.statusCode, 200);
-    const body = JSON.parse(res.payload) as { metrics: { totalUsers: number; pendingReports: number } };
-    assert.equal(typeof body.metrics.totalUsers, "number");
-    assert.equal(typeof body.metrics.pendingReports, "number");
+    const body = JSON.parse(res.payload) as { flag: { enabled: boolean; rolloutPct: number } };
+    assert.equal(body.flag.enabled, true);
+    assert.equal(body.flag.rolloutPct, 75);
   } finally {
     cleanup();
   }
 });
 
-test("moderation queue returns 403 for non-admin", async () => {
+test("update nonexistent flag returns 404", async () => {
   const { server, cleanup } = createTestServer();
   try {
     const res = await server.inject({
-      method: "GET",
-      url: "/internal/admin/moderation/queue?page=1&limit=20",
-      headers: writerHeaders("user_1")
+      method: "PUT",
+      url: "/internal/admin/feature-flags/nonexistent",
+      headers: { "content-type": "application/json", ...adminHeaders("admin_1") },
+      payload: { enabled: true }
     });
-    assert.equal(res.statusCode, 403);
+    assert.equal(res.statusCode, 404);
+  } finally {
+    cleanup();
+  }
+});
+
+test("delete flag succeeds", async () => {
+  const { server, cleanup } = createTestServer();
+  try {
+    await server.inject({
+      method: "POST",
+      url: "/internal/admin/feature-flags",
+      headers: { "content-type": "application/json", ...adminHeaders("admin_1") },
+      payload: { key: "delete_me", description: "To delete" }
+    });
+
+    const res = await server.inject({
+      method: "DELETE",
+      url: "/internal/admin/feature-flags/delete_me",
+      headers: adminHeaders("admin_1")
+    });
+    assert.equal(res.statusCode, 204);
+
+    // Verify deleted
+    const listRes = await server.inject({
+      method: "GET",
+      url: "/internal/admin/feature-flags",
+      headers: adminHeaders("admin_1")
+    });
+    const body = JSON.parse(listRes.payload) as { flags: unknown[] };
+    assert.equal(body.flags.length, 0);
+  } finally {
+    cleanup();
+  }
+});
+
+test("delete nonexistent flag returns 404", async () => {
+  const { server, cleanup } = createTestServer();
+  try {
+    const res = await server.inject({
+      method: "DELETE",
+      url: "/internal/admin/feature-flags/nonexistent",
+      headers: adminHeaders("admin_1")
+    });
+    assert.equal(res.statusCode, 404);
+  } finally {
+    cleanup();
+  }
+});
+
+test("client evaluate flags returns evaluated results", async () => {
+  const { server, flagRepo, cleanup } = createTestServer();
+  try {
+    await flagRepo.createFlag("enabled_flag", "Enabled", "admin_1");
+    await flagRepo.updateFlag("enabled_flag", { enabled: true, rolloutPct: 100 }, "admin_1");
+
+    await flagRepo.createFlag("disabled_flag", "Disabled", "admin_1");
+
+    const res = await server.inject({
+      method: "GET",
+      url: "/internal/feature-flags",
+      headers: { "x-auth-user-id": "user_1" }
+    });
+    assert.equal(res.statusCode, 200);
+    const body = JSON.parse(res.payload) as { flags: Record<string, boolean> };
+    assert.equal(body.flags.enabled_flag, true);
+    assert.equal(body.flags.disabled_flag, false);
+  } finally {
+    cleanup();
+  }
+});
+
+test("client evaluate flags works without userId", async () => {
+  const { server, flagRepo, cleanup } = createTestServer();
+  try {
+    await flagRepo.createFlag("full_flag", "Full", "admin_1");
+    await flagRepo.updateFlag("full_flag", { enabled: true, rolloutPct: 100 }, "admin_1");
+
+    const res = await server.inject({
+      method: "GET",
+      url: "/internal/feature-flags"
+    });
+    assert.equal(res.statusCode, 200);
+    const body = JSON.parse(res.payload) as { flags: Record<string, boolean> };
+    assert.equal(body.flags.full_flag, true);
   } finally {
     cleanup();
   }

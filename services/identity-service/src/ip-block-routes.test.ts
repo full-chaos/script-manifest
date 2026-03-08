@@ -13,9 +13,11 @@ import { BaseMemoryRepository, signServiceToken } from "@script-manifest/service
 import { buildServer } from "./index.js";
 import { hashPassword } from "./repository.js";
 import { MemoryAdminRepository } from "./admin-repository.js";
+import { MemorySuspensionRepository } from "./suspension-repository.js";
+import { MemoryIpBlockRepository } from "./ip-block-repository.js";
 import { createHash, randomUUID } from "node:crypto";
 
-// ── Memory identity repo (same as index.test.ts) ────────────────
+// ── Memory identity repo ─────────────────────────────────────────
 
 class MemoryRepo extends BaseMemoryRepository implements IdentityRepository {
   private users = new Map<string, IdentityUser>();
@@ -167,7 +169,7 @@ class MemoryRepo extends BaseMemoryRepository implements IdentityRepository {
 
 // ── Helpers ──────────────────────────────────────────────────────
 
-const SERVICE_SECRET = "test-secret-for-admin-routes";
+const SERVICE_SECRET = "test-secret-for-ip-block-routes";
 
 function adminHeaders(userId: string): Record<string, string> {
   return {
@@ -188,15 +190,20 @@ function createTestServer() {
   process.env.SERVICE_TOKEN_SECRET = SERVICE_SECRET;
 
   const adminRepo = new MemoryAdminRepository();
+  const ipBlockRepo = new MemoryIpBlockRepository();
+  const suspensionRepo = new MemorySuspensionRepository();
   const server = buildServer({
     logger: false,
     repository: new MemoryRepo(),
-    adminRepository: adminRepo
+    adminRepository: adminRepo,
+    suspensionRepository: suspensionRepo,
+    ipBlockRepository: ipBlockRepo
   });
 
   return {
     server,
     adminRepo,
+    ipBlockRepo,
     cleanup: () => {
       if (prevSecret !== undefined) {
         process.env.SERVICE_TOKEN_SECRET = prevSecret;
@@ -209,12 +216,30 @@ function createTestServer() {
 
 // ── Tests ────────────────────────────────────────────────────────
 
-test("admin user list returns 403 for non-admin", async () => {
+test("GET /internal/admin/ip-blocks returns empty list", async () => {
   const { server, cleanup } = createTestServer();
   try {
     const res = await server.inject({
       method: "GET",
-      url: "/internal/admin/users",
+      url: "/internal/admin/ip-blocks?page=1&limit=50",
+      headers: adminHeaders("admin_1")
+    });
+
+    assert.equal(res.statusCode, 200);
+    const body = JSON.parse(res.payload) as { blocks: unknown[]; total: number };
+    assert.equal(body.total, 0);
+    assert.deepEqual(body.blocks, []);
+  } finally {
+    cleanup();
+  }
+});
+
+test("GET /internal/admin/ip-blocks requires admin", async () => {
+  const { server, cleanup } = createTestServer();
+  try {
+    const res = await server.inject({
+      method: "GET",
+      url: "/internal/admin/ip-blocks?page=1&limit=50",
       headers: writerHeaders("user_1")
     });
     assert.equal(res.statusCode, 403);
@@ -223,128 +248,188 @@ test("admin user list returns 403 for non-admin", async () => {
   }
 });
 
-test("admin user list returns empty list", async () => {
+test("POST /internal/admin/ip-blocks adds a block", async () => {
   const { server, cleanup } = createTestServer();
   try {
     const res = await server.inject({
-      method: "GET",
-      url: "/internal/admin/users?page=1&limit=20",
-      headers: adminHeaders("admin_1")
+      method: "POST",
+      url: "/internal/admin/ip-blocks",
+      headers: { "content-type": "application/json", ...adminHeaders("admin_1") },
+      payload: { ipAddress: "192.168.1.100", reason: "Brute force attack" }
     });
-    assert.equal(res.statusCode, 200);
-    const body = JSON.parse(res.payload) as { users: unknown[]; total: number };
-    assert.equal(body.total, 0);
-    assert.deepEqual(body.users, []);
+
+    assert.equal(res.statusCode, 201);
+    const body = JSON.parse(res.payload) as { block: { id: string; ipAddress: string; reason: string } };
+    assert.ok(body.block.id);
+    assert.equal(body.block.ipAddress, "192.168.1.100");
+    assert.equal(body.block.reason, "Brute force attack");
   } finally {
     cleanup();
   }
 });
 
-test("admin audit log returns entries", async () => {
+test("POST /internal/admin/ip-blocks with expiry", async () => {
+  const { server, cleanup } = createTestServer();
+  try {
+    const res = await server.inject({
+      method: "POST",
+      url: "/internal/admin/ip-blocks",
+      headers: { "content-type": "application/json", ...adminHeaders("admin_1") },
+      payload: { ipAddress: "10.0.0.1", reason: "Temporary block", expiresInHours: 24 }
+    });
+
+    assert.equal(res.statusCode, 201);
+    const body = JSON.parse(res.payload) as { block: { expiresAt: string | null } };
+    assert.ok(body.block.expiresAt);
+  } finally {
+    cleanup();
+  }
+});
+
+test("POST /internal/admin/ip-blocks requires admin", async () => {
+  const { server, cleanup } = createTestServer();
+  try {
+    const res = await server.inject({
+      method: "POST",
+      url: "/internal/admin/ip-blocks",
+      headers: { "content-type": "application/json", ...writerHeaders("user_1") },
+      payload: { ipAddress: "192.168.1.1", reason: "test" }
+    });
+    assert.equal(res.statusCode, 403);
+  } finally {
+    cleanup();
+  }
+});
+
+test("POST /internal/admin/ip-blocks validates payload", async () => {
+  const { server, cleanup } = createTestServer();
+  try {
+    const res = await server.inject({
+      method: "POST",
+      url: "/internal/admin/ip-blocks",
+      headers: { "content-type": "application/json", ...adminHeaders("admin_1") },
+      payload: { ipAddress: "", reason: "test" }
+    });
+    assert.equal(res.statusCode, 400);
+  } finally {
+    cleanup();
+  }
+});
+
+test("DELETE /internal/admin/ip-blocks/:id removes a block", async () => {
+  const { server, ipBlockRepo, cleanup } = createTestServer();
+  try {
+    const block = await ipBlockRepo.addBlock("192.168.1.1", "test", "admin_1");
+
+    const res = await server.inject({
+      method: "DELETE",
+      url: `/internal/admin/ip-blocks/${block.id}`,
+      headers: adminHeaders("admin_1")
+    });
+
+    assert.equal(res.statusCode, 200);
+    const body = JSON.parse(res.payload) as { ok: boolean };
+    assert.equal(body.ok, true);
+  } finally {
+    cleanup();
+  }
+});
+
+test("DELETE /internal/admin/ip-blocks/:id returns 404 for non-existent", async () => {
+  const { server, cleanup } = createTestServer();
+  try {
+    const res = await server.inject({
+      method: "DELETE",
+      url: "/internal/admin/ip-blocks/ipb_nonexistent",
+      headers: adminHeaders("admin_1")
+    });
+
+    assert.equal(res.statusCode, 404);
+  } finally {
+    cleanup();
+  }
+});
+
+test("DELETE /internal/admin/ip-blocks/:id requires admin", async () => {
+  const { server, cleanup } = createTestServer();
+  try {
+    const res = await server.inject({
+      method: "DELETE",
+      url: "/internal/admin/ip-blocks/ipb_123",
+      headers: writerHeaders("user_1")
+    });
+    assert.equal(res.statusCode, 403);
+  } finally {
+    cleanup();
+  }
+});
+
+test("GET /internal/admin/ip-blocks/check/:ip returns blocked status", async () => {
+  const { server, ipBlockRepo, cleanup } = createTestServer();
+  try {
+    await ipBlockRepo.addBlock("192.168.1.1", "test", "admin_1");
+
+    const res = await server.inject({
+      method: "GET",
+      url: "/internal/admin/ip-blocks/check/192.168.1.1",
+      headers: adminHeaders("admin_1")
+    });
+
+    assert.equal(res.statusCode, 200);
+    const body = JSON.parse(res.payload) as { blocked: boolean };
+    assert.equal(body.blocked, true);
+  } finally {
+    cleanup();
+  }
+});
+
+test("GET /internal/admin/ip-blocks/check/:ip returns not blocked", async () => {
+  const { server, cleanup } = createTestServer();
+  try {
+    const res = await server.inject({
+      method: "GET",
+      url: "/internal/admin/ip-blocks/check/10.0.0.1",
+      headers: adminHeaders("admin_1")
+    });
+
+    assert.equal(res.statusCode, 200);
+    const body = JSON.parse(res.payload) as { blocked: boolean };
+    assert.equal(body.blocked, false);
+  } finally {
+    cleanup();
+  }
+});
+
+test("IP block creates audit log entry", async () => {
   const { server, adminRepo, cleanup } = createTestServer();
   try {
-    await adminRepo.createAuditLogEntry({
-      adminUserId: "admin_1",
-      action: "test_action",
-      targetType: "user",
-      targetId: "user_99"
-    });
-
-    const res = await server.inject({
-      method: "GET",
-      url: "/internal/admin/audit-log?page=1&limit=50",
-      headers: adminHeaders("admin_1")
-    });
-    assert.equal(res.statusCode, 200);
-    const body = JSON.parse(res.payload) as { entries: unknown[]; total: number };
-    assert.equal(body.total, 1);
-    assert.equal(body.entries.length, 1);
-  } finally {
-    cleanup();
-  }
-});
-
-test("content report creation requires auth", async () => {
-  const { server, cleanup } = createTestServer();
-  try {
-    const res = await server.inject({
+    await server.inject({
       method: "POST",
-      url: "/internal/reports",
-      headers: { "content-type": "application/json" },
-      payload: { contentType: "script", contentId: "s1", reason: "spam" }
-    });
-    assert.equal(res.statusCode, 401);
-  } finally {
-    cleanup();
-  }
-});
-
-test("content report creation and moderation queue", async () => {
-  const { server, cleanup } = createTestServer();
-  try {
-    // Create a report as a regular user
-    const createRes = await server.inject({
-      method: "POST",
-      url: "/internal/reports",
-      headers: { "content-type": "application/json", ...writerHeaders("user_1") },
-      payload: { contentType: "script", contentId: "script_123", reason: "plagiarism", description: "Copied my work" }
-    });
-    assert.equal(createRes.statusCode, 201);
-    const { report } = JSON.parse(createRes.payload) as { report: { id: string; status: string } };
-    assert.equal(report.status, "pending");
-
-    // Admin views the queue
-    const queueRes = await server.inject({
-      method: "GET",
-      url: "/internal/admin/moderation/queue?page=1&limit=20",
-      headers: adminHeaders("admin_1")
-    });
-    assert.equal(queueRes.statusCode, 200);
-    const queue = JSON.parse(queueRes.payload) as { reports: { id: string }[]; total: number };
-    assert.equal(queue.total, 1);
-    assert.equal(queue.reports[0]?.id, report.id);
-
-    // Admin takes action
-    const actionRes = await server.inject({
-      method: "POST",
-      url: `/internal/admin/moderation/${report.id}/action`,
+      url: "/internal/admin/ip-blocks",
       headers: { "content-type": "application/json", ...adminHeaders("admin_1") },
-      payload: { actionType: "warning", reason: "First offense warning" }
+      payload: { ipAddress: "192.168.1.100", reason: "Abuse" }
     });
-    assert.equal(actionRes.statusCode, 200);
-    const resolved = JSON.parse(actionRes.payload) as { report: { status: string } };
-    assert.equal(resolved.report.status, "reviewed");
+
+    const auditLog = await adminRepo.listAuditLogEntries({ page: 1, limit: 50 });
+    assert.ok(auditLog.entries.some((e) => e.action === "add_ip_block"));
   } finally {
     cleanup();
   }
 });
 
-test("admin metrics endpoint returns data", async () => {
-  const { server, cleanup } = createTestServer();
+test("IP block removal creates audit log entry", async () => {
+  const { server, adminRepo, ipBlockRepo, cleanup } = createTestServer();
   try {
-    const res = await server.inject({
-      method: "GET",
-      url: "/internal/admin/metrics",
+    const block = await ipBlockRepo.addBlock("192.168.1.1", "test", "admin_1");
+
+    await server.inject({
+      method: "DELETE",
+      url: `/internal/admin/ip-blocks/${block.id}`,
       headers: adminHeaders("admin_1")
     });
-    assert.equal(res.statusCode, 200);
-    const body = JSON.parse(res.payload) as { metrics: { totalUsers: number; pendingReports: number } };
-    assert.equal(typeof body.metrics.totalUsers, "number");
-    assert.equal(typeof body.metrics.pendingReports, "number");
-  } finally {
-    cleanup();
-  }
-});
 
-test("moderation queue returns 403 for non-admin", async () => {
-  const { server, cleanup } = createTestServer();
-  try {
-    const res = await server.inject({
-      method: "GET",
-      url: "/internal/admin/moderation/queue?page=1&limit=20",
-      headers: writerHeaders("user_1")
-    });
-    assert.equal(res.statusCode, 403);
+    const auditLog = await adminRepo.listAuditLogEntries({ page: 1, limit: 50 });
+    assert.ok(auditLog.entries.some((e) => e.action === "remove_ip_block"));
   } finally {
     cleanup();
   }

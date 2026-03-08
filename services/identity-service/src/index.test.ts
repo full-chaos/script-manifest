@@ -42,7 +42,8 @@ class MemoryRepo extends BaseMemoryRepository implements IdentityRepository {
       displayName: input.displayName,
       passwordSalt,
       passwordHash: hashPassword(input.password, passwordSalt),
-      role: "writer"
+      role: "writer",
+      mfaEnabled: false
     };
     this.users.set(id, user);
     this.usersByEmail.set(email, id);

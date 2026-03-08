@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS user_suspensions (
 );
 
 CREATE INDEX IF NOT EXISTS idx_suspensions_user    ON user_suspensions(user_id);
-CREATE INDEX IF NOT EXISTS idx_suspensions_active  ON user_suspensions(user_id) WHERE lifted_at IS NULL AND (expires_at IS NULL OR expires_at > NOW());
+CREATE INDEX IF NOT EXISTS idx_suspensions_active  ON user_suspensions(user_id) WHERE lifted_at IS NULL;
 
 -- ── 2. Notification Templates & Broadcasts (CHAOS-806) ──────────────
 
@@ -89,7 +89,7 @@ CREATE TABLE IF NOT EXISTS ip_blocklist (
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_ip_blocklist_ip ON ip_blocklist(ip_address) WHERE expires_at IS NULL OR expires_at > NOW();
+CREATE UNIQUE INDEX IF NOT EXISTS idx_ip_blocklist_ip ON ip_blocklist(ip_address) WHERE expires_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_ip_blocklist_expires   ON ip_blocklist(expires_at) WHERE expires_at IS NOT NULL;
 
 COMMIT;

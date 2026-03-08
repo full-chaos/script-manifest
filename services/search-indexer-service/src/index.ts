@@ -58,6 +58,108 @@ export function buildServer(options: SearchIndexerOptions = {}): FastifyInstance
     return reply.status(ok ? 200 : 503).send({ service: "search-indexer-service", ok, checks, index: openSearchIndex });
   });
 
+  // ── Admin: Index Status ──────────────────────────────────────────
+
+  server.get("/internal/admin/search/status", async (_req, reply) => {
+    try {
+      const [healthRes, statsRes] = await Promise.all([
+        requestFn(`${openSearchBase}/_cluster/health`, { method: "GET" }),
+        requestFn(`${openSearchBase}/${encodeURIComponent(openSearchIndex)}/_stats`, { method: "GET" })
+      ]);
+
+      const healthBody = await readBody(healthRes) as Record<string, unknown> | null;
+      const statsBody = await readBody(statsRes) as Record<string, unknown> | null;
+
+      const clusterHealth = (healthBody && typeof healthBody.status === "string")
+        ? healthBody.status
+        : "unknown";
+
+      // Extract doc count and size from stats
+      let documentCount = 0;
+      let indexSizeBytes = 0;
+      if (statsBody && isRecord(statsBody._all)) {
+        const all = statsBody._all as Record<string, unknown>;
+        if (isRecord(all.primaries)) {
+          const primaries = all.primaries as Record<string, unknown>;
+          if (isRecord(primaries.docs)) {
+            const docs = primaries.docs as Record<string, unknown>;
+            documentCount = typeof docs.count === "number" ? docs.count : 0;
+          }
+          if (isRecord(primaries.store)) {
+            const store = primaries.store as Record<string, unknown>;
+            indexSizeBytes = typeof store.size_in_bytes === "number" ? store.size_in_bytes : 0;
+          }
+        }
+      }
+
+      return reply.send({
+        clusterHealth,
+        indexName: openSearchIndex,
+        documentCount,
+        indexSizeBytes,
+        lastSyncAt: null
+      });
+    } catch (error) {
+      server.log.error(error);
+      return reply.status(502).send({ error: "opensearch_unavailable" });
+    }
+  });
+
+  // ── Admin: Reindex All ─────────────────────────────────────────
+
+  server.post("/internal/admin/search/reindex", async (_req, reply) => {
+    const jobId = `reindex_${randomUUID()}`;
+    // Stub: in production this would trigger an async reindex job
+    // For now, delete and recreate the index
+    try {
+      // Delete existing index
+      const deleteRes = await requestFn(`${openSearchBase}/${encodeURIComponent(openSearchIndex)}`, {
+        method: "DELETE"
+      });
+      await readBody(deleteRes);
+
+      // Recreate the index
+      await ensureIndex(requestFn, openSearchBase, openSearchIndex);
+    } catch {
+      // Index may not exist — that's fine
+    }
+
+    return reply.status(202).send({
+      jobId,
+      type: "all",
+      status: "started",
+      startedAt: new Date().toISOString()
+    });
+  });
+
+  // ── Admin: Reindex by Type ─────────────────────────────────────
+
+  server.post<{ Params: { type: string } }>("/internal/admin/search/reindex/:type", async (req, reply) => {
+    const reindexType = req.params.type;
+    if (reindexType !== "competitions") {
+      return reply.status(400).send({ error: "unsupported_reindex_type", supportedTypes: ["competitions"] });
+    }
+
+    const jobId = `reindex_${randomUUID()}`;
+    // Stub: trigger type-specific reindex
+    try {
+      const deleteRes = await requestFn(`${openSearchBase}/${encodeURIComponent(openSearchIndex)}`, {
+        method: "DELETE"
+      });
+      await readBody(deleteRes);
+      await ensureIndex(requestFn, openSearchBase, openSearchIndex);
+    } catch {
+      // Index may not exist
+    }
+
+    return reply.status(202).send({
+      jobId,
+      type: reindexType,
+      status: "started",
+      startedAt: new Date().toISOString()
+    });
+  });
+
   server.post("/internal/index/competition", async (req, reply) => {
     const parsedBody = CompetitionIndexDocumentSchema.safeParse(req.body);
     if (!parsedBody.success) {

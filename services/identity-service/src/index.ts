@@ -30,6 +30,10 @@ import {
 } from "./repository.js";
 import { type AdminRepository, PgAdminRepository, MemoryAdminRepository } from "./admin-repository.js";
 import { registerAdminRoutes } from "./admin-routes.js";
+import { type SuspensionRepository, PgSuspensionRepository, MemorySuspensionRepository } from "./suspension-repository.js";
+import { registerSuspensionRoutes } from "./suspension-routes.js";
+import { type IpBlockRepository, PgIpBlockRepository, MemoryIpBlockRepository } from "./ip-block-repository.js";
+import { registerIpBlockRoutes } from "./ip-block-routes.js";
 import type { EmailService } from "@script-manifest/email";
 import { registerMetrics } from "@script-manifest/service-utils";
 
@@ -47,6 +51,8 @@ export type IdentityServiceOptions = {
   logger?: boolean;
   repository?: IdentityRepository;
   adminRepository?: AdminRepository;
+  suspensionRepository?: SuspensionRepository;
+  ipBlockRepository?: IpBlockRepository;
   emailService?: EmailService;
 };
 
@@ -55,6 +61,8 @@ export function buildServer(options: IdentityServiceOptions = {}): FastifyInstan
   const repository = options.repository ?? new PgIdentityRepository();
   // Use MemoryAdminRepository when a custom repository is provided (tests)
   const adminRepo = options.adminRepository ?? (options.repository ? new MemoryAdminRepository() : new PgAdminRepository());
+  const suspensionRepo = options.suspensionRepository ?? (options.repository ? new MemorySuspensionRepository() : new PgSuspensionRepository());
+  const ipBlockRepo = options.ipBlockRepository ?? (options.repository ? new MemoryIpBlockRepository() : new PgIpBlockRepository());
   const emailService = options.emailService;
   const runHealthCheck = options.repository ? () => repository.healthCheck() : healthCheck;
   const server = Fastify({
@@ -74,6 +82,8 @@ export function buildServer(options: IdentityServiceOptions = {}): FastifyInstan
   server.addHook("onReady", async () => {
     await repository.init();
     await adminRepo.init();
+    await suspensionRepo.init();
+    await ipBlockRepo.init();
   });
 
   server.register(rateLimit, {
@@ -327,6 +337,18 @@ export function buildServer(options: IdentityServiceOptions = {}): FastifyInstan
       return reply.status(401).send({ error: "invalid_credentials" });
     }
 
+    // Check account status before creating session
+    if (user.accountStatus === "banned") {
+      return reply.status(403).send({ error: "account_banned" });
+    }
+    if (user.accountStatus === "suspended") {
+      const activeSuspension = await suspensionRepo.getActiveSuspension(user.id);
+      return reply.status(403).send({
+        error: "account_suspended",
+        expiresAt: activeSuspension?.expiresAt ?? null
+      });
+    }
+
     const payload = await createAuthSessionPayload(repository, user);
 
       loginCounter.inc({ method: "password" });
@@ -560,6 +582,8 @@ export function buildServer(options: IdentityServiceOptions = {}): FastifyInstan
   });
 
   registerAdminRoutes(server, adminRepo);
+  registerSuspensionRoutes(server, suspensionRepo, adminRepo);
+  registerIpBlockRoutes(server, ipBlockRepo, adminRepo);
 
   return server;
 }

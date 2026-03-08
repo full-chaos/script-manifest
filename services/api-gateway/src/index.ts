@@ -24,7 +24,10 @@ import { registerIndustryRoutes } from "./routes/industry.js";
 import { registerProgramsRoutes } from "./routes/programs.js";
 import { registerPartnerRoutes } from "./routes/partners.js";
 import { registerAdminRoutes } from "./routes/admin.js";
+import { registerSuspensionRoutes } from "./routes/suspension.js";
+import { registerIpBlockingRoutes } from "./routes/ip-blocking.js";
 import { registerHealthRoutes } from "./routes/health.js";
+import { registerIpBlocklist } from "./plugins/ipBlocklist.js";
 import { registerMetrics } from "@script-manifest/service-utils";
 
 export type ApiGatewayOptions = {
@@ -142,6 +145,9 @@ export async function buildServer(options: ApiGatewayOptions = {}): Promise<Fast
   registerProgramsRoutes(server, ctx);
   registerPartnerRoutes(server, ctx);
   registerAdminRoutes(server, ctx);
+  registerSuspensionRoutes(server, ctx);
+  registerIpBlockingRoutes(server, ctx);
+  registerIpBlocklist(server, ctx.requestFn, ctx.identityServiceBase);
 
   return server;
 }

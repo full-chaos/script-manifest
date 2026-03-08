@@ -8,6 +8,7 @@ export type IdentityUser = {
   passwordHash: string;
   passwordSalt: string;
   role: string;
+  accountStatus?: string;
 };
 
 export type IdentitySession = {
@@ -254,9 +255,10 @@ export class PgIdentityRepository implements IdentityRepository {
       password_hash: string;
       password_salt: string;
       role: string;
+      account_status: string;
     }>(
       `
-        SELECT id, email, display_name, password_hash, password_salt, role
+        SELECT id, email, display_name, password_hash, password_salt, role, account_status
         FROM app_users
         WHERE email = $1
       `,
@@ -274,7 +276,8 @@ export class PgIdentityRepository implements IdentityRepository {
       displayName: user.display_name,
       passwordHash: user.password_hash,
       passwordSalt: user.password_salt,
-      role: user.role
+      role: user.role,
+      accountStatus: user.account_status
     };
   }
 

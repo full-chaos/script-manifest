@@ -100,6 +100,8 @@ Shared Zod schemas + TypeScript types in `packages/contracts/`. All API request/
 This project uses **Linear** for issue tracking.
 Default team: **CHAOS**
 
+**IMPORTANT: Always use the `linear` CLI over Linear MCP tools.** The CLI is more efficient and consistent. Never use `mcp__claude_ai_Linear__*` tools when the `linear` CLI can accomplish the same task.
+
 ### Creating Issues
 
 ```bash

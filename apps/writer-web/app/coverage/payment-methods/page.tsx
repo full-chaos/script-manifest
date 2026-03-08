@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { getAuthHeaders } from "../../lib/authSession";
 import { EmptyState } from "../../components/emptyState";
 import { EmptyIllustration } from "../../components/illustrations";
@@ -21,11 +21,7 @@ export default function PaymentMethodsPage() {
   const [methods, setMethods] = useState<PaymentMethod[]>([]);
   const [removing, setRemoving] = useState<string | null>(null);
 
-  useEffect(() => {
-    void loadMethods();
-  }, []);
-
-  async function loadMethods() {
+  const loadMethods = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch("/api/v1/coverage/payment-methods", {
@@ -41,7 +37,11 @@ export default function PaymentMethodsPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [toast]);
+
+  useEffect(() => {
+    void loadMethods();
+  }, [loadMethods]);
 
   async function handleRemove(id: string) {
     setRemoving(id);

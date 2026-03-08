@@ -54,7 +54,7 @@ describe("OnboardingChecklist", () => {
         role: "writer",
         emailVerified: true
       }
-    } as any);
+    } as Parameters<typeof writeStoredSession>[0]);
 
     render(<OnboardingChecklist />);
     

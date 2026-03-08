@@ -30,6 +30,14 @@ import {
 } from "./repository.js";
 import { type AdminRepository, PgAdminRepository, MemoryAdminRepository } from "./admin-repository.js";
 import { registerAdminRoutes } from "./admin-routes.js";
+import { type SuspensionRepository, PgSuspensionRepository, MemorySuspensionRepository } from "./suspension-repository.js";
+import { registerSuspensionRoutes } from "./suspension-routes.js";
+import { type IpBlockRepository, PgIpBlockRepository, MemoryIpBlockRepository } from "./ip-block-repository.js";
+import { registerIpBlockRoutes } from "./ip-block-routes.js";
+import { type FeatureFlagRepository, PgFeatureFlagRepository, MemoryFeatureFlagRepository } from "./feature-flag-repository.js";
+import { registerFeatureFlagRoutes } from "./feature-flag-routes.js";
+import { type MfaRepository, PgMfaRepository, MemoryMfaRepository } from "./mfa-repository.js";
+import { registerMfaRoutes, createMfaChallenge } from "./mfa-routes.js";
 import type { EmailService } from "@script-manifest/email";
 import { registerMetrics } from "@script-manifest/service-utils";
 
@@ -47,6 +55,10 @@ export type IdentityServiceOptions = {
   logger?: boolean;
   repository?: IdentityRepository;
   adminRepository?: AdminRepository;
+  suspensionRepository?: SuspensionRepository;
+  ipBlockRepository?: IpBlockRepository;
+  featureFlagRepository?: FeatureFlagRepository;
+  mfaRepository?: MfaRepository;
   emailService?: EmailService;
 };
 
@@ -55,6 +67,10 @@ export function buildServer(options: IdentityServiceOptions = {}): FastifyInstan
   const repository = options.repository ?? new PgIdentityRepository();
   // Use MemoryAdminRepository when a custom repository is provided (tests)
   const adminRepo = options.adminRepository ?? (options.repository ? new MemoryAdminRepository() : new PgAdminRepository());
+  const suspensionRepo = options.suspensionRepository ?? (options.repository ? new MemorySuspensionRepository() : new PgSuspensionRepository());
+  const ipBlockRepo = options.ipBlockRepository ?? (options.repository ? new MemoryIpBlockRepository() : new PgIpBlockRepository());
+  const flagRepo = options.featureFlagRepository ?? (options.repository ? new MemoryFeatureFlagRepository() : new PgFeatureFlagRepository());
+  const mfaRepo = options.mfaRepository ?? (options.repository ? new MemoryMfaRepository() : new PgMfaRepository());
   const emailService = options.emailService;
   const runHealthCheck = options.repository ? () => repository.healthCheck() : healthCheck;
   const server = Fastify({
@@ -74,6 +90,10 @@ export function buildServer(options: IdentityServiceOptions = {}): FastifyInstan
   server.addHook("onReady", async () => {
     await repository.init();
     await adminRepo.init();
+    await suspensionRepo.init();
+    await ipBlockRepo.init();
+    await flagRepo.init();
+    await mfaRepo.init();
   });
 
   server.register(rateLimit, {
@@ -278,6 +298,10 @@ export function buildServer(options: IdentityServiceOptions = {}): FastifyInstan
         return reply.status(400).send({ error: "invalid_payload", details: parsedBody.error.flatten() });
       }
 
+      if (!repository.consumeAccountUnlockToken || !repository.resetLoginLockout) {
+        return reply.status(501).send({ error: "unlock_not_supported" });
+      }
+
       const result = await repository.consumeAccountUnlockToken(parsedBody.data.token);
       if (!result) {
         return reply.status(400).send({ error: "invalid_or_expired_token" });
@@ -340,12 +364,29 @@ export function buildServer(options: IdentityServiceOptions = {}): FastifyInstan
       return reply.status(401).send({ error: "invalid_credentials" });
     }
 
-    if (user.accountStatus !== "active") {
+    const accountStatus = user.accountStatus ?? "active";
+    const failedLoginAttempts = user.failedLoginAttempts ?? 0;
+    const lockedUntil = user.lockedUntil ?? null;
+    const mfaEnabled = user.mfaEnabled ?? false;
+
+    // Check account status before creating session
+    if (accountStatus === "banned") {
+      return reply.status(403).send({ error: "account_banned" });
+    }
+    if (accountStatus === "suspended") {
+      const activeSuspension = await suspensionRepo.getActiveSuspension(user.id);
+      return reply.status(403).send({
+        error: "account_suspended",
+        expiresAt: activeSuspension?.expiresAt ?? null
+      });
+    }
+
+    if (accountStatus !== "active") {
       return reply.status(401).send({ error: "invalid_credentials" });
     }
 
-    const isTemporarilyLocked = Boolean(user.lockedUntil && new Date(user.lockedUntil).getTime() > Date.now());
-    const isPermanentlyLocked = user.failedLoginAttempts >= 15;
+    const isTemporarilyLocked = Boolean(lockedUntil && new Date(lockedUntil).getTime() > Date.now());
+    const isPermanentlyLocked = failedLoginAttempts >= 15;
     if (isTemporarilyLocked || isPermanentlyLocked) {
       return reply.status(401).send({ error: "invalid_credentials" });
     }
@@ -353,9 +394,11 @@ export function buildServer(options: IdentityServiceOptions = {}): FastifyInstan
     const isValid = verifyPassword(parsedBody.data.password, user.passwordHash, user.passwordSalt);
 
     if (!isValid) {
-      const lockoutState = await repository.recordFailedLoginAttempt(user.id);
+      const lockoutState = repository.recordFailedLoginAttempt
+        ? await repository.recordFailedLoginAttempt(user.id)
+        : null;
 
-      if (lockoutState.failedLoginAttempts === 15 && emailService) {
+      if (lockoutState?.failedLoginAttempts === 15 && emailService && repository.createAccountUnlockToken) {
         const { token: unlockToken } = await repository.createAccountUnlockToken(user.id);
         const resetBase = process.env.FRONTEND_URL ?? "http://localhost:3000";
         const unlockUrl = `${resetBase}/unlock-account?token=${encodeURIComponent(unlockToken)}`;
@@ -374,8 +417,15 @@ export function buildServer(options: IdentityServiceOptions = {}): FastifyInstan
       return reply.status(401).send({ error: "invalid_credentials" });
     }
 
-    await repository.resetLoginLockout(user.id);
+    if (repository.resetLoginLockout) {
+      await repository.resetLoginLockout(user.id);
+    }
 
+    // Check if user has MFA enabled
+    if (mfaEnabled) {
+      const mfaToken = createMfaChallenge(user.id);
+      return reply.send({ requiresMfa: true, mfaToken });
+    }
     const payload = await createAuthSessionPayload(repository, user);
 
       loginCounter.inc({ method: "password" });
@@ -608,7 +658,11 @@ export function buildServer(options: IdentityServiceOptions = {}): FastifyInstan
     }
   });
 
+  registerMfaRoutes(server, mfaRepo, repository);
   registerAdminRoutes(server, adminRepo);
+  registerSuspensionRoutes(server, suspensionRepo, adminRepo);
+  registerIpBlockRoutes(server, ipBlockRepo, adminRepo);
+  registerFeatureFlagRoutes(server, flagRepo, adminRepo);
 
   return server;
 }

@@ -11,6 +11,7 @@ export type IdentityUser = {
   accountStatus: string;
   failedLoginAttempts: number;
   lockedUntil: string | null;
+  mfaEnabled: boolean;
 };
 
 export type IdentitySession = {
@@ -74,10 +75,10 @@ export interface IdentityRepository {
   consumePasswordResetToken(token: string): Promise<{ userId: string } | null>;
   updatePassword(userId: string, password: string): Promise<void>;
 
-  recordFailedLoginAttempt(userId: string): Promise<{ failedLoginAttempts: number; lockedUntil: string | null }>;
-  resetLoginLockout(userId: string): Promise<void>;
-  createAccountUnlockToken(userId: string): Promise<{ token: string }>;
-  consumeAccountUnlockToken(token: string): Promise<{ userId: string } | null>;
+  recordFailedLoginAttempt?(userId: string): Promise<{ failedLoginAttempts: number; lockedUntil: string | null }>;
+  resetLoginLockout?(userId: string): Promise<void>;
+  createAccountUnlockToken?(userId: string): Promise<{ token: string }>;
+  consumeAccountUnlockToken?(token: string): Promise<{ userId: string } | null>;
 
   // Account deletion
   softDeleteUser(userId: string): Promise<void>;
@@ -258,7 +259,8 @@ export class PgIdentityRepository implements IdentityRepository {
         role: user.role,
         accountStatus: user.account_status,
         failedLoginAttempts: user.failed_login_attempts,
-        lockedUntil: user.locked_until
+        lockedUntil: user.locked_until,
+        mfaEnabled: false
       };
     } catch (error) {
       await client.query("ROLLBACK");
@@ -285,9 +287,10 @@ export class PgIdentityRepository implements IdentityRepository {
       account_status: string;
       failed_login_attempts: number;
       locked_until: string | null;
+      mfa_enabled: boolean;
     }>(
       `
-        SELECT id, email, display_name, password_hash, password_salt, role, account_status, failed_login_attempts, locked_until
+        SELECT id, email, display_name, password_hash, password_salt, role, account_status, failed_login_attempts, locked_until, mfa_enabled
         FROM app_users
         WHERE email = $1
       `,
@@ -308,7 +311,8 @@ export class PgIdentityRepository implements IdentityRepository {
       role: user.role,
       accountStatus: user.account_status,
       failedLoginAttempts: user.failed_login_attempts,
-      lockedUntil: user.locked_until
+      lockedUntil: user.locked_until,
+      mfaEnabled: user.mfa_enabled
     };
   }
 
@@ -345,6 +349,7 @@ export class PgIdentityRepository implements IdentityRepository {
       account_status: string;
       failed_login_attempts: number;
       locked_until: string | null;
+      mfa_enabled: boolean;
     }>(
       `
         SELECT
@@ -359,7 +364,8 @@ export class PgIdentityRepository implements IdentityRepository {
           u.role,
           u.account_status,
           u.failed_login_attempts,
-          u.locked_until
+          u.locked_until,
+          u.mfa_enabled
         FROM app_sessions s
         JOIN app_users u ON u.id = s.user_id
         WHERE s.token = $1
@@ -392,7 +398,8 @@ export class PgIdentityRepository implements IdentityRepository {
         role: row.role,
         accountStatus: row.account_status,
         failedLoginAttempts: row.failed_login_attempts,
-        lockedUntil: row.locked_until
+        lockedUntil: row.locked_until,
+        mfaEnabled: row.mfa_enabled
       }
     };
   }

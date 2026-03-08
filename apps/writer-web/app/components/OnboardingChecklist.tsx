@@ -8,27 +8,27 @@ import { readStoredSession } from "../lib/authSession";
 const ONBOARDING_DISMISSED_KEY = "onboarding-dismissed";
 
 export function OnboardingChecklist() {
-  const [mounted, setMounted] = useState(false);
-  const [dismissed, setDismissed] = useState(true);
-  const [emailVerified, setEmailVerified] = useState(false);
+  const [state, setState] = useState({ mounted: false, dismissed: true, emailVerified: false });
 
   useEffect(() => {
-    setMounted(true);
-    const isDismissed = window.localStorage.getItem(ONBOARDING_DISMISSED_KEY) === "true";
-    setDismissed(isDismissed);
+    const timeoutId = window.setTimeout(() => {
+      const isDismissed = window.localStorage.getItem(ONBOARDING_DISMISSED_KEY) === "true";
+      const session = readStoredSession() as { user?: { emailVerified?: boolean }; emailVerified?: boolean } | null;
+      const isVerified = (session?.user?.emailVerified ?? session?.emailVerified) === true;
 
-    const session = readStoredSession();
-    const isVerified = (session?.user as any)?.emailVerified === true || (session as any)?.emailVerified === true;
-    setEmailVerified(isVerified);
+      setState({ mounted: true, dismissed: isDismissed, emailVerified: isVerified });
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
   }, []);
 
-  if (!mounted || dismissed) {
+  if (!state.mounted || state.dismissed) {
     return null;
   }
 
   const handleDismiss = () => {
     window.localStorage.setItem(ONBOARDING_DISMISSED_KEY, "true");
-    setDismissed(true);
+    setState((prev) => ({ ...prev, dismissed: true }));
   };
 
   const checklistItems = [
@@ -36,7 +36,7 @@ export function OnboardingChecklist() {
       id: "verify-email",
       label: "Verify email",
       href: "/profile",
-      checked: emailVerified,
+      checked: state.emailVerified,
     },
     {
       id: "complete-profile",
@@ -65,7 +65,7 @@ export function OnboardingChecklist() {
   ];
 
   return (
-    <div className="panel card mb-6 relative animate-in" aria-label="Onboarding Checklist" data-testid="onboarding-checklist">
+    <div className="panel card mb-6 relative animate-in" data-testid="onboarding-checklist">
       <button
         type="button"
         onClick={handleDismiss}
@@ -89,7 +89,7 @@ export function OnboardingChecklist() {
             {item.checked ? (
               <span className="text-foreground-secondary line-through text-sm">{item.label}</span>
             ) : (
-              <Link href={item.href as any} className="text-primary hover:underline font-medium text-sm">
+              <Link href={item.href} className="text-primary hover:underline font-medium text-sm">
                 {item.label}
               </Link>
             )}

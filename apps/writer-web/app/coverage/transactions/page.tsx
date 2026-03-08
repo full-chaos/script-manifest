@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { getAuthHeaders } from "../../lib/authSession";
 import { EmptyState } from "../../components/emptyState";
 import { EmptyIllustration } from "../../components/illustrations";
@@ -39,11 +39,7 @@ export default function TransactionsPage() {
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
 
-  useEffect(() => {
-    void loadTransactions(0, true);
-  }, []);
-
-  async function loadTransactions(nextOffset: number, replace: boolean) {
+  const loadTransactions = useCallback(async (nextOffset: number, replace: boolean) => {
     if (replace) setLoading(true); else setLoadingMore(true);
     try {
       const qs = `?limit=${PAGE_SIZE}&offset=${nextOffset}`;
@@ -67,7 +63,11 @@ export default function TransactionsPage() {
     } finally {
       if (replace) setLoading(false); else setLoadingMore(false);
     }
-  }
+  }, [toast]);
+
+  useEffect(() => {
+    void loadTransactions(0, true);
+  }, [loadTransactions]);
 
   function formatDate(iso: string): string {
     return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });

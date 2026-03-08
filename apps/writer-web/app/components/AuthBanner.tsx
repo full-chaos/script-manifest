@@ -7,6 +7,7 @@ import type { AuthUser } from "@script-manifest/contracts";
 import { FolderOpen, Send, Trophy, TrendingUp, UserPen, type LucideIcon } from "lucide-react";
 import { SESSION_CHANGED_EVENT, readStoredSession } from "../lib/authSession";
 import { HeroIllustration, TrustIllustration } from "./illustrations";
+import { OnboardingChecklist } from "./OnboardingChecklist";
 
 type SurfaceIconKey = "profile" | "projects" | "competitions" | "leaderboard" | "submissions";
 
@@ -128,6 +129,8 @@ export function AuthBanner({ writerSurfaces, trustPrinciples }: AuthBannerProps)
         <h2 className="font-display text-4xl font-semibold text-foreground">{user.displayName}</h2>
         <p className="text-foreground-secondary">Jump directly into your active writer workflow.</p>
       </article>
+
+      <OnboardingChecklist />
 
       <section aria-label="Quick actions" className="grid gap-3 md:grid-cols-2 xl:grid-cols-4 animate-stagger">
         {writerSurfaces.map((surface) => (

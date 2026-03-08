@@ -35,9 +35,12 @@ export interface PaymentGateway {
 
 export class MemoryPaymentGateway implements PaymentGateway {
   public accounts = new Map<string, { chargesEnabled: boolean; payoutsEnabled: boolean }>();
-  public intents = new Map<string, { amountCents: number; captured: boolean }>();
+  public intents = new Map<string, { amountCents: number; captured: boolean; customerId?: string; paymentMethodId?: string; metadata?: Record<string, string>; setupFutureUsage?: string }>();
   public transfers: Array<{ transferId: string; amountCents: number; stripeAccountId: string }> = [];
   public refunds: Array<{ intentId: string; amountCents?: number }> = [];
+  // In-memory entities
+  public customers = new Map<string, { email: string; name: string; metadata?: Record<string, string> }>();
+  public paymentMethods = new Map<string, Array<{ id: string; brand: string; last4: string; expMonth: number; expYear: number }>>();
   private nextId = 1;
 
   private id(prefix: string) {
@@ -96,5 +99,59 @@ export class MemoryPaymentGateway implements PaymentGateway {
 
   constructWebhookEvent(payload: string, _signature: string): unknown {
     return JSON.parse(payload);
+  }
+
+  // New Stripe Customer & Payment Method related implementations (Memory)
+  async createCustomer(params: { email: string; name: string; metadata?: Record<string, string> }): Promise<{ customerId: string }> {
+    const customerId = this.id("cus");
+    this.customers.set(customerId, { email: params.email, name: params.name, metadata: params.metadata });
+    this.paymentMethods.set(customerId, []);
+    return { customerId };
+  }
+
+  async listPaymentMethods(customerId: string): Promise<Array<{ id: string; brand: string; last4: string; expMonth: number; expYear: number }>> {
+    const methods = this.paymentMethods.get(customerId) ?? [];
+    return methods.map((m) => ({ id: m.id, brand: m.brand, last4: m.last4, expMonth: m.expMonth, expYear: m.expYear }));
+  }
+
+  async detachPaymentMethod(paymentMethodId: string): Promise<void> {
+    for (const [customerId, methods] of this.paymentMethods.entries()) {
+      const idx = methods.findIndex((m) => m.id === paymentMethodId);
+      if (idx >= 0) {
+        methods.splice(idx, 1);
+        this.paymentMethods.set(customerId, methods);
+        return;
+      }
+    }
+  }
+
+  async createPaymentIntentWithCustomer(params: {
+    amountCents: number;
+    currency: string;
+    customerId: string;
+    paymentMethodId?: string;
+    setupFutureUsage?: 'on_session' | 'off_session';
+    metadata?: Record<string, string>;
+    idempotencyKey?: string;
+  }): Promise<{ intentId: string; clientSecret: string }> {
+    const intentId = this.id("pi");
+    this.intents.set(intentId, {
+      amountCents: params.amountCents,
+      captured: false,
+      customerId: params.customerId,
+      paymentMethodId: params.paymentMethodId,
+      metadata: params.metadata,
+      setupFutureUsage: params.setupFutureUsage,
+    } as any);
+    return { intentId, clientSecret: `${intentId}_secret` };
+  }
+
+  async getReceiptUrl(paymentIntentId: string): Promise<string | null> {
+    return `https://receipt.stripe.com/test_${paymentIntentId}`;
+  }
+
+  // Getter for tests to inspect in-memory customers
+  getCustomers(): Array<{ id: string; email: string; name: string; metadata?: Record<string, string> }> {
+    return Array.from(this.customers.entries()).map(([id, data]) => ({ id, email: data.email, name: data.name, metadata: data.metadata }));
   }
 }

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import type { Route } from "next";
 import { CheckCircle2, Circle, X } from "lucide-react";
 import { readStoredSession } from "../lib/authSession";
 
@@ -32,31 +33,31 @@ export function OnboardingChecklist() {
     {
       id: "verify-email",
       label: "Verify email",
-      href: "/profile",
+      href: "/profile" as Route,
       checked: state.emailVerified,
     },
     {
       id: "complete-profile",
       label: "Complete your profile",
-      href: "/profile",
+      href: "/profile" as Route,
       checked: false,
     },
     {
       id: "upload-script",
       label: "Upload your first script",
-      href: "/projects",
+      href: "/projects" as Route,
       checked: false,
     },
     {
       id: "browse-competitions",
       label: "Browse competitions",
-      href: "/competitions",
+      href: "/competitions" as Route,
       checked: false,
     },
     {
       id: "explore-coverage",
       label: "Explore coverage services",
-      href: "/coverage",
+      href: "/coverage" as Route,
       checked: false,
     },
   ];

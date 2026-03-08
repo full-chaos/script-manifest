@@ -17,6 +17,11 @@ export interface PaymentGateway {
   }): Promise<{ transferId: string }>;
   refund(intentId: string, amountCents?: number, idempotencyKey?: string): Promise<{ refundId: string }>;
   constructWebhookEvent(payload: string, signature: string): unknown;
+  createCustomer(params: { email: string; name: string; metadata?: Record<string, string> }): Promise<{ customerId: string }>;
+  listPaymentMethods(customerId: string): Promise<Array<{ id: string; brand: string; last4: string; expMonth: number; expYear: number }>>;
+  detachPaymentMethod(paymentMethodId: string): Promise<void>;
+  createPaymentIntentWithCustomer(params: { amountCents: number; currency: string; customerId: string; paymentMethodId?: string; setupFutureUsage?: 'on_session' | 'off_session'; metadata?: Record<string, string>; idempotencyKey?: string }): Promise<{ intentId: string; clientSecret: string }>;
+  getReceiptUrl(paymentIntentId: string): Promise<string | null>;
 }
 
 export class MemoryPaymentGateway implements PaymentGateway {

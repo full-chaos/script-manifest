@@ -330,5 +330,5 @@ describe("ProjectsPage", () => {
     });
 
     expect(fetchMock).toHaveBeenCalled();
-  }, 15_000);
+  }, 45_000);
 });

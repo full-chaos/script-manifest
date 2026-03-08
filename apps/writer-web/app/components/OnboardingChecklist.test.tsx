@@ -37,7 +37,7 @@ describe("OnboardingChecklist", () => {
     expect(screen.getByText("Getting Started")).toBeInTheDocument();
     
     const dismissButtons = screen.getAllByRole("button", { name: /dismiss/i });
-    fireEvent.click(dismissButtons[0]);
+    fireEvent.click(dismissButtons[0] as HTMLElement);
     
     expect(window.localStorage.getItem("onboarding-dismissed")).toBe("true");
     expect(screen.queryByText("Getting Started")).not.toBeInTheDocument();

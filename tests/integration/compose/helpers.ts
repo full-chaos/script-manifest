@@ -68,7 +68,7 @@ export async function registerUser(label: string): Promise<SessionInfo> {
   const slug = `${label.toLowerCase()}-${randomUUID().slice(0, 8)}`;
   const payload = {
     email: `${slug}@example.com`,
-    password: "password123",
+    password: "StrongPass1!",
     displayName: `Integration ${label}`,
     acceptTerms: true
   };

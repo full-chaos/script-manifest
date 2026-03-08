@@ -8,7 +8,9 @@ export type IdentityUser = {
   passwordHash: string;
   passwordSalt: string;
   role: string;
-  accountStatus?: string;
+  accountStatus: string;
+  failedLoginAttempts: number;
+  lockedUntil: string | null;
   mfaEnabled: boolean;
 };
 
@@ -72,6 +74,11 @@ export interface IdentityRepository {
   createPasswordResetToken(userId: string): Promise<{ token: string }>;
   consumePasswordResetToken(token: string): Promise<{ userId: string } | null>;
   updatePassword(userId: string, password: string): Promise<void>;
+
+  recordFailedLoginAttempt?(userId: string): Promise<{ failedLoginAttempts: number; lockedUntil: string | null }>;
+  resetLoginLockout?(userId: string): Promise<void>;
+  createAccountUnlockToken?(userId: string): Promise<{ token: string }>;
+  consumeAccountUnlockToken?(token: string): Promise<{ userId: string } | null>;
 
   // Account deletion
   softDeleteUser(userId: string): Promise<void>;
@@ -151,6 +158,20 @@ export class PgIdentityRepository implements IdentityRepository {
       );
     `);
     await db.query(`
+      CREATE TABLE IF NOT EXISTS account_unlock_tokens (
+        id TEXT PRIMARY KEY,
+        token_hash TEXT NOT NULL,
+        user_id TEXT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+        expires_at TIMESTAMPTZ NOT NULL,
+        used_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+    await db.query(`
+      CREATE INDEX IF NOT EXISTS idx_account_unlock_tokens_hash
+      ON account_unlock_tokens(token_hash);
+    `);
+    await db.query(`
       CREATE TABLE IF NOT EXISTS oauth_state (
         state TEXT PRIMARY KEY,
         code_verifier TEXT NOT NULL,
@@ -200,11 +221,14 @@ export class PgIdentityRepository implements IdentityRepository {
         password_hash: string;
         password_salt: string;
         role: string;
+        account_status: string;
+        failed_login_attempts: number;
+        locked_until: string | null;
       }>(
         `
           INSERT INTO app_users (id, email, display_name, password_hash, password_salt, terms_accepted_at)
           VALUES ($1, $2, $3, $4, $5, $6)
-          RETURNING id, email, display_name, password_hash, password_salt, role
+          RETURNING id, email, display_name, password_hash, password_salt, role, account_status, failed_login_attempts, locked_until
         `,
         [id, input.email.toLowerCase(), input.displayName, passwordHash, passwordSalt, input.acceptTerms ? new Date().toISOString() : null]
       );
@@ -233,6 +257,9 @@ export class PgIdentityRepository implements IdentityRepository {
         passwordHash: user.password_hash,
         passwordSalt: user.password_salt,
         role: user.role,
+        accountStatus: user.account_status,
+        failedLoginAttempts: user.failed_login_attempts,
+        lockedUntil: user.locked_until,
         mfaEnabled: false
       };
     } catch (error) {
@@ -258,10 +285,12 @@ export class PgIdentityRepository implements IdentityRepository {
       password_salt: string;
       role: string;
       account_status: string;
+      failed_login_attempts: number;
+      locked_until: string | null;
       mfa_enabled: boolean;
     }>(
       `
-        SELECT id, email, display_name, password_hash, password_salt, role, account_status, mfa_enabled
+        SELECT id, email, display_name, password_hash, password_salt, role, account_status, failed_login_attempts, locked_until, mfa_enabled
         FROM app_users
         WHERE email = $1
       `,
@@ -281,6 +310,8 @@ export class PgIdentityRepository implements IdentityRepository {
       passwordSalt: user.password_salt,
       role: user.role,
       accountStatus: user.account_status,
+      failedLoginAttempts: user.failed_login_attempts,
+      lockedUntil: user.locked_until,
       mfaEnabled: user.mfa_enabled
     };
   }
@@ -315,6 +346,9 @@ export class PgIdentityRepository implements IdentityRepository {
       password_hash: string;
       password_salt: string;
       role: string;
+      account_status: string;
+      failed_login_attempts: number;
+      locked_until: string | null;
       mfa_enabled: boolean;
     }>(
       `
@@ -328,6 +362,9 @@ export class PgIdentityRepository implements IdentityRepository {
           u.password_hash,
           u.password_salt,
           u.role,
+          u.account_status,
+          u.failed_login_attempts,
+          u.locked_until,
           u.mfa_enabled
         FROM app_sessions s
         JOIN app_users u ON u.id = s.user_id
@@ -359,6 +396,9 @@ export class PgIdentityRepository implements IdentityRepository {
         passwordHash: row.password_hash,
         passwordSalt: row.password_salt,
         role: row.role,
+        accountStatus: row.account_status,
+        failedLoginAttempts: row.failed_login_attempts,
+        lockedUntil: row.locked_until,
         mfaEnabled: row.mfa_enabled
       }
     };
@@ -616,6 +656,73 @@ export class PgIdentityRepository implements IdentityRepository {
       `UPDATE app_users SET password_hash = $1, password_salt = $2 WHERE id = $3`,
       [newHash, passwordSalt, userId]
     );
+  }
+
+  async recordFailedLoginAttempt(userId: string): Promise<{ failedLoginAttempts: number; lockedUntil: string | null }> {
+    const db = getPool();
+    const result = await db.query<{ failed_login_attempts: number; locked_until: string | null }>(
+      `
+        UPDATE app_users
+        SET
+          failed_login_attempts = failed_login_attempts + 1,
+          locked_until = CASE
+            WHEN failed_login_attempts + 1 >= 15 THEN NULL
+            WHEN failed_login_attempts + 1 >= 10 THEN NOW() + INTERVAL '1 hour'
+            WHEN failed_login_attempts + 1 >= 5 THEN NOW() + INTERVAL '15 minutes'
+            ELSE locked_until
+          END
+        WHERE id = $1
+        RETURNING failed_login_attempts, locked_until
+      `,
+      [userId]
+    );
+
+    const row = result.rows[0];
+    if (!row) {
+      return { failedLoginAttempts: 0, lockedUntil: null };
+    }
+
+    return {
+      failedLoginAttempts: row.failed_login_attempts,
+      lockedUntil: row.locked_until,
+    };
+  }
+
+  async resetLoginLockout(userId: string): Promise<void> {
+    const db = getPool();
+    await db.query(
+      `UPDATE app_users SET failed_login_attempts = 0, locked_until = NULL WHERE id = $1`,
+      [userId]
+    );
+  }
+
+  async createAccountUnlockToken(userId: string): Promise<{ token: string }> {
+    const db = getPool();
+    const id = `aut_${randomUUID()}`;
+    const token = randomBytes(32).toString("base64url");
+    const tokenHash = createHash("sha256").update(token).digest("hex");
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
+    await db.query(`DELETE FROM account_unlock_tokens WHERE user_id = $1`, [userId]);
+    await db.query(
+      `INSERT INTO account_unlock_tokens (id, token_hash, user_id, expires_at) VALUES ($1, $2, $3, $4)`,
+      [id, tokenHash, userId, expiresAt]
+    );
+
+    return { token };
+  }
+
+  async consumeAccountUnlockToken(token: string): Promise<{ userId: string } | null> {
+    const db = getPool();
+    const tokenHash = createHash("sha256").update(token).digest("hex");
+
+    const result = await db.query<{ user_id: string }>(
+      `UPDATE account_unlock_tokens SET used_at = NOW() WHERE token_hash = $1 AND used_at IS NULL AND expires_at > NOW() RETURNING user_id`,
+      [tokenHash]
+    );
+
+    const row = result.rows[0];
+    return row ? { userId: row.user_id } : null;
   }
 
   async softDeleteUser(userId: string): Promise<void> {

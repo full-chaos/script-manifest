@@ -337,6 +337,15 @@ export class PgCoverageMarketplaceRepository implements CoverageMarketplaceRepos
     return result.rows[0] ? mapOrder(result.rows[0]) : null;
   }
 
+  async findOrderByPaymentIntentId(intentId: string): Promise<CoverageOrder | null> {
+    const db = getPool();
+    const result = await db.query<OrderRow>(
+      `SELECT * FROM coverage_orders WHERE stripe_payment_intent_id = $1 LIMIT 1`,
+      [intentId]
+    );
+    return result.rows[0] ? mapOrder(result.rows[0]) : null;
+  }
+
   async listOrders(filters: CoverageOrderFilters): Promise<CoverageOrder[]> {
     const db = getPool();
     const conditions: string[] = [];
@@ -377,6 +386,8 @@ export class PgCoverageMarketplaceRepository implements CoverageMarketplaceRepos
     stripeTransferId: string;
     slaDeadline: string;
     deliveredAt: string;
+    receiptUrl: string;
+    paymentFailureReason: string | null;
   }>): Promise<CoverageOrder | null> {
     const db = getPool();
     const updates: string[] = [`status = $2`];
@@ -398,6 +409,14 @@ export class PgCoverageMarketplaceRepository implements CoverageMarketplaceRepos
       values.push(extra.deliveredAt);
       updates.push(`delivered_at = $${values.length}`);
     }
+    if (extra?.receiptUrl !== undefined) {
+      values.push(extra.receiptUrl);
+      updates.push(`receipt_url = $${values.length}`);
+    }
+    if (extra?.paymentFailureReason !== undefined) {
+      values.push(extra.paymentFailureReason);
+      updates.push(`payment_failure_reason = $${values.length}`);
+    }
 
     updates.push("updated_at = NOW()");
     const result = await db.query<OrderRow>(
@@ -407,6 +426,56 @@ export class PgCoverageMarketplaceRepository implements CoverageMarketplaceRepos
       values
     );
     return result.rows[0] ? mapOrder(result.rows[0]) : null;
+  }
+
+  async createRetryQueueEntry(orderId: string, nextRetryAt: string): Promise<void> {
+    const db = getPool();
+    await db.query(
+      `INSERT INTO payment_retry_queue (id, order_id, next_retry_at, status)
+       VALUES ($1, $2, $3, 'pending')`,
+      [`prq_${randomUUID()}`, orderId, nextRetryAt]
+    );
+  }
+
+  async getPendingRetries(): Promise<Array<{
+    id: string;
+    orderId: string;
+    attemptNumber: number;
+    nextRetryAt: string;
+    status: "pending" | "processing" | "succeeded" | "abandoned";
+  }>> {
+    const db = getPool();
+    const result = await db.query<PaymentRetryRow>(
+      `SELECT * FROM payment_retry_queue
+       WHERE status = 'pending' AND next_retry_at <= NOW()
+       ORDER BY next_retry_at ASC
+       LIMIT 100`
+    );
+    return result.rows.map(mapPaymentRetry);
+  }
+
+  async updateRetryStatus(id: string, status: "pending" | "processing" | "succeeded" | "abandoned", nextRetryAt?: string): Promise<void> {
+    const db = getPool();
+    if (status === "pending" && nextRetryAt) {
+      await db.query(
+        `UPDATE payment_retry_queue
+         SET status = 'pending',
+             next_retry_at = $3,
+             attempt_number = attempt_number + 1,
+             updated_at = NOW()
+         WHERE id = $1`,
+        [id, status, nextRetryAt]
+      );
+      return;
+    }
+    await db.query(
+      `UPDATE payment_retry_queue
+       SET status = $2,
+           next_retry_at = COALESCE($3, next_retry_at),
+           updated_at = NOW()
+       WHERE id = $1`,
+      [id, status, nextRetryAt ?? null]
+    );
   }
 
   // ── Deliveries ───────────────────────────────────────────────────────
@@ -723,8 +792,18 @@ type OrderRow = {
   stripe_transfer_id: string | null;
   sla_deadline: Date | null;
   delivered_at: Date | null;
+  receipt_url: string | null;
+  payment_failure_reason: string | null;
   created_at: Date;
   updated_at: Date;
+};
+
+type PaymentRetryRow = {
+  id: string;
+  order_id: string;
+  attempt_number: number;
+  next_retry_at: Date;
+  status: "pending" | "processing" | "succeeded" | "abandoned";
 };
 
 function mapOrder(row: OrderRow): CoverageOrder {
@@ -743,8 +822,26 @@ function mapOrder(row: OrderRow): CoverageOrder {
     stripeTransferId: row.stripe_transfer_id,
     slaDeadline: row.sla_deadline?.toISOString() ?? null,
     deliveredAt: row.delivered_at?.toISOString() ?? null,
+    receiptUrl: row.receipt_url ?? null,
+    paymentFailureReason: row.payment_failure_reason ?? null,
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString()
+  };
+}
+
+function mapPaymentRetry(row: PaymentRetryRow): {
+  id: string;
+  orderId: string;
+  attemptNumber: number;
+  nextRetryAt: string;
+  status: "pending" | "processing" | "succeeded" | "abandoned";
+} {
+  return {
+    id: row.id,
+    orderId: row.order_id,
+    attemptNumber: row.attempt_number,
+    nextRetryAt: row.next_retry_at.toISOString(),
+    status: row.status,
   };
 }
 

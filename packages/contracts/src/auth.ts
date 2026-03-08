@@ -1,10 +1,30 @@
 import { z } from "zod";
 
 import { OptionalUrlStringSchema } from "./common.js";
+import { COMMON_PASSWORDS } from "./common-passwords.js";
+
+export const StrongPasswordSchema = z
+  .string()
+  .min(8, "Password must be at least 8 characters")
+  .max(200)
+  .superRefine((val, ctx) => {
+    if (!/[A-Z]/.test(val)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Password must contain at least one uppercase letter" });
+    }
+    if (!/[0-9]/.test(val)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Password must contain at least one number" });
+    }
+    if (!/[^A-Za-z0-9]/.test(val)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Password must contain at least one special character" });
+    }
+    if (COMMON_PASSWORDS.has(val.toLowerCase())) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "This is a commonly used password. Please choose a different one." });
+    }
+  });
 
 export const AuthRegisterRequestSchema = z.object({
   email: z.string().email(),
-  password: z.string().min(8).max(200),
+  password: StrongPasswordSchema,
   displayName: z.string().min(1).max(120),
   acceptTerms: z.literal(true, {
     errorMap: () => ({ message: "You must accept the terms of service" })
@@ -97,10 +117,16 @@ export type ForgotPasswordRequest = z.infer<typeof ForgotPasswordRequestSchema>;
 
 export const ResetPasswordRequestSchema = z.object({
   token: z.string().min(1),
-  password: z.string().min(8).max(200)
+  password: StrongPasswordSchema
 });
 
 export type ResetPasswordRequest = z.infer<typeof ResetPasswordRequestSchema>;
+
+export const UnlockAccountRequestSchema = z.object({
+  token: z.string().min(1)
+});
+
+export type UnlockAccountRequest = z.infer<typeof UnlockAccountRequestSchema>;
 
 // Account deletion
 export const DeleteAccountRequestSchema = z.object({

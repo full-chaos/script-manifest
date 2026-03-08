@@ -102,8 +102,11 @@ export class StripePaymentGateway implements PaymentGateway {
     return this.stripe.webhooks.constructEvent(payload, signature, this.webhookSecret);
   }
 
-  async createCustomer(params: { email: string; name: string; metadata?: Record<string, string> }): Promise<{ customerId: string }> {
-    const customer = await this.stripe.customers.create({ email: params.email, name: params.name, metadata: params.metadata ?? {} });
+  async createCustomer(params: { email: string; name: string; metadata?: Record<string, string>; idempotencyKey?: string }): Promise<{ customerId: string }> {
+    const customer = await this.stripe.customers.create(
+      { email: params.email, name: params.name, metadata: params.metadata ?? {} },
+      params.idempotencyKey ? { idempotencyKey: params.idempotencyKey } : undefined
+    );
     return { customerId: customer.id };
   }
 

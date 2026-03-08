@@ -498,6 +498,47 @@ test("order action routes (claim, complete, cancel) require auth and proxy to ac
   assert.equal(headers[0]?.["x-auth-user-id"], "provider_01");
 });
 
+test("POST /api/v1/coverage/orders/:orderId/retry-payment requires auth and proxies correctly", async (t) => {
+  const urls: string[] = [];
+  const headers: Record<string, string>[] = [];
+  const server = await buildServer({
+    logger: false,
+    requestFn: (async (url, options) => {
+      const urlStr = String(url);
+      if (urlStr.includes("/internal/auth/me")) {
+        return jsonResponse({
+          user: { id: "writer_01", email: "writer@example.com", displayName: "Writer One" },
+          expiresAt: "2026-12-31T00:00:00.000Z"
+        });
+      }
+      urls.push(urlStr);
+      headers.push((options?.headers as Record<string, string> | undefined) ?? {});
+      return jsonResponse({ clientSecret: "pi_retry_secret" });
+    }) as typeof request,
+    identityServiceBase: "http://identity-svc",
+    coverageMarketplaceBase: "http://coverage-svc"
+  });
+  t.after(async () => {
+    await server.close();
+  });
+
+  const forbidden = await server.inject({
+    method: "POST",
+    url: "/api/v1/coverage/orders/order_01/retry-payment"
+  });
+  assert.equal(forbidden.statusCode, 401);
+
+  const ok = await server.inject({
+    method: "POST",
+    url: "/api/v1/coverage/orders/order_01/retry-payment",
+    headers: { authorization: "Bearer sess_1" }
+  });
+
+  assert.equal(ok.statusCode, 200);
+  assert.equal(urls[0], "http://coverage-svc/internal/coverage/orders/order_01/retry-payment");
+  assert.equal(headers[0]?.["x-auth-user-id"], "writer_01");
+});
+
 test("POST /api/v1/coverage/orders/:orderId/deliver requires auth and sends body", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];

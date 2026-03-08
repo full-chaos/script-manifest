@@ -27,6 +27,8 @@ import { BaseMemoryRepository } from "@script-manifest/service-utils";
 import { buildServer } from "./index.js";
 import type { CoverageMarketplaceRepository } from "./repository.js";
 import { MemoryPaymentGateway } from "./paymentGateway.js";
+import { MemoryUserPaymentProfileRepository } from "./userPaymentProfileRepository.js";
+import { createScheduler } from "./scheduler.js";
 
 class MemoryCoverageMarketplaceRepository extends BaseMemoryRepository implements CoverageMarketplaceRepository {
   private providers = new Map<string, CoverageProvider>();
@@ -37,6 +39,13 @@ class MemoryCoverageMarketplaceRepository extends BaseMemoryRepository implement
   private disputes = new Map<string, CoverageDispute>();
   private providerReviews = new Map<string, CoverageProviderReview>();
   private disputeEvents = new Map<string, CoverageDisputeEvent>();
+  private paymentRetries = new Map<string, {
+    id: string;
+    orderId: string;
+    attemptNumber: number;
+    nextRetryAt: string;
+    status: "pending" | "processing" | "succeeded" | "abandoned";
+  }>();
   // ── Providers ────────────────────────────────────────────────────────
 
   async createProvider(userId: string, input: CoverageProviderCreateRequest): Promise<CoverageProvider> {
@@ -215,6 +224,8 @@ class MemoryCoverageMarketplaceRepository extends BaseMemoryRepository implement
       stripeTransferId: null,
       slaDeadline: null,
       deliveredAt: null,
+      receiptUrl: null,
+      paymentFailureReason: null,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
@@ -224,6 +235,10 @@ class MemoryCoverageMarketplaceRepository extends BaseMemoryRepository implement
 
   async getOrder(orderId: string): Promise<CoverageOrder | null> {
     return this.orders.get(orderId) ?? null;
+  }
+
+  async findOrderByPaymentIntentId(intentId: string): Promise<CoverageOrder | null> {
+    return Array.from(this.orders.values()).find((o) => o.stripePaymentIntentId === intentId) ?? null;
   }
 
   async listOrders(filters: CoverageOrderFilters): Promise<CoverageOrder[]> {
@@ -245,16 +260,55 @@ class MemoryCoverageMarketplaceRepository extends BaseMemoryRepository implement
     stripeTransferId: string;
     slaDeadline: string;
     deliveredAt: string;
+    receiptUrl: string;
+    paymentFailureReason: string | null;
   }>): Promise<CoverageOrder | null> {
     const order = this.orders.get(orderId);
     if (!order) return null;
     order.status = status as CoverageOrder["status"];
-    if (extra?.stripePaymentIntentId) order.stripePaymentIntentId = extra.stripePaymentIntentId;
-    if (extra?.stripeTransferId) order.stripeTransferId = extra.stripeTransferId;
-    if (extra?.slaDeadline) order.slaDeadline = extra.slaDeadline;
-    if (extra?.deliveredAt) order.deliveredAt = extra.deliveredAt;
+    if (extra?.stripePaymentIntentId !== undefined) order.stripePaymentIntentId = extra.stripePaymentIntentId;
+    if (extra?.stripeTransferId !== undefined) order.stripeTransferId = extra.stripeTransferId;
+    if (extra?.slaDeadline !== undefined) order.slaDeadline = extra.slaDeadline;
+    if (extra?.deliveredAt !== undefined) order.deliveredAt = extra.deliveredAt;
+    if (extra?.receiptUrl !== undefined) order.receiptUrl = extra.receiptUrl;
+    if (extra?.paymentFailureReason !== undefined) order.paymentFailureReason = extra.paymentFailureReason;
     order.updatedAt = new Date().toISOString();
     return order;
+  }
+
+  async createRetryQueueEntry(orderId: string, nextRetryAt: string): Promise<void> {
+    const id = this.createId("prq");
+    this.paymentRetries.set(id, {
+      id,
+      orderId,
+      attemptNumber: 0,
+      nextRetryAt,
+      status: "pending"
+    });
+  }
+
+  async getPendingRetries(): Promise<Array<{ id: string; orderId: string; attemptNumber: number; nextRetryAt: string; status: "pending" | "processing" | "succeeded" | "abandoned" }>> {
+    const now = Date.now();
+    return Array.from(this.paymentRetries.values())
+      .filter((retry) => retry.status === "pending" && new Date(retry.nextRetryAt).getTime() <= now)
+      .sort((a, b) => new Date(a.nextRetryAt).getTime() - new Date(b.nextRetryAt).getTime());
+  }
+
+  async updateRetryStatus(id: string, status: "pending" | "processing" | "succeeded" | "abandoned", nextRetryAt?: string): Promise<void> {
+    const retry = this.paymentRetries.get(id);
+    if (!retry) {
+      return;
+    }
+    if (status === "pending" && nextRetryAt) {
+      retry.status = "pending";
+      retry.attemptNumber += 1;
+      retry.nextRetryAt = nextRetryAt;
+      return;
+    }
+    retry.status = status;
+    if (nextRetryAt) {
+      retry.nextRetryAt = nextRetryAt;
+    }
   }
 
   // ── Deliveries ───────────────────────────────────────────────────────
@@ -440,18 +494,24 @@ class MemoryCoverageMarketplaceRepository extends BaseMemoryRepository implement
   getWebhookLogs() {
     return Array.from(this.webhookLogs.values());
   }
+
+  getRetryEntries() {
+    return Array.from(this.paymentRetries.values());
+  }
 }
 
 function createServer() {
   const repo = new MemoryCoverageMarketplaceRepository();
   const gateway = new MemoryPaymentGateway();
+  const userPaymentProfileRepo = new MemoryUserPaymentProfileRepository();
   const server = buildServer({
     logger: false,
     repository: repo,
+    userPaymentProfileRepository: userPaymentProfileRepo,
     paymentGateway: gateway,
     commissionRate: 0.15
   });
-  return { server, repo, gateway };
+  return { server, repo, gateway, userPaymentProfileRepo };
 }
 
 // ── Health Tests ─────────────────────────────────────────────────────
@@ -808,7 +868,7 @@ test("list services returns active services", async (t) => {
 // ── Order Flow Tests ─────────────────────────────────────────────────
 
 test("place order returns 201 with clientSecret", async (t) => {
-  const { server, gateway } = createServer();
+  const { server, gateway, userPaymentProfileRepo } = createServer();
   t.after(() => server.close());
 
   // Setup: create provider and service
@@ -851,7 +911,12 @@ test("place order returns 201 with clientSecret", async (t) => {
   const res = await server.inject({
     method: "POST",
     url: "/internal/orders",
-    headers: { "x-auth-user-id": "writer_01", "content-type": "application/json" },
+    headers: {
+      "x-auth-user-id": "writer_01",
+      "x-auth-user-email": "writer@example.com",
+      "x-auth-user-display-name": "Writer One",
+      "content-type": "application/json"
+    },
     payload: {
       serviceId: service.id,
       scriptId: "script_01",
@@ -865,6 +930,158 @@ test("place order returns 201 with clientSecret", async (t) => {
   assert.ok(body.clientSecret);
   assert.equal(body.order.status, "placed");
   assert.equal(body.order.priceCents, 15000);
+  const profile = await userPaymentProfileRepo.findByUserId("writer_01");
+  assert.ok(profile);
+  assert.equal(gateway.getCustomers().length, 1);
+  const intent = gateway.intents.get(body.order.stripePaymentIntentId);
+  assert.equal(intent?.customerId, profile?.stripeCustomerId);
+  assert.equal(intent?.setupFutureUsage, "on_session");
+});
+
+test("second order reuses existing Stripe customer", async (t) => {
+  const { server, gateway, userPaymentProfileRepo } = createServer();
+  t.after(() => server.close());
+
+  const providerRes = await server.inject({
+    method: "POST",
+    url: "/internal/providers",
+    headers: { "x-auth-user-id": "provider_01", "content-type": "application/json" },
+    payload: {
+      displayName: "John Doe",
+      bio: "Professional script consultant",
+      specialties: ["drama"]
+    }
+  });
+  const provider = providerRes.json().provider;
+
+  gateway.completeOnboarding(provider.stripeAccountId!);
+  await server.inject({
+    method: "GET",
+    url: `/internal/providers/${provider.id}/stripe-onboarding`,
+    headers: { "x-auth-user-id": "provider_01" }
+  });
+
+  const serviceRes = await server.inject({
+    method: "POST",
+    url: `/internal/providers/${provider.id}/services`,
+    headers: { "x-auth-user-id": "provider_01", "content-type": "application/json" },
+    payload: {
+      title: "Professional Coverage",
+      description: "In-depth script analysis",
+      tier: "competition_ready",
+      priceCents: 15000,
+      currency: "usd",
+      turnaroundDays: 7,
+      maxPages: 120
+    }
+  });
+  const service = serviceRes.json().service;
+
+  const firstOrderRes = await server.inject({
+    method: "POST",
+    url: "/internal/orders",
+    headers: {
+      "x-auth-user-id": "writer_01",
+      "x-auth-user-email": "writer@example.com",
+      "x-auth-user-display-name": "Writer One",
+      "content-type": "application/json"
+    },
+    payload: {
+      serviceId: service.id,
+      scriptId: "script_01",
+      projectId: "project_01"
+    }
+  });
+  assert.equal(firstOrderRes.statusCode, 201);
+
+  const secondOrderRes = await server.inject({
+    method: "POST",
+    url: "/internal/orders",
+    headers: {
+      "x-auth-user-id": "writer_01",
+      "x-auth-user-email": "writer@example.com",
+      "x-auth-user-display-name": "Writer One",
+      "content-type": "application/json"
+    },
+    payload: {
+      serviceId: service.id,
+      scriptId: "script_02",
+      projectId: "project_01"
+    }
+  });
+  assert.equal(secondOrderRes.statusCode, 201);
+
+  const profile = await userPaymentProfileRepo.findByUserId("writer_01");
+  assert.ok(profile);
+  assert.equal(gateway.getCustomers().length, 1);
+
+  const firstIntent = gateway.intents.get(firstOrderRes.json().order.stripePaymentIntentId);
+  const secondIntent = gateway.intents.get(secondOrderRes.json().order.stripePaymentIntentId);
+  assert.equal(firstIntent?.customerId, profile?.stripeCustomerId);
+  assert.equal(secondIntent?.customerId, profile?.stripeCustomerId);
+});
+
+test("retry-payment endpoint creates a new payment intent for payment_failed order", async (t) => {
+  const { server, gateway, repo } = createServer();
+  t.after(() => server.close());
+
+  const providerRes = await server.inject({
+    method: "POST",
+    url: "/internal/providers",
+    headers: { "x-auth-user-id": "provider_01", "content-type": "application/json" },
+    payload: { displayName: "John Doe", bio: "Bio", specialties: ["drama"] }
+  });
+  const provider = providerRes.json().provider;
+  gateway.completeOnboarding(provider.stripeAccountId!);
+  await server.inject({
+    method: "GET",
+    url: `/internal/providers/${provider.id}/stripe-onboarding`,
+    headers: { "x-auth-user-id": "provider_01" }
+  });
+
+  const serviceRes = await server.inject({
+    method: "POST",
+    url: `/internal/providers/${provider.id}/services`,
+    headers: { "x-auth-user-id": "provider_01", "content-type": "application/json" },
+    payload: {
+      title: "Professional Coverage",
+      description: "In-depth script analysis",
+      tier: "competition_ready",
+      priceCents: 15000,
+      currency: "usd",
+      turnaroundDays: 7,
+      maxPages: 120
+    }
+  });
+  const service = serviceRes.json().service;
+
+  const orderRes = await server.inject({
+    method: "POST",
+    url: "/internal/orders",
+    headers: {
+      "x-auth-user-id": "writer_01",
+      "x-auth-user-email": "writer@example.com",
+      "x-auth-user-display-name": "Writer One",
+      "content-type": "application/json"
+    },
+    payload: { serviceId: service.id, scriptId: "script_01", projectId: "project_01" }
+  });
+
+  const order = orderRes.json().order;
+  await repo.updateOrderStatus(order.id, "payment_failed");
+  const originalIntentId = order.stripePaymentIntentId;
+
+  const retryRes = await server.inject({
+    method: "POST",
+    url: `/internal/coverage/orders/${order.id}/retry-payment`,
+    headers: { "x-auth-user-id": "writer_01" }
+  });
+
+  assert.equal(retryRes.statusCode, 200);
+  assert.ok(retryRes.json().clientSecret);
+  const updatedOrder = await repo.getOrder(order.id);
+  assert.equal(updatedOrder?.status, "placed");
+  assert.notEqual(updatedOrder?.stripePaymentIntentId, originalIntentId);
 });
 
 test("claim order after payment_held returns 200", async (t) => {
@@ -2070,10 +2287,17 @@ test("account.updated webhook with missing fields falls back to getAccountStatus
 // ── Idempotency Key Tests ───────────────────────────────────────────
 
 class SpyPaymentGateway extends MemoryPaymentGateway {
+  public createCustomerKeys: Array<string | undefined> = [];
   public createPaymentIntentKeys: Array<string | undefined> = [];
+  public createPaymentIntentWithCustomerKeys: Array<string | undefined> = [];
   public capturePaymentKeys: Array<string | undefined> = [];
   public transferToProviderKeys: Array<string | undefined> = [];
   public refundKeys: Array<string | undefined> = [];
+
+  override async createCustomer(params: { email: string; name: string; metadata?: Record<string, string>; idempotencyKey?: string }): Promise<{ customerId: string }> {
+    this.createCustomerKeys.push(params.idempotencyKey);
+    return super.createCustomer(params);
+  }
 
   override async createPaymentIntent(params: {
     amountCents: number;
@@ -2083,6 +2307,19 @@ class SpyPaymentGateway extends MemoryPaymentGateway {
   }): Promise<{ intentId: string; clientSecret: string }> {
     this.createPaymentIntentKeys.push(params.idempotencyKey);
     return super.createPaymentIntent(params);
+  }
+
+  override async createPaymentIntentWithCustomer(params: {
+    amountCents: number;
+    currency: string;
+    customerId: string;
+    paymentMethodId?: string;
+    setupFutureUsage?: "on_session" | "off_session";
+    metadata?: Record<string, string>;
+    idempotencyKey?: string;
+  }): Promise<{ intentId: string; clientSecret: string }> {
+    this.createPaymentIntentWithCustomerKeys.push(params.idempotencyKey);
+    return super.createPaymentIntentWithCustomer(params);
   }
 
   override async capturePayment(intentId: string, idempotencyKey?: string): Promise<void> {
@@ -2109,13 +2346,15 @@ class SpyPaymentGateway extends MemoryPaymentGateway {
 function createSpyServer() {
   const repo = new MemoryCoverageMarketplaceRepository();
   const gateway = new SpyPaymentGateway();
+  const userPaymentProfileRepo = new MemoryUserPaymentProfileRepository();
   const server = buildServer({
     logger: false,
     repository: repo,
+    userPaymentProfileRepository: userPaymentProfileRepo,
     paymentGateway: gateway,
     commissionRate: 0.15
   });
-  return { server, repo, gateway };
+  return { server, repo, gateway, userPaymentProfileRepo };
 }
 
 test("createPaymentIntent receives idempotency key on order creation", async (t) => {
@@ -2155,8 +2394,10 @@ test("createPaymentIntent receives idempotency key on order creation", async (t)
   });
 
   assert.equal(res.statusCode, 201);
-  assert.equal(gateway.createPaymentIntentKeys.length, 1);
-  assert.ok(gateway.createPaymentIntentKeys[0]?.startsWith("idem_pi_"));
+  assert.equal(gateway.createPaymentIntentKeys.length, 0);
+  assert.equal(gateway.createPaymentIntentWithCustomerKeys.length, 1);
+  assert.ok(gateway.createPaymentIntentWithCustomerKeys[0]?.startsWith("idem_pi_"));
+  assert.deepEqual(gateway.createCustomerKeys, ["idem_cust_writer_01"]);
 });
 
 test("capturePayment and transferToProvider receive idempotency keys on order completion", async (t) => {
@@ -2451,13 +2692,19 @@ test("charge.failed webhook updates order to payment_failed", async (t) => {
     payload: {
       id: "evt_charge_failed_001",
       type: "charge.failed",
-      data: { object: { payment_intent: order.stripePaymentIntentId } }
+      data: {
+        object: {
+          payment_intent: order.stripePaymentIntentId,
+          payment_method_details: { card: { decline_code: "insufficient_funds" } }
+        }
+      }
     }
   });
 
   assert.equal(res.statusCode, 200);
   const updatedOrder = await repo.getOrder(order.id);
   assert.equal(updatedOrder!.status, "payment_failed");
+  assert.equal(updatedOrder!.paymentFailureReason, "Insufficient funds");
 });
 
 test("charge.refunded webhook updates order to refunded", async (t) => {
@@ -2752,4 +2999,489 @@ test("charge.refunded does not update already refunded order", async (t) => {
   assert.equal(res.statusCode, 200);
   const updatedOrder = await repo.getOrder(order.id);
   assert.equal(updatedOrder!.status, "refunded");
+});
+
+// ── Payment Methods Tests ────────────────────────────────────────────
+
+test("list payment methods returns empty array for user with no profile", async (t) => {
+  const { server } = createServer();
+  t.after(() => server.close());
+
+  const res = await server.inject({
+    method: "GET",
+    url: "/internal/coverage/payment-methods",
+    headers: { "x-auth-user-id": "user_no_profile" }
+  });
+
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(res.json().paymentMethods, []);
+});
+
+test("list payment methods returns 403 when unauthenticated", async (t) => {
+  const { server } = createServer();
+  t.after(() => server.close());
+
+  const res = await server.inject({
+    method: "GET",
+    url: "/internal/coverage/payment-methods"
+  });
+
+  assert.equal(res.statusCode, 403);
+});
+
+test("list payment methods returns saved methods for user with profile", async (t) => {
+  const { server, gateway, userPaymentProfileRepo } = createServer();
+  t.after(() => server.close());
+
+  // Create a customer in the gateway and seed a payment method
+  const { customerId } = await gateway.createCustomer({ email: "user@example.com", name: "User", idempotencyKey: "idem_list_pm" });
+  await userPaymentProfileRepo.create("user_with_profile", customerId);
+  gateway.paymentMethods.set(customerId, [
+    { id: "pm_abc", brand: "visa", last4: "4242", expMonth: 12, expYear: 2027 }
+  ]);
+
+  const res = await server.inject({
+    method: "GET",
+    url: "/internal/coverage/payment-methods",
+    headers: { "x-auth-user-id": "user_with_profile" }
+  });
+
+  assert.equal(res.statusCode, 200);
+  const { paymentMethods } = res.json();
+  assert.equal(paymentMethods.length, 1);
+  assert.equal(paymentMethods[0].id, "pm_abc");
+  assert.equal(paymentMethods[0].brand, "visa");
+  assert.equal(paymentMethods[0].last4, "4242");
+  assert.equal(paymentMethods[0].expMonth, 12);
+  assert.equal(paymentMethods[0].expYear, 2027);
+});
+
+test("delete payment method rejects cross-user deletion with 403", async (t) => {
+  const { server, gateway, userPaymentProfileRepo } = createServer();
+  t.after(() => server.close());
+
+  // Create two customers with separate payment methods
+  const { customerId: custA } = await gateway.createCustomer({ email: "a@example.com", name: "User A", idempotencyKey: "idem_cust_a" });
+  const { customerId: custB } = await gateway.createCustomer({ email: "b@example.com", name: "User B", idempotencyKey: "idem_cust_b" });
+  await userPaymentProfileRepo.create("user_a", custA);
+  await userPaymentProfileRepo.create("user_b", custB);
+  gateway.paymentMethods.set(custA, [{ id: "pm_A1", brand: "visa", last4: "1111", expMonth: 1, expYear: 2028 }]);
+  gateway.paymentMethods.set(custB, [{ id: "pm_B1", brand: "mastercard", last4: "2222", expMonth: 2, expYear: 2029 }]);
+
+  // User A tries to delete User B's payment method — should get 403
+  const res = await server.inject({
+    method: "DELETE",
+    url: "/internal/coverage/payment-methods/pm_B1",
+    headers: { "x-auth-user-id": "user_a" }
+  });
+
+  assert.equal(res.statusCode, 403);
+  // Verify User B's method is still there
+  const methodsB = await gateway.listPaymentMethods(custB);
+  assert.equal(methodsB.length, 1);
+});
+
+test("delete payment method removes owned method and returns 204", async (t) => {
+  const { server, gateway, userPaymentProfileRepo } = createServer();
+  t.after(() => server.close());
+
+  const { customerId } = await gateway.createCustomer({ email: "owner@example.com", name: "Owner", idempotencyKey: "idem_owner" });
+  await userPaymentProfileRepo.create("owner_user", customerId);
+  gateway.paymentMethods.set(customerId, [{ id: "pm_own", brand: "amex", last4: "3333", expMonth: 6, expYear: 2026 }]);
+
+  const res = await server.inject({
+    method: "DELETE",
+    url: "/internal/coverage/payment-methods/pm_own",
+    headers: { "x-auth-user-id": "owner_user" }
+  });
+
+  assert.equal(res.statusCode, 204);
+  const remaining = await gateway.listPaymentMethods(customerId);
+  assert.equal(remaining.length, 0);
+});
+
+test("delete payment method returns 403 when unauthenticated", async (t) => {
+  const { server } = createServer();
+  t.after(() => server.close());
+
+  const res = await server.inject({
+    method: "DELETE",
+    url: "/internal/coverage/payment-methods/pm_any"
+  });
+
+  assert.equal(res.statusCode, 403);
+});
+
+// ── Receipt URL & Transaction History Tests ─────────────────────
+
+test("receipt URL is stored on order after payment_intent.amount_capturable_updated", async (t) => {
+  const { server, repo, gateway } = createServer();
+  t.after(() => server.close());
+
+  // Setup provider
+  const providerRes = await server.inject({
+    method: "POST",
+    url: "/internal/providers",
+    headers: { "x-auth-user-id": "provider_01", "content-type": "application/json" },
+    payload: { displayName: "Test", bio: "Bio", specialties: ["drama"] }
+  });
+  const provider = providerRes.json().provider;
+  gateway.completeOnboarding(provider.stripeAccountId!);
+  await server.inject({
+    method: "GET",
+    url: `/internal/providers/${provider.id}/stripe-onboarding`,
+    headers: { "x-auth-user-id": "provider_01" }
+  });
+
+  // Setup service
+  const serviceRes = await server.inject({
+    method: "POST",
+    url: `/internal/providers/${provider.id}/services`,
+    headers: { "x-auth-user-id": "provider_01", "content-type": "application/json" },
+    payload: {
+      title: "Drama Coverage",
+      description: "Script analysis",
+      tier: "competition_ready",
+      priceCents: 10000,
+      currency: "usd",
+      turnaroundDays: 5,
+      maxPages: 100
+    }
+  });
+  const service = serviceRes.json().service;
+
+  // Place order
+  const orderRes = await server.inject({
+    method: "POST",
+    url: "/internal/orders",
+    headers: { "x-auth-user-id": "writer_01", "content-type": "application/json" },
+    payload: { serviceId: service.id, scriptId: "script_01", projectId: "project_01" }
+  });
+  const order = orderRes.json().order;
+  const intentId = order.stripePaymentIntentId;
+
+  // Send payment_intent.amount_capturable_updated webhook
+  const webhookRes = await server.inject({
+    method: "POST",
+    url: "/internal/stripe-webhook",
+    headers: { "stripe-signature": "sig", "content-type": "application/json" },
+    payload: {
+      id: "evt_receipt_url_001",
+      type: "payment_intent.amount_capturable_updated",
+      data: { object: { id: intentId } }
+    }
+  });
+  assert.equal(webhookRes.statusCode, 200);
+
+  // Verify receipt URL was stored
+  const updatedOrder = await repo.getOrder(order.id);
+  assert.equal(updatedOrder!.status, "payment_held");
+  assert.equal(updatedOrder!.receiptUrl, `https://receipt.stripe.com/test_${intentId}`);
+});
+
+test("invoice endpoint returns receipt URL for order owner", async (t) => {
+  const { server, gateway } = createServer();
+  t.after(() => server.close());
+
+  // Setup provider
+  const providerRes = await server.inject({
+    method: "POST",
+    url: "/internal/providers",
+    headers: { "x-auth-user-id": "provider_01", "content-type": "application/json" },
+    payload: { displayName: "Test", bio: "Bio", specialties: ["drama"] }
+  });
+  const provider = providerRes.json().provider;
+  gateway.completeOnboarding(provider.stripeAccountId!);
+  await server.inject({
+    method: "GET",
+    url: `/internal/providers/${provider.id}/stripe-onboarding`,
+    headers: { "x-auth-user-id": "provider_01" }
+  });
+
+  // Setup service
+  const serviceRes = await server.inject({
+    method: "POST",
+    url: `/internal/providers/${provider.id}/services`,
+    headers: { "x-auth-user-id": "provider_01", "content-type": "application/json" },
+    payload: {
+      title: "Drama Coverage",
+      description: "Script analysis",
+      tier: "competition_ready",
+      priceCents: 10000,
+      currency: "usd",
+      turnaroundDays: 5,
+      maxPages: 100
+    }
+  });
+  const service = serviceRes.json().service;
+
+  // Place order
+  const orderRes = await server.inject({
+    method: "POST",
+    url: "/internal/orders",
+    headers: { "x-auth-user-id": "writer_01", "content-type": "application/json" },
+    payload: { serviceId: service.id, scriptId: "script_01", projectId: "project_01" }
+  });
+  const order = orderRes.json().order;
+  const intentId = order.stripePaymentIntentId;
+
+  // Trigger webhook to store receipt URL
+  await server.inject({
+    method: "POST",
+    url: "/internal/stripe-webhook",
+    headers: { "stripe-signature": "sig", "content-type": "application/json" },
+    payload: {
+      id: "evt_invoice_001",
+      type: "payment_intent.amount_capturable_updated",
+      data: { object: { id: intentId } }
+    }
+  });
+
+  // Fetch invoice as the order owner
+  const invoiceRes = await server.inject({
+    method: "GET",
+    url: `/internal/coverage/orders/${order.id}/invoice`,
+    headers: { "x-auth-user-id": "writer_01" }
+  });
+  assert.equal(invoiceRes.statusCode, 200);
+  assert.equal(invoiceRes.json().invoiceUrl, `https://receipt.stripe.com/test_${intentId}`);
+});
+
+test("invoice endpoint returns 403 for non-owner", async (t) => {
+  const { server, repo } = createServer();
+  t.after(() => server.close());
+
+  // Create order directly in repo
+  const order = await repo.createOrder({
+    writerUserId: "writer_01",
+    providerId: "prov_fake",
+    serviceId: "svc_fake",
+    scriptId: "",
+    projectId: "",
+    priceCents: 5000,
+    platformFeeCents: 750,
+    providerPayoutCents: 4250,
+    stripePaymentIntentId: "pi_fake"
+  });
+
+  // Access as different writer
+  const res = await server.inject({
+    method: "GET",
+    url: `/internal/coverage/orders/${order.id}/invoice`,
+    headers: { "x-auth-user-id": "writer_02" }
+  });
+  assert.equal(res.statusCode, 403);
+});
+
+test("my-orders returns paginated transaction history for authenticated user", async (t) => {
+  const { server, gateway } = createServer();
+  t.after(() => server.close());
+
+  // Setup provider
+  const providerRes = await server.inject({
+    method: "POST",
+    url: "/internal/providers",
+    headers: { "x-auth-user-id": "provider_01", "content-type": "application/json" },
+    payload: { displayName: "Test Provider", bio: "Bio", specialties: ["drama"] }
+  });
+  const provider = providerRes.json().provider;
+  gateway.completeOnboarding(provider.stripeAccountId!);
+  await server.inject({
+    method: "GET",
+    url: `/internal/providers/${provider.id}/stripe-onboarding`,
+    headers: { "x-auth-user-id": "provider_01" }
+  });
+
+  // Setup service
+  const serviceRes = await server.inject({
+    method: "POST",
+    url: `/internal/providers/${provider.id}/services`,
+    headers: { "x-auth-user-id": "provider_01", "content-type": "application/json" },
+    payload: {
+      title: "My Service",
+      description: "Script analysis",
+      tier: "competition_ready",
+      priceCents: 8000,
+      currency: "usd",
+      turnaroundDays: 3,
+      maxPages: 120
+    }
+  });
+  const service = serviceRes.json().service;
+
+  // Place 2 orders as writer_01, 1 as writer_02
+  await server.inject({
+    method: "POST",
+    url: "/internal/orders",
+    headers: { "x-auth-user-id": "writer_01", "content-type": "application/json" },
+    payload: { serviceId: service.id, scriptId: "s1", projectId: "p1" }
+  });
+  await server.inject({
+    method: "POST",
+    url: "/internal/orders",
+    headers: { "x-auth-user-id": "writer_01", "content-type": "application/json" },
+    payload: { serviceId: service.id, scriptId: "s2", projectId: "p2" }
+  });
+  await server.inject({
+    method: "POST",
+    url: "/internal/orders",
+    headers: { "x-auth-user-id": "writer_02", "content-type": "application/json" },
+    payload: { serviceId: service.id, scriptId: "s3", projectId: "p3" }
+  });
+
+  // Fetch my-orders as writer_01
+  const res = await server.inject({
+    method: "GET",
+    url: "/internal/coverage/my-orders",
+    headers: { "x-auth-user-id": "writer_01" }
+  });
+  assert.equal(res.statusCode, 200);
+  const { orders } = res.json();
+  assert.equal(orders.length, 2, "should return only writer_01 orders");
+  for (const item of orders) {
+    assert.ok(typeof item.id === "string");
+    assert.ok(typeof item.createdAt === "string");
+    assert.ok(typeof item.status === "string");
+    assert.ok(typeof item.priceCents === "number");
+    assert.equal(item.serviceName, "My Service");
+    assert.ok("receiptUrl" in item);
+  }
+});
+
+test("my-orders returns 403 when unauthenticated", async (t) => {
+  const { server } = createServer();
+  t.after(() => server.close());
+
+  const res = await server.inject({
+    method: "GET",
+    url: "/internal/coverage/my-orders"
+  });
+  assert.equal(res.statusCode, 403);
+});
+
+test("complete order queues transfer retry with 1 minute backoff on provider transfer failure", async (t) => {
+  class FailingTransferGateway extends MemoryPaymentGateway {
+    override async transferToProvider(): Promise<{ transferId: string }> {
+      throw new Error("transfer failed");
+    }
+  }
+
+  const repo = new MemoryCoverageMarketplaceRepository();
+  const gateway = new FailingTransferGateway();
+  const userPaymentProfileRepo = new MemoryUserPaymentProfileRepository();
+  const server = buildServer({
+    logger: false,
+    repository: repo,
+    userPaymentProfileRepository: userPaymentProfileRepo,
+    paymentGateway: gateway,
+    commissionRate: 0.15,
+  });
+  t.after(() => server.close());
+
+  const provider = await repo.createProvider("provider_01", {
+    displayName: "Provider",
+    bio: "Bio",
+    specialties: ["drama"],
+  });
+  await repo.updateProviderStripe(provider.id, "acct_1", true);
+  const service = await repo.createService(provider.id, {
+    title: "Service",
+    description: "desc",
+    tier: "competition_ready",
+    priceCents: 10000,
+    currency: "usd",
+    turnaroundDays: 5,
+    maxPages: 120,
+  });
+  const order = await repo.createOrder({
+    writerUserId: "writer_01",
+    providerId: provider.id,
+    serviceId: service.id,
+    scriptId: "script_01",
+    projectId: "project_01",
+    priceCents: 10000,
+    platformFeeCents: 1500,
+    providerPayoutCents: 8500,
+    stripePaymentIntentId: "pi_1",
+  });
+  await repo.updateOrderStatus(order.id, "delivered");
+
+  const startedAt = Date.now();
+  const completeRes = await server.inject({
+    method: "POST",
+    url: `/internal/orders/${order.id}/complete`,
+    headers: { "x-auth-user-id": "writer_01" },
+  });
+
+  assert.equal(completeRes.statusCode, 202);
+  const retryEntry = repo.getRetryEntries()[0];
+  assert.ok(retryEntry);
+  assert.equal(retryEntry.status, "pending");
+  const delayMs = new Date(retryEntry.nextRetryAt).getTime() - startedAt;
+  assert.ok(delayMs >= 55_000 && delayMs <= 65_000);
+});
+
+test("retry scheduler applies exponential backoff and abandons after fourth failed retry", async () => {
+  class AlwaysFailTransferGateway extends MemoryPaymentGateway {
+    override async transferToProvider(): Promise<{ transferId: string }> {
+      throw new Error("retry transfer failed");
+    }
+  }
+
+  const repo = new MemoryCoverageMarketplaceRepository();
+  const gateway = new AlwaysFailTransferGateway();
+  const provider = await repo.createProvider("provider_01", {
+    displayName: "Provider",
+    bio: "Bio",
+    specialties: ["drama"],
+  });
+  await repo.updateProviderStripe(provider.id, "acct_1", true);
+  const service = await repo.createService(provider.id, {
+    title: "Service",
+    description: "desc",
+    tier: "competition_ready",
+    priceCents: 10000,
+    currency: "usd",
+    turnaroundDays: 5,
+    maxPages: 120,
+  });
+  const order = await repo.createOrder({
+    writerUserId: "writer_01",
+    providerId: provider.id,
+    serviceId: service.id,
+    scriptId: "script_01",
+    projectId: "project_01",
+    priceCents: 10000,
+    platformFeeCents: 1500,
+    providerPayoutCents: 8500,
+    stripePaymentIntentId: "pi_1",
+  });
+  await repo.createRetryQueueEntry(order.id, new Date(Date.now() - 1000).toISOString());
+
+  const scheduler = createScheduler({
+    repository: repo,
+    paymentGateway: gateway,
+    autoCompleteDays: 7,
+    systemUserId: "system",
+    logger: {
+      error: () => undefined,
+      warn: () => undefined,
+    } as any,
+  });
+
+  for (const expectedDelay of [300_000, 1_800_000, 7_200_000]) {
+    const startedAt = Date.now();
+    await scheduler.runRetryQueueOnce();
+    const retry = repo.getRetryEntries()[0]!;
+    assert.equal(retry.status, "pending");
+    const nextRetryDelay = new Date(retry.nextRetryAt).getTime() - startedAt;
+    assert.ok(nextRetryDelay >= expectedDelay - 5_000 && nextRetryDelay <= expectedDelay + 5_000);
+    retry.nextRetryAt = new Date(Date.now() - 1).toISOString();
+  }
+
+  await scheduler.runRetryQueueOnce();
+  const finalRetry = repo.getRetryEntries()[0]!;
+  assert.equal(finalRetry.status, "abandoned");
+  const updatedOrder = await repo.getOrder(order.id);
+  assert.equal(updatedOrder?.status, "abandoned");
 });

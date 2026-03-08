@@ -17,19 +17,10 @@ export interface PaymentGateway {
   }): Promise<{ transferId: string }>;
   refund(intentId: string, amountCents?: number, idempotencyKey?: string): Promise<{ refundId: string }>;
   constructWebhookEvent(payload: string, signature: string): unknown;
-  // New Stripe Customer & Payment Method related methods
-  createCustomer(params: { email: string; name: string; metadata?: Record<string, string> }): Promise<{ customerId: string }>;
+  createCustomer(params: { email: string; name: string; metadata?: Record<string, string>; idempotencyKey?: string }): Promise<{ customerId: string }>;
   listPaymentMethods(customerId: string): Promise<Array<{ id: string; brand: string; last4: string; expMonth: number; expYear: number }>>;
   detachPaymentMethod(paymentMethodId: string): Promise<void>;
-  createPaymentIntentWithCustomer(params: {
-    amountCents: number;
-    currency: string;
-    customerId: string;
-    paymentMethodId?: string;
-    setupFutureUsage?: 'on_session' | 'off_session';
-    metadata?: Record<string, string>;
-    idempotencyKey?: string;
-  }): Promise<{ intentId: string; clientSecret: string }>;
+  createPaymentIntentWithCustomer(params: { amountCents: number; currency: string; customerId: string; paymentMethodId?: string; setupFutureUsage?: 'on_session' | 'off_session'; metadata?: Record<string, string>; idempotencyKey?: string }): Promise<{ intentId: string; clientSecret: string }>;
   getReceiptUrl(paymentIntentId: string): Promise<string | null>;
 }
 
@@ -102,7 +93,7 @@ export class MemoryPaymentGateway implements PaymentGateway {
   }
 
   // New Stripe Customer & Payment Method related implementations (Memory)
-  async createCustomer(params: { email: string; name: string; metadata?: Record<string, string> }): Promise<{ customerId: string }> {
+  async createCustomer(params: { email: string; name: string; metadata?: Record<string, string>; idempotencyKey?: string }): Promise<{ customerId: string }> {
     const customerId = this.id("cus");
     this.customers.set(customerId, { email: params.email, name: params.name, metadata: params.metadata });
     this.paymentMethods.set(customerId, []);

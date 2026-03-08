@@ -9,6 +9,7 @@ import {
   writeStoredSession
 } from "../lib/authSession";
 import { SignInIllustration } from "../components/illustrations";
+import { PasswordStrengthMeter } from "../components/PasswordStrengthMeter";
 
 type AuthMode = "register" | "login";
 
@@ -19,6 +20,7 @@ export default function SignInPage() {
   const [displayName, setDisplayName] = useState("");
   const [session, setSession] = useState<AuthSessionResponse | null>(null);
   const [status, setStatus] = useState<string>("");
+  const [failureCount, setFailureCount] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [oauthSubmitting, setOauthSubmitting] = useState(false);
   const [acceptTerms, setAcceptTerms] = useState(false);
@@ -93,6 +95,9 @@ export default function SignInPage() {
       const body = await response.json();
       if (!response.ok) {
         setStatus(body.error ? `Error: ${body.error}` : "Unable to authenticate.");
+        if (mode === "login") {
+          setFailureCount((c) => c + 1);
+        }
         return;
       }
 
@@ -100,6 +105,9 @@ export default function SignInPage() {
       setSession(body as AuthSessionResponse);
       setPassword("");
       setStatus(mode === "register" ? "Account created." : "Signed in.");
+      if (mode === "login") {
+        setFailureCount(0);
+      }
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "unknown_error");
     } finally {
@@ -285,6 +293,9 @@ export default function SignInPage() {
                 required
               />
             </label>
+            {mode === "register" && (
+              <PasswordStrengthMeter password={password} />
+            )}
 
             {mode === "login" ? (
               <div className="text-right">
@@ -318,6 +329,20 @@ export default function SignInPage() {
             >
               {submitting ? "Submitting..." : modeLabel}
             </button>
+
+            {mode === "login" && failureCount >= 3 ? (
+              <p className="text-sm text-foreground-secondary">
+                Having trouble?{" "}
+                <a href="/forgot-password" className="text-ember-500 hover:underline">
+                  Reset your password.
+                </a>
+              </p>
+            ) : null}
+            {mode === "login" && failureCount >= 5 ? (
+              <p className="text-sm text-foreground-secondary">
+                Your account may be temporarily locked. Check your email.
+              </p>
+            ) : null}
           </form>
         )}
       </article>

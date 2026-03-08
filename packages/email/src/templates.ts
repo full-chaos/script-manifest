@@ -2,6 +2,7 @@ import type { EmailTemplate, RenderedEmail } from "./types.js";
 import { renderVerificationCode } from "./templates/verification-code.js";
 import { renderPasswordReset } from "./templates/password-reset.js";
 import { renderWelcome } from "./templates/welcome.js";
+import { renderAccountLockout } from "./templates/account-lockout.js";
 
 export function renderTemplate(template: EmailTemplate, data: Record<string, string>): RenderedEmail {
   switch (template) {
@@ -11,5 +12,7 @@ export function renderTemplate(template: EmailTemplate, data: Record<string, str
       return renderPasswordReset(data);
     case "welcome":
       return renderWelcome(data);
+    case "account-lockout":
+      return renderAccountLockout(data);
   }
 }

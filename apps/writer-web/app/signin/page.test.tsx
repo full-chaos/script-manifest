@@ -122,3 +122,94 @@ describe("SignInPage", () => {
     expect(window.localStorage.getItem("script_manifest_session")).toContain("oauth_sess_1");
   });
 });
+
+describe("SignInPage lockout hints", () => {
+  beforeEach(() => {
+    cleanup();
+    window.localStorage.clear();
+    vi.restoreAllMocks();
+  });
+
+  async function submitLoginForm(
+    user: ReturnType<typeof userEvent.setup>,
+    expectedStatusPattern: RegExp = /Error: invalid_credentials/
+  ) {
+    const signInButtons = screen.getAllByRole("button", { name: /^Sign in$/ });
+    const submitBtn = signInButtons.find(b => (b as HTMLButtonElement).type === "submit")!;
+    await user.click(submitBtn);
+    await screen.findByText(expectedStatusPattern, {}, { timeout: 3000 });
+  }
+
+  it("shows no hints after 2 failed logins", async () => {
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>().mockImplementation(() =>
+      Promise.resolve(jsonResponse({ error: "invalid_credentials" }, 401))
+    ));
+    render(<SignInPage />);
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText("Email"), "writer@example.com");
+    await user.type(screen.getByLabelText("Password"), "wrongpass");
+    await submitLoginForm(user);
+    await submitLoginForm(user);
+    expect(screen.queryByText(/Reset your password/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/temporarily locked/)).not.toBeInTheDocument();
+  });
+
+  it("shows password reset hint after 3 failed logins", async () => {
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>().mockImplementation(() =>
+      Promise.resolve(jsonResponse({ error: "invalid_credentials" }, 401))
+    ));
+    render(<SignInPage />);
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText("Email"), "writer@example.com");
+    await user.type(screen.getByLabelText("Password"), "wrongpass");
+    await submitLoginForm(user);
+    await submitLoginForm(user);
+    await submitLoginForm(user);
+    expect(screen.getByText(/Reset your password/)).toBeInTheDocument();
+    expect(screen.queryByText(/temporarily locked/)).not.toBeInTheDocument();
+  });
+
+  it("shows lockout hint after 5 failed logins", async () => {
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>().mockImplementation(() =>
+      Promise.resolve(jsonResponse({ error: "invalid_credentials" }, 401))
+    ));
+    render(<SignInPage />);
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText("Email"), "writer@example.com");
+    await user.type(screen.getByLabelText("Password"), "wrongpass");
+    await submitLoginForm(user);
+    await submitLoginForm(user);
+    await submitLoginForm(user);
+    await submitLoginForm(user);
+    await submitLoginForm(user);
+    expect(screen.getByText(/Reset your password/)).toBeInTheDocument();
+    expect(screen.getByText(/temporarily locked/)).toBeInTheDocument();
+  });
+
+  it("clears hints after successful login", async () => {
+    const fetchMock = vi.fn<typeof fetch>()
+      .mockImplementationOnce(() => Promise.resolve(jsonResponse({ error: "invalid_credentials" }, 401)))
+      .mockImplementationOnce(() => Promise.resolve(jsonResponse({ error: "invalid_credentials" }, 401)))
+      .mockImplementationOnce(() => Promise.resolve(jsonResponse({ error: "invalid_credentials" }, 401)))
+      .mockImplementationOnce(() => Promise.resolve(jsonResponse({
+        token: "sess_ok",
+        expiresAt: "2026-12-31T00:00:00.000Z",
+        user: { id: "u1", email: "writer@example.com", displayName: "Writer" }
+      })));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<SignInPage />);
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText("Email"), "writer@example.com");
+    await user.type(screen.getByLabelText("Password"), "wrongpass");
+    await submitLoginForm(user);
+    await submitLoginForm(user);
+    await submitLoginForm(user);
+    expect(screen.getByText(/Reset your password/)).toBeInTheDocument();
+
+    // Successful login (4th attempt) — wait for "Signed in as" instead
+    await submitLoginForm(user, /Signed in as/);
+
+    expect(screen.queryByText(/Reset your password/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/temporarily locked/)).not.toBeInTheDocument();
+  });
+});

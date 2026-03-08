@@ -45,6 +45,9 @@ class MemoryRepo extends BaseMemoryRepository implements IdentityRepository {
       passwordSalt,
       passwordHash: hashPassword(input.password, passwordSalt),
       role: "writer",
+      accountStatus: "active",
+      failedLoginAttempts: 0,
+      lockedUntil: null,
       mfaEnabled: false
     };
     this.users.set(id, user);
@@ -173,7 +176,7 @@ class MemoryRepo extends BaseMemoryRepository implements IdentityRepository {
 async function registerAndGetToken(
   server: ReturnType<typeof buildServer>,
   email = "mfa@example.com",
-  password = "password123"
+  password = "StrongPass1!"
 ) {
   const res = await server.inject({
     method: "POST",
@@ -413,7 +416,7 @@ test("MFA disable requires password and TOTP code", async (t) => {
     method: "POST",
     url: "/internal/auth/mfa/disable",
     headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
-    payload: { password: "password123", code: "000000" }
+    payload: { password: "StrongPass1!", code: "000000" }
   });
   assert.equal(badTotp.statusCode, 400);
   assert.equal(badTotp.json().error, "invalid_totp_code");
@@ -423,7 +426,7 @@ test("MFA disable requires password and TOTP code", async (t) => {
     method: "POST",
     url: "/internal/auth/mfa/disable",
     headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
-    payload: { password: "password123", code: generateTotpCode(secret) }
+    payload: { password: "StrongPass1!", code: generateTotpCode(secret) }
   });
   assert.equal(good.statusCode, 200);
   assert.equal(good.json().ok, true);
@@ -466,7 +469,7 @@ test("Login with MFA enabled returns mfa challenge instead of session", async (t
   const login = await server.inject({
     method: "POST",
     url: "/internal/auth/login",
-    payload: { email: "mfa@example.com", password: "password123" }
+    payload: { email: "mfa@example.com", password: "StrongPass1!" }
   });
   assert.equal(login.statusCode, 200);
   assert.equal(login.json().requiresMfa, true);
@@ -501,7 +504,7 @@ test("MFA verify during login creates session with valid TOTP code", async (t) =
   const login = await server.inject({
     method: "POST",
     url: "/internal/auth/login",
-    payload: { email: "mfa@example.com", password: "password123" }
+    payload: { email: "mfa@example.com", password: "StrongPass1!" }
   });
   const mfaToken = login.json().mfaToken as string;
 
@@ -549,7 +552,7 @@ test("MFA verify during login works with backup code", async (t) => {
   const login = await server.inject({
     method: "POST",
     url: "/internal/auth/login",
-    payload: { email: "mfa@example.com", password: "password123" }
+    payload: { email: "mfa@example.com", password: "StrongPass1!" }
   });
   const mfaToken = login.json().mfaToken as string;
 
@@ -591,7 +594,7 @@ test("MFA verify rejects invalid code", async (t) => {
   const login = await server.inject({
     method: "POST",
     url: "/internal/auth/login",
-    payload: { email: "mfa@example.com", password: "password123" }
+    payload: { email: "mfa@example.com", password: "StrongPass1!" }
   });
   const mfaToken = login.json().mfaToken as string;
 
@@ -645,7 +648,7 @@ test("MFA mfaToken is single-use", async (t) => {
   const login = await server.inject({
     method: "POST",
     url: "/internal/auth/login",
-    payload: { email: "mfa@example.com", password: "password123" }
+    payload: { email: "mfa@example.com", password: "StrongPass1!" }
   });
   const mfaToken = login.json().mfaToken as string;
 

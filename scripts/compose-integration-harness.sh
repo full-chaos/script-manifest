@@ -82,9 +82,9 @@ wait_for_service_health() {
       if [[ "$status" == "healthy" || "$status" == "running" ]]; then
         return 0
       fi
-      if [[ "$status" == "exited" || "$status" == "dead" ]]; then
+      if [[ "$status" == "exited" || "$status" == "dead" || "$status" == "unhealthy" ]]; then
         echo "Service '$service' is in unexpected state '$status'."
-        run_compose logs "$service" || true
+        run_compose logs --tail=50 "$service" || true
         return 1
       fi
     fi
@@ -121,6 +121,19 @@ wait_for_http() {
   done
 }
 
+write_install_markers() {
+  # CI already ran `pnpm install --frozen-lockfile` and `pnpm build --filter='./packages/*'`
+  # on the host. Containers share the workspace volume, so node_modules is present.
+  # Write the marker files that pnpm-install-once.sh checks so containers skip
+  # the redundant (and slow) `pnpm install --force` behind a serialized flock.
+  echo "Writing pnpm-install-once markers (skip redundant container install)..."
+  mkdir -p "$REPO_ROOT/node_modules"
+  touch "$REPO_ROOT/node_modules/.pnpm-install.complete"
+  node -p '`${process.platform}-${process.arch}`' > "$REPO_ROOT/node_modules/.pnpm-install.platform"
+  md5sum "$REPO_ROOT/pnpm-lock.yaml" 2>/dev/null | cut -d' ' -f1 > "$REPO_ROOT/node_modules/.pnpm-lock.hash"
+  touch "$REPO_ROOT/node_modules/.workspace-packages-built"
+}
+
 up() {
   echo "Starting compose integration stack..."
   if [[ -z "${POSTGRES_PORT:-}" ]]; then
@@ -143,6 +156,7 @@ up() {
   fi
   export POSTGRES_PORT REDIS_PORT MINIO_PORT MINIO_CONSOLE_PORT OPENSEARCH_HTTP_PORT OPENSEARCH_PERF_PORT
   build_node_dev_image
+  write_install_markers
   run_compose up -d --no-build "${SERVICES[@]}"
 
   for service in "${SERVICES[@]}"; do

@@ -26,7 +26,7 @@ ENV NPM_CONFIG_REGISTRY=https://registry.npmjs.org/ \
     NPM_CONFIG_FETCH_RETRY_MINTIMEOUT=10000 \
     NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT=120000
 RUN for attempt in 1 2 3 4 5; do \
-      npm install -g pnpm@9.12.3 && exit 0; \
+      npm install -g pnpm@10.31.0 && exit 0; \
       echo "pnpm install failed (attempt ${attempt}), retrying..."; \
       sleep $((attempt * 5)); \
     done; \
@@ -67,7 +67,7 @@ ENV NPM_CONFIG_REGISTRY=https://registry.npmjs.org/ \
     NPM_CONFIG_FETCH_RETRY_MINTIMEOUT=10000 \
     NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT=120000
 RUN for attempt in 1 2 3 4 5; do \
-      npm install -g pnpm@9.12.3 && exit 0; \
+      npm install -g pnpm@10.31.0 && exit 0; \
       echo "pnpm install failed (attempt ${attempt}), retrying..."; \
       sleep $((attempt * 5)); \
     done; \

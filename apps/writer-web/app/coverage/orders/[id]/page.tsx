@@ -288,7 +288,8 @@ export default function OrderDetailPage() {
       disputed: "border-red-400/60 dark:border-red-300/45 bg-red-500/10 dark:bg-red-500/15 text-red-700 dark:text-red-300",
       cancelled: "border-border/65 bg-ink-500/10 text-muted",
       payment_failed: "border-red-400/60 dark:border-red-300/45 bg-red-500/10 dark:bg-red-500/15 text-red-700 dark:text-red-300",
-      refunded: "border-border/65 bg-ink-500/10 text-muted"
+      refunded: "border-border/65 bg-ink-500/10 text-muted",
+      abandoned: "border-border/65 bg-ink-500/10 text-muted"
     };
     return colors[status] ?? colors.placed;
   }

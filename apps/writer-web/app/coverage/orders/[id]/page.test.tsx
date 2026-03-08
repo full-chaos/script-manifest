@@ -49,6 +49,8 @@ function makeOrder(overrides: Partial<CoverageOrder> = {}): CoverageOrder {
     deliveredAt: "2026-02-23T10:00:00.000Z",
     createdAt: "2026-02-20T10:00:00.000Z",
     updatedAt: "2026-02-23T10:00:00.000Z",
+    receiptUrl: null,
+    paymentFailureReason: null,
     ...overrides
   };
 }

@@ -28,6 +28,8 @@ function createOrder(overrides: Partial<CoverageOrder>): CoverageOrder {
     deliveredAt: null,
     createdAt: new Date(0).toISOString(),
     updatedAt: new Date(0).toISOString(),
+    receiptUrl: null,
+    paymentFailureReason: null,
     ...overrides,
   };
 }

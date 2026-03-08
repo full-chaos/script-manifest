@@ -23,6 +23,9 @@ importers:
       c8:
         specifier: ^11.0.0
         version: 11.0.0
+      eslint:
+        specifier: 9.20.0
+        version: 9.20.0(jiti@1.21.7)
       tsx:
         specifier: ^4.19.2
         version: 4.21.0
@@ -9496,9 +9499,9 @@ snapshots:
     dependencies:
       acorn: 8.16.0
 
-  acorn-jsx@5.3.2(acorn@8.15.0):
+  acorn-jsx@5.3.2(acorn@8.16.0):
     dependencies:
-      acorn: 8.15.0
+      acorn: 8.16.0
 
   acorn@8.15.0: {}
 
@@ -10373,8 +10376,8 @@ snapshots:
 
   espree@10.4.0:
     dependencies:
-      acorn: 8.15.0
-      acorn-jsx: 5.3.2(acorn@8.15.0)
+      acorn: 8.16.0
+      acorn-jsx: 5.3.2(acorn@8.16.0)
       eslint-visitor-keys: 4.2.1
 
   esquery@1.7.0:

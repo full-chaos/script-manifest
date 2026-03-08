@@ -122,6 +122,12 @@ export const ResetPasswordRequestSchema = z.object({
 
 export type ResetPasswordRequest = z.infer<typeof ResetPasswordRequestSchema>;
 
+export const UnlockAccountRequestSchema = z.object({
+  token: z.string().min(1)
+});
+
+export type UnlockAccountRequest = z.infer<typeof UnlockAccountRequestSchema>;
+
 // Account deletion
 export const DeleteAccountRequestSchema = z.object({
   password: z.string().min(1)

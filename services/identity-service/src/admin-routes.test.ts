@@ -24,6 +24,7 @@ class MemoryRepo extends BaseMemoryRepository implements IdentityRepository {
   private oauthStates = new Map<string, OAuthStateRecord>();
   private emailVerifCodes = new Map<string, { codeHash: string; expiresAt: number }>();
   private resetTokens = new Map<string, { userId: string; usedAt?: string; expiresAt: number }>();
+  private unlockTokens = new Map<string, { userId: string; usedAt?: string; expiresAt: number }>();
   private refreshTokens = new Map<string, {
     userId: string;
     familyId: string;
@@ -31,6 +32,12 @@ class MemoryRepo extends BaseMemoryRepository implements IdentityRepository {
     usedAt?: string;
     revokedAt?: string;
   }>();
+
+  override async init(): Promise<void> {}
+
+  override async healthCheck(): Promise<{ database: boolean }> {
+    return { database: true };
+  }
 
   async registerUser(input: RegisterUserInput): Promise<IdentityUser | null> {
     const email = input.email.toLowerCase();
@@ -43,7 +50,10 @@ class MemoryRepo extends BaseMemoryRepository implements IdentityRepository {
       displayName: input.displayName,
       passwordSalt,
       passwordHash: hashPassword(input.password, passwordSalt),
-      role: "writer"
+      role: "writer",
+      accountStatus: "active",
+      failedLoginAttempts: 0,
+      lockedUntil: null
     };
     this.users.set(id, user);
     this.usersByEmail.set(email, id);
@@ -161,6 +171,47 @@ class MemoryRepo extends BaseMemoryRepository implements IdentityRepository {
   }
 
   async updatePassword(): Promise<void> { /* noop */ }
+  async recordFailedLoginAttempt(userId: string): Promise<{ failedLoginAttempts: number; lockedUntil: string | null }> {
+    const user = this.users.get(userId);
+    if (!user) {
+      return { failedLoginAttempts: 0, lockedUntil: null };
+    }
+
+    user.failedLoginAttempts += 1;
+    if (user.failedLoginAttempts >= 15) {
+      user.lockedUntil = null;
+    } else if (user.failedLoginAttempts >= 10) {
+      user.lockedUntil = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+    } else if (user.failedLoginAttempts >= 5) {
+      user.lockedUntil = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+    }
+
+    return { failedLoginAttempts: user.failedLoginAttempts, lockedUntil: user.lockedUntil };
+  }
+
+  async resetLoginLockout(userId: string): Promise<void> {
+    const user = this.users.get(userId);
+    if (!user) {
+      return;
+    }
+    user.failedLoginAttempts = 0;
+    user.lockedUntil = null;
+  }
+
+  async createAccountUnlockToken(userId: string): Promise<{ token: string }> {
+    const token = `aut_${randomUUID()}`;
+    this.unlockTokens.set(token, { userId, expiresAt: Date.now() + 24 * 60 * 60 * 1000 });
+    return { token };
+  }
+
+  async consumeAccountUnlockToken(token: string): Promise<{ userId: string } | null> {
+    const entry = this.unlockTokens.get(token);
+    if (!entry || entry.usedAt || Date.now() > entry.expiresAt) {
+      return null;
+    }
+    entry.usedAt = new Date().toISOString();
+    return { userId: entry.userId };
+  }
   async softDeleteUser(): Promise<void> { /* noop */ }
 }
 

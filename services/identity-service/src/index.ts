@@ -18,8 +18,8 @@ import {
   OAuthProviderSchema,
   OAuthStartRequestSchema,
   OAuthStartResponseSchema,
-  ResendVerificationRequestSchema,
   ResetPasswordRequestSchema,
+  UnlockAccountRequestSchema,
   type OAuthProvider
 } from "@script-manifest/contracts";
 import {
@@ -270,6 +270,24 @@ export function buildServer(options: IdentityServiceOptions = {}): FastifyInstan
     }
   });
 
+  server.post("/internal/auth/unlock-account", {
+    config: { rateLimit: { max: 5, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
+      const parsedBody = UnlockAccountRequestSchema.safeParse(req.body);
+      if (!parsedBody.success) {
+        return reply.status(400).send({ error: "invalid_payload", details: parsedBody.error.flatten() });
+      }
+
+      const result = await repository.consumeAccountUnlockToken(parsedBody.data.token);
+      if (!result) {
+        return reply.status(400).send({ error: "invalid_or_expired_token" });
+      }
+
+      await repository.resetLoginLockout(result.userId);
+      return reply.send({ ok: true });
+    }
+  });
+
   server.delete("/internal/auth/account", {
     config: { rateLimit: { max: 5, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
@@ -317,15 +335,46 @@ export function buildServer(options: IdentityServiceOptions = {}): FastifyInstan
 
     const user = await repository.findUserByEmail(parsedBody.data.email);
 
-    // Always run password verification to prevent timing attacks
-    // Use dummy credentials if user doesn't exist
-    const isValid = user
-      ? verifyPassword(parsedBody.data.password, user.passwordHash, user.passwordSalt)
-      : verifyPassword(parsedBody.data.password, DUMMY_HASH, DUMMY_SALT);
-
-    if (!user || !isValid) {
+    if (!user) {
+      verifyPassword(parsedBody.data.password, DUMMY_HASH, DUMMY_SALT);
       return reply.status(401).send({ error: "invalid_credentials" });
     }
+
+    if (user.accountStatus !== "active") {
+      return reply.status(401).send({ error: "invalid_credentials" });
+    }
+
+    const isTemporarilyLocked = Boolean(user.lockedUntil && new Date(user.lockedUntil).getTime() > Date.now());
+    const isPermanentlyLocked = user.failedLoginAttempts >= 15;
+    if (isTemporarilyLocked || isPermanentlyLocked) {
+      return reply.status(401).send({ error: "invalid_credentials" });
+    }
+
+    const isValid = verifyPassword(parsedBody.data.password, user.passwordHash, user.passwordSalt);
+
+    if (!isValid) {
+      const lockoutState = await repository.recordFailedLoginAttempt(user.id);
+
+      if (lockoutState.failedLoginAttempts === 15 && emailService) {
+        const { token: unlockToken } = await repository.createAccountUnlockToken(user.id);
+        const resetBase = process.env.FRONTEND_URL ?? "http://localhost:3000";
+        const unlockUrl = `${resetBase}/unlock-account?token=${encodeURIComponent(unlockToken)}`;
+
+        await emailService.sendEmail({
+          to: user.email,
+          template: "account-lockout",
+          data: {
+            displayName: user.displayName,
+            lockDuration: "until manually unlocked",
+            unlockUrl,
+          },
+        });
+      }
+
+      return reply.status(401).send({ error: "invalid_credentials" });
+    }
+
+    await repository.resetLoginLockout(user.id);
 
     const payload = await createAuthSessionPayload(repository, user);
 

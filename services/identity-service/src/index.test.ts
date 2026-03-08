@@ -20,6 +20,7 @@ class MemoryRepo extends BaseMemoryRepository implements IdentityRepository {
   private oauthStates = new Map<string, OAuthStateRecord>();
   private emailVerifCodes = new Map<string, { codeHash: string; expiresAt: number }>();
   private resetTokens = new Map<string, { userId: string; usedAt?: string; expiresAt: number }>();
+  private unlockTokens = new Map<string, { userId: string; usedAt?: string; expiresAt: number }>();
   private refreshTokens = new Map<string, {
     userId: string;
     familyId: string;
@@ -27,6 +28,12 @@ class MemoryRepo extends BaseMemoryRepository implements IdentityRepository {
     usedAt?: string;
     revokedAt?: string;
   }>();
+
+  override async init(): Promise<void> {}
+
+  override async healthCheck(): Promise<{ database: boolean }> {
+    return { database: true };
+  }
 
   async registerUser(input: RegisterUserInput): Promise<IdentityUser | null> {
     const email = input.email.toLowerCase();
@@ -42,7 +49,10 @@ class MemoryRepo extends BaseMemoryRepository implements IdentityRepository {
       displayName: input.displayName,
       passwordSalt,
       passwordHash: hashPassword(input.password, passwordSalt),
-      role: "writer"
+      role: "writer",
+      accountStatus: "active",
+      failedLoginAttempts: 0,
+      lockedUntil: null
     };
     this.users.set(id, user);
     this.usersByEmail.set(email, id);
@@ -160,6 +170,56 @@ class MemoryRepo extends BaseMemoryRepository implements IdentityRepository {
     }
   }
 
+  async recordFailedLoginAttempt(userId: string): Promise<{ failedLoginAttempts: number; lockedUntil: string | null }> {
+    const user = this.users.get(userId);
+    if (!user) {
+      return { failedLoginAttempts: 0, lockedUntil: null };
+    }
+
+    user.failedLoginAttempts += 1;
+    if (user.failedLoginAttempts >= 15) {
+      user.lockedUntil = null;
+    } else if (user.failedLoginAttempts >= 10) {
+      user.lockedUntil = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+    } else if (user.failedLoginAttempts >= 5) {
+      user.lockedUntil = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+    }
+
+    return {
+      failedLoginAttempts: user.failedLoginAttempts,
+      lockedUntil: user.lockedUntil
+    };
+  }
+
+  async resetLoginLockout(userId: string): Promise<void> {
+    const user = this.users.get(userId);
+    if (!user) {
+      return;
+    }
+
+    user.failedLoginAttempts = 0;
+    user.lockedUntil = null;
+  }
+
+  async createAccountUnlockToken(userId: string): Promise<{ token: string }> {
+    const token = this.createId("aut");
+    this.unlockTokens.set(token, {
+      userId,
+      expiresAt: Date.now() + 24 * 60 * 60 * 1000
+    });
+    return { token };
+  }
+
+  async consumeAccountUnlockToken(token: string): Promise<{ userId: string } | null> {
+    const entry = this.unlockTokens.get(token);
+    if (!entry || entry.usedAt || entry.expiresAt <= Date.now()) {
+      return null;
+    }
+
+    entry.usedAt = new Date().toISOString();
+    return { userId: entry.userId };
+  }
+
   async softDeleteUser(userId: string): Promise<void> {
     // Mark as deleted, remove sessions
     await this.deleteUserSessions(userId);
@@ -224,7 +284,7 @@ test("identity register/login/me/logout flow", async (t) => {
     url: "/internal/auth/register",
     payload: {
       email: "writer@example.com",
-      password: "password123",
+      password: "Password123!",
       displayName: "Writer One",
       acceptTerms: true
     }
@@ -239,7 +299,7 @@ test("identity register/login/me/logout flow", async (t) => {
     url: "/internal/auth/login",
     payload: {
       email: "writer@example.com",
-      password: "password123"
+      password: "Password123!"
     }
   });
   assert.equal(login.statusCode, 200);
@@ -273,7 +333,7 @@ test("identity register rejects duplicate email", async (t) => {
 
   const payload = {
     email: "writer@example.com",
-    password: "password123",
+    password: "Password123!",
     displayName: "Writer One",
     acceptTerms: true as const
   };
@@ -305,7 +365,7 @@ test("identity login rejects invalid credentials", async (t) => {
     url: "/internal/auth/register",
     payload: {
       email: "writer@example.com",
-      password: "password123",
+      password: "Password123!",
       displayName: "Writer One",
       acceptTerms: true
     }
@@ -322,6 +382,185 @@ test("identity login rejects invalid credentials", async (t) => {
 
   assert.equal(login.statusCode, 401);
   assert.equal(login.json().error, "invalid_credentials");
+});
+
+test("identity login resets failed attempts after success", async (t) => {
+  const repo = new MemoryRepo();
+  const server = buildServer({ logger: false, repository: repo });
+  t.after(async () => {
+    await server.close();
+  });
+
+  await server.inject({
+    method: "POST",
+    url: "/internal/auth/register",
+    payload: {
+      email: "lock-reset@example.com",
+      password: "Password123!",
+      displayName: "Lock Reset",
+      acceptTerms: true
+    }
+  });
+
+  for (let i = 0; i < 4; i += 1) {
+    const bad = await server.inject({
+      method: "POST",
+      url: "/internal/auth/login",
+      payload: {
+        email: "lock-reset@example.com",
+        password: "wrong-password"
+      }
+    });
+    assert.equal(bad.statusCode, 401);
+  }
+
+  const firstGood = await server.inject({
+    method: "POST",
+    url: "/internal/auth/login",
+    payload: {
+      email: "lock-reset@example.com",
+      password: "Password123!"
+    }
+  });
+  assert.equal(firstGood.statusCode, 200);
+
+  const postSuccessBad = await server.inject({
+    method: "POST",
+    url: "/internal/auth/login",
+    payload: {
+      email: "lock-reset@example.com",
+      password: "wrong-password"
+    }
+  });
+  assert.equal(postSuccessBad.statusCode, 401);
+
+  const secondGood = await server.inject({
+    method: "POST",
+    url: "/internal/auth/login",
+    payload: {
+      email: "lock-reset@example.com",
+      password: "Password123!"
+    }
+  });
+  assert.equal(secondGood.statusCode, 200);
+});
+
+test("identity login locks account after five failures with generic error", async (t) => {
+  const repo = new MemoryRepo();
+  const server = buildServer({ logger: false, repository: repo });
+  t.after(async () => {
+    await server.close();
+  });
+
+  await server.inject({
+    method: "POST",
+    url: "/internal/auth/register",
+    payload: {
+      email: "lock-five@example.com",
+      password: "Password123!",
+      displayName: "Lock Five",
+      acceptTerms: true
+    }
+  });
+
+  let wrongPasswordPayload: unknown = null;
+  for (let i = 0; i < 5; i += 1) {
+    const bad = await server.inject({
+      method: "POST",
+      url: "/internal/auth/login",
+      payload: {
+        email: "lock-five@example.com",
+        password: "wrong-password"
+      }
+    });
+    assert.equal(bad.statusCode, 401);
+    wrongPasswordPayload = bad.json();
+  }
+
+  const locked = await server.inject({
+    method: "POST",
+    url: "/internal/auth/login",
+    payload: {
+      email: "lock-five@example.com",
+      password: "Password123!"
+    }
+  });
+  assert.equal(locked.statusCode, 401);
+  assert.deepEqual(locked.json(), wrongPasswordPayload);
+});
+
+test("identity unlock-account endpoint unlocks permanent lockout", async (t) => {
+  const { MemoryEmailService } = await import("@script-manifest/email");
+  const emailService = new MemoryEmailService();
+  const repo = new MemoryRepo();
+  const server = buildServer({ logger: false, repository: repo, emailService });
+  t.after(async () => {
+    await server.close();
+  });
+
+  await server.inject({
+    method: "POST",
+    url: "/internal/auth/register",
+    payload: {
+      email: "lock-fifteen@example.com",
+      password: "Password123!",
+      displayName: "Lock Fifteen",
+      acceptTerms: true
+    }
+  });
+
+  for (let i = 0; i < 15; i += 1) {
+    const bad = await server.inject({
+      method: "POST",
+      url: "/internal/auth/login",
+      payload: {
+        email: "lock-fifteen@example.com",
+        password: "wrong-password"
+      }
+    });
+    assert.equal(bad.statusCode, 401);
+
+    const user = await repo.findUserByEmail("lock-fifteen@example.com");
+    if (user?.lockedUntil) {
+      user.lockedUntil = new Date(Date.now() - 1_000).toISOString();
+    }
+  }
+
+  const locked = await server.inject({
+    method: "POST",
+    url: "/internal/auth/login",
+    payload: {
+      email: "lock-fifteen@example.com",
+      password: "Password123!"
+    }
+  });
+  assert.equal(locked.statusCode, 401);
+  assert.equal(locked.json().error, "invalid_credentials");
+
+  const lockoutEmail = emailService.sentEmails.find((message: { template: string }) => message.template === "account-lockout");
+  assert.ok(lockoutEmail);
+  const unlockUrl = lockoutEmail?.data.unlockUrl;
+  assert.ok(unlockUrl);
+  const token = new URL(unlockUrl as string).searchParams.get("token");
+  assert.ok(token);
+
+  const unlock = await server.inject({
+    method: "POST",
+    url: "/internal/auth/unlock-account",
+    payload: { token }
+  });
+  assert.equal(unlock.statusCode, 200);
+  assert.equal(unlock.json().ok, true);
+
+  const unlockedLogin = await server.inject({
+    method: "POST",
+    url: "/internal/auth/login",
+    payload: {
+      email: "lock-fifteen@example.com",
+      password: "Password123!"
+    }
+  });
+  assert.equal(unlockedLogin.statusCode, 200);
 });
 
 test("identity me/logout require bearer token", async (t) => {
@@ -420,7 +659,7 @@ test("identity refresh rotates token and blocks reuse", async (t) => {
     url: "/internal/auth/register",
     payload: {
       email: "refresh@example.com",
-      password: "password123",
+      password: "Password123!",
       displayName: "Refresh User",
       acceptTerms: true
     }
@@ -466,7 +705,7 @@ test("register rejects missing acceptTerms", async (t) => {
     url: "/internal/auth/register",
     payload: {
       email: "noterms@example.com",
-      password: "password123",
+      password: "Password123!",
       displayName: "No Terms"
     }
   });
@@ -484,7 +723,7 @@ test("email verification flow", async (t) => {
   const reg = await server.inject({
     method: "POST",
     url: "/internal/auth/register",
-    payload: { email: "verify@example.com", password: "password123", displayName: "Verify User", acceptTerms: true }
+    payload: { email: "verify@example.com", password: "Password123!", displayName: "Verify User", acceptTerms: true }
   });
   assert.equal(reg.statusCode, 201);
   const token = reg.json().token as string;
@@ -555,7 +794,7 @@ test("password reset flow: forgot → reset → login with new password", async 
   await server.inject({
     method: "POST",
     url: "/internal/auth/register",
-    payload: { email: "reset@example.com", password: "oldpassword1", displayName: "Reset User", acceptTerms: true }
+    payload: { email: "reset@example.com", password: "Oldpassword1!", displayName: "Reset User", acceptTerms: true }
   });
   emailService.clear();
 
@@ -577,7 +816,7 @@ test("password reset flow: forgot → reset → login with new password", async 
   const reset = await server.inject({
     method: "POST",
     url: "/internal/auth/reset-password",
-    payload: { token: resetToken, password: "newpassword1" }
+    payload: { token: resetToken, password: "Newpassword1!" }
   });
   assert.equal(reset.statusCode, 200);
   assert.equal(reset.json().ok, true);
@@ -586,7 +825,7 @@ test("password reset flow: forgot → reset → login with new password", async 
   const oldLogin = await server.inject({
     method: "POST",
     url: "/internal/auth/login",
-    payload: { email: "reset@example.com", password: "oldpassword1" }
+    payload: { email: "reset@example.com", password: "Oldpassword1!" }
   });
   assert.equal(oldLogin.statusCode, 401);
 
@@ -594,7 +833,7 @@ test("password reset flow: forgot → reset → login with new password", async 
   const newLogin = await server.inject({
     method: "POST",
     url: "/internal/auth/login",
-    payload: { email: "reset@example.com", password: "newpassword1" }
+    payload: { email: "reset@example.com", password: "Newpassword1!" }
   });
   assert.equal(newLogin.statusCode, 200);
   assert.ok(newLogin.json().token);
@@ -610,7 +849,7 @@ test("password reset rejects used token", async (t) => {
   await server.inject({
     method: "POST",
     url: "/internal/auth/register",
-    payload: { email: "reuse@example.com", password: "password123", displayName: "Reuse User", acceptTerms: true }
+    payload: { email: "reuse@example.com", password: "Password123!", displayName: "Reuse User", acceptTerms: true }
   });
   emailService.clear();
 
@@ -627,7 +866,7 @@ test("password reset rejects used token", async (t) => {
   const first = await server.inject({
     method: "POST",
     url: "/internal/auth/reset-password",
-    payload: { token: resetToken, password: "newpassword1" }
+    payload: { token: resetToken, password: "Newpassword1!" }
   });
   assert.equal(first.statusCode, 200);
 
@@ -635,7 +874,7 @@ test("password reset rejects used token", async (t) => {
   const second = await server.inject({
     method: "POST",
     url: "/internal/auth/reset-password",
-    payload: { token: resetToken, password: "anotherpass1" }
+    payload: { token: resetToken, password: "Anotherpass1!" }
   });
   assert.equal(second.statusCode, 400);
   assert.equal(second.json().error, "invalid_or_expired_token");
@@ -652,7 +891,7 @@ test("register rejects acceptTerms: false", async (t) => {
     url: "/internal/auth/register",
     payload: {
       email: "falseterms@example.com",
-      password: "password123",
+      password: "Password123!",
       displayName: "False Terms",
       acceptTerms: false
     }
@@ -668,7 +907,7 @@ test("account deletion requires password confirmation", async (t) => {
   const reg = await server.inject({
     method: "POST",
     url: "/internal/auth/register",
-    payload: { email: "delete@example.com", password: "password123", displayName: "Delete Me", acceptTerms: true }
+    payload: { email: "delete@example.com", password: "Password123!", displayName: "Delete Me", acceptTerms: true }
   });
   const token = reg.json().token as string;
 
@@ -687,7 +926,7 @@ test("account deletion requires password confirmation", async (t) => {
     method: "DELETE",
     url: "/internal/auth/account",
     headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
-    payload: { password: "password123" }
+    payload: { password: "Password123!" }
   });
   assert.equal(good.statusCode, 200);
   assert.equal(good.json().ok, true);

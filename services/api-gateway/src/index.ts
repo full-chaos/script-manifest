@@ -29,6 +29,7 @@ import { registerIpBlockingRoutes } from "./routes/ip-blocking.js";
 import { registerNotificationAdminRoutes } from "./routes/notification-admin.js";
 import { registerSearchAdminRoutes } from "./routes/search-admin.js";
 import { registerFeatureFlagRoutes } from "./routes/feature-flags.js";
+import { registerMfaRoutes } from "./routes/mfa.js";
 import { registerHealthRoutes } from "./routes/health.js";
 import { registerIpBlocklist } from "./plugins/ipBlocklist.js";
 import { registerMetrics } from "@script-manifest/service-utils";
@@ -139,6 +140,7 @@ export async function buildServer(options: ApiGatewayOptions = {}): Promise<Fast
   registerHealthRoutes(server, ctx);
 
   registerAuthRoutes(server, ctx);
+  registerMfaRoutes(server, ctx);
   registerProfileRoutes(server, ctx);
   registerProjectRoutes(server, ctx);
   registerCompetitionRoutes(server, ctx);

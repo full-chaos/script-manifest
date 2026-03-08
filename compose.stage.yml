@@ -1,0 +1,569 @@
+x-service: &service-defaults
+  env_file: ./.env
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+x-healthcheck: &healthcheck
+  interval: 15s
+  timeout: 5s
+  retries: 5
+  start_period: 15s
+
+services:
+  # ── Infrastructure ───────────────────────────────────────────────────
+
+  postgres:
+    <<: *service-defaults
+    image: postgres:latest
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-manifest}
+      POSTGRES_USER: ${POSTGRES_USER:-manifest}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-manifest1234}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-manifest}" ]
+      <<: *healthcheck
+    networks: [ internal ]
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+  redis:
+    <<: *service-defaults
+    image: redis:7
+    command: redis-server --requirepass ${REDIS_PASSWORD:-manifest}
+    healthcheck:
+      test: [ "CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-manifest}", "ping" ]
+      <<: *healthcheck
+    networks: [ internal ]
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+  opensearch:
+    <<: *service-defaults
+    image: opensearchproject/opensearch:2.17.1
+    environment:
+      discovery.type: single-node
+      plugins.security.disabled: "true"
+      OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
+    ulimits:
+      memlock: { soft: -1, hard: -1 }
+      nofile: { soft: 65536, hard: 65536 }
+    volumes:
+      - opensearch_data:/usr/share/opensearch/data
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health || exit 1" ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks: [ internal ]
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+  minio:
+    <<: *service-defaults
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-manifest}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-manifest123}
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -sf http://localhost:9000/minio/health/live || exit 1" ]
+      <<: *healthcheck
+    networks: [ internal ]
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+  redpanda:
+    <<: *service-defaults
+    image: redpandadata/redpanda:latest
+    command:
+      - redpanda
+      - start
+      - --overprovisioned
+      - --smp=1
+      - --memory=1G
+      - --reserve-memory=0M
+      - --node-id=0
+      - --check=false
+      - --kafka-addr=PLAINTEXT://0.0.0.0:9092
+      - --advertise-kafka-addr=PLAINTEXT://redpanda:9092
+      - --pandaproxy-addr=0.0.0.0:8082
+      - --advertise-pandaproxy-addr=redpanda:8082
+      - --set
+      - auto_create_topics_enabled=true
+    networks: [ internal ]
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+
+  # ── Backend Services ─────────────────────────────────────────────────
+  traefik:
+    <<: *service-defaults
+    image: traefik:v3.3
+    ports:
+      - "3443:443"
+      - "3200:80"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - traefik_certs:/letsencrypt
+    command:
+      - --api.insecure=false
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --providers.docker.network=public
+      - --entrypoints.web.address=:80
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
+      - --entrypoints.websecure.address=:443
+      - --certificatesresolvers.letsencrypt.acme.tlschallenge=true
+      - --certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL:?ACME_EMAIL is required for TLS}
+      - --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
+    healthcheck:
+      test: [ "CMD", "traefik", "healthcheck" ]
+      <<: *healthcheck
+    networks: [ public ]
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+
+  notification-service:
+    <<: *service-defaults
+    image: ghcr.io/full-chaos/script-manifest/notification-service:${IMAGE_TAG:-latest}
+    environment:
+      PORT: "4010"
+      NODE_ENV: production
+      KAFKA_BROKERS: "redpanda:9092"
+    depends_on:
+      redpanda:
+        condition: service_started
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -sf http://localhost:4010/health || exit 1" ]
+      <<: *healthcheck
+    networks: [ internal ]
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  identity-service:
+    <<: *service-defaults
+    image: ghcr.io/full-chaos/script-manifest/identity-service:${IMAGE_TAG:-latest}
+    environment:
+      PORT: "4005"
+      NODE_ENV: production
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-manifest}:${POSTGRES_PASSWORD:-manifest1234}@postgres:5432/${POSTGRES_DB:-manifest}"
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -sf http://localhost:4005/health || exit 1" ]
+      <<: *healthcheck
+    networks: [ internal ]
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  profile-project-service:
+    <<: *service-defaults
+    image: ghcr.io/full-chaos/script-manifest/profile-project-service:${IMAGE_TAG:-latest}
+    environment:
+      PORT: "4001"
+      NODE_ENV: production
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-manifest}:${POSTGRES_PASSWORD:?}@postgres:5432/${POSTGRES_DB:-manifest}"
+      NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      notification-service:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -sf http://localhost:4001/health || exit 1" ]
+      <<: *healthcheck
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  search-indexer-service:
+    <<: *service-defaults
+    image: ghcr.io/full-chaos/script-manifest/search-indexer-service:${IMAGE_TAG:-latest}
+    environment:
+      PORT: "4003"
+      NODE_ENV: production
+      OPENSEARCH_URL: "http://opensearch:9200"
+      OPENSEARCH_INDEX: "competitions_v1"
+    depends_on:
+      opensearch:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -sf http://localhost:4003/health || exit 1" ]
+      <<: *healthcheck
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  competition-directory-service:
+    <<: *service-defaults
+    image: ghcr.io/full-chaos/script-manifest/competition-directory-service:${IMAGE_TAG:-latest}
+    environment:
+      PORT: "4002"
+      NODE_ENV: production
+      SEARCH_INDEXER_URL: "http://search-indexer-service:4003"
+      NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
+    depends_on:
+      search-indexer-service:
+        condition: service_healthy
+      notification-service:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -sf http://localhost:4002/health || exit 1" ]
+      <<: *healthcheck
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  script-storage-service:
+    <<: *service-defaults
+    image: ghcr.io/full-chaos/script-manifest/script-storage-service:${IMAGE_TAG:-latest}
+    environment:
+      PORT: "4011"
+      NODE_ENV: production
+      STORAGE_BUCKET: "scripts"
+      # Browser-reachable URL for upload forms - MUST be externally accessible
+      STORAGE_UPLOAD_BASE_URL: ${STORAGE_UPLOAD_BASE_URL:-http://localhost:9000}
+      STORAGE_PUBLIC_BASE_URL: ${STORAGE_PUBLIC_BASE_URL:-http://localhost:9000}
+      # Internal network URL for S3 client operations
+      STORAGE_S3_ENDPOINT: ${STORAGE_S3_ENDPOINT:-http://minio:9000}
+      STORAGE_S3_REGION: ${STORAGE_S3_REGION:-us-east-1}
+      STORAGE_S3_ACCESS_KEY: ${MINIO_ROOT_USER:-manifest}
+      STORAGE_S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD is required}
+      STORAGE_S3_FORCE_PATH_STYLE: ${STORAGE_S3_FORCE_PATH_STYLE:-true}
+    depends_on:
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -sf http://localhost:4011/health || exit 1" ]
+      <<: *healthcheck
+    networks: [ internal ]
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  submission-tracking-service:
+    <<: *service-defaults
+    image: ghcr.io/full-chaos/script-manifest/submission-tracking-service:${IMAGE_TAG:-latest}
+    environment:
+      PORT: "4004"
+      NODE_ENV: production
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -sf http://localhost:4004/health || exit 1" ]
+      <<: *healthcheck
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  feedback-exchange-service:
+    <<: *service-defaults
+    image: ghcr.io/full-chaos/script-manifest/feedback-exchange-service:${IMAGE_TAG:-latest}
+    environment:
+      PORT: "4006"
+      NODE_ENV: production
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-manifest}:${POSTGRES_PASSWORD:?}@postgres:5432/${POSTGRES_DB:-manifest}"
+      NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
+      KAFKA_BROKERS: "redpanda:9092"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      notification-service:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -sf http://localhost:4006/health || exit 1" ]
+      <<: *healthcheck
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  ranking-service:
+    <<: *service-defaults
+    image: ghcr.io/full-chaos/script-manifest/ranking-service:${IMAGE_TAG:-latest}
+    environment:
+      PORT: "4007"
+      NODE_ENV: production
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-manifest}:${POSTGRES_PASSWORD:?}@postgres:5432/${POSTGRES_DB:-manifest}"
+      NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
+      KAFKA_BROKERS: "redpanda:9092"
+      SUBMISSION_TRACKING_SERVICE_URL: "http://submission-tracking-service:4004"
+      COMPETITION_DIRECTORY_SERVICE_URL: "http://competition-directory-service:4002"
+      PROFILE_SERVICE_URL: "http://profile-project-service:4001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      notification-service:
+        condition: service_healthy
+      submission-tracking-service:
+        condition: service_healthy
+      competition-directory-service:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -sf http://localhost:4007/health || exit 1" ]
+      <<: *healthcheck
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  programs-service:
+    <<: *service-defaults
+    image: ghcr.io/full-chaos/script-manifest/programs-service:latest
+    environment:
+      PORT: "4012"
+      NODE_ENV: production
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-manifest}:${POSTGRES_PASSWORD:-manfest1234}@postgres:5432/${POSTGRES_DB:-manifest}"
+      NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
+      KAFKA_BROKERS: "redpanda:9092"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      notification-service:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -sf http://localhost:4012/health || exit 1" ]
+      <<: *healthcheck
+    networks: [ internal ]
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+  partner-dashboard-service:
+    <<: *service-defaults
+    image: ghcr.io/full-chaos/script-manifest/partner-dashboard-service:latest
+    environment:
+      PORT: "4013"
+      NODE_ENV: production
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-manifest}:${POSTGRES_PASSWORD:-manifest1234}@postgres:5432/${POSTGRES_DB:-manifest}"
+      RANKING_SERVICE_URL: "http://ranking-service:4007"
+      NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
+      KAFKA_BROKERS: "redpanda:9092"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ranking-service:
+        condition: service_healthy
+      notification-service:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -sf http://localhost:4013/health || exit 1" ]
+      <<: *healthcheck
+    networks: [ internal ]
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  api-gateway:
+    <<: *service-defaults
+    image: ghcr.io/full-chaos/script-manifest/api-gateway:${IMAGE_TAG:-latest}
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.api.rule: "Host(`${API_DOMAIN:?API_DOMAIN required}`)"
+      traefik.http.routers.api.entrypoints: "websecure"
+      traefik.http.routers.api.tls.certresolver: "letsencrypt"
+      traefik.http.services.api.loadbalancer.server.port: "4000"
+    environment:
+      PORT: "4000"
+      NODE_ENV: production
+      IDENTITY_SERVICE_URL: "http://identity-service:4005"
+      PROFILE_SERVICE_URL: "http://profile-project-service:4001"
+      COMPETITION_DIRECTORY_SERVICE_URL: "http://competition-directory-service:4002"
+      SUBMISSION_TRACKING_SERVICE_URL: "http://submission-tracking-service:4004"
+      SCRIPT_STORAGE_SERVICE_URL: "http://script-storage-service:4011"
+      FEEDBACK_EXCHANGE_SERVICE_URL: "http://feedback-exchange-service:4006"
+      RANKING_SERVICE_URL: "http://ranking-service:4007"
+      PROGRAMS_SERVICE_URL: "http://programs-service:4012"
+      PARTNER_DASHBOARD_SERVICE_URL: "http://partner-dashboard-service:4013"
+      COVERAGE_MARKETPLACE_SERVICE_URL: "http://coverage-marketplace-service:4008"
+      INDUSTRY_PORTAL_SERVICE_URL: "http://industry-portal-service:4009"
+      COMPETITION_ADMIN_ALLOWLIST: ${COMPETITION_ADMIN_ALLOWLIST:-}
+      COVERAGE_ADMIN_ALLOWLIST: ${COVERAGE_ADMIN_ALLOWLIST:-}
+      INDUSTRY_ADMIN_ALLOWLIST: ${INDUSTRY_ADMIN_ALLOWLIST:-}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
+    depends_on:
+      traefik:
+        condition: service_healthy
+      identity-service:
+        condition: service_healthy
+      profile-project-service:
+        condition: service_healthy
+      competition-directory-service:
+        condition: service_healthy
+      submission-tracking-service:
+        condition: service_healthy
+      feedback-exchange-service:
+        condition: service_healthy
+      ranking-service:
+        condition: service_healthy
+      programs-service:
+        condition: service_healthy
+      partner-dashboard-service:
+        condition: service_healthy
+      coverage-marketplace-service:
+        condition: service_healthy
+      industry-portal-service:
+        condition: service_healthy
+      script-storage-service:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -sf http://localhost:4000/health/live || exit 1" ]
+      <<: *healthcheck
+    networks: [ public, internal ]
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  coverage-marketplace-service:
+    <<: *service-defaults
+    image: ghcr.io/full-chaos/script-manifest/coverage-marketplace-service:latest
+    environment:
+      PORT: "4008"
+      NODE_ENV: production
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-manifest}:${POSTGRES_PASSWORD:?}@postgres:5432/${POSTGRES_DB:-manifest}"
+      NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
+      KAFKA_BROKERS: "redpanda:9092"
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:?STRIPE_SECRET_KEY is required}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:?STRIPE_WEBHOOK_SECRET is required}
+      PLATFORM_COMMISSION_RATE: ${PLATFORM_COMMISSION_RATE:-0.15}
+      MINIO_ENDPOINT: "http://minio:9000"
+      STORAGE_S3_ENDPOINT: "http://minio:9000"
+      STORAGE_S3_ACCESS_KEY: ${MINIO_ROOT_USER:-manifest}
+      STORAGE_S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-manifest123}
+      STORAGE_BUCKET: "coverage-reports"
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      notification-service:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -sf http://localhost:4008/health || exit 1" ]
+      <<: *healthcheck
+    networks: [ internal ]
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  industry-portal-service:
+    <<: *service-defaults
+    image: ghcr.io/full-chaos/script-manifest/industry-portal-service:latest
+    environment:
+      PORT: "4009"
+      NODE_ENV: production
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-manifest}:${POSTGRES_PASSWORD:-manifest1234}@postgres:5432/${POSTGRES_DB:-manifest}"
+      SCRIPT_STORAGE_SERVICE_URL: "http://script-storage-service:4011"
+      NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
+      KAFKA_BROKERS: "redpanda:9092"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      script-storage-service:
+        condition: service_healthy
+      notification-service:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -sf http://localhost:4009/health || exit 1" ]
+      <<: *healthcheck
+    networks: [ internal ]
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  # ── Frontend ─────────────────────────────────────────────────────────
+
+  writer-web:
+    <<: *service-defaults
+    image: ghcr.io/full-chaos/script-manifest/writer-web:${IMAGE_TAG:-latest}
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.web.rule: "Host(`${WEB_DOMAIN:?WEB_DOMAIN required}`)"
+      traefik.http.routers.web.entrypoints: "websecure"
+      traefik.http.routers.web.tls.certresolver: "letsencrypt"
+      traefik.http.services.web.loadbalancer.server.port: "3000"
+    environment:
+      NODE_ENV: production
+      HOSTNAME: "0.0.0.0"
+      PORT: "3000"
+      SCRIPT_STORAGE_SERVICE_URL: "http://script-storage-service:4011"
+      API_GATEWAY_URL: "http://api-gateway:4000"
+      SCRIPT_UPLOAD_INTERNAL_BASE_URL: ${SCRIPT_UPLOAD_INTERNAL_BASE_URL:-http://minio:9000}
+    depends_on:
+      traefik:
+        condition: service_healthy
+      api-gateway:
+        condition: service_healthy
+      script-storage-service:
+        condition: service_healthy
+    networks: [ public, internal ]
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+volumes:
+  postgres_data:
+  opensearch_data:
+  minio_data:
+  traefik_certs:
+
+
+networks:
+  public:
+    driver: bridge
+  internal:
+    driver: bridge

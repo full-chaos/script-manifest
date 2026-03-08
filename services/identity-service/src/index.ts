@@ -36,6 +36,8 @@ import { type IpBlockRepository, PgIpBlockRepository, MemoryIpBlockRepository } 
 import { registerIpBlockRoutes } from "./ip-block-routes.js";
 import { type FeatureFlagRepository, PgFeatureFlagRepository, MemoryFeatureFlagRepository } from "./feature-flag-repository.js";
 import { registerFeatureFlagRoutes } from "./feature-flag-routes.js";
+import { type MfaRepository, PgMfaRepository, MemoryMfaRepository } from "./mfa-repository.js";
+import { registerMfaRoutes, createMfaChallenge } from "./mfa-routes.js";
 import type { EmailService } from "@script-manifest/email";
 import { registerMetrics } from "@script-manifest/service-utils";
 
@@ -56,6 +58,7 @@ export type IdentityServiceOptions = {
   suspensionRepository?: SuspensionRepository;
   ipBlockRepository?: IpBlockRepository;
   featureFlagRepository?: FeatureFlagRepository;
+  mfaRepository?: MfaRepository;
   emailService?: EmailService;
 };
 
@@ -67,6 +70,7 @@ export function buildServer(options: IdentityServiceOptions = {}): FastifyInstan
   const suspensionRepo = options.suspensionRepository ?? (options.repository ? new MemorySuspensionRepository() : new PgSuspensionRepository());
   const ipBlockRepo = options.ipBlockRepository ?? (options.repository ? new MemoryIpBlockRepository() : new PgIpBlockRepository());
   const flagRepo = options.featureFlagRepository ?? (options.repository ? new MemoryFeatureFlagRepository() : new PgFeatureFlagRepository());
+  const mfaRepo = options.mfaRepository ?? (options.repository ? new MemoryMfaRepository() : new PgMfaRepository());
   const emailService = options.emailService;
   const runHealthCheck = options.repository ? () => repository.healthCheck() : healthCheck;
   const server = Fastify({
@@ -89,6 +93,7 @@ export function buildServer(options: IdentityServiceOptions = {}): FastifyInstan
     await suspensionRepo.init();
     await ipBlockRepo.init();
     await flagRepo.init();
+    await mfaRepo.init();
   });
 
   server.register(rateLimit, {
@@ -354,6 +359,12 @@ export function buildServer(options: IdentityServiceOptions = {}): FastifyInstan
       });
     }
 
+    // Check if user has MFA enabled
+    if (user.mfaEnabled) {
+      const mfaToken = createMfaChallenge(user.id);
+      return reply.send({ requiresMfa: true, mfaToken });
+    }
+
     const payload = await createAuthSessionPayload(repository, user);
 
       loginCounter.inc({ method: "password" });
@@ -586,6 +597,7 @@ export function buildServer(options: IdentityServiceOptions = {}): FastifyInstan
     }
   });
 
+  registerMfaRoutes(server, mfaRepo, repository);
   registerAdminRoutes(server, adminRepo);
   registerSuspensionRoutes(server, suspensionRepo, adminRepo);
   registerIpBlockRoutes(server, ipBlockRepo, adminRepo);

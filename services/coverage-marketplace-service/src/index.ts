@@ -1108,8 +1108,7 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
         const intentId = event.data?.object?.id;
         if (intentId) {
           // Find order and update status
-          const orders = await repository.listOrders({ offset: 0, limit: 1000 });
-          const order = orders.find((o) => o.stripePaymentIntentId === intentId);
+          const order = await repository.findOrderByPaymentIntentId(intentId);
           if (order && order.status === "placed") {
             await repository.updateOrderStatus(order.id, "payment_held");
           }
@@ -1152,8 +1151,7 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
       } else if (event.type === "charge.failed") {
         const paymentIntentId = event.data?.object?.payment_intent;
         if (paymentIntentId) {
-          const orders = await repository.listOrders({ offset: 0, limit: 1000 });
-          const order = orders.find((o) => o.stripePaymentIntentId === paymentIntentId);
+          const order = await repository.findOrderByPaymentIntentId(paymentIntentId);
           if (order && (order.status === "placed" || order.status === "payment_held")) {
             await repository.updateOrderStatus(order.id, "payment_failed");
           }
@@ -1161,8 +1159,7 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
       } else if (event.type === "charge.refunded") {
         const paymentIntentId = event.data?.object?.payment_intent;
         if (paymentIntentId) {
-          const orders = await repository.listOrders({ offset: 0, limit: 1000 });
-          const order = orders.find((o) => o.stripePaymentIntentId === paymentIntentId);
+          const order = await repository.findOrderByPaymentIntentId(paymentIntentId);
           if (order && order.status !== "refunded") {
             await repository.updateOrderStatus(order.id, "refunded");
           }
@@ -1170,8 +1167,7 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
       } else if (event.type === "charge.dispute.created") {
         const paymentIntentId = event.data?.object?.payment_intent;
         if (paymentIntentId) {
-          const orders = await repository.listOrders({ offset: 0, limit: 1000 });
-          const order = orders.find((o) => o.stripePaymentIntentId === paymentIntentId);
+          const order = await repository.findOrderByPaymentIntentId(paymentIntentId);
           if (order && order.status !== "disputed") {
             await repository.updateOrderStatus(order.id, "disputed");
           }

@@ -337,6 +337,15 @@ export class PgCoverageMarketplaceRepository implements CoverageMarketplaceRepos
     return result.rows[0] ? mapOrder(result.rows[0]) : null;
   }
 
+  async findOrderByPaymentIntentId(intentId: string): Promise<CoverageOrder | null> {
+    const db = getPool();
+    const result = await db.query<OrderRow>(
+      `SELECT * FROM coverage_orders WHERE stripe_payment_intent_id = $1 LIMIT 1`,
+      [intentId]
+    );
+    return result.rows[0] ? mapOrder(result.rows[0]) : null;
+  }
+
   async listOrders(filters: CoverageOrderFilters): Promise<CoverageOrder[]> {
     const db = getPool();
     const conditions: string[] = [];

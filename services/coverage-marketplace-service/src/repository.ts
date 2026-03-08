@@ -57,6 +57,7 @@ export interface CoverageMarketplaceRepository {
     stripePaymentIntentId: string;
   }): Promise<CoverageOrder>;
   getOrder(orderId: string): Promise<CoverageOrder | null>;
+  findOrderByPaymentIntentId(intentId: string): Promise<CoverageOrder | null>;
   listOrders(filters: CoverageOrderFilters): Promise<CoverageOrder[]>;
   updateOrderStatus(orderId: string, status: string, extra?: Partial<{
     stripePaymentIntentId: string;

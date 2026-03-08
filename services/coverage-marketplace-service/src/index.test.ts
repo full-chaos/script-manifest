@@ -227,6 +227,10 @@ class MemoryCoverageMarketplaceRepository extends BaseMemoryRepository implement
     return this.orders.get(orderId) ?? null;
   }
 
+  async findOrderByPaymentIntentId(intentId: string): Promise<CoverageOrder | null> {
+    return Array.from(this.orders.values()).find((o) => o.stripePaymentIntentId === intentId) ?? null;
+  }
+
   async listOrders(filters: CoverageOrderFilters): Promise<CoverageOrder[]> {
     let results = Array.from(this.orders.values());
     if (filters.writerUserId) {

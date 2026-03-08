@@ -97,7 +97,7 @@ test("autoExpireSuspensions lifts expired suspensions", async () => {
   const repo = new MemorySuspensionRepository();
 
   // Create a suspension that's already expired (by manipulating internal state)
-  const suspension = await repo.suspendUser("user_1", "admin_1", "spam", 1);
+  await repo.suspendUser("user_1", "admin_1", "spam", 1);
 
   // Manually set expiresAt to the past
   const history = await repo.getUserSuspensionHistory("user_1");

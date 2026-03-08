@@ -17,7 +17,6 @@ function jsonResponse(payload: unknown, statusCode = 200): RequestResult {
 }
 
 const ADMIN_USER_ID = "admin_01";
-const WRITER_USER_ID = "writer_01";
 
 function createMockRequestFn(responses: Record<string, { payload: unknown; statusCode?: number }>) {
   const calls: { url: string; method: string; headers?: Record<string, string> }[] = [];

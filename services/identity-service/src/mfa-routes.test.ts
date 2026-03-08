@@ -13,7 +13,7 @@ import { BaseMemoryRepository } from "@script-manifest/service-utils";
 import { MemoryMfaRepository } from "./mfa-repository.js";
 import { buildServer } from "./index.js";
 import { hashPassword } from "./repository.js";
-import { generateTotpCode, hashBackupCode } from "./totp.js";
+import { generateTotpCode } from "./totp.js";
 
 // ── Memory Repository (same pattern as index.test.ts) ─────────────────
 

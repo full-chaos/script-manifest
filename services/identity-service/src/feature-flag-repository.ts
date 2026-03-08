@@ -1,4 +1,4 @@
-import { randomUUID, createHash } from "node:crypto";
+import { createHash } from "node:crypto";
 import { getPool } from "@script-manifest/db";
 import type { FeatureFlag } from "@script-manifest/contracts";
 

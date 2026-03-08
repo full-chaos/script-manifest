@@ -3,7 +3,6 @@ import { SuspendUserRequestSchema } from "@script-manifest/contracts";
 import {
   type GatewayContext,
   addAuthUserIdHeader,
-  buildQuerySuffix,
   proxyJsonRequest,
   resolveAdminUserId
 } from "../helpers.js";

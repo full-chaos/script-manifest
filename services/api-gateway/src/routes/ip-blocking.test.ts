@@ -48,7 +48,7 @@ function createMockRequestFn(responses: Record<string, { payload: unknown; statu
 }
 
 test("GET /api/v1/admin/ip-blocks proxies to identity service", async (t) => {
-  const { requestFn, calls } = createMockRequestFn({
+  const { requestFn } = createMockRequestFn({
     "/internal/admin/ip-blocks": {
       payload: { blocks: [], total: 0, page: 1, limit: 50 }
     }

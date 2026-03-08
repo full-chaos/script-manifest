@@ -303,9 +303,8 @@ test("POST /internal/admin/users/:id/ban requires admin", async () => {
 });
 
 test("POST /internal/admin/users/:id/unsuspend lifts active suspension", async () => {
-  const { server, suspensionRepo, adminRepo, cleanup } = createTestServer();
+  const { server, suspensionRepo, cleanup } = createTestServer();
   try {
-    // Set up user in admin repo so updateUserStatus works
     // First create the suspension
     await suspensionRepo.suspendUser("user_1", "admin_1", "spam", 7);
 
@@ -431,7 +430,7 @@ test("unsuspend creates audit log entry", async () => {
 });
 
 test("login is blocked for suspended user", async () => {
-  const { server, suspensionRepo, cleanup } = createTestServer();
+  const { server, cleanup } = createTestServer();
   try {
     // Register a user
     const regRes = await server.inject({

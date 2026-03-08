@@ -59,7 +59,7 @@ test("isBlocked returns false for non-blocked IP", async () => {
 
 test("isBlocked returns false for expired block", async () => {
   const repo = new MemoryIpBlockRepository();
-  const block = await repo.addBlock("192.168.1.1", "Temporary", "admin_1", 1);
+  await repo.addBlock("192.168.1.1", "Temporary", "admin_1", 1);
 
   // Manually expire the block
   const blocks = (await repo.listBlocks(1, 100, true)).blocks;

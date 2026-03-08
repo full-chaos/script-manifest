@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { getPool } from "@script-manifest/db";
 import { BaseMemoryRepository } from "@script-manifest/service-utils";
 

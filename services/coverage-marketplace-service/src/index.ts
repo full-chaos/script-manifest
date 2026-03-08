@@ -1188,6 +1188,46 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
     return reply.send({ received: true });
   });
 
+  // ── Payment Method Routes ──────────────────────────────────────────
+
+  server.get("/internal/coverage/payment-methods", async (req, reply) => {
+    const authUserId = getAuthUserId(req);
+    if (!authUserId) {
+      return reply.status(403).send({ error: "forbidden" });
+    }
+
+    const profile = await userPaymentProfileRepository.findByUserId(authUserId);
+    if (!profile) {
+      return reply.send({ paymentMethods: [] });
+    }
+
+    const paymentMethods = await paymentGateway.listPaymentMethods(profile.stripeCustomerId);
+    return reply.send({ paymentMethods });
+  });
+
+  server.delete<{ Params: { id: string } }>("/internal/coverage/payment-methods/:id", async (req, reply) => {
+    const authUserId = getAuthUserId(req);
+    if (!authUserId) {
+      return reply.status(403).send({ error: "forbidden" });
+    }
+
+    const profile = await userPaymentProfileRepository.findByUserId(authUserId);
+    if (!profile) {
+      return reply.status(403).send({ error: "forbidden" });
+    }
+
+    const userMethods = await paymentGateway.listPaymentMethods(profile.stripeCustomerId);
+    const { id } = req.params;
+    const owned = userMethods.some((m) => m.id === id);
+    if (!owned) {
+      return reply.status(403).send({ error: "forbidden" });
+    }
+
+    await paymentGateway.detachPaymentMethod(id);
+    return reply.status(204).send();
+  });
+
+
   return server;
 }
 

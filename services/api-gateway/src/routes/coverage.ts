@@ -404,4 +404,29 @@ export function registerCoverageRoutes(server: FastifyInstance, ctx: GatewayCont
       }
     );
   });
+
+  // Payment method routes
+  server.get("/api/v1/coverage/payment-methods", {
+    config: { rateLimit: { max: 60, timeWindow: "1 minute" } }
+  }, async (req, reply) => {
+    const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
+    if (!userId) return reply.status(401).send({ error: "unauthorized" });
+    return proxyJsonRequest(reply, ctx.requestFn,
+      `${ctx.coverageMarketplaceBase}/internal/coverage/payment-methods`,
+      { method: "GET", headers: addAuthUserIdHeader({}, userId) }
+    );
+  });
+
+  server.delete<{ Params: { id: string } }>("/api/v1/coverage/payment-methods/:id", {
+    config: { rateLimit: { max: 30, timeWindow: "1 minute" } }
+  }, async (req, reply) => {
+    const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
+    if (!userId) return reply.status(401).send({ error: "unauthorized" });
+    const { id } = req.params;
+    return proxyJsonRequest(reply, ctx.requestFn,
+      `${ctx.coverageMarketplaceBase}/internal/coverage/payment-methods/${encodeURIComponent(id)}`,
+      { method: "DELETE", headers: addAuthUserIdHeader({}, userId) }
+    );
+  });
+
 }

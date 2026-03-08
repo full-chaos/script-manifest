@@ -2878,3 +2878,114 @@ test("charge.refunded does not update already refunded order", async (t) => {
   const updatedOrder = await repo.getOrder(order.id);
   assert.equal(updatedOrder!.status, "refunded");
 });
+
+// ── Payment Methods Tests ────────────────────────────────────────────
+
+test("list payment methods returns empty array for user with no profile", async (t) => {
+  const { server } = createServer();
+  t.after(() => server.close());
+
+  const res = await server.inject({
+    method: "GET",
+    url: "/internal/coverage/payment-methods",
+    headers: { "x-auth-user-id": "user_no_profile" }
+  });
+
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(res.json().paymentMethods, []);
+});
+
+test("list payment methods returns 403 when unauthenticated", async (t) => {
+  const { server } = createServer();
+  t.after(() => server.close());
+
+  const res = await server.inject({
+    method: "GET",
+    url: "/internal/coverage/payment-methods"
+  });
+
+  assert.equal(res.statusCode, 403);
+});
+
+test("list payment methods returns saved methods for user with profile", async (t) => {
+  const { server, gateway, userPaymentProfileRepo } = createServer();
+  t.after(() => server.close());
+
+  // Create a customer in the gateway and seed a payment method
+  const { customerId } = await gateway.createCustomer({ email: "user@example.com", name: "User", idempotencyKey: "idem_list_pm" });
+  await userPaymentProfileRepo.create("user_with_profile", customerId);
+  gateway.paymentMethods.set(customerId, [
+    { id: "pm_abc", brand: "visa", last4: "4242", expMonth: 12, expYear: 2027 }
+  ]);
+
+  const res = await server.inject({
+    method: "GET",
+    url: "/internal/coverage/payment-methods",
+    headers: { "x-auth-user-id": "user_with_profile" }
+  });
+
+  assert.equal(res.statusCode, 200);
+  const { paymentMethods } = res.json();
+  assert.equal(paymentMethods.length, 1);
+  assert.equal(paymentMethods[0].id, "pm_abc");
+  assert.equal(paymentMethods[0].brand, "visa");
+  assert.equal(paymentMethods[0].last4, "4242");
+  assert.equal(paymentMethods[0].expMonth, 12);
+  assert.equal(paymentMethods[0].expYear, 2027);
+});
+
+test("delete payment method rejects cross-user deletion with 403", async (t) => {
+  const { server, gateway, userPaymentProfileRepo } = createServer();
+  t.after(() => server.close());
+
+  // Create two customers with separate payment methods
+  const { customerId: custA } = await gateway.createCustomer({ email: "a@example.com", name: "User A", idempotencyKey: "idem_cust_a" });
+  const { customerId: custB } = await gateway.createCustomer({ email: "b@example.com", name: "User B", idempotencyKey: "idem_cust_b" });
+  await userPaymentProfileRepo.create("user_a", custA);
+  await userPaymentProfileRepo.create("user_b", custB);
+  gateway.paymentMethods.set(custA, [{ id: "pm_A1", brand: "visa", last4: "1111", expMonth: 1, expYear: 2028 }]);
+  gateway.paymentMethods.set(custB, [{ id: "pm_B1", brand: "mastercard", last4: "2222", expMonth: 2, expYear: 2029 }]);
+
+  // User A tries to delete User B's payment method — should get 403
+  const res = await server.inject({
+    method: "DELETE",
+    url: "/internal/coverage/payment-methods/pm_B1",
+    headers: { "x-auth-user-id": "user_a" }
+  });
+
+  assert.equal(res.statusCode, 403);
+  // Verify User B's method is still there
+  const methodsB = await gateway.listPaymentMethods(custB);
+  assert.equal(methodsB.length, 1);
+});
+
+test("delete payment method removes owned method and returns 204", async (t) => {
+  const { server, gateway, userPaymentProfileRepo } = createServer();
+  t.after(() => server.close());
+
+  const { customerId } = await gateway.createCustomer({ email: "owner@example.com", name: "Owner", idempotencyKey: "idem_owner" });
+  await userPaymentProfileRepo.create("owner_user", customerId);
+  gateway.paymentMethods.set(customerId, [{ id: "pm_own", brand: "amex", last4: "3333", expMonth: 6, expYear: 2026 }]);
+
+  const res = await server.inject({
+    method: "DELETE",
+    url: "/internal/coverage/payment-methods/pm_own",
+    headers: { "x-auth-user-id": "owner_user" }
+  });
+
+  assert.equal(res.statusCode, 204);
+  const remaining = await gateway.listPaymentMethods(customerId);
+  assert.equal(remaining.length, 0);
+});
+
+test("delete payment method returns 403 when unauthenticated", async (t) => {
+  const { server } = createServer();
+  t.after(() => server.close());
+
+  const res = await server.inject({
+    method: "DELETE",
+    url: "/internal/coverage/payment-methods/pm_any"
+  });
+
+  assert.equal(res.statusCode, 403);
+});

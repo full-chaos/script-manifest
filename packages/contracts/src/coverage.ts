@@ -256,3 +256,12 @@ export const CoverageProviderFiltersSchema = z.object({
   offset: z.coerce.number().int().min(0).default(0)
 });
 export type CoverageProviderFilters = z.infer<typeof CoverageProviderFiltersSchema>;
+
+export const PaymentMethodSchema = z.object({
+  id: z.string(),
+  brand: z.string(),
+  last4: z.string(),
+  expMonth: z.number(),
+  expYear: z.number()
+});
+export type PaymentMethod = z.infer<typeof PaymentMethodSchema>;

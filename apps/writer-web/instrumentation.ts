@@ -2,7 +2,7 @@ export async function register() {
   if (process.env.NEXT_RUNTIME === "nodejs") {
     const { NodeSDK } = await import("@opentelemetry/sdk-node");
     const { OTLPTraceExporter } = await import("@opentelemetry/exporter-trace-otlp-http");
-    const { Resource } = await import("@opentelemetry/resources");
+    const { resourceFromAttributes } = await import("@opentelemetry/resources");
     const { ATTR_SERVICE_NAME } = await import("@opentelemetry/semantic-conventions");
     const { getNodeAutoInstrumentations } = await import("@opentelemetry/auto-instrumentations-node");
 
@@ -10,7 +10,7 @@ export async function register() {
     if (!endpoint) return;
 
     const sdk = new NodeSDK({
-      resource: new Resource({ [ATTR_SERVICE_NAME]: "writer-web" }),
+      resource: resourceFromAttributes({ [ATTR_SERVICE_NAME]: "writer-web" }),
       traceExporter: new OTLPTraceExporter({ url: endpoint }),
       instrumentations: [getNodeAutoInstrumentations()]
     });

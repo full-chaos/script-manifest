@@ -165,4 +165,42 @@ describe("OrderDetailPage", () => {
       expect(screen.getByRole("button", { name: "Claim Order" })).toBeInTheDocument();
     });
   });
+  it("shows payment failure recovery UI for writer on failed order", async () => {
+    const failedOrder = makeOrder({ status: "payment_failed", paymentFailureReason: "Insufficient funds" } as any);
+    const provider = makeProvider();
+
+    const fetchMock = vi.fn<typeof fetch>(async (input) => {
+      const url = typeof input === "string" ? input : (input as Request).url;
+      if (url === "/api/v1/coverage/orders/order_01") return jsonResponse({ order: failedOrder });
+      if (url === "/api/v1/coverage/providers/prov_01") return jsonResponse({ provider });
+      return jsonResponse({}, 404);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    setSession("user_writer_01");
+    renderPage();
+
+    await screen.findByRole("heading", { name: /Payment Failed/i });
+    expect(screen.getByText(/insufficient funds/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Retry Payment/i })).toBeInTheDocument();
+  });
+
+  it("does not show retry button for provider on failed order", async () => {
+    const failedOrder = makeOrder({ status: "payment_failed", writerUserId: "different_writer" } as any);
+    const provider = makeProvider({ userId: "user_provider_01" });
+
+    const fetchMock = vi.fn<typeof fetch>(async (input) => {
+      const url = typeof input === "string" ? input : (input as Request).url;
+      if (url === "/api/v1/coverage/orders/order_01") return jsonResponse({ order: failedOrder });
+      if (url === "/api/v1/coverage/providers/prov_01") return jsonResponse({ provider });
+      return jsonResponse({}, 404);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    setSession("user_provider_01");
+    renderPage();
+
+    await screen.findByRole("heading", { name: /Payment Failed/i });
+    expect(screen.queryByRole("button", { name: /Retry Payment/i })).not.toBeInTheDocument();
+  });
 });

@@ -100,6 +100,35 @@ export default function OrderDetailPage() {
     void loadData();
   }, [loadData]);
 
+  const [retrying, setRetrying] = useState(false);
+
+  function getDeclineMessage(reason?: string): string {
+    if (!reason) return "Your payment was declined. Please try a different card.";
+    if (reason.toLowerCase().includes("insufficient")) return "Your card was declined due to insufficient funds.";
+    if (reason.toLowerCase().includes("expired")) return "Your card has expired. Please use a different card.";
+    return `Your payment was declined: ${reason}. Please try a different card.`;
+  }
+
+  async function handleRetryPayment() {
+    setRetrying(true);
+    try {
+      const response = await fetch(`/api/v1/coverage/orders/${encodeURIComponent(orderId)}/retry-payment`, {
+        method: "POST",
+        headers: { "content-type": "application/json", ...getAuthHeaders() }
+      });
+      const body = (await response.json()) as { error?: string };
+      if (!response.ok) {
+        toast.error(body.error ?? "Failed to retry payment.");
+        return;
+      }
+      toast.success("Payment retry initiated. Please check your email for confirmation.");
+      await loadData();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to retry payment.");
+    } finally {
+      setRetrying(false);
+    }
+  }
   async function handleClaim() {
     setClaiming(true);
     try {
@@ -329,6 +358,29 @@ export default function OrderDetailPage() {
           </div>
         </div>
       </article>
+
+      {order.status === "payment_failed" ? (
+        <article className="panel stack animate-in animate-in-delay-2">
+          <h2 className="section-title">Payment Failed</h2>
+          <div className="subcard stack-tight">
+            <p className="text-sm text-foreground-secondary">
+              {getDeclineMessage((order as { paymentFailureReason?: string }).paymentFailureReason)}
+            </p>
+            {isWriter ? (
+              <div className="inline-form pt-2">
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={() => void handleRetryPayment()}
+                  disabled={retrying}
+                >
+                  {retrying ? "Processing..." : "Retry Payment"}
+                </button>
+              </div>
+            ) : null}
+          </div>
+        </article>
+      ) : null}
 
       {delivery ? (
         <article className="panel stack animate-in animate-in-delay-2">

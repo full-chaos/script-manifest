@@ -6,14 +6,16 @@ export interface PaymentGateway {
     amountCents: number;
     currency: string;
     metadata?: Record<string, string>;
+    idempotencyKey?: string;
   }): Promise<{ intentId: string; clientSecret: string }>;
-  capturePayment(intentId: string): Promise<void>;
+  capturePayment(intentId: string, idempotencyKey?: string): Promise<void>;
   transferToProvider(params: {
     amountCents: number;
     stripeAccountId: string;
     transferGroup?: string;
+    idempotencyKey?: string;
   }): Promise<{ transferId: string }>;
-  refund(intentId: string, amountCents?: number): Promise<{ refundId: string }>;
+  refund(intentId: string, amountCents?: number, idempotencyKey?: string): Promise<{ refundId: string }>;
   constructWebhookEvent(payload: string, signature: string): unknown;
 }
 
@@ -50,13 +52,14 @@ export class MemoryPaymentGateway implements PaymentGateway {
     amountCents: number;
     currency: string;
     metadata?: Record<string, string>;
+    idempotencyKey?: string;
   }): Promise<{ intentId: string; clientSecret: string }> {
     const intentId = this.id("pi");
     this.intents.set(intentId, { amountCents: params.amountCents, captured: false });
     return { intentId, clientSecret: `${intentId}_secret` };
   }
 
-  async capturePayment(intentId: string): Promise<void> {
+  async capturePayment(intentId: string, _idempotencyKey?: string): Promise<void> {
     const intent = this.intents.get(intentId);
     if (intent) intent.captured = true;
   }
@@ -65,13 +68,14 @@ export class MemoryPaymentGateway implements PaymentGateway {
     amountCents: number;
     stripeAccountId: string;
     transferGroup?: string;
+    idempotencyKey?: string;
   }): Promise<{ transferId: string }> {
     const transferId = this.id("tr");
     this.transfers.push({ transferId, amountCents: params.amountCents, stripeAccountId: params.stripeAccountId });
     return { transferId };
   }
 
-  async refund(intentId: string, amountCents?: number): Promise<{ refundId: string }> {
+  async refund(intentId: string, amountCents?: number, _idempotencyKey?: string): Promise<{ refundId: string }> {
     this.refunds.push({ intentId, amountCents });
     return { refundId: this.id("re") };
   }

@@ -90,4 +90,12 @@ export interface CoverageMarketplaceRepository {
     toStatus?: CoverageDisputeStatus | null;
   }): Promise<CoverageDisputeEvent>;
   listDisputeEvents(disputeId: string): Promise<CoverageDisputeEvent[]>;
+
+  // Webhook log
+  logWebhookEvent(params: {
+    eventId: string;
+    eventType: string;
+    payload: unknown;
+  }): Promise<{ id: string; alreadyProcessed: boolean }>;
+  updateWebhookLogStatus(id: string, status: string, errorMessage?: string): Promise<void>;
 }

@@ -1,4 +1,4 @@
-export type EmailTemplate = "verification-code" | "password-reset" | "welcome";
+export type EmailTemplate = "verification-code" | "password-reset" | "welcome" | "account-lockout";
 
 export type SendEmailOptions = {
   to: string;

@@ -30,6 +30,8 @@ import {
 } from "./repository.js";
 import { type AdminRepository, PgAdminRepository, MemoryAdminRepository } from "./admin-repository.js";
 import { registerAdminRoutes } from "./admin-routes.js";
+import { type FeatureFlagRepository, PgFeatureFlagRepository, MemoryFeatureFlagRepository } from "./feature-flag-repository.js";
+import { registerFeatureFlagRoutes } from "./feature-flag-routes.js";
 import type { EmailService } from "@script-manifest/email";
 import { registerMetrics } from "@script-manifest/service-utils";
 
@@ -47,6 +49,7 @@ export type IdentityServiceOptions = {
   logger?: boolean;
   repository?: IdentityRepository;
   adminRepository?: AdminRepository;
+  featureFlagRepository?: FeatureFlagRepository;
   emailService?: EmailService;
 };
 
@@ -55,6 +58,7 @@ export function buildServer(options: IdentityServiceOptions = {}): FastifyInstan
   const repository = options.repository ?? new PgIdentityRepository();
   // Use MemoryAdminRepository when a custom repository is provided (tests)
   const adminRepo = options.adminRepository ?? (options.repository ? new MemoryAdminRepository() : new PgAdminRepository());
+  const flagRepo = options.featureFlagRepository ?? (options.repository ? new MemoryFeatureFlagRepository() : new PgFeatureFlagRepository());
   const emailService = options.emailService;
   const runHealthCheck = options.repository ? () => repository.healthCheck() : healthCheck;
   const server = Fastify({
@@ -74,6 +78,7 @@ export function buildServer(options: IdentityServiceOptions = {}): FastifyInstan
   server.addHook("onReady", async () => {
     await repository.init();
     await adminRepo.init();
+    await flagRepo.init();
   });
 
   server.register(rateLimit, {
@@ -560,6 +565,7 @@ export function buildServer(options: IdentityServiceOptions = {}): FastifyInstan
   });
 
   registerAdminRoutes(server, adminRepo);
+  registerFeatureFlagRoutes(server, flagRepo, adminRepo);
 
   return server;
 }

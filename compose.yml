@@ -1,35 +1,75 @@
+x-json-logging: &json-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 x-node-dev: &node-dev
   build:
     context: .
     dockerfile: infra/docker/node-dev.Dockerfile
   image: script-manifest-node-dev:local
+  logging: *json-logging
+
+x-telemetry-env: &telemetry-env
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://signoz-collection-agent:4318/v1/traces"
+
+networks:
+  public:
+    driver: bridge
+  internal:
+    driver: bridge
 
 services:
+  traefik:
+    # Pinned: Traefik v3.6.10 (stable, Mar 2026; includes newer Docker API support)
+    image: traefik:v3.6.10
+    container_name: manifest-traefik
+    command:
+      - --api.insecure=false
+      - --ping=true
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --providers.docker.network=public
+      - --entrypoints.web.address=:9100
+      - --entrypoints.traefik.address=:8080
+    ports:
+      - "${TRAEFIK_PORT:-9100}:9100"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck", "--ping"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - public
+
   postgres:
     # Intentionally pinned to major version 16 (tracks stable 16.x patches)
-    image: postgres:16
+    image: postgres:latest
     container_name: manifest-postgres
     environment:
       POSTGRES_DB: manifest
       POSTGRES_USER: manifest
       POSTGRES_PASSWORD: manifest
-    ports:
-      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/
       - ./infra/postgres/init-bugsink-db.sh:/docker-entrypoint-initdb.d/init-bugsink-db.sh
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U manifest"]
       interval: 5s
       timeout: 3s
       retries: 5
-
+    networks:
+      - internal
   redis:
     # Intentionally pinned to major version 7 (tracks stable 7.x patches)
     image: redis:7
     container_name: manifest-redis
-    ports:
-      - "${REDIS_PORT:-6379}:6379"
+    networks:
+      - internal
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -44,9 +84,14 @@ services:
       plugins.security.disabled: "true"
       OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
       OPENSEARCH_INITIAL_ADMIN_PASSWORD: Manifest123!
-    ports:
-      - "${OPENSEARCH_HTTP_PORT:-9200}:9200"
-      - "${OPENSEARCH_PERF_PORT:-9600}:9600"
+    networks:
+      - internal
+      - public
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.opensearch.rule: "Host(`opensearch.localhost`)"
+      traefik.http.routers.opensearch.entrypoints: "web"
+      traefik.http.services.opensearch.loadbalancer.server.port: "9200"
     ulimits:
       memlock:
         soft: -1
@@ -75,10 +120,18 @@ services:
     environment:
       MINIO_ROOT_USER: manifest
       MINIO_ROOT_PASSWORD: manifest123
-      MINIO_API_CORS_ALLOW_ORIGIN: "http://localhost:3000"
-    ports:
-      - "${MINIO_PORT:-9000}:9000"
-      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+      MINIO_API_CORS_ALLOW_ORIGIN: "http://writer.localhost:9100"
+    networks:
+      - internal
+      - public
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.minio-api.rule: "Host(`minio.localhost`)"
+      traefik.http.routers.minio-api.entrypoints: "web"
+      traefik.http.services.minio-api.loadbalancer.server.port: "9000"
+      traefik.http.routers.minio-console.rule: "Host(`minio-console.localhost`)"
+      traefik.http.routers.minio-console.entrypoints: "web"
+      traefik.http.services.minio-console.loadbalancer.server.port: "9001"
     volumes:
       - minio_data:/data
     healthcheck:
@@ -110,9 +163,8 @@ services:
       - --advertise-kafka-addr=PLAINTEXT://redpanda:9092
       - --pandaproxy-addr=0.0.0.0:8082
       - --advertise-pandaproxy-addr=redpanda:8082
-    ports:
-      - "9092:9092"
-      - "8082:8082"
+    networks:
+      - internal
 
   redpanda-console:
     # Pinned: Redpanda Console v2.7.2
@@ -123,66 +175,86 @@ services:
       - redpanda
     environment:
       KAFKA_BROKERS: redpanda:9092
-    ports:
-      - "8080:8080"
-
+    networks:
+      - internal
+      - public
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.redpanda-console.rule: "Host(`redpanda.localhost`)"
+      traefik.http.routers.redpanda-console.entrypoints: "web"
+      traefik.http.services.redpanda-console.loadbalancer.server.port: "8080"
   mailpit:
     image: axllent/mailpit:v1.20.3
     container_name: manifest-mailpit
-
+    networks:
+      - internal
+      - public
     ports:
-      - "1025:1025"
-      - "8025:8025"
+      - "${MAILPIT_SMTP_PORT:-1025}:1025"
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.mailpit.rule: "Host(`mailpit.localhost`)"
+      traefik.http.routers.mailpit.entrypoints: "web"
+      traefik.http.services.mailpit.loadbalancer.server.port: "8025"
 
-  # Jaeger — distributed tracing UI and OTLP collector (CHAOS-616)
-  # UI:       http://localhost:16686
-  # Traces:   OTLP/HTTP on port 4318 (used by all services via OTEL_EXPORTER_OTLP_ENDPOINT)
-  jaeger:
-    image: jaegertracing/all-in-one:1.54
-    container_name: manifest-jaeger
-    environment:
-      COLLECTOR_OTLP_ENABLED: "true"
+  # SigNoz — unified telemetry UI
+  # UI: http://signoz.localhost:9100
+  signoz:
+    image: signoz/signoz:latest
+    container_name: manifest-signoz
+    volumes:
+      - signoz_data:/data
+    networks:
+      - internal
+      - public
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.signoz.rule: "Host(`signoz.localhost`)"
+      traefik.http.routers.signoz.entrypoints: "web"
+      traefik.http.services.signoz.loadbalancer.server.port: "3301"
+
+  # SigNoz collection agent — receives traces, scrapes Prometheus metrics,
+  # and tails app log files before forwarding all signals into SigNoz.
+  signoz-collection-agent:
+    image: otel/opentelemetry-collector-contrib:0.139.0
+    container_name: manifest-signoz-collection-agent
+    command:
+      - --config=/etc/otelcol-contrib/config.yaml
+    depends_on:
+      signoz:
+        condition: service_started
     ports:
-      - "16686:16686" # Jaeger UI
-      - "4318:4318" # OTLP HTTP receiver (services send traces here)
-
+      - "4317:4317"
+      - "4318:4318"
+    volumes:
+      - ./infra/signoz/otel-collector-config.yml:/etc/otelcol-contrib/config.yaml:ro
+      - .:/workspace:ro
+    networks:
+      - internal
+    logging:
+      driver: "none"
   # BugSink - Sentry-compatible error tracking (CHAOS-768)
-  # UI: http://localhost:8800
+  # UI: http://bugsink.localhost:9100
   bugsink:
     # Pinned: BugSink 0.6.2
     image: bugsink/bugsink:latest
     container_name: manifest-bugsink
-    ports:
-      - "8800:8000"
     environment:
       DATABASE_URL: "postgresql://manifest:manifest@postgres:5432/bugsink"
       SECRET_KEY: "${BUGSINK_SECRET_KEY:-dev-secret-change-in-prod}"
-      BASE_URL: "http://localhost:8800"
+      BASE_URL: "http://bugsink.localhost:9100"
       PORT: "8000"
     depends_on:
       postgres:
         condition: service_healthy
-
-  # Prometheus — metrics collection (CHAOS-617)
-  # UI: http://localhost:9090
-  # Scrapes /metrics from all services that have registerMetrics() enabled.
-  prometheus:
-    image: prom/prometheus:v2.50.0
-    container_name: manifest-prometheus
-    ports:
-      - "9090:9090"
-    volumes:
-      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
-      - ./infra/prometheus/alerting_rules.yml:/etc/prometheus/alerting_rules.yml
-
-  alertmanager:
-    image: prom/alertmanager:v0.27.0
-    container_name: manifest-alertmanager
-    ports:
-      - "9093:9093"
-    volumes:
-      - ./infra/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml
-
+    networks:
+      - internal
+      - public
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.bugsink.rule: "Host(`bugsink.localhost`)"
+      traefik.http.routers.bugsink.entrypoints: "web"
+      traefik.http.services.bugsink.loadbalancer.server.port: "8000"
   profile-project-service:
     <<: *node-dev
     container_name: manifest-profile-project-service
@@ -190,14 +262,15 @@ services:
     volumes:
       - .:/workspace
     environment:
+      <<: *telemetry-env
       PORT: "4001"
       DATABASE_URL: "postgresql://manifest:manifest@postgres:5432/manifest"
       NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
       KAFKA_BROKERS: "redpanda:9092"
     command: >
-      sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/profile-project-service dev"
-    ports:
-      - "4001:4001"
+      /workspace/scripts/run-with-log.sh profile-project-service sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/profile-project-service dev"
+    networks:
+      - internal
     depends_on:
       postgres:
         condition: service_healthy
@@ -217,6 +290,7 @@ services:
     volumes:
       - .:/workspace
     environment:
+      <<: *telemetry-env
       PORT: "4005"
       DATABASE_URL: "postgresql://manifest:manifest@postgres:5432/manifest"
       GOOGLE_CLIENT_ID: ""
@@ -224,11 +298,11 @@ services:
       SMTP_HOST: "mailpit"
       SMTP_PORT: "1025"
       EMAIL_FROM: "Script Manifest <noreply@scriptmanifest.com>"
-      FRONTEND_URL: "http://localhost:3100"
+      FRONTEND_URL: "http://writer.localhost:9100"
     command: >
-      sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/identity-service dev"
-    ports:
-      - "4005:4005"
+      /workspace/scripts/run-with-log.sh identity-service sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/identity-service dev"
+    networks:
+      - internal
     depends_on:
       postgres:
         condition: service_healthy
@@ -248,13 +322,12 @@ services:
     volumes:
       - .:/workspace
     environment:
+      <<: *telemetry-env
       PORT: "4010"
       DATABASE_URL: "postgresql://manifest:manifest@postgres:5432/manifest"
       KAFKA_BROKERS: "redpanda:9092"
     command: >
-      sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/notification-service dev"
-    ports:
-      - "4010:4010"
+      /workspace/scripts/run-with-log.sh notification-service sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/notification-service dev"
     depends_on:
       postgres:
         condition: service_healthy
@@ -266,6 +339,8 @@ services:
       timeout: 5s
       retries: 5
       start_period: 180s
+    networks:
+      - internal
 
   search-indexer-service:
     <<: *node-dev
@@ -274,13 +349,12 @@ services:
     volumes:
       - .:/workspace
     environment:
+      <<: *telemetry-env
       PORT: "4003"
       OPENSEARCH_URL: "http://opensearch:9200"
       OPENSEARCH_INDEX: "competitions_v1"
     command: >
-      sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/search-indexer-service dev"
-    ports:
-      - "4003:4003"
+      /workspace/scripts/run-with-log.sh search-indexer-service sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/search-indexer-service dev"
     depends_on:
       opensearch:
         condition: service_healthy
@@ -290,6 +364,8 @@ services:
       timeout: 5s
       retries: 5
       start_period: 180s
+    networks:
+      - internal
 
   competition-directory-service:
     <<: *node-dev
@@ -298,6 +374,7 @@ services:
     volumes:
       - .:/workspace
     environment:
+      <<: *telemetry-env
       PORT: "4002"
       DATABASE_URL: "postgresql://manifest:manifest@postgres:5432/manifest"
       SEARCH_INDEXER_URL: "http://search-indexer-service:4003"
@@ -305,9 +382,7 @@ services:
       COMPETITION_ADMIN_ALLOWLIST: "admin_01,user_admin_01"
       KAFKA_BROKERS: "redpanda:9092"
     command: >
-      sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/competition-directory-service dev"
-    ports:
-      - "4002:4002"
+      /workspace/scripts/run-with-log.sh competition-directory-service sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/competition-directory-service dev"
     depends_on:
       postgres:
         condition: service_healthy
@@ -321,6 +396,8 @@ services:
       timeout: 5s
       retries: 5
       start_period: 180s
+    networks:
+      - internal
 
   script-storage-service:
     <<: *node-dev
@@ -329,11 +406,12 @@ services:
     volumes:
       - .:/workspace
     environment:
+      <<: *telemetry-env
       PORT: "4011"
       STORAGE_BUCKET: "scripts"
-      # Browser-reachable URL for upload forms (localhost for dev)
-      STORAGE_UPLOAD_BASE_URL: "http://localhost:${MINIO_PORT:-9000}"
-      STORAGE_PUBLIC_BASE_URL: "http://localhost:${MINIO_PORT:-9000}"
+      # Browser-reachable URL for upload forms (Traefik subdomain in dev)
+      STORAGE_UPLOAD_BASE_URL: "http://minio.localhost:9100"
+      STORAGE_PUBLIC_BASE_URL: "http://minio.localhost:9100"
       # Internal Docker network URL for S3 client operations
       STORAGE_S3_ENDPOINT: "http://minio:9000"
       STORAGE_S3_REGION: "us-east-1"
@@ -341,9 +419,7 @@ services:
       STORAGE_S3_SECRET_KEY: "manifest123"
       STORAGE_S3_FORCE_PATH_STYLE: "true"
     command: >
-      sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/script-storage-service dev"
-    ports:
-      - "4011:4011"
+      /workspace/scripts/run-with-log.sh script-storage-service sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/script-storage-service dev"
     depends_on:
       minio:
         condition: service_healthy
@@ -353,6 +429,8 @@ services:
       timeout: 5s
       retries: 5
       start_period: 180s
+    networks:
+      - internal
 
   submission-tracking-service:
     <<: *node-dev
@@ -361,12 +439,11 @@ services:
     volumes:
       - .:/workspace
     environment:
+      <<: *telemetry-env
       PORT: "4004"
       DATABASE_URL: "postgresql://manifest:manifest@postgres:5432/manifest"
     command: >
-      sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/submission-tracking-service dev"
-    ports:
-      - "4004:4004"
+      /workspace/scripts/run-with-log.sh submission-tracking-service sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/submission-tracking-service dev"
     depends_on:
       postgres:
         condition: service_healthy
@@ -376,6 +453,8 @@ services:
       timeout: 5s
       retries: 5
       start_period: 180s
+    networks:
+      - internal
 
   feedback-exchange-service:
     <<: *node-dev
@@ -384,14 +463,13 @@ services:
     volumes:
       - .:/workspace
     environment:
+      <<: *telemetry-env
       PORT: "4006"
       DATABASE_URL: "postgresql://manifest:manifest@postgres:5432/manifest"
       NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
       KAFKA_BROKERS: "redpanda:9092"
     command: >
-      sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/feedback-exchange-service dev"
-    ports:
-      - "4006:4006"
+      /workspace/scripts/run-with-log.sh feedback-exchange-service sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/feedback-exchange-service dev"
     depends_on:
       postgres:
         condition: service_healthy
@@ -403,6 +481,8 @@ services:
       timeout: 5s
       retries: 5
       start_period: 180s
+    networks:
+      - internal
 
   ranking-service:
     <<: *node-dev
@@ -411,6 +491,7 @@ services:
     volumes:
       - .:/workspace
     environment:
+      <<: *telemetry-env
       PORT: "4007"
       DATABASE_URL: "postgresql://manifest:manifest@postgres:5432/manifest"
       NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
@@ -419,9 +500,7 @@ services:
       PROFILE_SERVICE_URL: "http://profile-project-service:4001"
       KAFKA_BROKERS: "redpanda:9092"
     command: >
-      sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/ranking-service dev"
-    ports:
-      - "4007:4007"
+      /workspace/scripts/run-with-log.sh ranking-service sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/ranking-service dev"
     depends_on:
       postgres:
         condition: service_healthy
@@ -437,6 +516,8 @@ services:
       timeout: 5s
       retries: 5
       start_period: 180s
+    networks:
+      - internal
 
   coverage-marketplace-service:
     <<: *node-dev
@@ -445,6 +526,7 @@ services:
     volumes:
       - .:/workspace
     environment:
+      <<: *telemetry-env
       PORT: "4008"
       DATABASE_URL: "postgresql://manifest:manifest@postgres:5432/manifest"
       NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
@@ -458,9 +540,7 @@ services:
       STORAGE_BUCKET: "coverage-reports"
       KAFKA_BROKERS: "redpanda:9092"
     command: >
-      sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/coverage-marketplace-service dev"
-    ports:
-      - "4008:4008"
+      /workspace/scripts/run-with-log.sh coverage-marketplace-service sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/coverage-marketplace-service dev"
     depends_on:
       postgres:
         condition: service_healthy
@@ -474,6 +554,8 @@ services:
       timeout: 5s
       retries: 5
       start_period: 180s
+    networks:
+      - internal
 
   industry-portal-service:
     <<: *node-dev
@@ -482,15 +564,14 @@ services:
     volumes:
       - .:/workspace
     environment:
+      <<: *telemetry-env
       PORT: "4009"
       DATABASE_URL: "postgresql://manifest:manifest@postgres:5432/manifest"
       SCRIPT_STORAGE_SERVICE_URL: "http://script-storage-service:4011"
       NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
       KAFKA_BROKERS: "redpanda:9092"
     command: >
-      sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/industry-portal-service dev"
-    ports:
-      - "4009:4009"
+      /workspace/scripts/run-with-log.sh industry-portal-service sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/industry-portal-service dev"
     depends_on:
       postgres:
         condition: service_healthy
@@ -504,6 +585,8 @@ services:
       timeout: 5s
       retries: 5
       start_period: 180s
+    networks:
+      - internal
 
   programs-service:
     <<: *node-dev
@@ -512,14 +595,13 @@ services:
     volumes:
       - .:/workspace
     environment:
+      <<: *telemetry-env
       PORT: "4012"
       DATABASE_URL: "postgresql://manifest:manifest@postgres:5432/manifest"
       NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
       KAFKA_BROKERS: "redpanda:9092"
     command: >
-      sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/programs-service dev"
-    ports:
-      - "4012:4012"
+      /workspace/scripts/run-with-log.sh programs-service sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/programs-service dev"
     depends_on:
       postgres:
         condition: service_healthy
@@ -531,6 +613,8 @@ services:
       timeout: 5s
       retries: 5
       start_period: 180s
+    networks:
+      - internal
 
   partner-dashboard-service:
     <<: *node-dev
@@ -539,15 +623,14 @@ services:
     volumes:
       - .:/workspace
     environment:
+      <<: *telemetry-env
       PORT: "4013"
       DATABASE_URL: "postgresql://manifest:manifest@postgres:5432/manifest"
       RANKING_SERVICE_URL: "http://ranking-service:4007"
       NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
       KAFKA_BROKERS: "redpanda:9092"
     command: >
-      sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/partner-dashboard-service dev"
-    ports:
-      - "4013:4013"
+      /workspace/scripts/run-with-log.sh partner-dashboard-service sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/partner-dashboard-service dev"
     depends_on:
       postgres:
         condition: service_healthy
@@ -561,6 +644,8 @@ services:
       timeout: 5s
       retries: 5
       start_period: 180s
+    networks:
+      - internal
 
   api-gateway:
     <<: *node-dev
@@ -569,6 +654,7 @@ services:
     volumes:
       - .:/workspace
     environment:
+      <<: *telemetry-env
       PORT: "4000"
       IDENTITY_SERVICE_URL: "http://identity-service:4005"
       PROFILE_SERVICE_URL: "http://profile-project-service:4001"
@@ -581,16 +667,21 @@ services:
       INDUSTRY_PORTAL_SERVICE_URL: "http://industry-portal-service:4009"
       PROGRAMS_SERVICE_URL: "http://programs-service:4012"
       PARTNER_DASHBOARD_SERVICE_URL: "http://partner-dashboard-service:4013"
-      REDIS_URL: "redis://manifest-redis:6379"
+      REDIS_URL: "redis://redis:6379"
       COVERAGE_ADMIN_ALLOWLIST: "admin_01,user_admin_01"
       INDUSTRY_ADMIN_ALLOWLIST: "admin_01,user_admin_01"
       COMPETITION_ADMIN_ALLOWLIST: "admin_01,user_admin_01"
       RATE_LIMIT_MAX: "1000"
     command: >
-      sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/api-gateway dev"
-    ports:
-      - "4000:4000"
+      /workspace/scripts/run-with-log.sh api-gateway sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/api-gateway dev"
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.api.rule: "Host(`api.localhost`)"
+      traefik.http.routers.api.entrypoints: "web"
+      traefik.http.services.api.loadbalancer.server.port: "4000"
     depends_on:
+      traefik:
+        condition: service_healthy
       identity-service:
         condition: service_healthy
       profile-project-service:
@@ -618,6 +709,9 @@ services:
       timeout: 5s
       retries: 5
       start_period: 180s
+    networks:
+      - public
+      - internal
 
   writer-web:
     <<: *node-dev
@@ -626,19 +720,31 @@ services:
     volumes:
       - .:/workspace
     environment:
+      <<: *telemetry-env
       SCRIPT_STORAGE_SERVICE_URL: "http://script-storage-service:4011"
       API_GATEWAY_URL: "http://api-gateway:4000"
       SCRIPT_UPLOAD_INTERNAL_BASE_URL: "http://minio:9000"
       WRITER_DEMO_USER_ID: "writer_01"
     command: >
-      sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/writer-web dev"
-    ports:
-      - "3100:3000"
+      /workspace/scripts/run-with-log.sh writer-web sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/writer-web dev"
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.writer.rule: "Host(`writer.localhost`)"
+      traefik.http.routers.writer.entrypoints: "web"
+      traefik.http.services.writer.loadbalancer.server.port: "3000"
     depends_on:
-      - api-gateway
-      - script-storage-service
+      traefik:
+        condition: service_healthy
+      api-gateway:
+        condition: service_started
+      script-storage-service:
+        condition: service_started
+    networks:
+      - public
+      - internal
 
 volumes:
   postgres_data:
   opensearch_data:
   minio_data:
+  signoz_data:

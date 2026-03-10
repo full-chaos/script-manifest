@@ -10,13 +10,13 @@ import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
  * Call this BEFORE creating the Fastify server so that auto-instrumentation
  * can patch Node.js built-ins (http, https, dns, etc.) at startup.
  *
- * Traces are exported via OTLP/HTTP to Jaeger (or any compatible collector).
+ * Traces are exported via OTLP/HTTP to SigNoz (or any compatible collector).
  * Point OTEL_EXPORTER_OTLP_ENDPOINT at your collector endpoint:
- *   - Local dev (Jaeger all-in-one):  http://localhost:4318/v1/traces
- *   - Docker Compose:                 http://jaeger:4318/v1/traces
+ *   - Local dev (SigNoz agent):       http://localhost:4318/v1/traces
+ *   - Docker Compose:                 http://signoz-collection-agent:4318/v1/traces
  *
  * @param serviceName - The logical service name (e.g. "api-gateway", "identity-service").
- *                      Appears in Jaeger UI as the service label.
+ *                      Appears in the SigNoz UI as the service label.
  * @returns The started NodeSDK instance. You can call sdk.shutdown() for graceful shutdown.
  *
  * @example
@@ -27,7 +27,7 @@ import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
 export function setupTracing(serviceName: string): NodeSDK | undefined {
   // Only enable tracing when an OTLP endpoint is explicitly configured.
   // This prevents services from hanging or crashing when no collector is available
-  // (e.g. in CI integration tests or local dev without Jaeger).
+  // (e.g. in CI integration tests or local dev without SigNoz).
   const endpoint = process.env.OTEL_EXPORTER_OTLP_ENDPOINT;
   if (!endpoint) {
     return undefined;

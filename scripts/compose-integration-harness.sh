@@ -2,7 +2,15 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-COMPOSE_FILE="${COMPOSE_FILE:-$REPO_ROOT/compose.yml}"
+declare -a COMPOSE_ARGS
+if [[ -n "${COMPOSE_FILE:-}" ]]; then
+  COMPOSE_ARGS=(-f "$COMPOSE_FILE")
+else
+  COMPOSE_ARGS=(-f "$REPO_ROOT/compose.yml")
+  if [[ -f "$REPO_ROOT/compose.harness.yml" ]]; then
+    COMPOSE_ARGS+=(-f "$REPO_ROOT/compose.harness.yml")
+  fi
+fi
 
 SERVICES=(
   postgres
@@ -43,7 +51,7 @@ HEALTH_ENDPOINTS=(
 )
 
 run_compose() {
-  docker compose -f "$COMPOSE_FILE" "$@"
+  docker compose "${COMPOSE_ARGS[@]}" "$@"
 }
 
 build_node_dev_image() {
@@ -154,7 +162,13 @@ up() {
   if [[ -z "${OPENSEARCH_PERF_PORT:-}" ]]; then
     OPENSEARCH_PERF_PORT="$(pick_available_port 59600)"
   fi
-  export POSTGRES_PORT REDIS_PORT MINIO_PORT MINIO_CONSOLE_PORT OPENSEARCH_HTTP_PORT OPENSEARCH_PERF_PORT
+  if [[ -z "${TRAEFIK_PORT:-}" ]]; then
+    TRAEFIK_PORT="$(pick_available_port 9100)"
+  fi
+  if [[ -z "${MAILPIT_SMTP_PORT:-}" ]]; then
+    MAILPIT_SMTP_PORT="$(pick_available_port 1025)"
+  fi
+  export POSTGRES_PORT REDIS_PORT MINIO_PORT MINIO_CONSOLE_PORT OPENSEARCH_HTTP_PORT OPENSEARCH_PERF_PORT TRAEFIK_PORT MAILPIT_SMTP_PORT
   build_node_dev_image
   write_install_markers
   run_compose up -d --no-build "${SERVICES[@]}"

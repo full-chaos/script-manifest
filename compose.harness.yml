@@ -45,6 +45,9 @@ services:
   script-storage-service:
     ports:
       - "127.0.0.1:4011:4011"
+    environment:
+      STORAGE_UPLOAD_BASE_URL: "http://localhost:${MINIO_PORT:-9900}"
+      STORAGE_PUBLIC_BASE_URL: "http://localhost:${MINIO_PORT:-9900}"
 
   submission-tracking-service:
     ports:

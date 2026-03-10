@@ -162,7 +162,13 @@ up() {
   if [[ -z "${OPENSEARCH_PERF_PORT:-}" ]]; then
     OPENSEARCH_PERF_PORT="$(pick_available_port 59600)"
   fi
-  export POSTGRES_PORT REDIS_PORT MINIO_PORT MINIO_CONSOLE_PORT OPENSEARCH_HTTP_PORT OPENSEARCH_PERF_PORT
+  if [[ -z "${TRAEFIK_PORT:-}" ]]; then
+    TRAEFIK_PORT="$(pick_available_port 9100)"
+  fi
+  if [[ -z "${MAILPIT_SMTP_PORT:-}" ]]; then
+    MAILPIT_SMTP_PORT="$(pick_available_port 1025)"
+  fi
+  export POSTGRES_PORT REDIS_PORT MINIO_PORT MINIO_CONSOLE_PORT OPENSEARCH_HTTP_PORT OPENSEARCH_PERF_PORT TRAEFIK_PORT MAILPIT_SMTP_PORT
   build_node_dev_image
   write_install_markers
   run_compose up -d --no-build "${SERVICES[@]}"

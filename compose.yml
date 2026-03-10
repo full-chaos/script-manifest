@@ -34,7 +34,7 @@ services:
       - --entrypoints.web.address=:9100
       - --entrypoints.traefik.address=:8080
     ports:
-      - "9100:9100"
+      - "${TRAEFIK_PORT:-9100}:9100"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     healthcheck:
@@ -190,7 +190,7 @@ services:
       - internal
       - public
     ports:
-      - "1025:1025"
+      - "${MAILPIT_SMTP_PORT:-1025}:1025"
     labels:
       traefik.enable: "true"
       traefik.http.routers.mailpit.rule: "Host(`mailpit.localhost`)"

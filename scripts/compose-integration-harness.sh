@@ -2,7 +2,15 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-COMPOSE_FILE="${COMPOSE_FILE:-$REPO_ROOT/compose.yml}"
+declare -a COMPOSE_ARGS
+if [[ -n "${COMPOSE_FILE:-}" ]]; then
+  COMPOSE_ARGS=(-f "$COMPOSE_FILE")
+else
+  COMPOSE_ARGS=(-f "$REPO_ROOT/compose.yml")
+  if [[ -f "$REPO_ROOT/compose.harness.yml" ]]; then
+    COMPOSE_ARGS+=(-f "$REPO_ROOT/compose.harness.yml")
+  fi
+fi
 
 SERVICES=(
   postgres
@@ -43,7 +51,7 @@ HEALTH_ENDPOINTS=(
 )
 
 run_compose() {
-  docker compose -f "$COMPOSE_FILE" "$@"
+  docker compose "${COMPOSE_ARGS[@]}" "$@"
 }
 
 build_node_dev_image() {

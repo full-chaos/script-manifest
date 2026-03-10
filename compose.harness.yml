@@ -1,0 +1,79 @@
+#
+# Harness-only host bindings.
+# Keep the main dev compose aligned with Traefik/public-vs-internal routing,
+# and let the integration harness opt back into loopback ports for tests.
+#
+services:
+  postgres:
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+
+  redis:
+    ports:
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
+
+  opensearch:
+    ports:
+      - "127.0.0.1:${OPENSEARCH_HTTP_PORT:-9200}:9200"
+      - "127.0.0.1:${OPENSEARCH_PERF_PORT:-9600}:9600"
+
+  minio:
+    ports:
+      - "127.0.0.1:${MINIO_PORT:-9900}:9000"
+      - "127.0.0.1:${MINIO_CONSOLE_PORT:-9901}:9001"
+
+  profile-project-service:
+    ports:
+      - "127.0.0.1:4001:4001"
+
+  identity-service:
+    ports:
+      - "127.0.0.1:4005:4005"
+
+  notification-service:
+    ports:
+      - "127.0.0.1:4010:4010"
+
+  search-indexer-service:
+    ports:
+      - "127.0.0.1:4003:4003"
+
+  competition-directory-service:
+    ports:
+      - "127.0.0.1:4002:4002"
+
+  script-storage-service:
+    ports:
+      - "127.0.0.1:4011:4011"
+
+  submission-tracking-service:
+    ports:
+      - "127.0.0.1:4004:4004"
+
+  feedback-exchange-service:
+    ports:
+      - "127.0.0.1:4006:4006"
+
+  ranking-service:
+    ports:
+      - "127.0.0.1:4007:4007"
+
+  coverage-marketplace-service:
+    ports:
+      - "127.0.0.1:4008:4008"
+
+  industry-portal-service:
+    ports:
+      - "127.0.0.1:4009:4009"
+
+  programs-service:
+    ports:
+      - "127.0.0.1:4012:4012"
+
+  partner-dashboard-service:
+    ports:
+      - "127.0.0.1:4013:4013"
+
+  api-gateway:
+    ports:
+      - "127.0.0.1:4000:4000"

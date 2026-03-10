@@ -1,0 +1,71 @@
+extensions:
+  health_check:
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+  prometheus:
+    config:
+      global:
+        scrape_interval: 15s
+        scrape_timeout: 5s
+      scrape_configs:
+        - job_name: script-manifest-services
+          metrics_path: /metrics
+          static_configs:
+            - targets:
+                - api-gateway:4000
+                - profile-project-service:4001
+                - competition-directory-service:4002
+                - search-indexer-service:4003
+                - submission-tracking-service:4004
+                - identity-service:4005
+                - feedback-exchange-service:4006
+                - ranking-service:4007
+                - coverage-marketplace-service:4008
+                - industry-portal-service:4009
+                - notification-service:4010
+                - script-storage-service:4011
+                - programs-service:4012
+                - partner-dashboard-service:4013
+
+  filelog:
+    include:
+      - /workspace/.logs/*.log
+    include_file_name: true
+    include_file_path: true
+    start_at: end
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 256
+  batch:
+    timeout: 5s
+    send_batch_size: 1024
+
+exporters:
+  otlphttp:
+    endpoint: http://signoz:4318
+
+service:
+  extensions:
+    - health_check
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [otlphttp]
+    metrics:
+      receivers: [otlp, prometheus]
+      processors: [memory_limiter, batch]
+      exporters: [otlphttp]
+    logs:
+      receivers: [otlp, filelog]
+      processors: [memory_limiter, batch]
+      exporters: [otlphttp]

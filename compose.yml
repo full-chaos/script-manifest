@@ -22,7 +22,8 @@ networks:
 
 services:
   traefik:
-    image: traefik:v3.3
+    # Pinned: Traefik v3.6.10 (stable, Mar 2026; includes newer Docker API support)
+    image: traefik:v3.6.10
     container_name: manifest-traefik
     command:
       - --api.insecure=false
@@ -37,15 +38,7 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     healthcheck:
-      test:
-        [
-          "CMD",
-          "traefik",
-          "healthcheck",
-          "--ping=true",
-          "--ping.entrypoint=traefik",
-          "--entrypoints.traefik.address=:8080",
-        ]
+      test: ["CMD", "traefik", "healthcheck", "--ping"]
       interval: 15s
       timeout: 5s
       retries: 5

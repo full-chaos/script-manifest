@@ -77,8 +77,7 @@ deploy/
 │       ├── namespace.yaml
 │       ├── external-secrets/        # ESO SecretStore + ExternalSecret resources
 │       ├── ingress.yaml
-│       ├── hpa.yaml
-│       ├── generated/
+│       ├── generated/               # HPA resources included via Helm (autoscaling.enabled in values-prod)
 │       └── kustomization.yaml
 docs/
 ├── setup.md                         # Getting Started (new)

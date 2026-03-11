@@ -1,0 +1,131 @@
+# Docker Swarm staging overlay for Script Manifest
+# Usage: docker stack deploy -c stack.yml -c stack.staging.yml script-manifest
+
+services:
+  # ── Backend Services — :latest tags + relaxed resources ────────────
+
+  notification-service:
+    image: ghcr.io/full-chaos/script-manifest/notification-service:latest
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+
+  identity-service:
+    image: ghcr.io/full-chaos/script-manifest/identity-service:latest
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+
+  profile-project-service:
+    image: ghcr.io/full-chaos/script-manifest/profile-project-service:latest
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+
+  search-indexer-service:
+    image: ghcr.io/full-chaos/script-manifest/search-indexer-service:latest
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+
+  competition-directory-service:
+    image: ghcr.io/full-chaos/script-manifest/competition-directory-service:latest
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+
+  script-storage-service:
+    image: ghcr.io/full-chaos/script-manifest/script-storage-service:latest
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+
+  submission-tracking-service:
+    image: ghcr.io/full-chaos/script-manifest/submission-tracking-service:latest
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+
+  feedback-exchange-service:
+    image: ghcr.io/full-chaos/script-manifest/feedback-exchange-service:latest
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+
+  ranking-service:
+    image: ghcr.io/full-chaos/script-manifest/ranking-service:latest
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+
+  coverage-marketplace-service:
+    image: ghcr.io/full-chaos/script-manifest/coverage-marketplace-service:latest
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+
+  industry-portal-service:
+    image: ghcr.io/full-chaos/script-manifest/industry-portal-service:latest
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+
+  programs-service:
+    image: ghcr.io/full-chaos/script-manifest/programs-service:latest
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+
+  partner-dashboard-service:
+    image: ghcr.io/full-chaos/script-manifest/partner-dashboard-service:latest
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+
+  # ── Gateway & Frontend — staging domains ───────────────────────────
+
+  api-gateway:
+    image: ghcr.io/full-chaos/script-manifest/api-gateway:latest
+    labels:
+      - traefik.http.routers.api.rule=Host(`api.staging.scriptmanifest.com`)
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+
+  writer-web:
+    image: ghcr.io/full-chaos/script-manifest/writer-web:latest
+    labels:
+      - traefik.http.routers.web.rule=Host(`staging.scriptmanifest.com`)
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M

@@ -1,0 +1,52 @@
+replicaCount: 1
+
+image:
+  repository: notification-service
+  tag: ""
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 4010
+
+env:
+  PORT: "4010"
+  NODE_ENV: production
+  KAFKA_BROKERS: "script-manifest-redpanda:9092"
+
+secretEnv: {}
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 250m
+    memory: 256Mi
+
+probes:
+  liveness:
+    path: /health/live
+    port: 4010
+  readiness:
+    path: /health/ready
+    port: 4010
+  startup:
+    path: /health
+    port: 4010
+    failureThreshold: 30
+    periodSeconds: 5
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 3
+  targetCPUUtilizationPercentage: 80
+
+serviceAccount:
+  create: true
+  name: ""
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

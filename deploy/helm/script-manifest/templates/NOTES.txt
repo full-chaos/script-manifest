@@ -1,0 +1,11 @@
+Script Manifest deployed to namespace {{ .Release.Namespace }}.
+
+{{- if .Values.ingress.enabled }}
+Access the application at:
+  - Frontend: https://{{ .Values.ingress.webDomain }}
+  - API:      https://{{ .Values.ingress.apiDomain }}
+{{- else }}
+Port-forward to access locally:
+  kubectl port-forward svc/api-gateway 4000:4000 -n {{ .Release.Namespace }}
+  kubectl port-forward svc/writer-web 3000:3000 -n {{ .Release.Namespace }}
+{{- end }}

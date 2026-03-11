@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
 
 # ── Stage 1: Prune monorepo ──────────────────────────────────────────
-FROM node:25-trixie-slim AS pruner
+FROM node:25-alpine AS pruner
 ENV NPM_CONFIG_REGISTRY=https://registry.npmjs.org/ \
     NPM_CONFIG_FETCH_RETRIES=5 \
     NPM_CONFIG_FETCH_RETRY_FACTOR=2 \
@@ -19,7 +19,7 @@ ARG SERVICE_NAME
 RUN turbo prune @script-manifest/${SERVICE_NAME} --docker
 
 # ── Stage 2: Install deps & build ────────────────────────────────────
-FROM node:25-trixie-slim AS builder
+FROM node:25-alpine AS builder
 ENV NPM_CONFIG_REGISTRY=https://registry.npmjs.org/ \
     NPM_CONFIG_FETCH_RETRIES=5 \
     NPM_CONFIG_FETCH_RETRY_FACTOR=2 \
@@ -58,9 +58,8 @@ ARG SERVICE_NAME
 RUN pnpm build --filter=@script-manifest/${SERVICE_NAME}...
 
 # ── Stage 3: Production runtime ──────────────────────────────────────
-FROM node:25-trixie-slim AS runner
-RUN apt-get update && apt-get install -y --no-install-recommends curl \
-    && rm -rf /var/lib/apt/lists/*
+FROM node:25-alpine AS runner
+RUN apk add --no-cache curl
 ENV NPM_CONFIG_REGISTRY=https://registry.npmjs.org/ \
     NPM_CONFIG_FETCH_RETRIES=5 \
     NPM_CONFIG_FETCH_RETRY_FACTOR=2 \

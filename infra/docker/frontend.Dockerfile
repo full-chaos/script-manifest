@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
 
 # ── Stage 1: Prune monorepo ──────────────────────────────────────────
-FROM node:25-trixie-slim AS pruner
+FROM node:25-alpine AS pruner
 ENV NPM_CONFIG_REGISTRY=https://registry.npmjs.org/ \
     NPM_CONFIG_FETCH_RETRIES=5 \
     NPM_CONFIG_FETCH_RETRY_FACTOR=2 \
@@ -18,7 +18,7 @@ COPY . .
 RUN turbo prune @script-manifest/writer-web --docker
 
 # ── Stage 2: Install deps & build ────────────────────────────────────
-FROM node:25-trixie-slim AS builder
+FROM node:25-alpine AS builder
 ENV NPM_CONFIG_REGISTRY=https://registry.npmjs.org/ \
     NPM_CONFIG_FETCH_RETRIES=5 \
     NPM_CONFIG_FETCH_RETRY_FACTOR=2 \
@@ -56,7 +56,7 @@ COPY --from=pruner /app/tsconfig.base.json ./tsconfig.base.json
 RUN pnpm build --filter=@script-manifest/writer-web...
 
 # ── Stage 3: Production runtime ──────────────────────────────────────
-FROM node:25-trixie-slim AS runner
+FROM node:25-alpine AS runner
 
 WORKDIR /app
 ENV NODE_ENV=production

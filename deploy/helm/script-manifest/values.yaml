@@ -1,0 +1,18 @@
+global:
+  registry: ghcr.io/full-chaos/script-manifest
+  imageTag: latest
+  environment: local
+
+ingress:
+  enabled: false
+  webDomain: writer.localhost
+  apiDomain: api.localhost
+
+postgresql:
+  enabled: true
+
+redis:
+  enabled: true
+
+notification-service:
+  enabled: true

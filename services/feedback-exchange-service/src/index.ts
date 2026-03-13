@@ -116,10 +116,10 @@ export function buildServer(options: FeedbackExchangeServiceOptions = {}): Fasti
       return reply.status(402).send({ error: "insufficient_tokens", balance });
     }
 
-    const listing = await repository.createListing(authUserId, parsed.data);
-
-    // Debit 1 token for listing fee using stable key tied to the listing ID
-    const idempotencyKey = `listing_fee_${authUserId}_${listing.id}`;
+    // Debit FIRST to prevent ghost listings: if the debit fails (DB error,
+    // race condition), no listing is created. Key is stable per user+project
+    // so a retry won't double-charge if the previous attempt half-succeeded.
+    const idempotencyKey = `listing_fee_${authUserId}_${parsed.data.projectId}`;
     await repository.createTransaction({
       idempotencyKey,
       debitUserId: authUserId,
@@ -127,8 +127,10 @@ export function buildServer(options: FeedbackExchangeServiceOptions = {}): Fasti
       amount: 1,
       reason: "listing_fee",
       referenceType: "listing",
-      referenceId: listing.id
+      referenceId: undefined
     });
+
+    const listing = await repository.createListing(authUserId, parsed.data);
 
     return reply.status(201).send({ listing });
   });

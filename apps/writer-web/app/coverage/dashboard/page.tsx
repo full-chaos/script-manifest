@@ -13,18 +13,11 @@ type Tab = "incoming" | "active" | "completed";
 
 export default function ProviderDashboardPage() {
   const toast = useToast();
-  const [signedInUserId, setSignedInUserId] = useState("");
+  const [signedInUserId] = useState(() => readStoredSession()?.user.id ?? "");
   const [loading, setLoading] = useState(false);
   const [provider, setProvider] = useState<CoverageProvider | null>(null);
   const [orders, setOrders] = useState<CoverageOrder[]>([]);
   const [activeTab, setActiveTab] = useState<Tab>("incoming");
-
-  useEffect(() => {
-    const session = readStoredSession();
-    if (session) {
-      setSignedInUserId(session.user.id);
-    }
-  }, []);
 
   const loadData = useCallback(async () => {
     setLoading(true);

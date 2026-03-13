@@ -920,9 +920,10 @@ export default function ProjectsPage() {
             />
           </label>
 
-          <label className="stack-tight">
+          <label className="stack-tight" htmlFor="project-logline">
             <span>Logline</span>
             <input
+              id="project-logline"
               className="input"
               value={projectForm.logline}
               onChange={(event) =>

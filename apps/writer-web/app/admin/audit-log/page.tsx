@@ -227,7 +227,7 @@ export default function AdminAuditLogPage() {
             onClick={handleExportCsv}
             disabled={loading || entries.length === 0}
           >
-            Export CSV
+            Export CSV (current page)
           </button>
         </div>
       </article>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { EmptyState } from "../../components/emptyState";
 import { EmptyIllustration } from "../../components/illustrations";
 import { SkeletonCard } from "../../components/skeleton";
@@ -65,7 +65,13 @@ export default function AdminModerationPage() {
   const [suspensionDays, setSuspensionDays] = useState("30");
   const [submitting, setSubmitting] = useState(false);
 
+  const abortControllerRef = useRef<AbortController | null>(null);
+
   const loadReports = useCallback(async (targetPage: number) => {
+    abortControllerRef.current?.abort();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     setLoading(true);
     try {
       const params = new URLSearchParams({
@@ -79,8 +85,11 @@ export default function AdminModerationPage() {
 
       const response = await fetch(`/api/v1/admin/moderation/queue?${params.toString()}`, {
         headers: getAuthHeaders(),
-        cache: "no-store"
+        cache: "no-store",
+        signal: controller.signal
       });
+
+      if (controller.signal.aborted) return;
 
       if (response.ok) {
         const body = (await response.json()) as { reports?: ContentReport[]; total?: number };
@@ -92,9 +101,12 @@ export default function AdminModerationPage() {
         toast.error(body.error ?? "Failed to load moderation queue.");
       }
     } catch (error) {
+      if ((error as Error).name === "AbortError") return;
       toast.error(error instanceof Error ? error.message : "Failed to load moderation queue.");
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) {
+        setLoading(false);
+      }
     }
   }, [statusFilter, contentTypeFilter, toast]);
 

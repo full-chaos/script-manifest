@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import type {
   FeedbackListing,
   FeedbackReview,
@@ -135,6 +135,8 @@ export default function FeedbackPage() {
   const [ratingComment, setRatingComment] = useState("");
   const [submittingRating, setSubmittingRating] = useState(false);
 
+  const signupTokensGrantedRef = useRef(false);
+
   useEffect(() => {
     const session = readStoredSession();
     if (session) {
@@ -240,7 +242,10 @@ export default function FeedbackPage() {
   useEffect(() => {
     if (signedInUserId) {
       void loadBalance();
-      void grantSignupTokens();
+      if (!signupTokensGrantedRef.current) {
+        signupTokensGrantedRef.current = true;
+        void grantSignupTokens();
+      }
       void loadProjects();
       void loadMyReviews();
     }
@@ -826,7 +831,18 @@ export default function FeedbackPage() {
                       </button>
                     ) : null}
                     {listing.status === "completed" ? (
-                      <button type="button" className="btn btn-secondary" onClick={() => openRatingModal(`review_for_${listing.id}`)}>
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={() => {
+                          const matchedReview = myReviews.find((r) => r.listingId === listing.id);
+                          if (matchedReview) {
+                            openRatingModal(matchedReview.id);
+                          } else {
+                            toast.error("Review not found for this listing.");
+                          }
+                        }}
+                      >
                         Rate review
                       </button>
                     ) : null}

@@ -86,7 +86,7 @@ async function fetchExportData(ctx: GatewayContext, userId: string): Promise<Exp
     ctx.requestFn(`${ctx.submissionTrackingBase}/internal/submissions?writerId=${encodeURIComponent(userId)}`, {
       method: "GET"
     }),
-    ctx.requestFn(`${ctx.submissionTrackingBase}/internal/placements`, {
+    ctx.requestFn(`${ctx.submissionTrackingBase}/internal/placements?writerId=${encodeURIComponent(userId)}`, {
       method: "GET"
     })
   ]);

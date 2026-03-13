@@ -334,30 +334,36 @@ export function registerAuthRoutes(server: FastifyInstance, ctx: GatewayContext)
     }
   });
 
-  server.post<{ Params: { provider: string } }>("/api/v1/auth/oauth/:provider/complete", async (req, reply) => {
-    const { provider } = req.params;
-    return proxyJsonRequest(
-      reply,
-      ctx.requestFn,
-      `${ctx.identityServiceBase}/internal/auth/oauth/${encodeURIComponent(provider)}/complete`,
-      {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(req.body ?? {})
-      }
-    );
+  server.post<{ Params: { provider: string } }>("/api/v1/auth/oauth/:provider/complete", {
+    config: { rateLimit: { max: AUTH_RATE_MAX, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
+      const { provider } = req.params;
+      return proxyJsonRequest(
+        reply,
+        ctx.requestFn,
+        `${ctx.identityServiceBase}/internal/auth/oauth/${encodeURIComponent(provider)}/complete`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(req.body ?? {})
+        }
+      );
+    }
   });
 
-  server.get<{ Params: { provider: string } }>("/api/v1/auth/oauth/:provider/callback", async (req, reply) => {
-    const { provider } = req.params;
-    const querySuffix = buildQuerySuffix(req.query);
-    return proxyJsonRequest(
-      reply,
-      ctx.requestFn,
-      `${ctx.identityServiceBase}/internal/auth/oauth/${encodeURIComponent(provider)}/callback${querySuffix}`,
-      {
-        method: "GET"
-      }
-    );
+  server.get<{ Params: { provider: string } }>("/api/v1/auth/oauth/:provider/callback", {
+    config: { rateLimit: { max: AUTH_RATE_MAX, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
+      const { provider } = req.params;
+      const querySuffix = buildQuerySuffix(req.query);
+      return proxyJsonRequest(
+        reply,
+        ctx.requestFn,
+        `${ctx.identityServiceBase}/internal/auth/oauth/${encodeURIComponent(provider)}/callback${querySuffix}`,
+        {
+          method: "GET"
+        }
+      );
+    }
   });
 }

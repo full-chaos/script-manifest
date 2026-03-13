@@ -15,6 +15,10 @@ import {
 
 export function registerScriptRoutes(server: FastifyInstance, ctx: GatewayContext): void {
   server.post("/api/v1/scripts/upload-session", async (req, reply) => {
+    const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
+    if (!userId) {
+      return reply.status(401).send({ error: "unauthorized" });
+    }
     const parsed = ScriptUploadSessionRequestSchema.safeParse(req.body);
     if (!parsed.success) {
       return reply.status(400).send({
@@ -35,6 +39,10 @@ export function registerScriptRoutes(server: FastifyInstance, ctx: GatewayContex
   });
 
   server.post("/api/v1/scripts/register", async (req, reply) => {
+    const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
+    if (!userId) {
+      return reply.status(401).send({ error: "unauthorized" });
+    }
     const parsed = ScriptRegisterRequestSchema.safeParse(req.body);
     if (!parsed.success) {
       return reply.status(400).send({
@@ -166,6 +174,9 @@ export function registerScriptRoutes(server: FastifyInstance, ctx: GatewayContex
   server.patch<{ Params: { scriptId: string } }>("/api/v1/scripts/:scriptId/visibility", async (req, reply) => {
     const { scriptId } = req.params;
     const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
+    if (!userId) {
+      return reply.status(401).send({ error: "unauthorized" });
+    }
     // TODO: add validation schema
     return proxyJsonRequest(
       reply,

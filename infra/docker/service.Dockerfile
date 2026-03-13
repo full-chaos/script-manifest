@@ -35,7 +35,7 @@ WORKDIR /app
 
 # Install dependencies first (cached unless lockfile changes)
 COPY --from=pruner /app/out/json/ .
-RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store,sharing=locked \
+RUN --mount=type=cache,id=pnpm-store-${SERVICE_NAME},target=/pnpm/store,sharing=locked \
     sh -eu -c 'for attempt in 1 2 3 4 5; do \
       pnpm install \
         --frozen-lockfile \
@@ -76,7 +76,7 @@ WORKDIR /app
 
 # Install production dependencies only
 COPY --from=pruner /app/out/json/ .
-RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store,sharing=locked \
+RUN --mount=type=cache,id=pnpm-store-${SERVICE_NAME},target=/pnpm/store,sharing=locked \
     sh -eu -c 'for attempt in 1 2 3 4 5; do \
       pnpm install \
         --frozen-lockfile \

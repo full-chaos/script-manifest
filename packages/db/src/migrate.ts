@@ -15,6 +15,18 @@ const BASELINE_MIGRATIONS = [
   "007_coverage_marketplace.sql",
 ];
 
+/**
+ * Maps a renamed migration file's old name → new name.
+ * When the runner finds the new filename is not yet applied but the old name IS,
+ * it records the new name as applied without re-running the SQL (the DDL is
+ * already present from when the old name ran).
+ */
+const MIGRATION_RENAMES: Record<string, string> = {
+  // 015_platform_operations.sql was renumbered to 016_ after
+  // 015_payment_hardening_and_account_security.sql was inserted before it.
+  "015_platform_operations.sql": "016_platform_operations.sql",
+};
+
 const migrationsDir = join(dirname(fileURLToPath(import.meta.url)), "..", "migrations");
 
 export async function runMigrations(pool: Pool): Promise<void> {
@@ -62,8 +74,24 @@ export async function runMigrations(pool: Pool): Promise<void> {
     );
     const appliedVersions = new Set(appliedRows.map((row) => row.version));
 
+    // Build a reverse map: new name → old name, for rename detection.
+    const renamedFrom = Object.fromEntries(
+      Object.entries(MIGRATION_RENAMES).map(([oldName, newName]) => [newName, oldName]),
+    );
+
     for (const migrationFile of migrationFiles) {
       if (appliedVersions.has(migrationFile)) {
+        continue;
+      }
+
+      // If this migration was previously tracked under an old filename, record the
+      // new name as applied without re-running the SQL (schema changes are already present).
+      const previousName = renamedFrom[migrationFile];
+      if (previousName !== undefined && appliedVersions.has(previousName)) {
+        await lockClient.query(
+          "INSERT INTO schema_migrations (version) VALUES ($1) ON CONFLICT (version) DO NOTHING",
+          [migrationFile],
+        );
         continue;
       }
 

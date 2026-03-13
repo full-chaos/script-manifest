@@ -153,11 +153,49 @@ export class PgProfileProjectRepository implements ProfileProjectRepository {
       [userRow.id, userRow.display_name]
     );
 
+    if (inserted.rows.length === 0) {
+      // Lost the race — another concurrent request created the profile.
+      // Re-fetch so we return the row rather than a spurious null / 404.
+      const refetch = await db.query<{
+        writer_id: string;
+        display_name: string;
+        bio: string;
+        genres: string[];
+        demographics: string[];
+        representation_status: "represented" | "unrepresented" | "seeking_rep";
+        headshot_url: string;
+        custom_profile_url: string;
+        is_searchable: boolean;
+      }>(
+        `
+          SELECT writer_id, display_name, bio, genres, demographics, representation_status,
+                 headshot_url, custom_profile_url, is_searchable
+          FROM writer_profiles
+          WHERE writer_id = $1
+        `,
+        [writerId]
+      );
+      const refetchedRow = refetch.rows[0];
+      if (!refetchedRow) {
+        return null;
+      }
+      return {
+        id: refetchedRow.writer_id,
+        displayName: refetchedRow.display_name,
+        bio: refetchedRow.bio,
+        genres: refetchedRow.genres,
+        demographics: refetchedRow.demographics,
+        representationStatus: refetchedRow.representation_status,
+        headshotUrl: refetchedRow.headshot_url,
+        customProfileUrl: refetchedRow.custom_profile_url,
+        isSearchable: refetchedRow.is_searchable
+      };
+    }
+
     const insertedRow = inserted.rows[0];
     if (!insertedRow) {
       return null;
     }
-
     return {
       id: insertedRow.writer_id,
       displayName: insertedRow.display_name,

@@ -36,7 +36,7 @@ test("service and frontend dockerfiles use cached pnpm installs with retries", (
 
   for (const file of files) {
     const dockerfile = readFile(file);
-    assert.match(dockerfile, /--mount=type=cache,id=pnpm-store,target=\/pnpm\/store,sharing=locked/);
+    assert.match(dockerfile, /--mount=type=cache,id=pnpm-store(-\$\{SERVICE_NAME\})?,target=\/pnpm\/store,sharing=locked/);
     assert.match(dockerfile, /--fetch-retries=5/);
     assert.match(dockerfile, /--prefer-offline/);
   }

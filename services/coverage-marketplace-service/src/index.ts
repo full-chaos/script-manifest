@@ -991,12 +991,16 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
     }
 
     // Validate refundAmountCents BEFORE writing to DB to avoid inconsistent state
+    const order = await repository.getOrder(dispute.orderId);
     if (parsed.data.status === "resolved_partial") {
       if (!parsed.data.refundAmountCents || parsed.data.refundAmountCents <= 0) {
         return reply.status(400).send({ error: "refund_amount_required_for_partial" });
       }
-      const orderForValidation = await repository.getOrder(dispute.orderId);
-      if (orderForValidation && parsed.data.refundAmountCents > orderForValidation.priceCents) {
+      if (order && parsed.data.refundAmountCents > order.priceCents) {
+        return reply.status(400).send({ error: "refund_exceeds_order_amount" });
+      }
+    } else if (parsed.data.status === "resolved_refund") {
+      if (parsed.data.refundAmountCents !== undefined && order && parsed.data.refundAmountCents > order.priceCents) {
         return reply.status(400).send({ error: "refund_exceeds_order_amount" });
       }
     }
@@ -1005,8 +1009,6 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
     if (!resolved) {
       return reply.status(409).send({ error: "dispute_not_resolvable" });
     }
-
-    const order = await repository.getOrder(dispute.orderId);
     if (!order) {
       return reply.send({ dispute: resolved });
     }
@@ -1244,13 +1246,8 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
       return reply.status(400).send({ error: "missing_signature" });
     }
 
-    // req.body is now a Buffer due to the raw content-type parser above.
-    // We pass the raw Buffer (or its string representation) to constructWebhookEvent
-    // so that Stripe's HMAC verification works against the original wire bytes.
-    const rawBody = Buffer.isBuffer(req.body)
-      ? req.body
-      : Buffer.from(typeof req.body === "string" ? req.body : JSON.stringify(req.body ?? {}));
-    const payload = rawBody.toString("utf8");
+    // req.body is a Buffer due to the raw content-type parser registered above.
+    const payload = (req.body as Buffer).toString("utf8");
 
     let event: any;
     try {

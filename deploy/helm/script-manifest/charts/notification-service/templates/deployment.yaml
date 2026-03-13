@@ -17,6 +17,11 @@ spec:
         {{- include "notification-service.selectorLabels" . | nindent 8 }}
     spec:
       serviceAccountName: {{ include "notification-service.fullname" . }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
       containers:
         - name: {{ .Chart.Name }}
           image: {{ include "script-manifest.image" (dict "global" .Values.global "image" .Values.image) }}

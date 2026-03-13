@@ -1,7 +1,7 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import { randomUUID } from "node:crypto";
 import { Counter } from "prom-client";
-import { bootstrapService, registerMetrics, setupErrorReporting, validateRequiredEnv, getAuthUserId, isMainModule, publishNotificationEvent, verifyServiceToken } from "@script-manifest/service-utils";
+import { bootstrapService, registerMetrics, setupErrorReporting, validateRequiredEnv, getAuthUserId, isMainModule, publishNotificationEvent } from "@script-manifest/service-utils";
 import { healthCheck } from "@script-manifest/db";
 import {
   FeedbackListingCreateRequestSchema,
@@ -30,15 +30,6 @@ export type FeedbackExchangeServiceOptions = {
 };
 
 const SYSTEM_USER_ID = "SYSTEM";
-
-function isAdminServiceToken(headers: Record<string, unknown>): boolean {
-  const token = headers["x-service-token"];
-  if (typeof token !== "string") return false;
-  const secret = process.env.SERVICE_TOKEN_SECRET;
-  if (!secret) return false;
-  const payload = verifyServiceToken(token, secret);
-  return payload?.role === "admin";
-}
 
 export function buildServer(options: FeedbackExchangeServiceOptions = {}): FastifyInstance {
   const server = Fastify({
@@ -469,9 +460,6 @@ export function buildServer(options: FeedbackExchangeServiceOptions = {}): Fasti
     const authUserId = getAuthUserId(req);
     if (!authUserId) {
       return reply.status(403).send({ error: "forbidden" });
-    }
-    if (!isAdminServiceToken(req.headers as Record<string, unknown>)) {
-      return reply.status(403).send({ error: "admin_required" });
     }
 
     const parsed = FeedbackDisputeResolveRequestSchema.safeParse(req.body);

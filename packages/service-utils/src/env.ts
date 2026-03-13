@@ -12,7 +12,10 @@
  * @throws {Error} If NODE_ENV is "production" and any of the vars are unset.
  */
 export function validateRequiredEnv(vars: string[]): void {
-  if (process.env.NODE_ENV !== "production") return;
+  // Skip validation only in development and test environments.
+  // Staging, preview, and production all require real env vars.
+  const env = process.env.NODE_ENV;
+  if (env === "development" || env === "test") return;
   const missing = vars.filter((v) => !process.env[v]);
   if (missing.length > 0) {
     throw new Error(`Missing required env vars: ${missing.join(", ")}`);

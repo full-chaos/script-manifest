@@ -19,6 +19,7 @@ import {
   safeJsonParse
 } from "../helpers.js";
 import { ApiErrorSchema, toOpenApiSchema, UnauthorizedErrorSchema } from "../openapi.js";
+import { readBearerToken } from "@script-manifest/service-utils";
 
 const GLOBAL_RATE_MAX = Number(process.env.RATE_LIMIT_MAX ?? 100);
 const AUTH_RATE_MAX = Math.max(10, Math.ceil(GLOBAL_RATE_MAX * 0.1));
@@ -65,19 +66,6 @@ function clearAuthCookies(reply: FastifyReply): void {
 
   reply.clearCookie(SESSION_COOKIE_NAME, options);
   reply.clearCookie(REFRESH_COOKIE_NAME, options);
-}
-
-function readBearerToken(header: string | undefined): string | null {
-  if (!header) {
-    return null;
-  }
-
-  const [scheme, token] = header.split(" ");
-  if (scheme?.toLowerCase() !== "bearer" || !token) {
-    return null;
-  }
-
-  return token;
 }
 
 async function proxyAuthSessionRequest(

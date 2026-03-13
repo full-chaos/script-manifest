@@ -10,6 +10,19 @@ route:
 
 receivers:
   - name: "default"
+    # TODO: Configure a real notification receiver before deploying to production.
+    # Replace this placeholder with your alerting destination, for example:
+    #
+    # Slack webhook example:
+    # slack_configs:
+    #   - api_url: "https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK"
+    #     channel: "#alerts"
+    #     send_resolved: true
+    #
+    # Or a webhook receiver:
+    # webhook_configs:
+    #   - url: "https://your-alertmanager-receiver.example.com/alerts"
+    #     send_resolved: true
     webhook_configs:
       - url: "http://localhost:5001/"
         send_resolved: true

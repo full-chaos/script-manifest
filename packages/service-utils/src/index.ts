@@ -8,7 +8,7 @@ export { registerAuthVerification } from "./authMiddleware.js";
 // setupTracing isolated to ./tracing subpath to prevent OTel auto-instrumentation from loading on every import
 export { publishNotificationEvent, disconnectProducer } from "./notificationPublisher.js";
 export { isMainModule } from "./isMainModule.js";
-export { getAuthUserId, readHeader } from "./headerHelpers.js";
+export { getAuthUserId, readHeader, readBearerToken } from "./headerHelpers.js";
 export { createFastifyServer, type CreateServerOptions } from "./server.js";
 export { registerHealthRoutes, type RegisterHealthRoutesOptions, type HealthCheckResult } from "./health.js";
 export { BaseMemoryRepository } from "./testing/BaseMemoryRepository.js";

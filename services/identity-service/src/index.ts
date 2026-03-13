@@ -4,7 +4,7 @@ import rateLimit from "@fastify/rate-limit";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { request } from "undici";
 import { Counter } from "prom-client";
-import { validateRequiredEnv, bootstrapService, setupErrorReporting, isMainModule } from "@script-manifest/service-utils";
+import { validateRequiredEnv, bootstrapService, setupErrorReporting, isMainModule, readBearerToken } from "@script-manifest/service-utils";
 import { healthCheck } from "@script-manifest/db";
 import {
   AuthLoginRequestSchema,
@@ -695,19 +695,6 @@ export async function startServer(): Promise<void> {
   await registerMetrics(server);
   await server.listen({ port, host: "0.0.0.0" });
   boot.ready(port);
-}
-
-function readBearerToken(header: string | undefined): string | null {
-  if (!header) {
-    return null;
-  }
-
-  const [scheme, token] = header.split(" ");
-  if (scheme?.toLowerCase() !== "bearer" || !token) {
-    return null;
-  }
-
-  return token;
 }
 
 function createOpaqueToken(): string {

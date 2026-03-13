@@ -7,32 +7,10 @@ import {
   ModerationActionRequestSchema,
   ModerationQueueRequestSchema
 } from "@script-manifest/contracts";
-import { verifyServiceToken } from "@script-manifest/service-utils";
 import type { AdminRepository } from "./admin-repository.js";
-
-function readAdminUserId(headers: Record<string, unknown>): string | null {
-  const raw = headers["x-auth-user-id"];
-  return typeof raw === "string" && raw.length > 0 ? raw : null;
-}
+import { readAdminUserId, requireAdmin } from "./auth-helpers.js";
 
 function readUserId(headers: Record<string, unknown>): string | null {
-  return readAdminUserId(headers);
-}
-
-function readServiceRole(headers: Record<string, unknown>): string | null {
-  const token = headers["x-service-token"];
-  if (typeof token !== "string") return null;
-
-  const secret = process.env.SERVICE_TOKEN_SECRET;
-  if (!secret) return null;
-
-  const payload = verifyServiceToken(token, secret);
-  return payload?.role ?? null;
-}
-
-function requireAdmin(headers: Record<string, unknown>): string | null {
-  const role = readServiceRole(headers);
-  if (role !== "admin") return null;
   return readAdminUserId(headers);
 }
 

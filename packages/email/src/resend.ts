@@ -37,6 +37,10 @@ export class ResendEmailService implements EmailService {
     const entry = this.rateLimits.get(to);
 
     if (!entry || now - entry.windowStart > RATE_LIMIT_WINDOW_MS) {
+      // Delete stale entry before replacing (prunes expired keys on access)
+      if (entry) {
+        this.rateLimits.delete(to);
+      }
       this.rateLimits.set(to, { count: 1, windowStart: now });
       return;
     }
@@ -46,5 +50,15 @@ export class ResendEmailService implements EmailService {
     }
 
     entry.count++;
+  }
+
+  /** Prune all expired rate-limit entries. Call periodically to prevent unbounded Map growth. */
+  pruneExpiredEntries(): void {
+    const now = Date.now();
+    for (const [key, entry] of this.rateLimits) {
+      if (now - entry.windowStart > RATE_LIMIT_WINDOW_MS) {
+        this.rateLimits.delete(key);
+      }
+    }
   }
 }

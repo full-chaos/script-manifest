@@ -16,6 +16,7 @@ import {
   generateBackupCodes,
   hashBackupCode
 } from "./totp.js";
+import { readBearerToken } from "@script-manifest/service-utils";
 
 // ── Temporary MFA tokens for login challenge ──────────────────────────
 // These are short-lived tokens issued when a user with MFA attempts login.
@@ -62,15 +63,6 @@ export function consumeMfaChallenge(token: string): string | null {
   mfaChallenges.delete(token);
   if (challenge.expiresAt <= Date.now()) return null;
   return challenge.userId;
-}
-
-// ── Helper: read Bearer token ─────────────────────────────────────────
-
-function readBearerToken(header: string | undefined): string | null {
-  if (!header) return null;
-  const [scheme, token] = header.split(" ");
-  if (scheme?.toLowerCase() !== "bearer" || !token) return null;
-  return token;
 }
 
 // ── Route registration ────────────────────────────────────────────────

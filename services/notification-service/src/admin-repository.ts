@@ -240,8 +240,10 @@ export class PgNotificationAdminRepository implements NotificationAdminRepositor
     const total = Number(countResult.rows[0]!.count);
 
     const offset = (params.page - 1) * params.limit;
+    const limitParam = paramIndex++;
+    const offsetParam = paramIndex++;
     const dataResult = await getPool().query<BroadcastRow>(
-      `SELECT * FROM notification_broadcasts ${where} ORDER BY created_at DESC LIMIT $${paramIndex++} OFFSET $${paramIndex}`,
+      `SELECT * FROM notification_broadcasts ${where} ORDER BY created_at DESC LIMIT $${limitParam} OFFSET $${offsetParam}`,
       [...values, params.limit, offset]
     );
 

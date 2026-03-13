@@ -24,7 +24,7 @@ class MemoryNotificationRepository implements NotificationRepository {
     this.events.push(event);
   }
 
-  async getEventsByTargetUser(targetUserId: string): Promise<NotificationEventEnvelope[]> {
+  async getEventsByTargetUser(targetUserId: string, _limit?: number, _offset?: number): Promise<NotificationEventEnvelope[]> {
     return this.events.filter((event) => event.targetUserId === targetUserId);
   }
 }

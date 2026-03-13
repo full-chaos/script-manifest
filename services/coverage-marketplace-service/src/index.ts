@@ -2,7 +2,7 @@ import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
 import rateLimit from "@fastify/rate-limit";
 import { randomUUID } from "node:crypto";
 import { Counter } from "prom-client";
-import { bootstrapService, registerMetrics, setupErrorReporting, validateRequiredEnv, getAuthUserId, isMainModule, readHeader } from "@script-manifest/service-utils";
+import { bootstrapService, registerMetrics, setupErrorReporting, validateRequiredEnv, getAuthUserId, isMainModule, readHeader, verifyServiceToken } from "@script-manifest/service-utils";
 import { closePool, healthCheck } from "@script-manifest/db";
 import {
   CoverageProviderCreateRequestSchema,
@@ -90,6 +90,15 @@ function mapDeclineCodeToReason(declineCode?: string): string {
     return "Payment declined";
   }
   return DECLINE_REASON_BY_CODE[declineCode] ?? "Payment declined";
+}
+
+function isAdminServiceToken(headers: Record<string, unknown>): boolean {
+  const token = headers["x-service-token"];
+  if (typeof token !== "string") return false;
+  const secret = process.env.SERVICE_TOKEN_SECRET;
+  if (!secret) return false;
+  const payload = verifyServiceToken(token, secret);
+  return payload?.role === "admin";
 }
 
 async function transferToProviderOrQueueRetry(params: {
@@ -978,6 +987,9 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
     const authUserId = getAuthUserId(req);
     if (!authUserId) {
       return reply.status(403).send({ error: "forbidden" });
+    }
+    if (!isAdminServiceToken(req.headers as Record<string, unknown>)) {
+      return reply.status(403).send({ error: "admin_required" });
     }
 
     const parsed = CoverageDisputeResolveRequestSchema.safeParse(req.body);

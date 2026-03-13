@@ -8,7 +8,7 @@ export const ScriptUploadSessionRequestSchema = z.object({
   scriptId: z.string().min(1),
   ownerUserId: z.string().min(1),
   filename: z.string().min(1),
-  contentType: z.string().min(1),
+  contentType: z.enum(["application/pdf", "application/fountain", "text/plain"]),
   size: z.coerce.number().int().nonnegative()
 });
 

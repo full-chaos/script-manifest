@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { randomBytes } from "node:crypto";
 import type {
   FeedbackDispute,
   FeedbackDisputeStatus,
@@ -13,9 +14,19 @@ import type {
   TokenTransaction,
   TokenTransactionReason
 } from "@script-manifest/contracts";
-import { BaseMemoryRepository } from "@script-manifest/service-utils";
+import { BaseMemoryRepository, signServiceToken } from "@script-manifest/service-utils";
 import { buildServer } from "./index.js";
 import type { FeedbackExchangeRepository } from "./repository.js";
+
+const SERVICE_SECRET = randomBytes(32).toString("hex");
+
+function adminServiceHeaders(): Record<string, string> {
+  return {
+    "x-auth-user-id": "admin_01",
+    "x-service-token": signServiceToken({ sub: "admin_01", role: "admin" }, SERVICE_SECRET),
+    "content-type": "application/json"
+  };
+}
 
 class MemoryFeedbackExchangeRepository extends BaseMemoryRepository implements FeedbackExchangeRepository {
   private transactions: TokenTransaction[] = [];
@@ -340,6 +351,8 @@ class MemoryFeedbackExchangeRepository extends BaseMemoryRepository implements F
 }
 
 function createServer() {
+  const originalSecret = process.env.SERVICE_TOKEN_SECRET;
+  process.env.SERVICE_TOKEN_SECRET = SERVICE_SECRET;
   const events: NotificationEventEnvelope[] = [];
   const repo = new MemoryFeedbackExchangeRepository();
   const server = buildServer({
@@ -347,6 +360,13 @@ function createServer() {
     repository: repo,
     publisher: async (event) => {
       events.push(event);
+    }
+  });
+  server.addHook("onClose", () => {
+    if (originalSecret === undefined) {
+      delete process.env.SERVICE_TOKEN_SECRET;
+    } else {
+      process.env.SERVICE_TOKEN_SECRET = originalSecret;
     }
   });
   return { server, events, repo };
@@ -848,7 +868,7 @@ test("resolve dispute for filer strikes reviewer and refunds", async (t) => {
   const resolveRes = await server.inject({
     method: "POST",
     url: `/internal/disputes/${disputeId}/resolve`,
-    headers: { "x-auth-user-id": "admin_01", "content-type": "application/json" },
+    headers: adminServiceHeaders(),
     payload: { status: "resolved_for_filer", resolutionNote: "Reviewer submitted spam" }
   });
   assert.equal(resolveRes.statusCode, 200);

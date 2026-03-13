@@ -1,12 +1,16 @@
 import type { RenderedEmail } from "../types.js";
 
+function esc(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
 export function renderWelcome(data: Record<string, string>): RenderedEmail {
   const displayName = data.displayName ?? "Writer";
 
   return {
     subject: "Welcome to Script Manifest!",
     html: `<div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
-  <h2 style="color:#1a1a1a">Welcome aboard, ${displayName}!</h2>
+  <h2 style="color:#1a1a1a">Welcome aboard, ${esc(displayName)}!</h2>
   <p>Your email has been verified and your account is ready to go.</p>
   <p>Here's what you can do next:</p>
   <ul style="line-height:1.8">

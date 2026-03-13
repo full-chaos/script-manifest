@@ -54,12 +54,14 @@ export function bootstrapService(name: string): BootLogger {
   // ── Global crash handlers ───────────────────────────────────────────
   // These fire for errors that escape the startServer().catch() — e.g.
   // top-level ESM import failures or truly unhandled promise rejections.
-  process.on("uncaughtException", (err) => {
+  // process.once is used so that if bootstrapService is called multiple times
+  // (e.g. in tests) duplicate handlers are not stacked up.
+  process.once("uncaughtException", (err) => {
     logger.fatal({ err }, "uncaught exception");
     process.exit(1);
   });
 
-  process.on("unhandledRejection", (reason) => {
+  process.once("unhandledRejection", (reason) => {
     logger.fatal({ reason }, "unhandled rejection");
     process.exit(1);
   });

@@ -611,9 +611,10 @@ export class PgPartnerDashboardRepository implements PartnerDashboardRepository 
     }
 
     const now = new Date().toISOString();
-    await db.query("BEGIN");
+    const client = await db.connect();
     try {
-      const result = await db.query(
+      await client.query("BEGIN");
+      const result = await client.query(
         `INSERT INTO partner_competitions (
            id,
            organizer_account_id,
@@ -648,7 +649,7 @@ export class PgPartnerDashboardRepository implements PartnerDashboardRepository 
       );
 
       const competition = mapCompetition(result.rows[0] as Record<string, unknown>);
-      await db.query(
+      await client.query(
         `INSERT INTO organizer_memberships (
            organizer_account_id,
            user_id,
@@ -660,11 +661,13 @@ export class PgPartnerDashboardRepository implements PartnerDashboardRepository 
         [competition.organizerAccountId, adminUserId, now]
       );
 
-      await db.query("COMMIT");
+      await client.query("COMMIT");
       return competition;
     } catch (error) {
-      await db.query("ROLLBACK");
+      await client.query("ROLLBACK");
       throw error;
+    } finally {
+      client.release();
     }
   }
 
@@ -885,12 +888,13 @@ export class PgPartnerDashboardRepository implements PartnerDashboardRepository 
     const db = getPool();
     const now = new Date().toISOString();
 
-    await db.query("BEGIN");
+    const client = await db.connect();
     try {
+      await client.query("BEGIN");
       let publishedCount = 0;
       const writerUserIds = new Set<string>();
       for (const item of parsed.results) {
-        const submissionResult = await db.query(
+        const submissionResult = await client.query(
           "SELECT id, writer_user_id FROM partner_submissions WHERE id = $1 AND competition_id = $2 LIMIT 1",
           [item.submissionId, competitionId]
         );
@@ -899,7 +903,7 @@ export class PgPartnerDashboardRepository implements PartnerDashboardRepository 
         }
         const submissionRow = submissionResult.rows[0] as Record<string, unknown>;
 
-        await db.query(
+        await client.query(
           `INSERT INTO partner_published_results (
              id,
              competition_id,
@@ -920,7 +924,7 @@ export class PgPartnerDashboardRepository implements PartnerDashboardRepository 
           ]
         );
 
-        await db.query(
+        await client.query(
           "UPDATE partner_submissions SET status = 'published', updated_at = $3 WHERE id = $1 AND competition_id = $2",
           [item.submissionId, competitionId, now]
         );
@@ -928,19 +932,21 @@ export class PgPartnerDashboardRepository implements PartnerDashboardRepository 
         writerUserIds.add(String(submissionRow.writer_user_id));
       }
 
-      await db.query(
+      await client.query(
         "UPDATE partner_competitions SET status = 'published', updated_at = $2 WHERE id = $1",
         [competitionId, now]
       );
 
-      await db.query("COMMIT");
+      await client.query("COMMIT");
       return {
         publishedCount,
         writerUserIds: [...writerUserIds]
       };
     } catch (error) {
-      await db.query("ROLLBACK");
+      await client.query("ROLLBACK");
       throw error;
+    } finally {
+      client.release();
     }
   }
 
@@ -970,13 +976,14 @@ export class PgPartnerDashboardRepository implements PartnerDashboardRepository 
     const swapId = `partner_swap_${randomUUID()}`;
     const now = new Date().toISOString();
 
-    await db.query("BEGIN");
+    const client = await db.connect();
     try {
-      await db.query(
+      await client.query("BEGIN");
+      await client.query(
         "UPDATE partner_submissions SET script_id = $3, updated_at = $4 WHERE id = $1 AND competition_id = $2",
         [parsed.submissionId, competitionId, parsed.replacementScriptId, now]
       );
-      await db.query(
+      await client.query(
         `INSERT INTO partner_draft_swaps (
            id,
            competition_id,
@@ -998,7 +1005,7 @@ export class PgPartnerDashboardRepository implements PartnerDashboardRepository 
           now
         ]
       );
-      await db.query("COMMIT");
+      await client.query("COMMIT");
       return {
         swapId,
         submissionId: parsed.submissionId,
@@ -1006,8 +1013,10 @@ export class PgPartnerDashboardRepository implements PartnerDashboardRepository 
         feeCents: parsed.feeCents
       };
     } catch (error) {
-      await db.query("ROLLBACK");
+      await client.query("ROLLBACK");
       throw error;
+    } finally {
+      client.release();
     }
   }
 
@@ -1129,9 +1138,10 @@ export class PgPartnerDashboardRepository implements PartnerDashboardRepository 
   async claimNextFilmFreewaySyncJob(): Promise<PartnerSyncJob | null> {
     const db = getPool();
     const now = new Date().toISOString();
-    await db.query("BEGIN");
+    const client = await db.connect();
     try {
-      const result = await db.query(
+      await client.query("BEGIN");
+      const result = await client.query(
         `WITH next_job AS (
            SELECT id
              FROM partner_sync_jobs
@@ -1148,14 +1158,16 @@ export class PgPartnerDashboardRepository implements PartnerDashboardRepository 
         RETURNING job.*`,
         [now]
       );
-      await db.query("COMMIT");
+      await client.query("COMMIT");
       if ((result.rowCount ?? 0) < 1) {
         return null;
       }
       return mapSyncJob(result.rows[0] as Record<string, unknown>);
     } catch (error) {
-      await db.query("ROLLBACK");
+      await client.query("ROLLBACK");
       throw error;
+    } finally {
+      client.release();
     }
   }
 

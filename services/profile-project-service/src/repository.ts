@@ -213,46 +213,61 @@ export class PgProfileProjectRepository implements ProfileProjectRepository {
     writerId: string,
     update: WriterProfileUpdateRequest
   ): Promise<WriterProfile | null> {
-    const existing = await this.getProfile(writerId);
-    if (!existing) {
-      return null;
-    }
-
-    const nextProfile: WriterProfile = {
-      ...existing,
-      ...update,
-      id: existing.id
-    };
-
     const db = getPool();
-    await db.query(
+    const result = await db.query<{
+      writer_id: string;
+      display_name: string;
+      bio: string;
+      genres: string[];
+      demographics: string[];
+      representation_status: "represented" | "unrepresented" | "seeking_rep";
+      headshot_url: string;
+      custom_profile_url: string;
+      is_searchable: boolean;
+    }>(
       `
         UPDATE writer_profiles
-        SET display_name = $2,
-            bio = $3,
-            genres = $4,
-            demographics = $5,
-            representation_status = $6,
-            headshot_url = $7,
-            custom_profile_url = $8,
-            is_searchable = $9,
-            updated_at = NOW()
+        SET display_name       = COALESCE($2, display_name),
+            bio                = COALESCE($3, bio),
+            genres             = COALESCE($4, genres),
+            demographics       = COALESCE($5, demographics),
+            representation_status = COALESCE($6, representation_status),
+            headshot_url       = COALESCE($7, headshot_url),
+            custom_profile_url = COALESCE($8, custom_profile_url),
+            is_searchable      = COALESCE($9, is_searchable),
+            updated_at         = NOW()
         WHERE writer_id = $1
+        RETURNING writer_id, display_name, bio, genres, demographics,
+                  representation_status, headshot_url, custom_profile_url, is_searchable
       `,
       [
         writerId,
-        nextProfile.displayName,
-        nextProfile.bio,
-        nextProfile.genres,
-        nextProfile.demographics,
-        nextProfile.representationStatus,
-        nextProfile.headshotUrl,
-        nextProfile.customProfileUrl,
-        nextProfile.isSearchable
+        update.displayName ?? null,
+        update.bio ?? null,
+        update.genres ?? null,
+        update.demographics ?? null,
+        update.representationStatus ?? null,
+        update.headshotUrl ?? null,
+        update.customProfileUrl ?? null,
+        update.isSearchable ?? null
       ]
     );
 
-    return nextProfile;
+    const row = result.rows[0];
+    if (!row) {
+      return null;
+    }
+    return {
+      id: row.writer_id,
+      displayName: row.display_name,
+      bio: row.bio,
+      genres: row.genres,
+      demographics: row.demographics,
+      representationStatus: row.representation_status,
+      headshotUrl: row.headshot_url,
+      customProfileUrl: row.custom_profile_url,
+      isSearchable: row.is_searchable
+    };
   }
 
   async createProject(input: ProjectCreateInternal): Promise<Project | null> {

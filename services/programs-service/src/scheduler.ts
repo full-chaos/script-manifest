@@ -13,6 +13,7 @@ export type ProgramsSchedulerDependencies = {
   repository: ProgramsRepository;
   requestFn: typeof undiciRequest;
   notificationServiceBase: string;
+  repositoryReady?: Promise<void>;
   logger?: {
     info(payload: Record<string, unknown>, message: string): void;
     error(payload: Record<string, unknown>, message: string): void;
@@ -245,6 +246,9 @@ export function startProgramsScheduler(
   let inFlight = false;
 
   const tick = async (): Promise<void> => {
+    if (deps.repositoryReady) {
+      await deps.repositoryReady;
+    }
     if (inFlight) {
       return;
     }

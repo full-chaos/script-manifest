@@ -423,7 +423,7 @@ export function buildServer(options: IdentityServiceOptions = {}): FastifyInstan
 
     // Check if user has MFA enabled
     if (mfaEnabled) {
-      const mfaToken = createMfaChallenge(user.id);
+      const mfaToken = await createMfaChallenge(mfaRepo, user.id);
       return reply.send({ requiresMfa: true, mfaToken });
     }
     const payload = await createAuthSessionPayload(repository, user);

@@ -18,38 +18,18 @@ import {
 } from "./totp.js";
 import { readBearerToken } from "@script-manifest/service-utils";
 
-// ── Temporary MFA tokens for login challenge ──────────────────────────
-// These are short-lived tokens issued when a user with MFA attempts login.
-// They map mfaToken -> { userId, expiresAt }.
-
-type MfaChallenge = {
-  userId: string;
-  expiresAt: number;
-};
-
-const mfaChallenges = new Map<string, MfaChallenge>();
-
-// Clean up expired challenges periodically
-function cleanExpiredChallenges(): void {
-  const now = Date.now();
-  for (const [token, challenge] of mfaChallenges) {
-    if (challenge.expiresAt <= now) {
-      mfaChallenges.delete(token);
-    }
-  }
-}
+// ── MFA login challenge helpers ───────────────────────────────────────
+// Challenges are persisted to the database so they survive restarts and
+// work correctly in multi-instance deployments.
 
 /**
  * Create a temporary MFA challenge token for the login flow.
- * Valid for 5 minutes.
+ * Valid for 5 minutes. Stores the token in the database via mfaRepo.
  */
-export function createMfaChallenge(userId: string): string {
-  cleanExpiredChallenges();
+export async function createMfaChallenge(mfaRepo: MfaRepository, userId: string): Promise<string> {
   const token = `mfa_${randomBytes(24).toString("hex")}`;
-  mfaChallenges.set(token, {
-    userId,
-    expiresAt: Date.now() + 5 * 60 * 1000
-  });
+  const expiresAt = Date.now() + 5 * 60 * 1000;
+  await mfaRepo.storeMfaChallenge(token, userId, expiresAt);
   return token;
 }
 
@@ -57,12 +37,8 @@ export function createMfaChallenge(userId: string): string {
  * Consume an MFA challenge token (one-time use).
  * Returns userId if valid, null otherwise.
  */
-export function consumeMfaChallenge(token: string): string | null {
-  const challenge = mfaChallenges.get(token);
-  if (!challenge) return null;
-  mfaChallenges.delete(token);
-  if (challenge.expiresAt <= Date.now()) return null;
-  return challenge.userId;
+export async function consumeMfaChallenge(mfaRepo: MfaRepository, token: string): Promise<string | null> {
+  return mfaRepo.consumeMfaChallenge(token);
 }
 
 // ── Route registration ────────────────────────────────────────────────
@@ -239,7 +215,7 @@ export function registerMfaRoutes(
       }
 
       // Consume the MFA challenge token
-      const userId = consumeMfaChallenge(parsed.data.mfaToken);
+      const userId = await consumeMfaChallenge(mfaRepo, parsed.data.mfaToken);
       if (!userId) {
         return reply.status(401).send({ error: "invalid_or_expired_mfa_token" });
       }

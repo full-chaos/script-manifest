@@ -239,14 +239,10 @@ export function buildServer(options: SearchIndexerOptions = {}): FastifyInstance
 export async function startServer(): Promise<void> {
   const boot = bootstrapService("search-indexer-service");
   setupErrorReporting("search-indexer-service");
+  let tracingSdk: Awaited<ReturnType<typeof import("@script-manifest/service-utils/tracing").setupTracing>> | undefined;
   if (process.env.OTEL_EXPORTER_OTLP_ENDPOINT) {
     const { setupTracing } = await import("@script-manifest/service-utils/tracing");
-    const tracingSdk = setupTracing("search-indexer-service");
-    if (tracingSdk) {
-      process.once("SIGTERM", () => {
-        tracingSdk.shutdown().catch((err) => server.log.error(err, "OTel SDK shutdown error"));
-      });
-    }
+    tracingSdk = setupTracing("search-indexer-service");
     boot.phase("tracing initialized");
   }
   validateRequiredEnv(["OPENSEARCH_URL"]);
@@ -257,6 +253,11 @@ export async function startServer(): Promise<void> {
     openSearchIndex: process.env.OPENSEARCH_INDEX
   });
   boot.phase("server built");
+  if (tracingSdk) {
+    process.once("SIGTERM", () => {
+      tracingSdk!.shutdown().catch((err) => server.log.error(err, "OTel SDK shutdown error"));
+    });
+  }
   // Register Prometheus metrics endpoint (only in production server startup, not tests).
   await registerMetrics(server);
   await server.listen({ port, host: "0.0.0.0" });

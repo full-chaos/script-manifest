@@ -593,14 +593,10 @@ export function buildServer(options: ProfileProjectServiceOptions = {}): Fastify
 export async function startServer(): Promise<void> {
   const boot = bootstrapService("profile-project-service");
   setupErrorReporting("profile-project-service");
+  let tracingSdk: Awaited<ReturnType<typeof import("@script-manifest/service-utils/tracing").setupTracing>> | undefined;
   if (process.env.OTEL_EXPORTER_OTLP_ENDPOINT) {
     const { setupTracing } = await import("@script-manifest/service-utils/tracing");
-    const tracingSdk = setupTracing("profile-project-service");
-    if (tracingSdk) {
-      process.once("SIGTERM", () => {
-        tracingSdk.shutdown().catch((err) => server.log.error(err, "OTel SDK shutdown error"));
-      });
-    }
+    tracingSdk = setupTracing("profile-project-service");
     boot.phase("tracing initialized");
   }
 
@@ -609,6 +605,11 @@ export async function startServer(): Promise<void> {
   const port = Number(process.env.PORT ?? 4001);
   const server = buildServer();
   boot.phase("server built");
+  if (tracingSdk) {
+    process.once("SIGTERM", () => {
+      tracingSdk!.shutdown().catch((err) => server.log.error(err, "OTel SDK shutdown error"));
+    });
+  }
   // Register Prometheus metrics endpoint (only in production server startup, not tests).
   await registerMetrics(server);
   await server.listen({ port, host: "0.0.0.0" });

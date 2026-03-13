@@ -138,17 +138,34 @@ export function buildServer(options: SubmissionTrackingOptions = {}): FastifyIns
       });
     }
 
+    const authUserId = getAuthUserId(req);
     const filters = parsedQuery.data;
-    const filteredSubmissions = (await repository.listSubmissions(filters)).map((submission) => SubmissionSchema.parse(submission));
+    if (authUserId && filters.writerId && filters.writerId !== authUserId) {
+      return reply.status(403).send({ error: "forbidden" });
+    }
+
+    const repositoryFilters = authUserId
+      ? { ...filters, writerId: authUserId }
+      : filters;
+    const filteredSubmissions = (await repository.listSubmissions(repositoryFilters)).map((submission) => SubmissionSchema.parse(submission));
 
     return reply.send({ submissions: filteredSubmissions });
   });
 
   server.post<{ Params: { submissionId: string } }>("/internal/submissions/:submissionId/placements", async (req, reply) => {
+    const authUserId = getAuthUserId(req);
+    if (!authUserId) {
+      return reply.status(403).send({ error: "forbidden" });
+    }
+
     const { submissionId } = req.params;
     const submission = await repository.getSubmission(submissionId);
     if (!submission) {
       return reply.status(404).send({ error: "submission_not_found" });
+    }
+
+    if (submission.writerId !== authUserId) {
+      return reply.status(403).send({ error: "forbidden" });
     }
 
     const parsedBody = PlacementCreateRequestSchema.safeParse(req.body);

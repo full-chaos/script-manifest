@@ -179,7 +179,8 @@ test("submission tracking create/list/placement/verify flow", async (t) => {
 
   const listResponse = await server.inject({
     method: "GET",
-    url: "/internal/submissions?writerId=writer_01"
+    url: "/internal/submissions",
+    headers: { "x-auth-user-id": "writer_01" }
   });
   assert.equal(listResponse.statusCode, 200);
   assert.equal(listResponse.json().submissions.length, 1);
@@ -187,6 +188,7 @@ test("submission tracking create/list/placement/verify flow", async (t) => {
   const placementResponse = await server.inject({
     method: "POST",
     url: `/internal/submissions/${submissionId}/placements`,
+    headers: { "x-auth-user-id": "writer_01" },
     payload: { status: "quarterfinalist" }
   });
   assert.equal(placementResponse.statusCode, 201);
@@ -236,6 +238,103 @@ test("submission tracking create/list/placement/verify flow", async (t) => {
   assert.equal(reassignResponse.json().submission.projectId, "project_02");
 });
 
+test("POST /placements requires auth", async (t) => {
+  const memoryRepo = new MemorySubmissionTrackingRepository();
+  const server = buildServer({ logger: false, repository: memoryRepo });
+  t.after(async () => {
+    await server.close();
+  });
+
+  const submission = await server.inject({
+    method: "POST",
+    url: "/internal/submissions",
+    headers: { "x-auth-user-id": "writer_01" },
+    payload: {
+      projectId: "project_01",
+      competitionId: "comp_001",
+      status: "pending"
+    }
+  });
+  const submissionId = submission.json().submission.id as string;
+
+  const noAuthResponse = await server.inject({
+    method: "POST",
+    url: `/internal/submissions/${submissionId}/placements`,
+    payload: { status: "finalist" }
+  });
+  assert.equal(noAuthResponse.statusCode, 403);
+  assert.equal(noAuthResponse.json().error, "forbidden");
+});
+
+test("GET /submissions enforces ownership filter for authenticated users", async (t) => {
+  const memoryRepo = new MemorySubmissionTrackingRepository();
+  const server = buildServer({ logger: false, repository: memoryRepo });
+  t.after(async () => {
+    await server.close();
+  });
+
+  // Create submissions for two different writers
+  await server.inject({
+    method: "POST",
+    url: "/internal/submissions",
+    headers: { "x-auth-user-id": "writer_01" },
+    payload: { projectId: "project_01", competitionId: "comp_001", status: "pending" }
+  });
+  await server.inject({
+    method: "POST",
+    url: "/internal/submissions",
+    headers: { "x-auth-user-id": "writer_02" },
+    payload: { projectId: "project_02", competitionId: "comp_001", status: "pending" }
+  });
+
+  // writer_01 can only see their own submissions even without explicit writerId filter
+  const writer01Response = await server.inject({
+    method: "GET",
+    url: "/internal/submissions",
+    headers: { "x-auth-user-id": "writer_01" }
+  });
+  assert.equal(writer01Response.statusCode, 200);
+  const writer01Submissions = writer01Response.json().submissions as Array<{ writerId: string }>;
+  assert.equal(writer01Submissions.length, 1);
+  assert.equal(writer01Submissions[0]!.writerId, "writer_01");
+
+  // Attempting to filter by another writer's ID is forbidden
+  const forbiddenResponse = await server.inject({
+    method: "GET",
+    url: "/internal/submissions?writerId=writer_02",
+    headers: { "x-auth-user-id": "writer_01" }
+  });
+  assert.equal(forbiddenResponse.statusCode, 403);
+});
+
+test("POST /placements enforces ownership — cross-user access returns 403", async (t) => {
+  const memoryRepo = new MemorySubmissionTrackingRepository();
+  const server = buildServer({ logger: false, repository: memoryRepo });
+  t.after(async () => {
+    await server.close();
+  });
+
+  // writer_01 creates a submission
+  const submissionRes = await server.inject({
+    method: "POST",
+    url: "/internal/submissions",
+    headers: { "x-auth-user-id": "writer_01" },
+    payload: { projectId: "project_01", competitionId: "comp_001", status: "pending" }
+  });
+  assert.equal(submissionRes.statusCode, 201);
+  const submissionId = submissionRes.json().submission.id as string;
+
+  // writer_02 tries to create a placement on writer_01's submission
+  const crossUserResponse = await server.inject({
+    method: "POST",
+    url: `/internal/submissions/${submissionId}/placements`,
+    headers: { "x-auth-user-id": "writer_02" },
+    payload: { status: "finalist" }
+  });
+  assert.equal(crossUserResponse.statusCode, 403);
+  assert.equal(crossUserResponse.json().error, "forbidden");
+});
+
 test("submission tracking enforces placement visibility by writer", async (t) => {
   const memoryRepo = new MemorySubmissionTrackingRepository();
   const server = buildServer({ logger: false, repository: memoryRepo });
@@ -258,6 +357,7 @@ test("submission tracking enforces placement visibility by writer", async (t) =>
   const placement = await server.inject({
     method: "POST",
     url: `/internal/submissions/${submissionId}/placements`,
+    headers: { "x-auth-user-id": "writer_01" },
     payload: { status: "finalist" }
   });
   const placementId = placement.json().placement.id as string;

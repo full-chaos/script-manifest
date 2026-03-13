@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { randomBytes } from "node:crypto";
 import type {
   CoverageProvider,
   CoverageProviderCreateRequest,
@@ -23,8 +24,18 @@ import type {
   CoverageDisputeEvent,
   CoverageDisputeStatus
 } from "@script-manifest/contracts";
-import { BaseMemoryRepository } from "@script-manifest/service-utils";
+import { BaseMemoryRepository, signServiceToken } from "@script-manifest/service-utils";
 import { buildServer } from "./index.js";
+
+const SERVICE_SECRET = randomBytes(32).toString("hex");
+
+function adminServiceHeaders(): Record<string, string> {
+  return {
+    "x-auth-user-id": "admin_01",
+    "x-service-token": signServiceToken({ sub: "admin_01", role: "admin" }, SERVICE_SECRET),
+    "content-type": "application/json"
+  };
+}
 import type { CoverageMarketplaceRepository } from "./repository.js";
 import { MemoryPaymentGateway } from "./paymentGateway.js";
 import { MemoryUserPaymentProfileRepository } from "./userPaymentProfileRepository.js";
@@ -501,6 +512,8 @@ class MemoryCoverageMarketplaceRepository extends BaseMemoryRepository implement
 }
 
 function createServer() {
+  const originalSecret = process.env.SERVICE_TOKEN_SECRET;
+  process.env.SERVICE_TOKEN_SECRET = SERVICE_SECRET;
   const repo = new MemoryCoverageMarketplaceRepository();
   const gateway = new MemoryPaymentGateway();
   const userPaymentProfileRepo = new MemoryUserPaymentProfileRepository();
@@ -510,6 +523,13 @@ function createServer() {
     userPaymentProfileRepository: userPaymentProfileRepo,
     paymentGateway: gateway,
     commissionRate: 0.15
+  });
+  server.addHook("onClose", () => {
+    if (originalSecret === undefined) {
+      delete process.env.SERVICE_TOKEN_SECRET;
+    } else {
+      process.env.SERVICE_TOKEN_SECRET = originalSecret;
+    }
   });
   return { server, repo, gateway, userPaymentProfileRepo };
 }
@@ -1787,7 +1807,7 @@ test("resolve dispute with refund works", async (t) => {
   const res = await server.inject({
     method: "PATCH",
     url: `/internal/disputes/${dispute.id}`,
-    headers: { "x-auth-user-id": "admin_01", "content-type": "application/json" },
+    headers: adminServiceHeaders(),
     payload: {
       status: "resolved_refund",
       adminNotes: "Refund approved"
@@ -1851,7 +1871,7 @@ test("resolve dispute with no refund completes order and logs events", async (t)
   const resolveRes = await server.inject({
     method: "PATCH",
     url: `/internal/disputes/${dispute.id}`,
-    headers: { "x-auth-user-id": "admin_01", "content-type": "application/json" },
+    headers: adminServiceHeaders(),
     payload: {
       status: "resolved_no_refund",
       adminNotes: "Coverage stands"
@@ -1926,7 +1946,7 @@ test("resolve dispute partial refund requires refund amount", async (t) => {
   const resolveRes = await server.inject({
     method: "PATCH",
     url: `/internal/disputes/${dispute.id}`,
-    headers: { "x-auth-user-id": "admin_01", "content-type": "application/json" },
+    headers: adminServiceHeaders(),
     payload: {
       status: "resolved_partial",
       adminNotes: "Partial refund approved"
@@ -2344,6 +2364,8 @@ class SpyPaymentGateway extends MemoryPaymentGateway {
 }
 
 function createSpyServer() {
+  const originalSecret = process.env.SERVICE_TOKEN_SECRET;
+  process.env.SERVICE_TOKEN_SECRET = SERVICE_SECRET;
   const repo = new MemoryCoverageMarketplaceRepository();
   const gateway = new SpyPaymentGateway();
   const userPaymentProfileRepo = new MemoryUserPaymentProfileRepository();
@@ -2353,6 +2375,13 @@ function createSpyServer() {
     userPaymentProfileRepository: userPaymentProfileRepo,
     paymentGateway: gateway,
     commissionRate: 0.15
+  });
+  server.addHook("onClose", () => {
+    if (originalSecret === undefined) {
+      delete process.env.SERVICE_TOKEN_SECRET;
+    } else {
+      process.env.SERVICE_TOKEN_SECRET = originalSecret;
+    }
   });
   return { server, repo, gateway, userPaymentProfileRepo };
 }
@@ -2544,7 +2573,7 @@ test("dispute resolution passes idempotency keys for refund and no-refund paths"
   await server.inject({
     method: "PATCH",
     url: `/internal/disputes/${dispute1.id}`,
-    headers: { "x-auth-user-id": "admin_01", "content-type": "application/json" },
+    headers: adminServiceHeaders(),
     payload: { status: "resolved_refund", adminNotes: "Approved" }
   });
 
@@ -2570,7 +2599,7 @@ test("dispute resolution passes idempotency keys for refund and no-refund paths"
   await server.inject({
     method: "PATCH",
     url: `/internal/disputes/${dispute2.id}`,
-    headers: { "x-auth-user-id": "admin_01", "content-type": "application/json" },
+    headers: adminServiceHeaders(),
     payload: { status: "resolved_no_refund", adminNotes: "Valid coverage" }
   });
 

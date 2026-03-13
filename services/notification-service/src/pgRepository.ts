@@ -70,13 +70,14 @@ export class PgNotificationRepository implements NotificationRepository {
     );
   }
 
-  async getEventsByTargetUser(targetUserId: string): Promise<NotificationEventEnvelope[]> {
+  async getEventsByTargetUser(targetUserId: string, limit = 100, offset = 0): Promise<NotificationEventEnvelope[]> {
     const result = await getPool().query<NotificationEventRow>(
       `SELECT *
        FROM notification_events
        WHERE target_user_id = $1
-       ORDER BY occurred_at ASC`,
-      [targetUserId]
+       ORDER BY occurred_at ASC
+       LIMIT $2 OFFSET $3`,
+      [targetUserId, limit, offset]
     );
 
     return result.rows.map(mapEvent);

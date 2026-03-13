@@ -5,5 +5,5 @@ export interface NotificationRepository {
   healthCheck(): Promise<{ database: boolean }>;
 
   pushEvent(event: NotificationEventEnvelope): Promise<void>;
-  getEventsByTargetUser(targetUserId: string): Promise<NotificationEventEnvelope[]>;
+  getEventsByTargetUser(targetUserId: string, limit?: number, offset?: number): Promise<NotificationEventEnvelope[]>;
 }

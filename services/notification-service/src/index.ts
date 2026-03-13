@@ -1,6 +1,6 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import { randomUUID } from "node:crypto";
-import { bootstrapService, registerMetrics, setupErrorReporting, validateRequiredEnv, isMainModule } from "@script-manifest/service-utils";
+import { bootstrapService, registerMetrics, setupErrorReporting, validateRequiredEnv, isMainModule, verifyServiceToken } from "@script-manifest/service-utils";
 import { closePool } from "@script-manifest/db";
 import {
   NotificationEventEnvelopeSchema
@@ -81,7 +81,20 @@ export function buildServer(options: NotificationServiceOptions = {}): FastifyIn
     });
   });
 
+  function verifyInternalServiceToken(headers: Record<string, unknown>): boolean {
+    const token = headers["x-service-token"];
+    if (typeof token !== "string") return false;
+    const secret = process.env.SERVICE_TOKEN_SECRET;
+    if (!secret) return false;
+    const payload = verifyServiceToken(token, secret);
+    return payload !== null;
+  }
+
   server.post("/internal/events", async (req, reply) => {
+    if (!verifyInternalServiceToken(req.headers as Record<string, unknown>)) {
+      return reply.status(403).send({ error: "forbidden" });
+    }
+
     const parseResult = NotificationEventEnvelopeSchema.safeParse(req.body);
     if (!parseResult.success) {
       return reply.status(400).send({
@@ -94,9 +107,15 @@ export function buildServer(options: NotificationServiceOptions = {}): FastifyIn
     return reply.status(202).send({ accepted: true, eventId: parseResult.data.eventId });
   });
 
-  server.get<{ Params: { targetUserId: string } }>("/internal/events/:targetUserId", async (req, reply) => {
+  server.get<{ Params: { targetUserId: string }; Querystring: { limit?: string; offset?: string } }>("/internal/events/:targetUserId", async (req, reply) => {
+    if (!verifyInternalServiceToken(req.headers as Record<string, unknown>)) {
+      return reply.status(403).send({ error: "forbidden" });
+    }
+
     const { targetUserId } = req.params;
-    const events = await repository.getEventsByTargetUser(targetUserId);
+    const limit = req.query.limit !== undefined ? Math.max(1, Math.min(1000, Number(req.query.limit))) : 100;
+    const offset = req.query.offset !== undefined ? Math.max(0, Number(req.query.offset)) : 0;
+    const events = await repository.getEventsByTargetUser(targetUserId, limit, offset);
     return reply.send({ events });
   });
 

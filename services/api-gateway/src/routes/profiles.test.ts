@@ -113,6 +113,65 @@ test("PUT /api/v1/profiles/:writerId proxies to profile service with auth header
   assert.equal(headers[0]?.["content-type"], "application/json");
 });
 
+test("PUT /api/v1/profiles/:writerId returns 403 when auth user does not own the profile", async (t) => {
+  const server = await buildServer({
+    logger: false,
+    requestFn: (async (url) => {
+      const urlStr = String(url);
+      if (urlStr.includes("/internal/auth/me")) {
+        // Auth returns user_B, but request targets user_A's profile
+        return jsonResponse({
+          user: { id: "user_B", email: "b@example.com", displayName: "User B" },
+          expiresAt: "2026-12-31T00:00:00.000Z"
+        });
+      }
+      return jsonResponse({});
+    }) as typeof request,
+    identityServiceBase: "http://identity-svc",
+    profileServiceBase: "http://profile-svc"
+  });
+  t.after(async () => {
+    await server.close();
+  });
+
+  const response = await server.inject({
+    method: "PUT",
+    url: "/api/v1/profiles/user_A",
+    headers: { authorization: "Bearer sess_B" },
+    payload: { displayName: "Hacked Name" }
+  });
+
+  assert.equal(response.statusCode, 403);
+  const body = JSON.parse(response.payload) as { error: string };
+  assert.equal(body.error, "forbidden");
+});
+
+test("PUT /api/v1/profiles/:writerId returns 403 when no auth is provided", async (t) => {
+  const server = await buildServer({
+    logger: false,
+    requestFn: (async () => {
+      // Should never be called for the profile service — auth check must fail first
+      return jsonResponse({});
+    }) as typeof request,
+    identityServiceBase: "http://identity-svc",
+    profileServiceBase: "http://profile-svc"
+  });
+  t.after(async () => {
+    await server.close();
+  });
+
+  const response = await server.inject({
+    method: "PUT",
+    url: "/api/v1/profiles/writer_01",
+    payload: { displayName: "No Auth Name" }
+  });
+
+  // userId is null (no auth), writerId is writer_01 → null !== writer_01 → 403
+  assert.equal(response.statusCode, 403);
+  const body = JSON.parse(response.payload) as { error: string };
+  assert.equal(body.error, "forbidden");
+});
+
 test("GET /api/v1/profiles/:writerId URL-encodes writerId with special characters", async (t) => {
   const urls: string[] = [];
   const server = await buildServer({

@@ -1,6 +1,16 @@
 import { createHash, randomBytes, randomUUID, scryptSync, timingSafeEqual } from "node:crypto";
 import { ensureCoreTables, getPool } from "@script-manifest/db";
 
+function generateUnbiasedCode(): number {
+  const range = 900000;
+  const maxValid = 4294967296 - (4294967296 % range); // reject biased values
+  let value: number;
+  do {
+    value = randomBytes(4).readUInt32BE(0);
+  } while (value >= maxValid);
+  return (value % range) + 100000;
+}
+
 export type IdentityUser = {
   id: string;
   email: string;
@@ -585,7 +595,7 @@ export class PgIdentityRepository implements IdentityRepository {
   async createEmailVerificationToken(userId: string): Promise<{ code: string }> {
     const db = getPool();
     const id = `evt_${randomUUID()}`;
-    const code = String(Math.floor(100000 + Math.random() * 900000));
+    const code = String(generateUnbiasedCode());
     const tokenHash = createHash("sha256").update(code).digest("hex");
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString(); // 15 min
 

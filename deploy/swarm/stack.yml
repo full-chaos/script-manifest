@@ -63,10 +63,10 @@ services:
 
   redis:
     image: redis:7
-    command: redis-server --requirepass ${REDIS_PASSWORD:-manifest}
+    command: redis-server --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD required}
     env_file: ./.env
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-manifest}", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:?REDIS_PASSWORD required}", "ping"]
       <<: *healthcheck
     networks: [internal]
     deploy:
@@ -80,8 +80,8 @@ services:
     image: opensearchproject/opensearch:2.17.1
     environment:
       discovery.type: single-node
-      plugins.security.disabled: "true"
       OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
+      OPENSEARCH_INITIAL_ADMIN_PASSWORD: ${OPENSEARCH_INITIAL_ADMIN_PASSWORD:?OPENSEARCH_INITIAL_ADMIN_PASSWORD is required}
     volumes:
       - opensearch_data:/usr/share/opensearch/data
     healthcheck:
@@ -180,8 +180,6 @@ services:
 
   prometheus:
     image: prom/prometheus:v2.50.0
-    ports:
-      - "${PROMETHEUS_PORT:-9090}:9090"
     volumes:
       - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./infra/prometheus/alerting_rules.yml:/etc/prometheus/alerting_rules.yml:ro
@@ -198,8 +196,6 @@ services:
 
   alertmanager:
     image: prom/alertmanager:v0.27.0
-    ports:
-      - "${ALERTMANAGER_PORT:-9093}:9093"
     volumes:
       - ./infra/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
     healthcheck:

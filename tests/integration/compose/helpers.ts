@@ -82,3 +82,15 @@ export async function registerUser(label: string): Promise<SessionInfo> {
     201
   );
 }
+
+export async function loginUser(email: string, password: string): Promise<SessionInfo> {
+  return expectOkJson<SessionInfo>(
+    `${API_BASE_URL}/api/v1/auth/login`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email, password })
+    },
+    200
+  );
+}

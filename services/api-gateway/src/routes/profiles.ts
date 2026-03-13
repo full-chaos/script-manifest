@@ -43,12 +43,19 @@ export function registerProfileRoutes(server: FastifyInstance, ctx: GatewayConte
       body: toOpenApiSchema(WriterProfileUpdateRequestSchema),
       response: {
         200: toOpenApiSchema(WriterProfileSchema),
-        400: toOpenApiSchema(ApiErrorSchema)
+        400: toOpenApiSchema(ApiErrorSchema),
+        403: toOpenApiSchema(ApiErrorSchema)
       }
     },
     handler: async (req, reply) => {
       const { writerId } = req.params as { writerId: string };
       const userId = await getUserIdFromAuth(ctx.requestFn, ctx.identityServiceBase, req.headers.authorization, req.log);
+
+      // CHAOS-912: Enforce profile ownership — only the profile owner may update it.
+      if (userId !== writerId) {
+        return reply.status(403).send({ error: "forbidden" });
+      }
+
       const parsed = WriterProfileUpdateRequestSchema.safeParse(req.body);
       if (!parsed.success) {
         return reply.status(400).send({

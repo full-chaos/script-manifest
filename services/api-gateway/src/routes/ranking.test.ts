@@ -158,9 +158,14 @@ test("GET /api/v1/admin/rankings/prestige requires allowlisted admin", async (t)
     logger: false,
     competitionAdminAllowlist: ["admin_01"],
     requestFn: (async (url) => {
-      urls.push(String(url));
+      const urlStr = String(url);
+      if (urlStr.includes("/internal/auth/me")) {
+        return jsonResponse({ user: { id: "admin_01" }, expiresAt: "2026-12-31T00:00:00.000Z" });
+      }
+      urls.push(urlStr);
       return jsonResponse({ prestige: [] });
     }) as typeof request,
+    identityServiceBase: "http://identity-svc",
     rankingServiceBase: "http://ranking-svc"
   });
   t.after(async () => {
@@ -177,7 +182,7 @@ test("GET /api/v1/admin/rankings/prestige requires allowlisted admin", async (t)
   const ok = await server.inject({
     method: "GET",
     url: "/api/v1/admin/rankings/prestige",
-    headers: { "x-admin-user-id": "admin_01" }
+    headers: { authorization: "Bearer admin_token" }
   });
   assert.equal(ok.statusCode, 200);
   assert.equal(urls[0], "http://ranking-svc/internal/prestige");
@@ -190,10 +195,15 @@ test("PUT /api/v1/admin/rankings/prestige/:competitionId requires allowlisted ad
     logger: false,
     competitionAdminAllowlist: ["admin_01"],
     requestFn: (async (url, options) => {
-      urls.push(String(url));
+      const urlStr = String(url);
+      if (urlStr.includes("/internal/auth/me")) {
+        return jsonResponse({ user: { id: "admin_01" }, expiresAt: "2026-12-31T00:00:00.000Z" });
+      }
+      urls.push(urlStr);
       headers.push((options?.headers as Record<string, string> | undefined) ?? {});
       return jsonResponse({ ok: true });
     }) as typeof request,
+    identityServiceBase: "http://identity-svc",
     rankingServiceBase: "http://ranking-svc"
   });
   t.after(async () => {
@@ -210,7 +220,7 @@ test("PUT /api/v1/admin/rankings/prestige/:competitionId requires allowlisted ad
   const ok = await server.inject({
     method: "PUT",
     url: "/api/v1/admin/rankings/prestige/comp_01",
-    headers: { "x-admin-user-id": "admin_01" },
+    headers: { authorization: "Bearer admin_token" },
     payload: { tier: "notable", multiplier: 2 }
   });
   assert.equal(ok.statusCode, 200);
@@ -225,10 +235,15 @@ test("POST /api/v1/admin/rankings/recompute requires allowlisted admin", async (
     logger: false,
     competitionAdminAllowlist: ["admin_01"],
     requestFn: (async (url, options) => {
-      urls.push(String(url));
+      const urlStr = String(url);
+      if (urlStr.includes("/internal/auth/me")) {
+        return jsonResponse({ user: { id: "admin_01" }, expiresAt: "2026-12-31T00:00:00.000Z" });
+      }
+      urls.push(urlStr);
       headers.push((options?.headers as Record<string, string> | undefined) ?? {});
       return jsonResponse({ ok: true });
     }) as typeof request,
+    identityServiceBase: "http://identity-svc",
     rankingServiceBase: "http://ranking-svc"
   });
   t.after(async () => {
@@ -245,7 +260,7 @@ test("POST /api/v1/admin/rankings/recompute requires allowlisted admin", async (
   const ok = await server.inject({
     method: "POST",
     url: "/api/v1/admin/rankings/recompute",
-    headers: { "x-admin-user-id": "admin_01" }
+    headers: { authorization: "Bearer admin_token" }
   });
   assert.equal(ok.statusCode, 200);
   assert.equal(urls[0], "http://ranking-svc/internal/recompute");
@@ -258,9 +273,14 @@ test("GET /api/v1/admin/rankings/appeals requires admin and forwards query param
     logger: false,
     competitionAdminAllowlist: ["admin_01"],
     requestFn: (async (url) => {
-      urls.push(String(url));
+      const urlStr = String(url);
+      if (urlStr.includes("/internal/auth/me")) {
+        return jsonResponse({ user: { id: "admin_01" }, expiresAt: "2026-12-31T00:00:00.000Z" });
+      }
+      urls.push(urlStr);
       return jsonResponse({ appeals: [] });
     }) as typeof request,
+    identityServiceBase: "http://identity-svc",
     rankingServiceBase: "http://ranking-svc"
   });
   t.after(async () => {
@@ -276,7 +296,7 @@ test("GET /api/v1/admin/rankings/appeals requires admin and forwards query param
   const ok = await server.inject({
     method: "GET",
     url: "/api/v1/admin/rankings/appeals?status=pending",
-    headers: { "x-admin-user-id": "admin_01" }
+    headers: { authorization: "Bearer admin_token" }
   });
   assert.equal(ok.statusCode, 200);
   assert.equal(urls[0], "http://ranking-svc/internal/appeals?status=pending");
@@ -289,10 +309,15 @@ test("POST /api/v1/admin/rankings/appeals/:appealId/resolve requires admin", asy
     logger: false,
     competitionAdminAllowlist: ["admin_01"],
     requestFn: (async (url, options) => {
-      urls.push(String(url));
+      const urlStr = String(url);
+      if (urlStr.includes("/internal/auth/me")) {
+        return jsonResponse({ user: { id: "admin_01" }, expiresAt: "2026-12-31T00:00:00.000Z" });
+      }
+      urls.push(urlStr);
       headers.push((options?.headers as Record<string, string> | undefined) ?? {});
       return jsonResponse({ appeal: { id: "appeal_01", status: "resolved" } });
     }) as typeof request,
+    identityServiceBase: "http://identity-svc",
     rankingServiceBase: "http://ranking-svc"
   });
   t.after(async () => {
@@ -309,7 +334,7 @@ test("POST /api/v1/admin/rankings/appeals/:appealId/resolve requires admin", asy
   const ok = await server.inject({
     method: "POST",
     url: "/api/v1/admin/rankings/appeals/appeal_01/resolve",
-    headers: { "x-admin-user-id": "admin_01" },
+    headers: { authorization: "Bearer admin_token" },
     payload: { status: "upheld", resolutionNote: "Valid appeal" }
   });
   assert.equal(ok.statusCode, 200);
@@ -323,9 +348,14 @@ test("GET /api/v1/admin/rankings/flags requires admin and proxies query params",
     logger: false,
     competitionAdminAllowlist: ["admin_01"],
     requestFn: (async (url) => {
-      urls.push(String(url));
+      const urlStr = String(url);
+      if (urlStr.includes("/internal/auth/me")) {
+        return jsonResponse({ user: { id: "admin_01" }, expiresAt: "2026-12-31T00:00:00.000Z" });
+      }
+      urls.push(urlStr);
       return jsonResponse({ flags: [] });
     }) as typeof request,
+    identityServiceBase: "http://identity-svc",
     rankingServiceBase: "http://ranking-svc"
   });
   t.after(async () => {
@@ -341,7 +371,7 @@ test("GET /api/v1/admin/rankings/flags requires admin and proxies query params",
   const ok = await server.inject({
     method: "GET",
     url: "/api/v1/admin/rankings/flags?type=self-vote",
-    headers: { "x-admin-user-id": "admin_01" }
+    headers: { authorization: "Bearer admin_token" }
   });
   assert.equal(ok.statusCode, 200);
   assert.equal(urls[0], "http://ranking-svc/internal/flags?type=self-vote");
@@ -354,10 +384,15 @@ test("POST /api/v1/admin/rankings/flags/:flagId/resolve requires admin", async (
     logger: false,
     competitionAdminAllowlist: ["admin_01"],
     requestFn: (async (url, options) => {
-      urls.push(String(url));
+      const urlStr = String(url);
+      if (urlStr.includes("/internal/auth/me")) {
+        return jsonResponse({ user: { id: "admin_01" }, expiresAt: "2026-12-31T00:00:00.000Z" });
+      }
+      urls.push(urlStr);
       headers.push((options?.headers as Record<string, string> | undefined) ?? {});
       return jsonResponse({ flag: { id: "flag_01", status: "resolved" } });
     }) as typeof request,
+    identityServiceBase: "http://identity-svc",
     rankingServiceBase: "http://ranking-svc"
   });
   t.after(async () => {
@@ -374,7 +409,7 @@ test("POST /api/v1/admin/rankings/flags/:flagId/resolve requires admin", async (
   const ok = await server.inject({
     method: "POST",
     url: "/api/v1/admin/rankings/flags/flag_01/resolve",
-    headers: { "x-admin-user-id": "admin_01" },
+    headers: { authorization: "Bearer admin_token" },
     payload: { action: "dismiss" }
   });
   assert.equal(ok.statusCode, 200);

@@ -66,11 +66,14 @@ function resolveServiceTokenSecret(): string | null {
     return configured;
   }
 
-  if ((process.env.NODE_ENV ?? "development") !== "production") {
-    return devServiceTokenSecret;
+  // CHAOS-914: In production, a missing SERVICE_TOKEN_SECRET is a fatal
+  // misconfiguration — fail loudly rather than silently using a random value
+  // that would be regenerated on every restart and invalidate all tokens.
+  if ((process.env.NODE_ENV ?? "development") === "production") {
+    throw new Error("SERVICE_TOKEN_SECRET environment variable must be set in production");
   }
 
-  return null;
+  return devServiceTokenSecret;
 }
 
 export function buildQuerySuffix(rawQuery: unknown): string {
@@ -117,7 +120,11 @@ export async function getUserIdFromAuth(
 
     if (response.statusCode !== 200) {
       logger?.warn(`Auth verification failed with status ${response.statusCode}`);
-      authCacheSet(authorization, null);
+      // CHAOS-913: Only cache definitive auth failures (401/403), not transient
+      // server errors (5xx) — caching 5xx would lock out users during outages.
+      if (response.statusCode === 401 || response.statusCode === 403) {
+        authCacheSet(authorization, null);
+      }
       return null;
     }
 
@@ -168,6 +175,12 @@ export async function resolveAdminUserId(
   allowlist: Set<string>,
   logger?: AuthLogger
 ): Promise<string | null> {
+  // CHAOS-911 / defense-in-depth: x-admin-user-id here is safe ONLY because
+  // the preValidation hook in index.ts strips this header from all incoming
+  // client requests before route handlers run.  Any value present at this
+  // point was set by the gateway itself (e.g. a downstream service-to-service
+  // call) — it is NOT client-supplied.  Do not call this function from a
+  // context where preValidation has not already stripped external headers.
   const headerAdminUserId = readHeaderValue(headers, "x-admin-user-id");
   if (headerAdminUserId && allowlist.has(headerAdminUserId)) {
     return headerAdminUserId;
@@ -188,6 +201,13 @@ export async function resolveUserId(
   headers: Record<string, unknown>,
   logger?: AuthLogger
 ): Promise<string | null> {
+  // CHAOS-911 / defense-in-depth: x-auth-user-id, x-partner-user-id, and
+  // x-admin-user-id are safe to read here ONLY because the preValidation hook
+  // in index.ts strips all three from incoming client requests before any route
+  // handler runs.  Values present at this point were set by the gateway itself
+  // (e.g. after a successful Bearer-token verification) — they are NOT
+  // client-supplied.  Do not call this function from a context where
+  // preValidation has not already stripped external identity headers.
   const headerUserId =
     readHeaderValue(headers, "x-auth-user-id") ??
     readHeaderValue(headers, "x-partner-user-id") ??

@@ -776,10 +776,15 @@ test("GET /api/v1/coverage/disputes requires allowlisted admin", async (t) => {
     logger: false,
     coverageAdminAllowlist: ["admin_01"],
     requestFn: (async (url, options) => {
-      urls.push(String(url));
+      const urlStr = String(url);
+      if (urlStr.includes("/internal/auth/me")) {
+        return jsonResponse({ user: { id: "admin_01" }, expiresAt: "2026-12-31T00:00:00.000Z" });
+      }
+      urls.push(urlStr);
       headers.push((options?.headers as Record<string, string> | undefined) ?? {});
       return jsonResponse({ disputes: [] });
     }) as typeof request,
+    identityServiceBase: "http://identity-svc",
     coverageMarketplaceBase: "http://coverage-svc"
   });
   t.after(async () => {
@@ -796,7 +801,7 @@ test("GET /api/v1/coverage/disputes requires allowlisted admin", async (t) => {
   const ok = await server.inject({
     method: "GET",
     url: "/api/v1/coverage/disputes?status=open",
-    headers: { "x-admin-user-id": "admin_01" }
+    headers: { authorization: "Bearer admin_token" }
   });
   assert.equal(ok.statusCode, 200);
   assert.equal(urls[0], "http://coverage-svc/internal/disputes?status=open");
@@ -810,10 +815,15 @@ test("PATCH /api/v1/coverage/disputes/:disputeId requires allowlisted admin", as
     logger: false,
     coverageAdminAllowlist: ["admin_01"],
     requestFn: (async (url, options) => {
-      urls.push(String(url));
+      const urlStr = String(url);
+      if (urlStr.includes("/internal/auth/me")) {
+        return jsonResponse({ user: { id: "admin_01" }, expiresAt: "2026-12-31T00:00:00.000Z" });
+      }
+      urls.push(urlStr);
       headers.push((options?.headers as Record<string, string> | undefined) ?? {});
       return jsonResponse({ dispute: { id: "dispute_01", status: "resolved" } });
     }) as typeof request,
+    identityServiceBase: "http://identity-svc",
     coverageMarketplaceBase: "http://coverage-svc"
   });
   t.after(async () => {
@@ -831,7 +841,7 @@ test("PATCH /api/v1/coverage/disputes/:disputeId requires allowlisted admin", as
   const ok = await server.inject({
     method: "PATCH",
     url: "/api/v1/coverage/disputes/dispute_01",
-    headers: { "x-admin-user-id": "admin_01" },
+    headers: { authorization: "Bearer admin_token" },
     payload: { status: "resolved_refund", adminNotes: "Provider failed to deliver" }
   });
   assert.equal(ok.statusCode, 200);
@@ -846,10 +856,15 @@ test("GET /api/v1/coverage/admin/providers/review-queue requires allowlisted adm
     logger: false,
     coverageAdminAllowlist: ["admin_01"],
     requestFn: (async (url, options) => {
-      urls.push(String(url));
+      const urlStr = String(url);
+      if (urlStr.includes("/internal/auth/me")) {
+        return jsonResponse({ user: { id: "admin_01" }, expiresAt: "2026-12-31T00:00:00.000Z" });
+      }
+      urls.push(urlStr);
       headers.push((options?.headers as Record<string, string> | undefined) ?? {});
       return jsonResponse({ entries: [] });
     }) as typeof request,
+    identityServiceBase: "http://identity-svc",
     coverageMarketplaceBase: "http://coverage-svc"
   });
   t.after(async () => {
@@ -865,7 +880,7 @@ test("GET /api/v1/coverage/admin/providers/review-queue requires allowlisted adm
   const ok = await server.inject({
     method: "GET",
     url: "/api/v1/coverage/admin/providers/review-queue",
-    headers: { "x-admin-user-id": "admin_01" }
+    headers: { authorization: "Bearer admin_token" }
   });
   assert.equal(ok.statusCode, 200);
   assert.equal(urls[0], "http://coverage-svc/internal/admin/providers/review-queue");
@@ -919,10 +934,15 @@ test("admin payout-ledger and SLA maintenance routes require allowlisted admin",
     logger: false,
     coverageAdminAllowlist: ["admin_01"],
     requestFn: (async (url, options) => {
-      urls.push(String(url));
+      const urlStr = String(url);
+      if (urlStr.includes("/internal/auth/me")) {
+        return jsonResponse({ user: { id: "admin_01" }, expiresAt: "2026-12-31T00:00:00.000Z" });
+      }
+      urls.push(urlStr);
       headers.push((options?.headers as Record<string, string> | undefined) ?? {});
       return jsonResponse({ ok: true });
     }) as typeof request,
+    identityServiceBase: "http://identity-svc",
     coverageMarketplaceBase: "http://coverage-svc"
   });
   t.after(async () => {
@@ -938,7 +958,7 @@ test("admin payout-ledger and SLA maintenance routes require allowlisted admin",
   const ledgerOk = await server.inject({
     method: "GET",
     url: "/api/v1/coverage/admin/payout-ledger?month=2026-02",
-    headers: { "x-admin-user-id": "admin_01" }
+    headers: { authorization: "Bearer admin_token" }
   });
   assert.equal(ledgerOk.statusCode, 200);
   assert.equal(urls[0], "http://coverage-svc/internal/admin/payout-ledger?month=2026-02");
@@ -947,7 +967,7 @@ test("admin payout-ledger and SLA maintenance routes require allowlisted admin",
   const jobOk = await server.inject({
     method: "POST",
     url: "/api/v1/coverage/admin/jobs/sla-maintenance",
-    headers: { "x-admin-user-id": "admin_01" }
+    headers: { authorization: "Bearer admin_token" }
   });
   assert.equal(jobOk.statusCode, 200);
   assert.equal(urls[1], "http://coverage-svc/internal/jobs/sla-maintenance");
@@ -961,10 +981,15 @@ test("GET /api/v1/coverage/disputes/:disputeId/events requires allowlisted admin
     logger: false,
     coverageAdminAllowlist: ["admin_01"],
     requestFn: (async (url, options) => {
-      urls.push(String(url));
+      const urlStr = String(url);
+      if (urlStr.includes("/internal/auth/me")) {
+        return jsonResponse({ user: { id: "admin_01" }, expiresAt: "2026-12-31T00:00:00.000Z" });
+      }
+      urls.push(urlStr);
       headers.push((options?.headers as Record<string, string> | undefined) ?? {});
       return jsonResponse({ events: [] });
     }) as typeof request,
+    identityServiceBase: "http://identity-svc",
     coverageMarketplaceBase: "http://coverage-svc"
   });
   t.after(async () => {
@@ -980,7 +1005,7 @@ test("GET /api/v1/coverage/disputes/:disputeId/events requires allowlisted admin
   const ok = await server.inject({
     method: "GET",
     url: "/api/v1/coverage/disputes/dispute_01/events",
-    headers: { "x-admin-user-id": "admin_01" }
+    headers: { authorization: "Bearer admin_token" }
   });
   assert.equal(ok.statusCode, 200);
   assert.equal(urls[0], "http://coverage-svc/internal/disputes/dispute_01/events");

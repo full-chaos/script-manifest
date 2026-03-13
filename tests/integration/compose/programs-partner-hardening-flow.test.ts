@@ -1,20 +1,35 @@
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
+import { randomUUID, scryptSync } from "node:crypto";
 import test from "node:test";
 import { getPool } from "../../../packages/db/src/index.js";
-import { API_BASE_URL, authHeaders, expectOkJson, jsonRequest, registerUser } from "./helpers.js";
+import { API_BASE_URL, authHeaders, expectOkJson, jsonRequest, loginUser, registerUser } from "./helpers.js";
 
 const db = getPool(process.env.INTEGRATION_DATABASE_URL ?? "postgresql://manifest:manifest@localhost:5432/manifest");
 
+const UPSERT_PASSWORD = "IntegrationPass1!";
+const UPSERT_SALT = "harness_upsert_salt_v1";
+
+function hashPassword(password: string, salt: string): string {
+  return scryptSync(password, salt, 64, { N: 16384, r: 8, p: 1 }).toString("hex");
+}
+
 async function upsertUser(userId: string, role: "writer" | "admin" = "writer"): Promise<void> {
   const email = `${userId}@example.com`;
+  const hash = hashPassword(UPSERT_PASSWORD, UPSERT_SALT);
   await db.query(
-    `INSERT INTO app_users (id, email, password_hash, password_salt, display_name, role, created_at)
-     VALUES ($1,$2,'integration','integration',$3,$4,NOW())
+    `INSERT INTO app_users (id, email, password_hash, password_salt, display_name, role, created_at, terms_accepted_at)
+     VALUES ($1,$2,$3,$4,$5,$6,NOW(),NOW())
      ON CONFLICT (id)
-     DO UPDATE SET email = EXCLUDED.email, display_name = EXCLUDED.display_name, role = EXCLUDED.role`,
-    [userId, email, userId, role]
+     DO UPDATE SET email = EXCLUDED.email, display_name = EXCLUDED.display_name, role = EXCLUDED.role,
+                   password_hash = EXCLUDED.password_hash, password_salt = EXCLUDED.password_salt`,
+    [userId, email, hash, UPSERT_SALT, userId, role]
   );
+}
+
+async function getTokenForUser(userId: string): Promise<string> {
+  const email = `${userId}@example.com`;
+  const session = await loginUser(email, UPSERT_PASSWORD);
+  return session.token;
 }
 
 test("compose flow: phase-6 hardening persists outcomes and CRM scheduler execution", async () => {
@@ -26,6 +41,8 @@ test("compose flow: phase-6 hardening persists outcomes and CRM scheduler execut
 
   await upsertUser(adminUserId, "admin");
   await upsertUser(writerUserId, "writer");
+
+  const adminToken = await getTokenForUser(adminUserId);
 
   await db.query(
     `INSERT INTO programs (
@@ -70,7 +87,7 @@ test("compose flow: phase-6 hardening persists outcomes and CRM scheduler execut
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "x-admin-user-id": adminUserId
+        ...authHeaders(adminToken)
       },
       body: JSON.stringify({
         status: "accepted",
@@ -87,7 +104,7 @@ test("compose flow: phase-6 hardening persists outcomes and CRM scheduler execut
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "x-admin-user-id": adminUserId
+        ...authHeaders(adminToken)
       },
       body: JSON.stringify({
         name: `Cohort ${suffix.slice(0, 6)}`,
@@ -106,7 +123,7 @@ test("compose flow: phase-6 hardening persists outcomes and CRM scheduler execut
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "x-admin-user-id": adminUserId
+        ...authHeaders(adminToken)
       },
       body: JSON.stringify({
         cohortId,
@@ -126,7 +143,7 @@ test("compose flow: phase-6 hardening persists outcomes and CRM scheduler execut
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "x-admin-user-id": adminUserId
+        ...authHeaders(adminToken)
       },
       body: JSON.stringify({
         userId: writerUserId,
@@ -141,9 +158,7 @@ test("compose flow: phase-6 hardening persists outcomes and CRM scheduler execut
     `${API_BASE_URL}/api/v1/admin/programs/${encodeURIComponent(programId)}/sessions/${encodeURIComponent(sessionId)}/reminders/dispatch`,
     {
       method: "POST",
-      headers: {
-        "x-admin-user-id": adminUserId
-      }
+      headers: authHeaders(adminToken)
     },
     202
   );
@@ -155,7 +170,7 @@ test("compose flow: phase-6 hardening persists outcomes and CRM scheduler execut
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "x-admin-user-id": adminUserId
+        ...authHeaders(adminToken)
       },
       body: JSON.stringify({
         userId: writerUserId,
@@ -172,7 +187,7 @@ test("compose flow: phase-6 hardening persists outcomes and CRM scheduler execut
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "x-admin-user-id": adminUserId
+        ...authHeaders(adminToken)
       },
       body: JSON.stringify({
         reason: "integration_test",
@@ -188,7 +203,7 @@ test("compose flow: phase-6 hardening persists outcomes and CRM scheduler execut
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "x-admin-user-id": adminUserId
+        ...authHeaders(adminToken)
       },
       body: JSON.stringify({
         job: "kpi_aggregation",
@@ -202,7 +217,7 @@ test("compose flow: phase-6 hardening persists outcomes and CRM scheduler execut
     `${API_BASE_URL}/api/v1/admin/programs/${encodeURIComponent(programId)}/crm-sync?limit=10&offset=0`,
     {
       method: "GET",
-      headers: { "x-admin-user-id": adminUserId }
+      headers: authHeaders(adminToken)
     },
     200
   );
@@ -271,6 +286,8 @@ test("compose flow: phase-7 hardening persists messaging and sync lifecycle", as
   await upsertUser(writerUserId, "writer");
   await upsertUser(judgeUserId, "writer");
 
+  const adminToken = await getTokenForUser(adminUserId);
+
   await db.query(
     `INSERT INTO projects (
        id, owner_user_id, title, logline, synopsis, format, genre, page_count, is_discoverable, created_at, updated_at
@@ -294,7 +311,7 @@ test("compose flow: phase-7 hardening persists messaging and sync lifecycle", as
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "x-auth-user-id": adminUserId
+        ...authHeaders(adminToken)
       },
       body: JSON.stringify({
         organizerAccountId: organizerId,
@@ -318,7 +335,7 @@ test("compose flow: phase-7 hardening persists messaging and sync lifecycle", as
       method: "PUT",
       headers: {
         "content-type": "application/json",
-        "x-auth-user-id": adminUserId
+        ...authHeaders(adminToken)
       },
       body: JSON.stringify({ role: "judge" })
     },
@@ -331,7 +348,7 @@ test("compose flow: phase-7 hardening persists messaging and sync lifecycle", as
       method: "PUT",
       headers: {
         "content-type": "application/json",
-        "x-auth-user-id": adminUserId
+        ...authHeaders(adminToken)
       },
       body: JSON.stringify({
         formFields: [{ key: "bio", label: "Bio", type: "textarea", required: true }],
@@ -347,7 +364,7 @@ test("compose flow: phase-7 hardening persists messaging and sync lifecycle", as
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "x-auth-user-id": adminUserId
+        ...authHeaders(adminToken)
       },
       body: JSON.stringify({
         writerUserId,
@@ -363,7 +380,7 @@ test("compose flow: phase-7 hardening persists messaging and sync lifecycle", as
     `${API_BASE_URL}/api/v1/partners/competitions/${encodeURIComponent(competitionId)}/submissions`,
     {
       method: "GET",
-      headers: { "x-auth-user-id": adminUserId }
+      headers: authHeaders(adminToken)
     },
     200
   );
@@ -375,7 +392,7 @@ test("compose flow: phase-7 hardening persists messaging and sync lifecycle", as
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "x-auth-user-id": adminUserId
+        ...authHeaders(adminToken)
       },
       body: JSON.stringify({
         judgeUserId,
@@ -391,7 +408,7 @@ test("compose flow: phase-7 hardening persists messaging and sync lifecycle", as
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "x-auth-user-id": adminUserId
+        ...authHeaders(adminToken)
       },
       body: JSON.stringify({
         submissionId: submission.submission.id,
@@ -410,7 +427,7 @@ test("compose flow: phase-7 hardening persists messaging and sync lifecycle", as
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "x-auth-user-id": adminUserId
+        ...authHeaders(adminToken)
       },
       body: JSON.stringify({ round: "default" })
     },
@@ -424,7 +441,7 @@ test("compose flow: phase-7 hardening persists messaging and sync lifecycle", as
         method: "POST",
         headers: {
           "content-type": "application/json",
-          "x-auth-user-id": adminUserId
+          ...authHeaders(adminToken)
         },
         body: JSON.stringify({ round: "default" })
       }
@@ -440,7 +457,7 @@ test("compose flow: phase-7 hardening persists messaging and sync lifecycle", as
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "x-auth-user-id": adminUserId
+        ...authHeaders(adminToken)
       },
       body: JSON.stringify({
         results: [{ submissionId: submission.submission.id, placementStatus: "semifinalist" }]
@@ -455,7 +472,7 @@ test("compose flow: phase-7 hardening persists messaging and sync lifecycle", as
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "x-auth-user-id": adminUserId
+        ...authHeaders(adminToken)
       },
       body: JSON.stringify({
         targetUserId: writerUserId,
@@ -473,7 +490,7 @@ test("compose flow: phase-7 hardening persists messaging and sync lifecycle", as
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "x-auth-user-id": adminUserId
+        ...authHeaders(adminToken)
       },
       body: JSON.stringify({
         job: "entrant_reminders",
@@ -490,7 +507,7 @@ test("compose flow: phase-7 hardening persists messaging and sync lifecycle", as
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "x-auth-user-id": adminUserId
+        ...authHeaders(adminToken)
       },
       body: JSON.stringify({
         judgeUserIds: [judgeUserId],
@@ -506,7 +523,7 @@ test("compose flow: phase-7 hardening persists messaging and sync lifecycle", as
     `${API_BASE_URL}/api/v1/partners/competitions/${encodeURIComponent(competitionId)}/analytics`,
     {
       method: "GET",
-      headers: { "x-auth-user-id": adminUserId }
+      headers: authHeaders(adminToken)
     },
     200
   );
@@ -516,7 +533,7 @@ test("compose flow: phase-7 hardening persists messaging and sync lifecycle", as
     `${API_BASE_URL}/api/v1/partners/competitions/${encodeURIComponent(competitionId)}/messages?targetUserId=${encodeURIComponent(writerUserId)}&limit=25`,
     {
       method: "GET",
-      headers: { "x-auth-user-id": adminUserId }
+      headers: authHeaders(adminToken)
     },
     200
   );
@@ -528,7 +545,7 @@ test("compose flow: phase-7 hardening persists messaging and sync lifecycle", as
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "x-auth-user-id": adminUserId
+        ...authHeaders(adminToken)
       },
       body: JSON.stringify({
         competitionId,
@@ -542,7 +559,7 @@ test("compose flow: phase-7 hardening persists messaging and sync lifecycle", as
     `${API_BASE_URL}/api/v1/partners/integrations/filmfreeway/sync/jobs/claim`,
     {
       method: "POST",
-      headers: { "x-auth-user-id": adminUserId }
+      headers: authHeaders(adminToken)
     },
     200
   );
@@ -553,7 +570,7 @@ test("compose flow: phase-7 hardening persists messaging and sync lifecycle", as
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "x-auth-user-id": adminUserId
+        ...authHeaders(adminToken)
       },
       body: JSON.stringify({ detail: "completed in compose test" })
     },
@@ -566,7 +583,7 @@ test("compose flow: phase-7 hardening persists messaging and sync lifecycle", as
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "x-auth-user-id": adminUserId
+        ...authHeaders(adminToken)
       },
       body: JSON.stringify({
         competitionId,
@@ -580,7 +597,7 @@ test("compose flow: phase-7 hardening persists messaging and sync lifecycle", as
     `${API_BASE_URL}/api/v1/partners/integrations/filmfreeway/sync/jobs/claim`,
     {
       method: "POST",
-      headers: { "x-auth-user-id": adminUserId }
+      headers: authHeaders(adminToken)
     },
     200
   );
@@ -591,7 +608,7 @@ test("compose flow: phase-7 hardening persists messaging and sync lifecycle", as
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "x-auth-user-id": adminUserId
+        ...authHeaders(adminToken)
       },
       body: JSON.stringify({ detail: "failed in compose test" })
     },
@@ -602,7 +619,7 @@ test("compose flow: phase-7 hardening persists messaging and sync lifecycle", as
     `${API_BASE_URL}/api/v1/partners/integrations/filmfreeway/sync/run-next`,
     {
       method: "POST",
-      headers: { "x-auth-user-id": adminUserId }
+      headers: authHeaders(adminToken)
     }
   );
   assert.equal(runNext.status, 501);

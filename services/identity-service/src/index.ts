@@ -681,7 +681,7 @@ export async function startServer(): Promise<void> {
     boot.phase("tracing initialized");
   }
 
-  validateRequiredEnv(["DATABASE_URL"]);
+  validateRequiredEnv(["DATABASE_URL", "MFA_ENCRYPTION_KEY"]);
   boot.phase("env validated");
 
   const { createEmailService } = await import("@script-manifest/email");

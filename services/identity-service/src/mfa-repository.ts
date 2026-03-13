@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { getPool } from "@script-manifest/db";
 import { BaseMemoryRepository } from "@script-manifest/service-utils";
+import { encryptSecret, decryptSecret } from "./crypto-helpers.js";
 
 export type MfaStatus = {
   enabled: boolean;
@@ -161,6 +162,7 @@ export class PgMfaRepository implements MfaRepository {
   async setupMfa(userId: string, secret: string): Promise<void> {
     const db = getPool();
     const id = `mfa_${randomUUID()}`;
+    const encryptedSecret = encryptSecret(secret);
     // Upsert: replace any existing pending setup
     await db.query(
       `
@@ -168,7 +170,7 @@ export class PgMfaRepository implements MfaRepository {
         VALUES ($1, $2, $3)
         ON CONFLICT (user_id) DO UPDATE SET totp_secret = $3, enabled_at = NULL
       `,
-      [id, userId, secret]
+      [id, userId, encryptedSecret]
     );
   }
 
@@ -178,7 +180,9 @@ export class PgMfaRepository implements MfaRepository {
       `SELECT totp_secret FROM user_mfa WHERE user_id = $1 AND enabled_at IS NULL`,
       [userId]
     );
-    return result.rows[0]?.totp_secret ?? null;
+    const raw = result.rows[0]?.totp_secret;
+    if (raw == null) return null;
+    return decryptSecret(raw);
   }
 
   async enableMfa(userId: string, backupCodes: string[]): Promise<void> {
@@ -265,7 +269,9 @@ export class PgMfaRepository implements MfaRepository {
       `SELECT totp_secret FROM user_mfa WHERE user_id = $1`,
       [userId]
     );
-    return result.rows[0]?.totp_secret ?? null;
+    const raw = result.rows[0]?.totp_secret;
+    if (raw == null) return null;
+    return decryptSecret(raw);
   }
 
   async getBackupCodes(userId: string): Promise<string[]> {

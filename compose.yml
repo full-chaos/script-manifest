@@ -668,7 +668,7 @@ services:
       INDUSTRY_PORTAL_SERVICE_URL: "http://industry-portal-service:4009"
       PROGRAMS_SERVICE_URL: "http://programs-service:4012"
       PARTNER_DASHBOARD_SERVICE_URL: "http://partner-dashboard-service:4013"
-      REDIS_URL: "redis://redis:6379"
+      REDIS_URL: "redis://:${REDIS_PASSWORD:-manifest}@redis:6379"
       COVERAGE_ADMIN_ALLOWLIST: "admin_01,user_admin_01"
       INDUSTRY_ADMIN_ALLOWLIST: "admin_01,user_admin_01"
       COMPETITION_ADMIN_ALLOWLIST: "admin_01,user_admin_01"

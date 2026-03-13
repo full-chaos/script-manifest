@@ -307,6 +307,34 @@ test("GET /submissions enforces ownership filter for authenticated users", async
   assert.equal(forbiddenResponse.statusCode, 403);
 });
 
+test("POST /placements enforces ownership — cross-user access returns 403", async (t) => {
+  const memoryRepo = new MemorySubmissionTrackingRepository();
+  const server = buildServer({ logger: false, repository: memoryRepo });
+  t.after(async () => {
+    await server.close();
+  });
+
+  // writer_01 creates a submission
+  const submissionRes = await server.inject({
+    method: "POST",
+    url: "/internal/submissions",
+    headers: { "x-auth-user-id": "writer_01" },
+    payload: { projectId: "project_01", competitionId: "comp_001", status: "pending" }
+  });
+  assert.equal(submissionRes.statusCode, 201);
+  const submissionId = submissionRes.json().submission.id as string;
+
+  // writer_02 tries to create a placement on writer_01's submission
+  const crossUserResponse = await server.inject({
+    method: "POST",
+    url: `/internal/submissions/${submissionId}/placements`,
+    headers: { "x-auth-user-id": "writer_02" },
+    payload: { status: "finalist" }
+  });
+  assert.equal(crossUserResponse.statusCode, 403);
+  assert.equal(crossUserResponse.json().error, "forbidden");
+});
+
 test("submission tracking enforces placement visibility by writer", async (t) => {
   const memoryRepo = new MemorySubmissionTrackingRepository();
   const server = buildServer({ logger: false, repository: memoryRepo });

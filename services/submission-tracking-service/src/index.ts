@@ -164,6 +164,10 @@ export function buildServer(options: SubmissionTrackingOptions = {}): FastifyIns
       return reply.status(404).send({ error: "submission_not_found" });
     }
 
+    if (submission.writerId !== authUserId) {
+      return reply.status(403).send({ error: "forbidden" });
+    }
+
     const parsedBody = PlacementCreateRequestSchema.safeParse(req.body);
     if (!parsedBody.success) {
       return reply.status(400).send({

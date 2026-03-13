@@ -229,8 +229,8 @@ importers:
         specifier: ^10.3.1
         version: 10.3.1
       undici:
-        specifier: ^7.22.0
-        version: 7.22.0
+        specifier: ^7.24.0
+        version: 7.24.0
     devDependencies:
       '@types/node':
         specifier: ^25.3.4
@@ -278,8 +278,8 @@ importers:
         specifier: ^5.8.1
         version: 5.10.0
       undici:
-        specifier: ^7.22.0
-        version: 7.22.0
+        specifier: ^7.24.0
+        version: 7.24.0
       zod:
         specifier: ^3.25.76
         version: 3.25.76
@@ -315,8 +315,8 @@ importers:
         specifier: ^5.8.2
         version: 5.8.2
       undici:
-        specifier: ^7.22.0
-        version: 7.22.0
+        specifier: ^7.24.0
+        version: 7.24.0
       zod:
         specifier: ^3.23.8
         version: 3.25.76
@@ -355,8 +355,8 @@ importers:
         specifier: ^20.4.1
         version: 20.4.1(@types/node@25.3.4)
       undici:
-        specifier: ^7.22.0
-        version: 7.22.0
+        specifier: ^7.24.0
+        version: 7.24.0
       zod:
         specifier: ^3.24.1
         version: 3.25.76
@@ -389,8 +389,8 @@ importers:
         specifier: ^15.1.3
         version: 15.1.3
       undici:
-        specifier: ^7.22.0
-        version: 7.22.0
+        specifier: ^7.24.0
+        version: 7.24.0
       zod:
         specifier: ^3.24.1
         version: 3.25.76
@@ -432,8 +432,8 @@ importers:
         specifier: ^15.1.3
         version: 15.1.3
       undici:
-        specifier: ^7.22.0
-        version: 7.22.0
+        specifier: ^7.24.0
+        version: 7.24.0
     devDependencies:
       '@types/node':
         specifier: ^25.3.4
@@ -463,8 +463,8 @@ importers:
         specifier: ^5.8.2
         version: 5.8.2
       undici:
-        specifier: ^7.22.0
-        version: 7.22.0
+        specifier: ^7.24.0
+        version: 7.24.0
       zod:
         specifier: ^3.23.8
         version: 3.25.76
@@ -522,8 +522,8 @@ importers:
         specifier: ^5.8.2
         version: 5.8.2
       undici:
-        specifier: ^7.22.0
-        version: 7.22.0
+        specifier: ^7.24.0
+        version: 7.24.0
       zod:
         specifier: ^3.24.1
         version: 3.25.76
@@ -556,8 +556,8 @@ importers:
         specifier: ^5.8.2
         version: 5.8.2
       undici:
-        specifier: ^7.22.0
-        version: 7.22.0
+        specifier: ^7.24.0
+        version: 7.24.0
       zod:
         specifier: ^3.23.8
         version: 3.25.76
@@ -590,8 +590,8 @@ importers:
         specifier: ^5.8.2
         version: 5.8.2
       undici:
-        specifier: ^7.22.0
-        version: 7.22.0
+        specifier: ^7.24.0
+        version: 7.24.0
       zod:
         specifier: ^3.24.1
         version: 3.25.76
@@ -624,8 +624,8 @@ importers:
         specifier: ^15.1.3
         version: 15.1.3
       undici:
-        specifier: ^7.22.0
-        version: 7.22.0
+        specifier: ^7.24.0
+        version: 7.24.0
       zod:
         specifier: ^3.24.1
         version: 3.25.76
@@ -683,8 +683,8 @@ importers:
         specifier: ^5.8.2
         version: 5.8.2
       undici:
-        specifier: ^7.22.0
-        version: 7.22.0
+        specifier: ^7.24.0
+        version: 7.24.0
     devDependencies:
       '@types/node':
         specifier: ^25.3.4
@@ -2996,6 +2996,9 @@ packages:
 
   '@types/node@25.3.5':
     resolution: {integrity: sha512-oX8xrhvpiyRCQkG1MFchB09f+cXftgIXb3a7UUa4Y3wpmZPw5tyZGTLWhlESOLq1Rq6oDlc8npVU2/9xiCuXMA==}
+
+  '@types/node@25.5.0':
+    resolution: {integrity: sha512-jp2P3tQMSxWugkCUKLRPVUpGaL5MVFwF8RDuSRztfwgN1wmqJeMSbKlnEtQqU8UrhTmzEmZdu2I6v2dpp7XIxw==}
 
   '@types/nodemailer@7.0.11':
     resolution: {integrity: sha512-E+U4RzR2dKrx+u3N4DlsmLaDC6mMZOM/TPROxA0UAPiTgI0y4CEFBmZE+coGWTjakDriRsXG368lNk1u9Q0a2g==}
@@ -5715,8 +5718,8 @@ packages:
   tdigest@0.1.2:
     resolution: {integrity: sha512-+G0LLgjjo9BZX2MfdvPfH+MKLCrxlXSYec5DaPYP1fe6Iyhf0/fSmJ0bFiZ1F8BT6cGXl2LpltQptzjXKWEkKA==}
 
-  terser-webpack-plugin@5.3.17:
-    resolution: {integrity: sha512-YR7PtUp6GMU91BgSJmlaX/rS2lGDbAF7D+Wtq7hRO+MiljNmodYvqslzCFiYVAgW+Qoaaia/QUIP4lGXufjdZw==}
+  terser-webpack-plugin@5.4.0:
+    resolution: {integrity: sha512-Bn5vxm48flOIfkdl5CaD2+1CiUVbonWQ3KQPyP7/EuIl9Gbzq/gQFOzaMFUEgVjB1396tcK0SG8XcNJ/2kDH8g==}
     engines: {node: '>= 10.13.0'}
     peerDependencies:
       '@swc/core': '*'
@@ -5898,6 +5901,10 @@ packages:
 
   undici@7.22.0:
     resolution: {integrity: sha512-RqslV2Us5BrllB+JeiZnK4peryVTndy9Dnqq62S3yYRRTj0tFQCwEniUy2167skdGOy3vqRzEvl1Dm4sV2ReDg==}
+    engines: {node: '>=20.18.1'}
+
+  undici@7.24.0:
+    resolution: {integrity: sha512-jxytwMHhsbdpBXxLAcuu0fzlQeXCNnWdDyRHpvWsUl8vd98UwYdl9YTyn8/HcpcJPC3pwUveefsa3zTxyD/ERg==}
     engines: {node: '>=20.18.1'}
 
   unrs-resolver@1.11.1:
@@ -9098,6 +9105,10 @@ snapshots:
     dependencies:
       undici-types: 7.18.2
 
+  '@types/node@25.5.0':
+    dependencies:
+      undici-types: 7.18.2
+
   '@types/nodemailer@7.0.11':
     dependencies:
       '@types/node': 25.3.4
@@ -10240,8 +10251,8 @@ snapshots:
       '@next/eslint-plugin-next': 16.1.6
       eslint: 9.20.0(jiti@2.6.1)
       eslint-import-resolver-node: 0.3.9
-      eslint-import-resolver-typescript: 3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.56.0(eslint@9.20.0(jiti@2.6.1))(typescript@5.9.3))(eslint@9.20.0(jiti@2.6.1)))(eslint@9.20.0(jiti@2.6.1))
-      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.56.0(eslint@9.20.0(jiti@2.6.1))(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.56.0(eslint@9.20.0(jiti@2.6.1))(typescript@5.9.3))(eslint@9.20.0(jiti@2.6.1)))(eslint@9.20.0(jiti@2.6.1)))(eslint@9.20.0(jiti@2.6.1))
+      eslint-import-resolver-typescript: 3.10.1(eslint-plugin-import@2.32.0)(eslint@9.20.0(jiti@2.6.1))
+      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.56.0(eslint@9.20.0(jiti@2.6.1))(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1)(eslint@9.20.0(jiti@2.6.1))
       eslint-plugin-jsx-a11y: 6.10.2(eslint@9.20.0(jiti@2.6.1))
       eslint-plugin-react: 7.37.5(eslint@9.20.0(jiti@2.6.1))
       eslint-plugin-react-hooks: 7.0.1(eslint@9.20.0(jiti@2.6.1))
@@ -10263,7 +10274,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.56.0(eslint@9.20.0(jiti@2.6.1))(typescript@5.9.3))(eslint@9.20.0(jiti@2.6.1)))(eslint@9.20.0(jiti@2.6.1)):
+  eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0)(eslint@9.20.0(jiti@2.6.1)):
     dependencies:
       '@nolyfill/is-core-module': 1.0.39
       debug: 4.4.3
@@ -10274,22 +10285,22 @@ snapshots:
       tinyglobby: 0.2.15
       unrs-resolver: 1.11.1
     optionalDependencies:
-      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.56.0(eslint@9.20.0(jiti@2.6.1))(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.56.0(eslint@9.20.0(jiti@2.6.1))(typescript@5.9.3))(eslint@9.20.0(jiti@2.6.1)))(eslint@9.20.0(jiti@2.6.1)))(eslint@9.20.0(jiti@2.6.1))
+      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.56.0(eslint@9.20.0(jiti@2.6.1))(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1)(eslint@9.20.0(jiti@2.6.1))
     transitivePeerDependencies:
       - supports-color
 
-  eslint-module-utils@2.12.1(@typescript-eslint/parser@8.56.0(eslint@9.20.0(jiti@2.6.1))(typescript@5.9.3))(eslint-import-resolver-node@0.3.9)(eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.56.0(eslint@9.20.0(jiti@2.6.1))(typescript@5.9.3))(eslint@9.20.0(jiti@2.6.1)))(eslint@9.20.0(jiti@2.6.1)))(eslint@9.20.0(jiti@2.6.1)):
+  eslint-module-utils@2.12.1(@typescript-eslint/parser@8.56.0(eslint@9.20.0(jiti@2.6.1))(typescript@5.9.3))(eslint-import-resolver-node@0.3.9)(eslint-import-resolver-typescript@3.10.1)(eslint@9.20.0(jiti@2.6.1)):
     dependencies:
       debug: 3.2.7
     optionalDependencies:
       '@typescript-eslint/parser': 8.56.0(eslint@9.20.0(jiti@2.6.1))(typescript@5.9.3)
       eslint: 9.20.0(jiti@2.6.1)
       eslint-import-resolver-node: 0.3.9
-      eslint-import-resolver-typescript: 3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.56.0(eslint@9.20.0(jiti@2.6.1))(typescript@5.9.3))(eslint@9.20.0(jiti@2.6.1)))(eslint@9.20.0(jiti@2.6.1))
+      eslint-import-resolver-typescript: 3.10.1(eslint-plugin-import@2.32.0)(eslint@9.20.0(jiti@2.6.1))
     transitivePeerDependencies:
       - supports-color
 
-  eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.56.0(eslint@9.20.0(jiti@2.6.1))(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.56.0(eslint@9.20.0(jiti@2.6.1))(typescript@5.9.3))(eslint@9.20.0(jiti@2.6.1)))(eslint@9.20.0(jiti@2.6.1)))(eslint@9.20.0(jiti@2.6.1)):
+  eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.56.0(eslint@9.20.0(jiti@2.6.1))(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1)(eslint@9.20.0(jiti@2.6.1)):
     dependencies:
       '@rtsao/scc': 1.1.0
       array-includes: 3.1.9
@@ -10300,7 +10311,7 @@ snapshots:
       doctrine: 2.1.0
       eslint: 9.20.0(jiti@2.6.1)
       eslint-import-resolver-node: 0.3.9
-      eslint-module-utils: 2.12.1(@typescript-eslint/parser@8.56.0(eslint@9.20.0(jiti@2.6.1))(typescript@5.9.3))(eslint-import-resolver-node@0.3.9)(eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.56.0(eslint@9.20.0(jiti@2.6.1))(typescript@5.9.3))(eslint@9.20.0(jiti@2.6.1)))(eslint@9.20.0(jiti@2.6.1)))(eslint@9.20.0(jiti@2.6.1))
+      eslint-module-utils: 2.12.1(@typescript-eslint/parser@8.56.0(eslint@9.20.0(jiti@2.6.1))(typescript@5.9.3))(eslint-import-resolver-node@0.3.9)(eslint-import-resolver-typescript@3.10.1)(eslint@9.20.0(jiti@2.6.1))
       hasown: 2.0.2
       is-core-module: 2.16.1
       is-glob: 4.0.3
@@ -11044,7 +11055,7 @@ snapshots:
 
   jest-worker@27.5.1:
     dependencies:
-      '@types/node': 25.3.5
+      '@types/node': 25.5.0
       merge-stream: 2.0.0
       supports-color: 8.1.1
 
@@ -12223,7 +12234,7 @@ snapshots:
     dependencies:
       bintrees: 1.0.2
 
-  terser-webpack-plugin@5.3.17(webpack@5.105.4):
+  terser-webpack-plugin@5.4.0(webpack@5.105.4):
     dependencies:
       '@jridgewell/trace-mapping': 0.3.31
       jest-worker: 27.5.1
@@ -12409,6 +12420,8 @@ snapshots:
 
   undici@7.22.0: {}
 
+  undici@7.24.0: {}
+
   unrs-resolver@1.11.1:
     dependencies:
       napi-postinstall: 0.3.4
@@ -12557,7 +12570,7 @@ snapshots:
       neo-async: 2.6.2
       schema-utils: 4.3.3
       tapable: 2.3.0
-      terser-webpack-plugin: 5.3.17(webpack@5.105.4)
+      terser-webpack-plugin: 5.4.0(webpack@5.105.4)
       watchpack: 2.5.1
       webpack-sources: 3.3.4
     transitivePeerDependencies:

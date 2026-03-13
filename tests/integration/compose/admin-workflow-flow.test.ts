@@ -1,10 +1,36 @@
 import assert from "node:assert/strict";
+import { scryptSync } from "node:crypto";
 import test from "node:test";
-import { API_BASE_URL, authHeaders, expectOkJson, jsonRequest, makeUnique, registerUser } from "./helpers.js";
+import { getPool } from "../../../packages/db/src/index.js";
+import { API_BASE_URL, authHeaders, expectOkJson, jsonRequest, loginUser, makeUnique, registerUser } from "./helpers.js";
 
 const ADMIN_USER_ID = "admin_01";
+const ADMIN_EMAIL = "admin_01_harness@example.com";
+const ADMIN_PASSWORD = "AdminPass1!";
+
+const db = getPool(process.env.INTEGRATION_DATABASE_URL ?? "postgresql://manifest:manifest@localhost:5432/manifest");
+
+function hashPassword(password: string, salt: string): string {
+  return scryptSync(password, salt, 64, { N: 16384, r: 8, p: 1 }).toString("hex");
+}
+
+async function ensureAdminUser(): Promise<string> {
+  const salt = "harness_admin_salt_01";
+  const hash = hashPassword(ADMIN_PASSWORD, salt);
+  await db.query(
+    `INSERT INTO app_users (id, email, password_hash, password_salt, display_name, role, created_at, terms_accepted_at)
+     VALUES ($1,$2,$3,$4,'Integration Admin','admin',NOW(),NOW())
+     ON CONFLICT (id)
+     DO UPDATE SET email = EXCLUDED.email, password_hash = EXCLUDED.password_hash,
+                   password_salt = EXCLUDED.password_salt, role = EXCLUDED.role`,
+    [ADMIN_USER_ID, ADMIN_EMAIL, hash, salt]
+  );
+  const session = await loginUser(ADMIN_EMAIL, ADMIN_PASSWORD);
+  return session.token;
+}
 
 test("compose flow: admin operations enforce allowlist across coverage competition and industry", async () => {
+  const adminToken = await ensureAdminUser();
   const nonAdmin = await registerUser("admin-flow-non-admin");
 
   const coverageDenied = await jsonRequest<{ error?: string }>(
@@ -20,7 +46,7 @@ test("compose flow: admin operations enforce allowlist across coverage competiti
     `${API_BASE_URL}/api/v1/coverage/admin/providers/review-queue`,
     {
       method: "GET",
-      headers: { "x-admin-user-id": ADMIN_USER_ID }
+      headers: authHeaders(adminToken)
     },
     200
   );
@@ -54,7 +80,7 @@ test("compose flow: admin operations enforce allowlist across coverage competiti
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "x-admin-user-id": ADMIN_USER_ID
+        ...authHeaders(adminToken)
       },
       body: JSON.stringify(competitionPayload)
     },
@@ -68,7 +94,7 @@ test("compose flow: admin operations enforce allowlist across coverage competiti
       method: "PUT",
       headers: {
         "content-type": "application/json",
-        "x-admin-user-id": ADMIN_USER_ID
+        ...authHeaders(adminToken)
       },
       body: JSON.stringify({
         ...competitionPayload,
@@ -80,10 +106,8 @@ test("compose flow: admin operations enforce allowlist across coverage competiti
   assert.equal(updatedCompetition.competition.id, competitionPayload.id);
 
   // Industry mandate creation: verify allowlist enforcement.
-  // Note: admin_01 is a synthetic ID in the INDUSTRY_ADMIN_ALLOWLIST but is NOT a real
-  // database user, so the industry-portal-service returns 404 ("admin_user_not_found")
-  // after the gateway allowlist check passes. We verify both the deny path (non-admin)
-  // and the pass-through behavior (admin_01 reaches the downstream service).
+  // admin_01 is a real registered user (upserted above), so the gateway's allowlist
+  // check passes and the industry-portal-service creates the mandate (201).
 
   const mandatePayload = {
     type: "mandate",
@@ -107,22 +131,21 @@ test("compose flow: admin operations enforce allowlist across coverage competiti
     `expected 401 or 403 for non-admin industry mandate creation, got ${industryDenied.status}`
   );
 
-  // Admin allowlist check passes at gateway but downstream service rejects because
-  // admin_01 is not a real registered user. A 404 (not 401/403) proves the gateway
-  // allowlist DID authorize the request -- the rejection comes from the service layer.
-  const industryAdminResponse = await jsonRequest<{ error?: string }>(
+  // Admin request: gateway allowlist passes (Bearer token resolves to admin_01 which is in the
+  // INDUSTRY_ADMIN_ALLOWLIST). admin_01 is a real user so the industry service creates the mandate.
+  const industryAdminResponse = await jsonRequest<{ error?: string; mandate?: unknown }>(
     `${API_BASE_URL}/api/v1/industry/mandates`,
     {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "x-admin-user-id": ADMIN_USER_ID
+        ...authHeaders(adminToken)
       },
       body: JSON.stringify(mandatePayload)
     }
   );
-  assert.equal(industryAdminResponse.status, 404,
-    `expected 404 (admin_user_not_found) from industry service, got ${industryAdminResponse.status}: ${industryAdminResponse.rawBody}`
+  assert.ok(
+    [200, 201].includes(industryAdminResponse.status),
+    `expected 200 or 201 from industry service for admin mandate creation, got ${industryAdminResponse.status}: ${industryAdminResponse.rawBody}`
   );
-  assert.equal(industryAdminResponse.body.error, "admin_user_not_found");
 });

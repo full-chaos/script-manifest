@@ -35,10 +35,10 @@ export default function OrderFlowPage() {
   const loadService = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch(`/api/v1/coverage/services?limit=100`, { cache: "no-store" });
+      const response = await fetch(`/api/v1/coverage/services/${encodeURIComponent(serviceId)}`, { cache: "no-store" });
       if (response.ok) {
-        const body = (await response.json()) as { services?: CoverageService[] };
-        const foundService = body.services?.find((s) => s.id === serviceId);
+        const body = (await response.json()) as { service?: CoverageService } | CoverageService;
+        const foundService = ("service" in body ? body.service : body) as CoverageService | undefined;
         setService(foundService ?? null);
       }
     } catch (error) {
@@ -199,9 +199,6 @@ export default function OrderFlowPage() {
     );
   }
 
-  const platformFee = Math.round(service.priceCents * 0.15);
-  const total = service.priceCents + platformFee;
-
   return (
     <section className="space-y-4">
       <article className="hero-card hero-card--violet animate-in">
@@ -223,13 +220,9 @@ export default function OrderFlowPage() {
               <span className="text-sm text-foreground-secondary">Service price</span>
               <span className="text-sm font-medium text-foreground">{formatPrice(service.priceCents)}</span>
             </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-foreground-secondary">Platform fee (15%)</span>
-              <span className="text-sm font-medium text-foreground">{formatPrice(platformFee)}</span>
-            </div>
             <div className="flex items-center justify-between pt-2 border-t border-border/40">
               <span className="text-base font-semibold text-foreground">Total</span>
-              <span className="text-base font-semibold text-foreground">{formatPrice(total)}</span>
+              <span className="text-sm text-foreground-secondary italic">Final amount confirmed on order placement</span>
             </div>
           </div>
         </div>

@@ -34,7 +34,7 @@ export default function ScriptViewerPage() {
     const loadViewer = async () => {
       try {
         setViewState(initialState);
-        const response = await fetch(`/api/scripts/${encodeURIComponent(scriptId)}/viewer`, {
+        const response = await fetch(`/api/v1/scripts/${encodeURIComponent(scriptId)}/view`, {
           signal: controller.signal,
           headers: getAuthHeaders()
         });

@@ -1,6 +1,9 @@
 "use client";
 
-import { useEffect, useId, type ReactNode } from "react";
+import { useEffect, useId, useRef, type ReactNode } from "react";
+
+const FOCUSABLE_SELECTOR =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 type ModalProps = {
   open: boolean;
@@ -13,6 +16,7 @@ type ModalProps = {
 export function Modal({ open, title, description, onClose, children }: ModalProps) {
   const titleId = useId();
   const descriptionId = useId();
+  const dialogRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!open) {
@@ -22,9 +26,40 @@ export function Modal({ open, title, description, onClose, children }: ModalProp
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
 
+    // Move focus into the modal on open
+    const dialogEl = dialogRef.current;
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    if (dialogEl) {
+      const firstFocusable = dialogEl.querySelector(FOCUSABLE_SELECTOR) as HTMLElement | null;
+      firstFocusable?.focus();
+    }
+
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         onClose();
+        return;
+      }
+
+      if (event.key !== "Tab" || !dialogEl) return;
+
+      const focusable: HTMLElement[] = (
+        Array.from(dialogEl.querySelectorAll(FOCUSABLE_SELECTOR)) as HTMLElement[]
+      ).filter((el) => !el.closest("[inert]"));
+      if (focusable.length === 0) return;
+
+      const first: HTMLElement = focusable[0] as HTMLElement;
+      const last: HTMLElement = focusable[focusable.length - 1] as HTMLElement;
+
+      if (event.shiftKey) {
+        if (document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        }
+      } else {
+        if (document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
       }
     };
 
@@ -33,6 +68,8 @@ export function Modal({ open, title, description, onClose, children }: ModalProp
     return () => {
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", onKeyDown);
+      // Restore focus to the element that opened the modal
+      previouslyFocused?.focus();
     };
   }, [open, onClose]);
 
@@ -43,6 +80,7 @@ export function Modal({ open, title, description, onClose, children }: ModalProp
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-ink-900/50 px-4 py-10 backdrop-blur-sm">
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}

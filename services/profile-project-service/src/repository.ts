@@ -193,6 +193,9 @@ export class PgProfileProjectRepository implements ProfileProjectRepository {
     }
 
     const insertedRow = inserted.rows[0];
+    if (!insertedRow) {
+      return null;
+    }
     return {
       id: insertedRow.writer_id,
       displayName: insertedRow.display_name,

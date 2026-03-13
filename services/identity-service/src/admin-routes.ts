@@ -171,17 +171,17 @@ export function registerAdminRoutes(server: FastifyInstance, adminRepo: AdminRep
     const report = await adminRepo.getContentReportById(req.params.reportId);
     if (!report) return reply.status(404).send({ error: "report_not_found" });
 
-    // Determine target user based on content type (reporter is the target for now)
-    // In a full implementation, this would resolve the content owner
-    const targetUserId = report.reporterId;
-
-    // Apply enforcement based on action type
-    if (parsed.data.actionType === "suspension" || parsed.data.actionType === "ban") {
-      const status = parsed.data.actionType === "ban" ? "banned" : "suspended";
-      await adminRepo.updateUserStatus(targetUserId, status);
-    } else if (parsed.data.actionType === "reactivation") {
-      await adminRepo.updateUserStatus(targetUserId, "active");
+    // Content owner resolution is not yet implemented.
+    // Return 501 to prevent accidentally acting on the reporter instead of the
+    // content owner when the action targets a user account.
+    if (parsed.data.actionType === "suspension" || parsed.data.actionType === "ban" || parsed.data.actionType === "reactivation") {
+      return reply.status(501).send({ error: "content_owner_resolution_not_implemented" });
     }
+
+    // For non-account actions (e.g. warning) we still have a target user to
+    // record against — use the reporter as a placeholder until owner resolution
+    // is implemented.
+    const targetUserId = report.reporterId;
 
     // Record the moderation action
     await adminRepo.createModerationAction(

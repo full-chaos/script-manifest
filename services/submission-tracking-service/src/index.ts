@@ -286,14 +286,10 @@ function toPlacementListItem(placement: Placement, submission: Submission): Plac
 export async function startServer(): Promise<void> {
   const boot = bootstrapService("submission-tracking-service");
   setupErrorReporting("submission-tracking-service");
+  let tracingSdk: Awaited<ReturnType<typeof import("@script-manifest/service-utils/tracing").setupTracing>> | undefined;
   if (process.env.OTEL_EXPORTER_OTLP_ENDPOINT) {
     const { setupTracing } = await import("@script-manifest/service-utils/tracing");
-    const tracingSdk = setupTracing("submission-tracking-service");
-    if (tracingSdk) {
-      process.once("SIGTERM", () => {
-        tracingSdk.shutdown().catch((err) => server.log.error(err, "OTel SDK shutdown error"));
-      });
-    }
+    tracingSdk = setupTracing("submission-tracking-service");
     boot.phase("tracing initialized");
   }
   validateRequiredEnv(["PORT", "DATABASE_URL"]);
@@ -301,6 +297,11 @@ export async function startServer(): Promise<void> {
   const port = Number(process.env.PORT ?? 4004);
   const server = buildServer();
   boot.phase("server built");
+  if (tracingSdk) {
+    process.once("SIGTERM", () => {
+      tracingSdk!.shutdown().catch((err) => server.log.error(err, "OTel SDK shutdown error"));
+    });
+  }
   // Register Prometheus metrics endpoint (only in production server startup, not tests).
   await registerMetrics(server);
   await server.listen({ port, host: "0.0.0.0" });

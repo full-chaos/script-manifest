@@ -287,9 +287,13 @@ export class PgPartnerDashboardRepository implements PartnerDashboardRepository 
   }
 
   async healthCheck(): Promise<{ database: boolean }> {
-    const db = getPool();
-    await db.query("SELECT 1");
-    return { database: true };
+    try {
+      const db = getPool();
+      await db.query("SELECT 1");
+      return { database: true };
+    } catch {
+      return { database: false };
+    }
   }
 
   async competitionExists(competitionId: string): Promise<boolean> {

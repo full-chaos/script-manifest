@@ -17,6 +17,10 @@ export interface MfaRepository {
   getSecret(userId: string): Promise<string | null>;
   getBackupCodes(userId: string): Promise<string[]>;
   consumeBackupCode(userId: string, codeHash: string): Promise<boolean>;
+  /** Store a short-lived MFA login challenge token (5 min TTL). Returns the token. */
+  storeMfaChallenge(token: string, userId: string, expiresAt: number): Promise<void>;
+  /** Consume (single-use) an MFA challenge token. Returns userId or null if invalid/expired. */
+  consumeMfaChallenge(token: string): Promise<string | null>;
 }
 
 // ── In-memory implementation for tests ────────────────────────────────
@@ -29,8 +33,18 @@ type MfaRecord = {
   backupCodes: string[]; // hashed
 };
 
+type MfaChallengeRecord = {
+  userId: string;
+  expiresAt: number;
+};
+
 export class MemoryMfaRepository extends BaseMemoryRepository implements MfaRepository {
   private records = new Map<string, MfaRecord>();
+  private challenges = new Map<string, MfaChallengeRecord>();
+
+  async init(): Promise<void> {
+    // No-op for in-memory implementation
+  }
 
   async setupMfa(userId: string, secret: string): Promise<void> {
     this.records.set(userId, {
@@ -84,6 +98,18 @@ export class MemoryMfaRepository extends BaseMemoryRepository implements MfaRepo
     record.backupCodes.splice(index, 1);
     return true;
   }
+
+  async storeMfaChallenge(token: string, userId: string, expiresAt: number): Promise<void> {
+    this.challenges.set(token, { userId, expiresAt });
+  }
+
+  async consumeMfaChallenge(token: string): Promise<string | null> {
+    const challenge = this.challenges.get(token);
+    if (!challenge) return null;
+    this.challenges.delete(token);
+    if (challenge.expiresAt <= Date.now()) return null;
+    return challenge.userId;
+  }
 }
 
 // ── PostgreSQL implementation ─────────────────────────────────────────
@@ -117,6 +143,18 @@ export class PgMfaRepository implements MfaRepository {
     await db.query(`
       CREATE INDEX IF NOT EXISTS idx_mfa_backup_codes_user
       ON user_mfa_backup_codes(user_id);
+    `);
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS mfa_login_challenges (
+        token TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+        expires_at TIMESTAMPTZ NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+    await db.query(`
+      CREATE INDEX IF NOT EXISTS idx_mfa_challenges_expires
+      ON mfa_login_challenges(expires_at);
     `);
   }
 
@@ -236,7 +274,7 @@ export class PgMfaRepository implements MfaRepository {
       `SELECT code_hash FROM user_mfa_backup_codes WHERE user_id = $1 AND used_at IS NULL`,
       [userId]
     );
-    return result.rows.map((r) => r.code_hash);
+    return result.rows.map((r: { code_hash: string }) => r.code_hash);
   }
 
   async consumeBackupCode(userId: string, codeHash: string): Promise<boolean> {
@@ -251,5 +289,28 @@ export class PgMfaRepository implements MfaRepository {
       [userId, codeHash]
     );
     return result.rows.length > 0;
+  }
+
+  async storeMfaChallenge(token: string, userId: string, expiresAt: number): Promise<void> {
+    const db = getPool();
+    const expiresAtDate = new Date(expiresAt);
+    // Purge expired challenges as a lightweight housekeeping step
+    await db.query(`DELETE FROM mfa_login_challenges WHERE expires_at < NOW()`);
+    await db.query(
+      `INSERT INTO mfa_login_challenges (token, user_id, expires_at) VALUES ($1, $2, $3)
+       ON CONFLICT (token) DO NOTHING`,
+      [token, userId, expiresAtDate]
+    );
+  }
+
+  async consumeMfaChallenge(token: string): Promise<string | null> {
+    const db = getPool();
+    const result = await db.query<{ user_id: string }>(
+      `DELETE FROM mfa_login_challenges
+       WHERE token = $1 AND expires_at > NOW()
+       RETURNING user_id`,
+      [token]
+    );
+    return result.rows[0]?.user_id ?? null;
   }
 }

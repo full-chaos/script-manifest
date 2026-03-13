@@ -111,7 +111,10 @@ export async function runMigrations(pool: Pool): Promise<void> {
       }
     }
   } finally {
-    await lockClient.query("SELECT pg_advisory_unlock($1)", [MIGRATION_LOCK_ID]);
-    lockClient.release();
+    try {
+      await lockClient.query("SELECT pg_advisory_unlock($1)", [MIGRATION_LOCK_ID]);
+    } finally {
+      lockClient.release();
+    }
   }
 }

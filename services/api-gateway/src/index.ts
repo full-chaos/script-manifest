@@ -71,6 +71,17 @@ export async function buildServer(options: ApiGatewayOptions = {}): Promise<Fast
   });
 
   registerRequestId(server);
+
+  // CHAOS-911: Strip internal identity headers from all incoming requests to
+  // prevent external callers from impersonating users via resolveUserId().
+  server.addHook("preValidation", (req, _reply, done) => {
+    delete (req.headers as Record<string, unknown>)["x-auth-user-id"];
+    delete (req.headers as Record<string, unknown>)["x-admin-user-id"];
+    delete (req.headers as Record<string, unknown>)["x-partner-user-id"];
+    delete (req.headers as Record<string, unknown>)["x-service-token"];
+    done();
+  });
+
   await server.register(cookie);
   await server.register(cors, {
     origin: process.env.CORS_ALLOWED_ORIGINS?.split(",") ?? ["http://localhost:3000"],
@@ -204,6 +215,7 @@ export async function startServer(): Promise<void> {
     "COMPETITION_ADMIN_ALLOWLIST",
     "COVERAGE_ADMIN_ALLOWLIST",
     "INDUSTRY_ADMIN_ALLOWLIST",
+    "SERVICE_TOKEN_SECRET", // CHAOS-914: required in production to prevent random fallback
   ]);
   boot.phase("env validated");
 

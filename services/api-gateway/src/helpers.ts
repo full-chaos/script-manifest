@@ -66,11 +66,14 @@ function resolveServiceTokenSecret(): string | null {
     return configured;
   }
 
-  if ((process.env.NODE_ENV ?? "development") !== "production") {
-    return devServiceTokenSecret;
+  // CHAOS-914: In production, a missing SERVICE_TOKEN_SECRET is a fatal
+  // misconfiguration — fail loudly rather than silently using a random value
+  // that would be regenerated on every restart and invalidate all tokens.
+  if ((process.env.NODE_ENV ?? "development") === "production") {
+    throw new Error("SERVICE_TOKEN_SECRET environment variable must be set in production");
   }
 
-  return null;
+  return devServiceTokenSecret;
 }
 
 export function buildQuerySuffix(rawQuery: unknown): string {
@@ -117,7 +120,11 @@ export async function getUserIdFromAuth(
 
     if (response.statusCode !== 200) {
       logger?.warn(`Auth verification failed with status ${response.statusCode}`);
-      authCacheSet(authorization, null);
+      // CHAOS-913: Only cache definitive auth failures (401/403), not transient
+      // server errors (5xx) — caching 5xx would lock out users during outages.
+      if (response.statusCode === 401 || response.statusCode === 403) {
+        authCacheSet(authorization, null);
+      }
       return null;
     }
 

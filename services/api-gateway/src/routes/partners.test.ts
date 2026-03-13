@@ -20,9 +20,13 @@ test("partner routes require authenticated actor and proxy organizer workflows",
   const headers: Record<string, string>[] = [];
   const server = await buildServer({
     logger: false,
+    identityServiceBase: "http://identity-svc",
     partnerDashboardServiceBase: "http://partner-svc",
     requestFn: (async (url, options) => {
       const currentUrl = String(url);
+      if (currentUrl.includes("/internal/auth/me")) {
+        return jsonResponse({ user: { id: "organizer_01" }, expiresAt: "2026-12-31T00:00:00.000Z" });
+      }
       urls.push(currentUrl);
       headers.push((options?.headers as Record<string, string> | undefined) ?? {});
       if (currentUrl.endsWith("/competitions")) {
@@ -51,7 +55,7 @@ test("partner routes require authenticated actor and proxy organizer workflows",
   const createCompetition = await server.inject({
     method: "POST",
     url: "/api/v1/partners/competitions",
-    headers: { "x-auth-user-id": "organizer_01" },
+    headers: { authorization: "Bearer organizer_token" },
     payload: {
       organizerAccountId: "organizer_1",
       slug: "spring-fellowship-2026",
@@ -67,7 +71,7 @@ test("partner routes require authenticated actor and proxy organizer workflows",
   const membership = await server.inject({
     method: "PUT",
     url: "/api/v1/partners/competitions/competition_1/memberships/judge_01",
-    headers: { "x-auth-user-id": "organizer_01" },
+    headers: { authorization: "Bearer organizer_token" },
     payload: { role: "editor" }
   });
   assert.equal(membership.statusCode, 200);
@@ -75,7 +79,7 @@ test("partner routes require authenticated actor and proxy organizer workflows",
   const intake = await server.inject({
     method: "PUT",
     url: "/api/v1/partners/competitions/competition_1/intake",
-    headers: { "x-auth-user-id": "organizer_01" },
+    headers: { authorization: "Bearer organizer_token" },
     payload: {
       formFields: [{ key: "bio", label: "Bio", type: "textarea", required: true }],
       feeRules: { baseFeeCents: 5500, lateFeeCents: 1500 }
@@ -86,7 +90,7 @@ test("partner routes require authenticated actor and proxy organizer workflows",
   const submission = await server.inject({
     method: "POST",
     url: "/api/v1/partners/competitions/competition_1/submissions",
-    headers: { "x-auth-user-id": "organizer_01" },
+    headers: { authorization: "Bearer organizer_token" },
     payload: {
       writerUserId: "writer_01",
       projectId: "project_01",
@@ -99,7 +103,7 @@ test("partner routes require authenticated actor and proxy organizer workflows",
   const message = await server.inject({
     method: "POST",
     url: "/api/v1/partners/competitions/competition_1/messages",
-    headers: { "x-auth-user-id": "organizer_01" },
+    headers: { authorization: "Bearer organizer_token" },
     payload: {
       messageKind: "broadcast",
       subject: "Update",
@@ -111,7 +115,7 @@ test("partner routes require authenticated actor and proxy organizer workflows",
   const sync = await server.inject({
     method: "POST",
     url: "/api/v1/partners/integrations/filmfreeway/sync",
-    headers: { "x-auth-user-id": "organizer_01" },
+    headers: { authorization: "Bearer organizer_token" },
     payload: { competitionId: "competition_1", direction: "import" }
   });
   assert.equal(sync.statusCode, 202);
@@ -171,9 +175,14 @@ test("partner routes proxy publish and sync lifecycle endpoints", async (t) => {
   const urls: string[] = [];
   const server = await buildServer({
     logger: false,
+    identityServiceBase: "http://identity-svc",
     partnerDashboardServiceBase: "http://partner-svc",
     requestFn: (async (url) => {
-      urls.push(String(url));
+      const urlStr = String(url);
+      if (urlStr.includes("/internal/auth/me")) {
+        return jsonResponse({ user: { id: "organizer_01" }, expiresAt: "2026-12-31T00:00:00.000Z" });
+      }
+      urls.push(urlStr);
       return jsonResponse({ ok: true }, 200);
     }) as typeof request
   });
@@ -184,7 +193,7 @@ test("partner routes proxy publish and sync lifecycle endpoints", async (t) => {
   const publish = await server.inject({
     method: "POST",
     url: "/api/v1/partners/competitions/competition_1/publish-results",
-    headers: { "x-auth-user-id": "organizer_01" },
+    headers: { authorization: "Bearer organizer_token" },
     payload: { results: [{ submissionId: "submission_1", placementStatus: "winner" }] }
   });
   assert.equal(publish.statusCode, 200);
@@ -192,7 +201,7 @@ test("partner routes proxy publish and sync lifecycle endpoints", async (t) => {
   const jobsRun = await server.inject({
     method: "POST",
     url: "/api/v1/partners/competitions/competition_1/jobs/run",
-    headers: { "x-auth-user-id": "organizer_01" },
+    headers: { authorization: "Bearer organizer_token" },
     payload: { job: "normalization_recompute", round: "default" }
   });
   assert.equal(jobsRun.statusCode, 200);
@@ -200,14 +209,14 @@ test("partner routes proxy publish and sync lifecycle endpoints", async (t) => {
   const claim = await server.inject({
     method: "POST",
     url: "/api/v1/partners/integrations/filmfreeway/sync/jobs/claim",
-    headers: { "x-auth-user-id": "organizer_01" }
+    headers: { authorization: "Bearer organizer_token" }
   });
   assert.equal(claim.statusCode, 200);
 
   const complete = await server.inject({
     method: "POST",
     url: "/api/v1/partners/integrations/filmfreeway/sync/jobs/job_1/complete",
-    headers: { "x-auth-user-id": "organizer_01" },
+    headers: { authorization: "Bearer organizer_token" },
     payload: { detail: "synced" }
   });
   assert.equal(complete.statusCode, 200);
@@ -215,7 +224,7 @@ test("partner routes proxy publish and sync lifecycle endpoints", async (t) => {
   const fail = await server.inject({
     method: "POST",
     url: "/api/v1/partners/integrations/filmfreeway/sync/jobs/job_1/fail",
-    headers: { "x-auth-user-id": "organizer_01" },
+    headers: { authorization: "Bearer organizer_token" },
     payload: { detail: "failed" }
   });
   assert.equal(fail.statusCode, 200);
@@ -223,7 +232,7 @@ test("partner routes proxy publish and sync lifecycle endpoints", async (t) => {
   const runNext = await server.inject({
     method: "POST",
     url: "/api/v1/partners/integrations/filmfreeway/sync/run-next",
-    headers: { "x-auth-user-id": "organizer_01" }
+    headers: { authorization: "Bearer organizer_token" }
   });
   assert.equal(runNext.statusCode, 200);
 
@@ -241,9 +250,14 @@ test("partner routes proxy submissions, judging, evaluation, normalize, draft sw
   const headers: Record<string, string>[] = [];
   const server = await buildServer({
     logger: false,
+    identityServiceBase: "http://identity-svc",
     partnerDashboardServiceBase: "http://partner-svc",
     requestFn: (async (url, options) => {
-      urls.push(String(url));
+      const urlStr = String(url);
+      if (urlStr.includes("/internal/auth/me")) {
+        return jsonResponse({ user: { id: "organizer_01" }, expiresAt: "2026-12-31T00:00:00.000Z" });
+      }
+      urls.push(urlStr);
       methods.push(String(options?.method ?? "GET"));
       headers.push((options?.headers as Record<string, string> | undefined) ?? {});
       return jsonResponse({ ok: true }, 200);
@@ -256,14 +270,14 @@ test("partner routes proxy submissions, judging, evaluation, normalize, draft sw
   const submissions = await server.inject({
     method: "GET",
     url: "/api/v1/partners/competitions/competition_1/submissions",
-    headers: { "x-auth-user-id": "organizer_01" }
+    headers: { authorization: "Bearer organizer_token" }
   });
   assert.equal(submissions.statusCode, 200);
 
   const autoAssign = await server.inject({
     method: "POST",
     url: "/api/v1/partners/competitions/competition_1/judges/auto-assign",
-    headers: { "x-auth-user-id": "organizer_01" },
+    headers: { authorization: "Bearer organizer_token" },
     payload: {
       judgeUserIds: ["judge_01", "judge_02"],
       maxAssignmentsPerJudge: 2
@@ -274,7 +288,7 @@ test("partner routes proxy submissions, judging, evaluation, normalize, draft sw
   const assign = await server.inject({
     method: "POST",
     url: "/api/v1/partners/competitions/competition_1/judges/assign",
-    headers: { "x-auth-user-id": "organizer_01" },
+    headers: { authorization: "Bearer organizer_token" },
     payload: {
       judgeUserId: "judge_01",
       submissionIds: ["submission_1"]
@@ -285,7 +299,7 @@ test("partner routes proxy submissions, judging, evaluation, normalize, draft sw
   const evaluations = await server.inject({
     method: "POST",
     url: "/api/v1/partners/competitions/competition_1/evaluations",
-    headers: { "x-auth-user-id": "organizer_01" },
+    headers: { authorization: "Bearer organizer_token" },
     payload: {
       submissionId: "submission_1",
       judgeUserId: "judge_01",
@@ -297,7 +311,7 @@ test("partner routes proxy submissions, judging, evaluation, normalize, draft sw
   const normalize = await server.inject({
     method: "POST",
     url: "/api/v1/partners/competitions/competition_1/normalize",
-    headers: { "x-auth-user-id": "organizer_01" },
+    headers: { authorization: "Bearer organizer_token" },
     payload: { round: "default" }
   });
   assert.equal(normalize.statusCode, 200);
@@ -305,7 +319,7 @@ test("partner routes proxy submissions, judging, evaluation, normalize, draft sw
   const swap = await server.inject({
     method: "POST",
     url: "/api/v1/partners/competitions/competition_1/draft-swaps",
-    headers: { "x-auth-user-id": "organizer_01" },
+    headers: { authorization: "Bearer organizer_token" },
     payload: {
       submissionId: "submission_1",
       replacementScriptId: "script_02"
@@ -316,7 +330,7 @@ test("partner routes proxy submissions, judging, evaluation, normalize, draft sw
   const analytics = await server.inject({
     method: "GET",
     url: "/api/v1/partners/competitions/competition_1/analytics",
-    headers: { "x-auth-user-id": "organizer_01" }
+    headers: { authorization: "Bearer organizer_token" }
   });
   assert.equal(analytics.statusCode, 200);
 
@@ -342,9 +356,13 @@ test("partner routes proxy submissions, judging, evaluation, normalize, draft sw
 test("partner routes preserve upstream partner error statuses and payloads", async (t) => {
   const server = await buildServer({
     logger: false,
+    identityServiceBase: "http://identity-svc",
     partnerDashboardServiceBase: "http://partner-svc",
     requestFn: (async (url) => {
       const urlStr = String(url);
+      if (urlStr.includes("/internal/auth/me")) {
+        return jsonResponse({ user: { id: "organizer_01" }, expiresAt: "2026-12-31T00:00:00.000Z" });
+      }
       if (urlStr.endsWith("/messages")) {
         return jsonResponse({ error: "competition_not_found" }, 404);
       }
@@ -364,7 +382,7 @@ test("partner routes preserve upstream partner error statuses and payloads", asy
   const messages = await server.inject({
     method: "GET",
     url: "/api/v1/partners/competitions/competition_404/messages",
-    headers: { "x-auth-user-id": "organizer_01" }
+    headers: { authorization: "Bearer organizer_token" }
   });
   assert.equal(messages.statusCode, 404);
   assert.equal(messages.json().error, "competition_not_found");
@@ -372,7 +390,7 @@ test("partner routes preserve upstream partner error statuses and payloads", asy
   const claim = await server.inject({
     method: "POST",
     url: "/api/v1/partners/integrations/filmfreeway/sync/jobs/claim",
-    headers: { "x-auth-user-id": "organizer_01" }
+    headers: { authorization: "Bearer organizer_token" }
   });
   assert.equal(claim.statusCode, 404);
   assert.equal(claim.json().error, "job_not_found");
@@ -380,7 +398,7 @@ test("partner routes preserve upstream partner error statuses and payloads", asy
   const runNext = await server.inject({
     method: "POST",
     url: "/api/v1/partners/integrations/filmfreeway/sync/run-next",
-    headers: { "x-auth-user-id": "organizer_01" }
+    headers: { authorization: "Bearer organizer_token" }
   });
   assert.equal(runNext.statusCode, 501);
   assert.equal(runNext.json().error, "sync_runner_not_configured");

@@ -65,12 +65,17 @@ test("industry verify route requires allowlisted admin", async (t) => {
     logger: false,
     industryAdminAllowlist: ["admin_writer"],
     requestFn: (async (url, options) => {
-      urls.push(String(url));
+      const urlStr = String(url);
+      if (urlStr.includes("/internal/auth/me")) {
+        return jsonResponse({ user: { id: "admin_writer" }, expiresAt: "2026-12-31T00:00:00.000Z" });
+      }
+      urls.push(urlStr);
       adminHeaders.push(
         (options?.headers as Record<string, string> | undefined)?.["x-admin-user-id"] ?? ""
       );
       return jsonResponse({ account: { id: "industry_account_1", verificationStatus: "verified" } });
     }) as typeof request,
+    identityServiceBase: "http://identity-svc",
     industryPortalBase: "http://industry-svc"
   });
   t.after(async () => {
@@ -88,7 +93,7 @@ test("industry verify route requires allowlisted admin", async (t) => {
   const allowed = await server.inject({
     method: "POST",
     url: "/api/v1/industry/accounts/industry_account_1/verify",
-    headers: { "x-admin-user-id": "admin_writer" },
+    headers: { authorization: "Bearer admin_token" },
     payload: { status: "verified", verificationNotes: "ok" }
   });
   assert.equal(allowed.statusCode, 200);
@@ -209,10 +214,15 @@ test("industry mandate create route requires allowlisted admin", async (t) => {
     logger: false,
     industryAdminAllowlist: ["admin_writer"],
     requestFn: (async (url, options) => {
-      urls.push(String(url));
+      const urlStr = String(url);
+      if (urlStr.includes("/internal/auth/me")) {
+        return jsonResponse({ user: { id: "admin_writer" }, expiresAt: "2026-12-31T00:00:00.000Z" });
+      }
+      urls.push(urlStr);
       headers.push((options?.headers as Record<string, string> | undefined) ?? {});
       return jsonResponse({ mandate: { id: "mandate_1" } }, 201);
     }) as typeof request,
+    identityServiceBase: "http://identity-svc",
     industryPortalBase: "http://industry-svc"
   });
   t.after(async () => {
@@ -238,7 +248,7 @@ test("industry mandate create route requires allowlisted admin", async (t) => {
   const ok = await server.inject({
     method: "POST",
     url: "/api/v1/industry/mandates",
-    headers: { "x-admin-user-id": "admin_writer" },
+    headers: { authorization: "Bearer admin_token" },
     payload: {
       title: "Need contained thrillers",
       type: "mandate",
@@ -315,10 +325,15 @@ test("industry mandate review and index rebuild routes require admin", async (t)
     logger: false,
     industryAdminAllowlist: ["admin_writer"],
     requestFn: (async (url, options) => {
-      urls.push(String(url));
+      const urlStr = String(url);
+      if (urlStr.includes("/internal/auth/me")) {
+        return jsonResponse({ user: { id: "admin_writer" }, expiresAt: "2026-12-31T00:00:00.000Z" });
+      }
+      urls.push(urlStr);
       headers.push((options?.headers as Record<string, string> | undefined) ?? {});
       return jsonResponse({ ok: true }, 200);
     }) as typeof request,
+    identityServiceBase: "http://identity-svc",
     industryPortalBase: "http://industry-svc"
   });
   t.after(async () => {
@@ -335,7 +350,7 @@ test("industry mandate review and index rebuild routes require admin", async (t)
   const reviewed = await server.inject({
     method: "POST",
     url: "/api/v1/industry/mandates/mandate_1/submissions/submission_1/review",
-    headers: { "x-admin-user-id": "admin_writer" },
+    headers: { authorization: "Bearer admin_token" },
     payload: { status: "forwarded", editorialNotes: "ok", forwardedTo: "exec@studio.com" }
   });
   assert.equal(reviewed.statusCode, 200);
@@ -343,7 +358,7 @@ test("industry mandate review and index rebuild routes require admin", async (t)
   const rebuild = await server.inject({
     method: "POST",
     url: "/api/v1/industry/talent-index/rebuild",
-    headers: { "x-admin-user-id": "admin_writer" }
+    headers: { authorization: "Bearer admin_token" }
   });
   assert.equal(rebuild.statusCode, 200);
   assert.equal(urls[0], "http://industry-svc/internal/mandates/mandate_1/submissions/submission_1/review");

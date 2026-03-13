@@ -96,10 +96,15 @@ test("admin programs routes enforce allowlist and proxy lifecycle endpoints", as
     logger: false,
     industryAdminAllowlist: ["admin_01"],
     requestFn: (async (url, options) => {
-      urls.push(String(url));
+      const urlStr = String(url);
+      if (urlStr.includes("/internal/auth/me")) {
+        return jsonResponse({ user: { id: "admin_01" }, expiresAt: "2026-12-31T00:00:00.000Z" });
+      }
+      urls.push(urlStr);
       headers.push((options?.headers as Record<string, string> | undefined) ?? {});
       return jsonResponse({ ok: true }, 200);
     }) as typeof request,
+    identityServiceBase: "http://identity-svc",
     programsServiceBase: "http://programs-svc"
   });
   t.after(async () => {
@@ -117,7 +122,7 @@ test("admin programs routes enforce allowlist and proxy lifecycle endpoints", as
   const review = await server.inject({
     method: "POST",
     url: "/api/v1/admin/programs/program_1/applications/app_1/review",
-    headers: { "x-admin-user-id": "admin_01" },
+    headers: { authorization: "Bearer admin_token" },
     payload: { status: "accepted", score: 90 }
   });
   assert.equal(review.statusCode, 200);
@@ -125,7 +130,7 @@ test("admin programs routes enforce allowlist and proxy lifecycle endpoints", as
   const cohortCreate = await server.inject({
     method: "POST",
     url: "/api/v1/admin/programs/program_1/cohorts",
-    headers: { "x-admin-user-id": "admin_01" },
+    headers: { authorization: "Bearer admin_token" },
     payload: {
       name: "Cohort A",
       startAt: "2026-06-01T00:00:00.000Z",
@@ -137,7 +142,7 @@ test("admin programs routes enforce allowlist and proxy lifecycle endpoints", as
   const sessionCreate = await server.inject({
     method: "POST",
     url: "/api/v1/admin/programs/program_1/sessions",
-    headers: { "x-admin-user-id": "admin_01" },
+    headers: { authorization: "Bearer admin_token" },
     payload: {
       title: "Live Workshop",
       startsAt: "2026-06-15T17:00:00.000Z",
@@ -149,7 +154,7 @@ test("admin programs routes enforce allowlist and proxy lifecycle endpoints", as
   const attendance = await server.inject({
     method: "POST",
     url: "/api/v1/admin/programs/program_1/sessions/session_1/attendance",
-    headers: { "x-admin-user-id": "admin_01" },
+    headers: { authorization: "Bearer admin_token" },
     payload: { userId: "writer_01", status: "attended" }
   });
   assert.equal(attendance.statusCode, 200);
@@ -157,7 +162,7 @@ test("admin programs routes enforce allowlist and proxy lifecycle endpoints", as
   const mentorship = await server.inject({
     method: "POST",
     url: "/api/v1/admin/programs/program_1/mentorship/matches",
-    headers: { "x-admin-user-id": "admin_01" },
+    headers: { authorization: "Bearer admin_token" },
     payload: { matches: [{ mentorUserId: "mentor_01", menteeUserId: "writer_01" }] }
   });
   assert.equal(mentorship.statusCode, 200);
@@ -165,7 +170,7 @@ test("admin programs routes enforce allowlist and proxy lifecycle endpoints", as
   const analytics = await server.inject({
     method: "GET",
     url: "/api/v1/admin/programs/program_1/analytics",
-    headers: { "x-admin-user-id": "admin_01" }
+    headers: { authorization: "Bearer admin_token" }
   });
   assert.equal(analytics.statusCode, 200);
 
@@ -270,8 +275,12 @@ test("programs routes proxy advanced phase-6 admin workflows", async (t) => {
     logger: false,
     industryAdminAllowlist: ["admin_01"],
     programsServiceBase: "http://programs-svc",
+    identityServiceBase: "http://identity-svc",
     requestFn: (async (url, options) => {
       const currentUrl = String(url);
+      if (currentUrl.includes("/internal/auth/me")) {
+        return jsonResponse({ user: { id: "admin_01" }, expiresAt: "2026-12-31T00:00:00.000Z" });
+      }
       urls.push(currentUrl);
       headers.push((options?.headers as Record<string, string> | undefined) ?? {});
       if (currentUrl.endsWith("/outcomes")) {
@@ -290,7 +299,7 @@ test("programs routes proxy advanced phase-6 admin workflows", async (t) => {
   const form = await server.inject({
     method: "PUT",
     url: "/api/v1/admin/programs/program_1/application-form",
-    headers: { "x-admin-user-id": "admin_01" },
+    headers: { authorization: "Bearer admin_token" },
     payload: { fields: [{ key: "goals", label: "Goals", type: "textarea", required: true }] }
   });
   assert.equal(form.statusCode, 200);
@@ -298,7 +307,7 @@ test("programs routes proxy advanced phase-6 admin workflows", async (t) => {
   const rubric = await server.inject({
     method: "PUT",
     url: "/api/v1/admin/programs/program_1/scoring-rubric",
-    headers: { "x-admin-user-id": "admin_01" },
+    headers: { authorization: "Bearer admin_token" },
     payload: { criteria: [{ key: "voice", label: "Voice", weight: 1, maxScore: 100 }] }
   });
   assert.equal(rubric.statusCode, 200);
@@ -306,7 +315,7 @@ test("programs routes proxy advanced phase-6 admin workflows", async (t) => {
   const availability = await server.inject({
     method: "POST",
     url: "/api/v1/admin/programs/program_1/availability",
-    headers: { "x-admin-user-id": "admin_01" },
+    headers: { authorization: "Bearer admin_token" },
     payload: { windows: [] }
   });
   assert.equal(availability.statusCode, 200);
@@ -314,7 +323,7 @@ test("programs routes proxy advanced phase-6 admin workflows", async (t) => {
   const match = await server.inject({
     method: "POST",
     url: "/api/v1/admin/programs/program_1/scheduling/match",
-    headers: { "x-admin-user-id": "admin_01" },
+    headers: { authorization: "Bearer admin_token" },
     payload: { attendeeUserIds: ["writer_01"], durationMinutes: 30 }
   });
   assert.equal(match.statusCode, 200);
@@ -322,7 +331,7 @@ test("programs routes proxy advanced phase-6 admin workflows", async (t) => {
   const integration = await server.inject({
     method: "PATCH",
     url: "/api/v1/admin/programs/program_1/sessions/session_1/integration",
-    headers: { "x-admin-user-id": "admin_01" },
+    headers: { authorization: "Bearer admin_token" },
     payload: { provider: "zoom" }
   });
   assert.equal(integration.statusCode, 200);
@@ -330,14 +339,14 @@ test("programs routes proxy advanced phase-6 admin workflows", async (t) => {
   const reminders = await server.inject({
     method: "POST",
     url: "/api/v1/admin/programs/program_1/sessions/session_1/reminders/dispatch",
-    headers: { "x-admin-user-id": "admin_01" }
+    headers: { authorization: "Bearer admin_token" }
   });
   assert.equal(reminders.statusCode, 200);
 
   const outcome = await server.inject({
     method: "POST",
     url: "/api/v1/admin/programs/program_1/outcomes",
-    headers: { "x-admin-user-id": "admin_01" },
+    headers: { authorization: "Bearer admin_token" },
     payload: { userId: "writer_01", outcomeType: "staffed" }
   });
   assert.equal(outcome.statusCode, 201);
@@ -345,7 +354,7 @@ test("programs routes proxy advanced phase-6 admin workflows", async (t) => {
   const crmPost = await server.inject({
     method: "POST",
     url: "/api/v1/admin/programs/program_1/crm-sync",
-    headers: { "x-admin-user-id": "admin_01" },
+    headers: { authorization: "Bearer admin_token" },
     payload: { reason: "weekly" }
   });
   assert.equal(crmPost.statusCode, 202);
@@ -353,14 +362,14 @@ test("programs routes proxy advanced phase-6 admin workflows", async (t) => {
   const crmGet = await server.inject({
     method: "GET",
     url: "/api/v1/admin/programs/program_1/crm-sync?status=failed&limit=10&offset=5",
-    headers: { "x-admin-user-id": "admin_01" }
+    headers: { authorization: "Bearer admin_token" }
   });
   assert.equal(crmGet.statusCode, 200);
 
   const runJobs = await server.inject({
     method: "POST",
     url: "/api/v1/admin/programs/jobs/run",
-    headers: { "x-admin-user-id": "admin_01" },
+    headers: { authorization: "Bearer admin_token" },
     payload: { job: "crm_sync_dispatcher", limit: 5 }
   });
   assert.equal(runJobs.statusCode, 200);

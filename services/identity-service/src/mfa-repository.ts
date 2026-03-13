@@ -42,7 +42,7 @@ export class MemoryMfaRepository extends BaseMemoryRepository implements MfaRepo
   private records = new Map<string, MfaRecord>();
   private challenges = new Map<string, MfaChallengeRecord>();
 
-  async init(): Promise<void> {
+  override async init(): Promise<void> {
     // No-op for in-memory implementation
   }
 

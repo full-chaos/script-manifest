@@ -1,4 +1,4 @@
-import Fastify, { type FastifyInstance } from "fastify";
+import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
 import rateLimit from "@fastify/rate-limit";
 import { randomUUID } from "node:crypto";
 import { Counter } from "prom-client";
@@ -990,6 +990,17 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
       return reply.status(404).send({ error: "dispute_not_found" });
     }
 
+    // Validate refundAmountCents BEFORE writing to DB to avoid inconsistent state
+    if (parsed.data.status === "resolved_partial") {
+      if (!parsed.data.refundAmountCents || parsed.data.refundAmountCents <= 0) {
+        return reply.status(400).send({ error: "refund_amount_required_for_partial" });
+      }
+      const orderForValidation = await repository.getOrder(dispute.orderId);
+      if (orderForValidation && parsed.data.refundAmountCents > orderForValidation.priceCents) {
+        return reply.status(400).send({ error: "refund_exceeds_order_amount" });
+      }
+    }
+
     const resolved = await repository.resolveDispute(disputeId, parsed.data);
     if (!resolved) {
       return reply.status(409).send({ error: "dispute_not_resolvable" });
@@ -998,10 +1009,6 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
     const order = await repository.getOrder(dispute.orderId);
     if (!order) {
       return reply.send({ dispute: resolved });
-    }
-
-    if (parsed.data.status === "resolved_partial" && !parsed.data.refundAmountCents) {
-      return reply.status(400).send({ error: "refund_amount_required_for_partial" });
     }
 
     if (parsed.data.status === "resolved_refund" || parsed.data.status === "resolved_partial") {
@@ -1217,21 +1224,33 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
   });
 
   // ── Webhook Route ──────────────────────────────────────────────────
+  // Register in an isolated plugin scope so the raw body parser only
+  // applies to this route and does not override the default JSON parser
+  // for all other routes in the server.
+  server.register(async (webhookScope) => {
+    // Parse the body as a raw Buffer so Stripe HMAC verification uses the
+    // original wire bytes rather than a re-serialized JSON string.
+    webhookScope.addContentTypeParser(
+      "application/json",
+      { parseAs: "buffer" },
+      (_req: FastifyRequest, body: Buffer, done: (err: Error | null, result?: Buffer) => void) => {
+        done(null, body);
+      }
+    );
 
-  server.post("/internal/stripe-webhook", async (req, reply) => {
+    webhookScope.post("/internal/stripe-webhook", async (req, reply) => {
     const signature = req.headers["stripe-signature"] as string;
     if (!signature) {
       return reply.status(400).send({ error: "missing_signature" });
     }
 
-    let payload: string;
-    if (typeof req.body === "string") {
-      payload = req.body;
-    } else if (Buffer.isBuffer(req.body)) {
-      payload = req.body.toString("utf8");
-    } else {
-      payload = JSON.stringify(req.body ?? {});
-    }
+    // req.body is now a Buffer due to the raw content-type parser above.
+    // We pass the raw Buffer (or its string representation) to constructWebhookEvent
+    // so that Stripe's HMAC verification works against the original wire bytes.
+    const rawBody = Buffer.isBuffer(req.body)
+      ? req.body
+      : Buffer.from(typeof req.body === "string" ? req.body : JSON.stringify(req.body ?? {}));
+    const payload = rawBody.toString("utf8");
 
     let event: any;
     try {
@@ -1351,7 +1370,8 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
     }
 
     return reply.send({ received: true });
-  });
+    });
+  }); // end webhook plugin scope
 
   // ── Payment Method Routes ──────────────────────────────────────────
 

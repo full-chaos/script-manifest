@@ -31,7 +31,12 @@ export function createScheduler(deps: SchedulerDeps) {
         continue;
       }
       if (order.stripePaymentIntentId) {
-        await deps.paymentGateway.capturePayment(order.stripePaymentIntentId, `idem_capture_${order.id}`);
+        try {
+          await deps.paymentGateway.capturePayment(order.stripePaymentIntentId, `idem_capture_${order.id}`);
+        } catch (captureError) {
+          deps.logger.error({ error: captureError, orderId: order.id }, "auto-complete capturePayment failed; skipping order");
+          continue;
+        }
       }
       try {
         const { transferId } = await deps.paymentGateway.transferToProvider({

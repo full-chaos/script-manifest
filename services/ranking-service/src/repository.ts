@@ -58,6 +58,7 @@ export interface RankingRepository {
   // Placement scores
   upsertPlacementScore(row: PlacementScoreRow): Promise<void>;
   bulkUpsertPlacementScores(rows: PlacementScoreRow[]): Promise<void>;
+  replaceAllPlacementScores(rows: PlacementScoreRow[]): Promise<void>;
   getPlacementScores(writerId: string): Promise<PlacementScoreRow[]>;
   clearPlacementScores(): Promise<void>;
 
@@ -279,6 +280,43 @@ export class PgRankingRepository implements RankingRepository {
 
   async clearPlacementScores(): Promise<void> {
     await getPool().query("DELETE FROM placement_scores");
+  }
+
+  // CHAOS-938: Atomic DELETE + INSERT so readers never see an empty table mid-recompute
+  async replaceAllPlacementScores(rows: PlacementScoreRow[]): Promise<void> {
+    const client = await getPool().connect();
+    try {
+      await client.query("BEGIN");
+      await client.query("DELETE FROM placement_scores");
+      const BATCH_SIZE = 200;
+      for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+        const batch = rows.slice(i, i + BATCH_SIZE);
+        if (batch.length === 0) continue;
+        const values: unknown[] = [];
+        const placeholders: string[] = [];
+        for (let j = 0; j < batch.length; j++) {
+          const r = batch[j]!;
+          const base = j * 11;
+          placeholders.push(`($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6}, $${base + 7}, $${base + 8}, $${base + 9}, $${base + 10}, $${base + 11}, NOW())`);
+          values.push(r.placementId, r.writerId, r.competitionId, r.projectId, r.statusWeight, r.prestigeMultiplier, r.verificationMultiplier, r.timeDecayFactor, r.confidenceFactor, r.rawScore, r.placementDate);
+        }
+        await client.query(
+          `INSERT INTO placement_scores (placement_id, writer_id, competition_id, project_id, status_weight, prestige_multiplier, verification_multiplier, time_decay_factor, confidence_factor, raw_score, placement_date, computed_at)
+           VALUES ${placeholders.join(", ")}
+           ON CONFLICT (placement_id) DO UPDATE SET
+             status_weight = EXCLUDED.status_weight, prestige_multiplier = EXCLUDED.prestige_multiplier,
+             verification_multiplier = EXCLUDED.verification_multiplier, time_decay_factor = EXCLUDED.time_decay_factor,
+             confidence_factor = EXCLUDED.confidence_factor, raw_score = EXCLUDED.raw_score, computed_at = NOW()`,
+          values
+        );
+      }
+      await client.query("COMMIT");
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
   }
 
   // ── Badges ──

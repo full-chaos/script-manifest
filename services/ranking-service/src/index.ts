@@ -216,7 +216,8 @@ export function buildServer(options: RankingServiceOptions = {}): FastifyInstanc
     const submissionMap = new Map(submissions.map((s) => [s.id, s]));
 
     // 6. Compute individual placement scores (CHAOS-583: batch instead of N+1)
-    await repo.clearPlacementScores();
+    // Note: clearPlacementScores() is NOT called here — we use replaceAllPlacementScores()
+    // below for an atomic DELETE+INSERT so readers never see an empty table mid-recompute.
     const writerData = new Map<string, { totalScore: number; submissionIds: Set<string>; placementCount: number; lastUpdated: string }>();
 
     // Track submissions per writer for counts
@@ -278,8 +279,8 @@ export function buildServer(options: RankingServiceOptions = {}): FastifyInstanc
       }
     }
 
-    // Bulk insert all placement scores
-    await repo.bulkUpsertPlacementScores(placementScoreRows);
+    // Atomically replace all placement scores (CHAOS-938: DELETE+INSERT in one transaction)
+    await repo.replaceAllPlacementScores(placementScoreRows);
 
     // Batch check which placements already have badges
     const existingBadgeIds = await repo.hasBadges(badgeCandidates.map((c) => c.placement.id));

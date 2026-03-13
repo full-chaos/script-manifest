@@ -1327,6 +1327,14 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
             await repository.updateProviderStripe(provider.id, accountId, onboardingComplete);
           }
         }
+      } else if (event.type === "payment_intent.canceled") {
+        const intentId = event.data?.object?.id;
+        if (intentId) {
+          const order = await repository.findOrderByPaymentIntentId(intentId);
+          if (order && order.status !== "cancelled") {
+            await repository.updateOrderStatus(order.id, "cancelled");
+          }
+        }
       } else if (event.type === "charge.failed") {
         const paymentIntentId = event.data?.object?.payment_intent;
         const declineCode = event.data?.object?.payment_method_details?.card?.decline_code ?? event.data?.object?.decline_code;

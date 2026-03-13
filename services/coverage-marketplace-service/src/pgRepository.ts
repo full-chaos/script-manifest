@@ -536,23 +536,37 @@ export class PgCoverageMarketplaceRepository implements CoverageMarketplaceRepos
 
   async updateProviderRating(providerId: string): Promise<void> {
     const db = getPool();
-    const avgResult = await db.query<{ avg_rating: string | null }>(
-      `SELECT AVG(rating)::text AS avg_rating FROM coverage_reviews WHERE provider_id = $1`,
-      [providerId]
-    );
-    const avgRating = avgResult.rows[0]?.avg_rating ? Number(Number(avgResult.rows[0].avg_rating).toFixed(2)) : null;
+    // CHAOS-939: Wrap AVG, COUNT, and UPDATE in a single transaction to eliminate TOCTOU race.
+    // Also: count completed orders from coverage_orders (not coverage_reviews) for accuracy.
+    const client = await db.connect();
+    try {
+      await client.query("BEGIN");
 
-    const countResult = await db.query<{ count: string }>(
-      `SELECT COUNT(*)::text AS count FROM coverage_reviews WHERE provider_id = $1`,
-      [providerId]
-    );
-    const totalOrders = Number(countResult.rows[0]?.count ?? 0);
+      const avgResult = await client.query<{ avg_rating: string | null }>(
+        `SELECT AVG(rating)::text AS avg_rating FROM coverage_reviews WHERE provider_id = $1`,
+        [providerId]
+      );
+      const avgRating = avgResult.rows[0]?.avg_rating ? Number(Number(avgResult.rows[0].avg_rating).toFixed(2)) : null;
 
-    await db.query(
-      `UPDATE coverage_providers SET avg_rating = $2, total_orders_completed = $3, updated_at = NOW()
-       WHERE id = $1`,
-      [providerId, avgRating, totalOrders]
-    );
+      const countResult = await client.query<{ count: string }>(
+        `SELECT COUNT(*)::text AS count FROM coverage_orders WHERE provider_id = $1 AND status = 'completed'`,
+        [providerId]
+      );
+      const totalOrders = Number(countResult.rows[0]?.count ?? 0);
+
+      await client.query(
+        `UPDATE coverage_providers SET avg_rating = $2, total_orders_completed = $3, updated_at = NOW()
+         WHERE id = $1`,
+        [providerId, avgRating, totalOrders]
+      );
+
+      await client.query("COMMIT");
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
   }
 
   // ── Disputes ─────────────────────────────────────────────────────────

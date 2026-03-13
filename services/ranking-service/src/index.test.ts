@@ -82,6 +82,7 @@ class MemoryRankingRepository extends BaseMemoryRepository implements RankingRep
     this.placementScores.push(row);
   }
   async bulkUpsertPlacementScores(rows: PlacementScoreRow[]) { for (const r of rows) await this.upsertPlacementScore(r); }
+  async replaceAllPlacementScores(rows: PlacementScoreRow[]) { this.placementScores = []; for (const r of rows) await this.upsertPlacementScore(r); }
   async getPlacementScores(writerId: string) { return this.placementScores.filter((p) => p.writerId === writerId); }
   async clearPlacementScores() { this.placementScores = []; }
 

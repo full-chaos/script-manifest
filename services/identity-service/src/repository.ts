@@ -585,7 +585,7 @@ export class PgIdentityRepository implements IdentityRepository {
   async createEmailVerificationToken(userId: string): Promise<{ code: string }> {
     const db = getPool();
     const id = `evt_${randomUUID()}`;
-    const code = String(Math.floor(100000 + Math.random() * 900000));
+    const code = String(randomBytes(3).readUIntBE(0, 3) % 900000 + 100000);
     const tokenHash = createHash("sha256").update(code).digest("hex");
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString(); // 15 min
 

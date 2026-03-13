@@ -17,6 +17,8 @@ export function Modal({ open, title, description, onClose, children }: ModalProp
   const titleId = useId();
   const descriptionId = useId();
   const dialogRef = useRef<HTMLDivElement>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     if (!open) {
@@ -36,7 +38,7 @@ export function Modal({ open, title, description, onClose, children }: ModalProp
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        onClose();
+        onCloseRef.current();
         return;
       }
 
@@ -71,7 +73,7 @@ export function Modal({ open, title, description, onClose, children }: ModalProp
       // Restore focus to the element that opened the modal
       previouslyFocused?.focus();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) {
     return null;

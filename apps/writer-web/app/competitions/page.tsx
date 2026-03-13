@@ -7,7 +7,7 @@ import { EmptyState } from "../components/emptyState";
 import { EmptyIllustration } from "../components/illustrations";
 import { SkeletonCard } from "../components/skeleton";
 import { useToast } from "../components/toast";
-import { getAuthHeaders, readStoredSession } from "../lib/authSession";
+import { readStoredSession } from "../lib/authSession";
 
 type Filters = {
   query: string;
@@ -175,8 +175,7 @@ export default function CompetitionsPage() {
         {
           method: "POST",
           headers: {
-            "content-type": "application/json",
-            ...getAuthHeaders()
+            "content-type": "application/json"
           },
           body: JSON.stringify({
             targetUserId,

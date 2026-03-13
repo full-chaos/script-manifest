@@ -116,18 +116,11 @@ export default function SignInPage() {
   }
 
   async function signOut() {
-    const token = session?.token;
     setStatus("");
 
     try {
-      if (token) {
-        await fetch("/api/v1/auth/logout", {
-          method: "POST",
-          headers: {
-            authorization: `Bearer ${token}`
-          }
-        });
-      }
+      // POST to logout: the BFF clears the HttpOnly sm_session cookie server-side
+      await fetch("/api/v1/auth/logout", { method: "POST" });
     } finally {
       clearStoredSession();
       setSession(null);

@@ -33,7 +33,6 @@ describe("readStoredSession", () => {
     window.localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(SAMPLE_SESSION));
     const session = readStoredSession();
     expect(session).not.toBeNull();
-    expect(session?.token).toBe("tok_abc123");
     expect(session?.user.id).toBe("writer_01");
   });
 
@@ -48,12 +47,16 @@ describe("writeStoredSession", () => {
     window.localStorage.clear();
   });
 
-  it("persists session to localStorage", () => {
+  it("persists session to localStorage without the raw token", () => {
     writeStoredSession(SAMPLE_SESSION);
     const raw = window.localStorage.getItem(SESSION_STORAGE_KEY);
     expect(raw).not.toBeNull();
     const parsed = JSON.parse(raw!);
-    expect(parsed.token).toBe("tok_abc123");
+    // Token must NOT be stored in localStorage — HttpOnly cookie handles it
+    expect(parsed.token).toBe("");
+    expect(parsed.user.id).toBe("writer_01");
+    expect(parsed.user.email).toBe("writer@example.com");
+    expect(parsed.expiresAt).toBe("2026-12-31T00:00:00.000Z");
   });
 
   it("dispatches the session-changed custom event", () => {
@@ -90,14 +93,14 @@ describe("getAuthHeaders", () => {
     window.localStorage.clear();
   });
 
-  it("returns an empty object when no session exists", () => {
+  it("returns an empty object — token is in HttpOnly cookie, not accessible client-side", () => {
     expect(getAuthHeaders()).toEqual({});
   });
 
-  it("returns a Bearer authorization header when a session exists", () => {
+  it("returns an empty object even when a session exists in localStorage", () => {
     window.localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(SAMPLE_SESSION));
-    const headers = getAuthHeaders();
-    expect(headers).toEqual({ authorization: "Bearer tok_abc123" });
+    // Token is no longer exposed to client-side JS; BFF proxy handles auth
+    expect(getAuthHeaders()).toEqual({});
   });
 });
 

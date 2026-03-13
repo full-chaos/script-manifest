@@ -156,8 +156,9 @@ describe("CompetitionsPage", () => {
       expect.objectContaining({
         method: "POST",
         headers: expect.objectContaining({
-          "content-type": "application/json",
-          authorization: "Bearer sess_1"
+          "content-type": "application/json"
+          // Authorization is now handled server-side via HttpOnly sm_session cookie,
+          // not sent as a client-side header
         })
       })
     );

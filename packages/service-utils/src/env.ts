@@ -14,7 +14,7 @@
 export function validateRequiredEnv(vars: string[]): void {
   // Skip validation only in development and test environments.
   // Staging, preview, and production all require real env vars.
-  const env = process.env.NODE_ENV;
+  const env = process.env.NODE_ENV ?? "development";
   if (env === "development" || env === "test") return;
   const missing = vars.filter((v) => !process.env[v]);
   if (missing.length > 0) {

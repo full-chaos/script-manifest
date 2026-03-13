@@ -1,9 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { buildServer } from "./index.js";
+import { MemoryScriptStorageRepository } from "./repository.js";
+
+function makeServer() {
+  return buildServer({ logger: false, repository: new MemoryScriptStorageRepository() });
+}
 
 test("script storage creates upload session", async (t) => {
-  const server = buildServer({ logger: false });
+  const server = makeServer();
   t.after(async () => {
     await server.close();
   });
@@ -30,6 +35,7 @@ test("script storage creates upload session", async (t) => {
 test("upload session uses browser-reachable base URL", async (t) => {
   const server = buildServer({
     logger: false,
+    repository: new MemoryScriptStorageRepository(),
     uploadBaseUrl: "http://localhost:9000",
     publicBaseUrl: "http://localhost:9000"
   });
@@ -58,6 +64,7 @@ test("upload session returns 503 when S3 is unavailable", async (t) => {
   // Configure with invalid S3 credentials to simulate S3 failure
   const server = buildServer({
     logger: false,
+    repository: new MemoryScriptStorageRepository(),
     uploadBaseUrl: "http://localhost:9000",
     s3Endpoint: "http://invalid-endpoint:9000",
     s3Region: "us-east-1",
@@ -87,7 +94,7 @@ test("upload session returns 503 when S3 is unavailable", async (t) => {
 });
 
 test("script storage registers and views script as owner", async (t) => {
-  const server = buildServer({ logger: false });
+  const server = makeServer();
   t.after(async () => {
     await server.close();
   });
@@ -118,7 +125,7 @@ test("script storage registers and views script as owner", async (t) => {
 });
 
 test("private script denies unauthenticated viewers", async (t) => {
-  const server = buildServer({ logger: false });
+  const server = makeServer();
   t.after(async () => {
     await server.close();
   });
@@ -154,7 +161,7 @@ test("private script denies unauthenticated viewers", async (t) => {
 });
 
 test("public script allows anyone to view", async (t) => {
-  const server = buildServer({ logger: false });
+  const server = makeServer();
   t.after(async () => {
     await server.close();
   });
@@ -191,7 +198,7 @@ test("public script allows anyone to view", async (t) => {
 });
 
 test("visibility change requires owner", async (t) => {
-  const server = buildServer({ logger: false });
+  const server = makeServer();
   t.after(async () => {
     await server.close();
   });
@@ -218,7 +225,7 @@ test("visibility change requires owner", async (t) => {
 });
 
 test("approve-viewer grants access and upgrades visibility", async (t) => {
-  const server = buildServer({ logger: false });
+  const server = makeServer();
   t.after(async () => {
     await server.close();
   });
@@ -270,7 +277,7 @@ test("approve-viewer grants access and upgrades visibility", async (t) => {
 });
 
 test("approve-viewer rejects non-owner", async (t) => {
-  const server = buildServer({ logger: false });
+  const server = makeServer();
   t.after(async () => {
     await server.close();
   });
@@ -298,12 +305,25 @@ test("approve-viewer rejects non-owner", async (t) => {
 });
 
 test("approved_only script respects approved viewers", async (t) => {
-  const server = buildServer({ logger: false });
+  const repo = new MemoryScriptStorageRepository();
+  const server = buildServer({ logger: false, repository: repo });
   t.after(async () => {
     await server.close();
   });
 
-  // The demo script (script_demo_01) is pre-seeded with writer_01 as owner
+  // Pre-seed the demo script so this test mirrors the original behaviour
+  await repo.registerScript({
+    scriptId: "script_demo_01",
+    ownerUserId: "writer_01",
+    objectKey: "writer_01/script_demo_01/latest.pdf",
+    filename: "demo-script.pdf",
+    contentType: "application/pdf",
+    size: 240_000,
+    registeredAt: new Date().toISOString(),
+    visibility: "private",
+    approvedViewers: []
+  });
+
   // Set it to approved_only
   const patchResponse = await server.inject({
     method: "PATCH",

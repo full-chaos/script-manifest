@@ -409,6 +409,7 @@ services:
     environment:
       <<: *telemetry-env
       PORT: "4011"
+      DATABASE_URL: "postgresql://manifest:manifest@postgres:5432/manifest"
       STORAGE_BUCKET: "scripts"
       # Browser-reachable URL for upload forms (Traefik subdomain in dev)
       STORAGE_UPLOAD_BASE_URL: "http://minio.localhost:9100"
@@ -422,6 +423,8 @@ services:
     command: >
       /workspace/scripts/run-with-log.sh script-storage-service sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/script-storage-service dev"
     depends_on:
+      postgres:
+        condition: service_healthy
       minio:
         condition: service_healthy
     healthcheck:

@@ -17,9 +17,13 @@ import {
   ScriptViewRequestSchema,
   ScriptViewResponseSchema,
   ScriptVisibilitySchema,
-  type ScriptFileRegistration,
-  type ScriptVisibility
 } from "@script-manifest/contracts";
+import {
+  type ScriptStorageRepository,
+  type ScriptRecord,
+  PgScriptStorageRepository,
+  MemoryScriptStorageRepository
+} from "./repository.js";
 
 const scriptsUploadedCounter = new Counter({
   name: "scripts_uploaded_total",
@@ -27,13 +31,9 @@ const scriptsUploadedCounter = new Counter({
   labelNames: ["type"] as const,
 });
 
-type ScriptRecord = ScriptFileRegistration & {
-  visibility: ScriptVisibility;
-  approvedViewers: Set<string>;
-};
-
 export type ScriptStorageServiceOptions = {
   logger?: boolean;
+  repository?: ScriptStorageRepository;
   storageBucket?: string;
   uploadBaseUrl?: string;
   publicBaseUrl?: string;
@@ -55,6 +55,8 @@ export function buildServer(options: ScriptStorageServiceOptions = {}): FastifyI
   const storageBucket = options.storageBucket ?? "scripts";
   const uploadBaseUrl = options.uploadBaseUrl ?? options.publicBaseUrl ?? "http://localhost:9000";
   const publicBaseUrl = options.publicBaseUrl ?? uploadBaseUrl;
+  const repo: ScriptStorageRepository = options.repository ?? new PgScriptStorageRepository();
+
   const s3Client = buildS3Client({
     endpoint: options.s3Endpoint,
     region: options.s3Region,
@@ -73,41 +75,48 @@ export function buildServer(options: ScriptStorageServiceOptions = {}): FastifyI
     });
   }
 
-  const scripts = new Map<string, ScriptRecord>();
-
-  const demoRegistration = ScriptFileRegistrationSchema.parse({
-    scriptId: "script_demo_01",
-    ownerUserId: "writer_01",
-    objectKey: "writer_01/script_demo_01/latest.pdf",
-    filename: "demo-script.pdf",
-    contentType: "application/pdf",
-    size: 240_000,
-    registeredAt: new Date().toISOString()
+  server.addHook("onReady", async () => {
+    await repo.init();
+    // Seed demo record for development/testing (only when using MemoryScriptStorageRepository)
+    if (repo instanceof MemoryScriptStorageRepository) {
+      const demoRegistration = ScriptFileRegistrationSchema.parse({
+        scriptId: "script_demo_01",
+        ownerUserId: "writer_01",
+        objectKey: "writer_01/script_demo_01/latest.pdf",
+        filename: "demo-script.pdf",
+        contentType: "application/pdf",
+        size: 240_000,
+        registeredAt: new Date().toISOString()
+      });
+      await repo.registerScript({
+        ...demoRegistration,
+        visibility: "private",
+        approvedViewers: []
+      });
+    }
   });
-  const demoScript: ScriptRecord = {
-    ...demoRegistration,
-    visibility: "private",
-    approvedViewers: new Set()
-  };
-  scripts.set(demoScript.scriptId, demoScript);
 
   server.get("/health", async (_req, reply) => {
     // Deep health check: verify that the configured storage bucket is reachable.
+    const dbHealth = await repo.healthCheck();
     const checks: Record<string, boolean> = {
-      storage: Boolean(storageBucket)
+      storage: Boolean(storageBucket),
+      database: dbHealth.database
     };
-    const ok = Object.values(checks).every(Boolean) && Boolean(s3Client);
-    if (ok) {
+    const storageOk = Object.values(checks).every(Boolean) && Boolean(s3Client);
+    if (storageOk) {
       try {
         // Probe the S3 endpoint by issuing a simple HeadBucket command
         await s3Client!.send(new HeadBucketCommand({ Bucket: storageBucket }));
         // If we reach here, bucket is accessible
-        return reply.status(200).send({ service: "script-storage-service", ok: true, checks: { ...checks, storage: true } });
+        const ok = dbHealth.database;
+        return reply.status(ok ? 200 : 503).send({ service: "script-storage-service", ok, checks: { ...checks, storage: true } });
       } catch {
         // Fall through to non-ok path
         return reply.status(503).send({ service: "script-storage-service", ok: false, checks: { ...checks, storage: false } });
       }
     }
+    const ok = Boolean(dbHealth.database) && Boolean(s3Client) && Boolean(storageBucket);
     return reply.status(ok ? 200 : 503).send({ service: "script-storage-service", ok, checks });
   });
 
@@ -212,9 +221,9 @@ export function buildServer(options: ScriptStorageServiceOptions = {}): FastifyI
     const script: ScriptRecord = {
       ...registration,
       visibility: "private",
-      approvedViewers: new Set()
+      approvedViewers: []
     };
-    scripts.set(script.scriptId, script);
+    await repo.registerScript(script);
 
     const responsePayload = ScriptRegisterResponseSchema.parse({
       registered: true,
@@ -239,7 +248,7 @@ export function buildServer(options: ScriptStorageServiceOptions = {}): FastifyI
       });
     }
 
-    const script = scripts.get(scriptId);
+    const script = await repo.getScript(scriptId);
     if (!script) {
       return reply.status(404).send({ error: "script_not_found" });
     }
@@ -249,7 +258,7 @@ export function buildServer(options: ScriptStorageServiceOptions = {}): FastifyI
     if (script.visibility === "public") {
       canView = true;
     } else if (script.visibility === "approved_only") {
-      canView = isOwner || (viewerUserId !== undefined && script.approvedViewers.has(viewerUserId));
+      canView = isOwner || (viewerUserId !== undefined && script.approvedViewers.includes(viewerUserId));
     } else {
       // "private" — only owner
       canView = isOwner;
@@ -286,7 +295,7 @@ export function buildServer(options: ScriptStorageServiceOptions = {}): FastifyI
       return reply.status(403).send({ error: "forbidden" });
     }
 
-    const script = scripts.get(scriptId);
+    const script = await repo.getScript(scriptId);
     if (!script) {
       return reply.status(404).send({ error: "script_not_found" });
     }
@@ -299,11 +308,7 @@ export function buildServer(options: ScriptStorageServiceOptions = {}): FastifyI
       return reply.status(400).send({ error: "missing_viewer_user_id" });
     }
 
-    script.approvedViewers.add(body.viewerUserId);
-
-    if (script.visibility === "private") {
-      script.visibility = "approved_only";
-    }
+    await repo.addApprovedViewer(scriptId, body.viewerUserId);
 
     return reply.send({ scriptId, viewerUserId: body.viewerUserId, approved: true });
   });
@@ -313,7 +318,7 @@ export function buildServer(options: ScriptStorageServiceOptions = {}): FastifyI
     const body = req.body as { visibility?: string; ownerUserId?: string };
     const ownerUserId = body.ownerUserId ?? (req.headers["x-auth-user-id"] as string | undefined);
 
-    const script = scripts.get(scriptId);
+    const script = await repo.getScript(scriptId);
     if (!script) {
       return reply.status(404).send({ error: "script_not_found" });
     }
@@ -330,8 +335,8 @@ export function buildServer(options: ScriptStorageServiceOptions = {}): FastifyI
       });
     }
 
-    script.visibility = parsed.data;
-    return reply.send({ scriptId, visibility: script.visibility });
+    await repo.updateVisibility(scriptId, parsed.data);
+    return reply.send({ scriptId, visibility: parsed.data });
   });
 
   return server;
@@ -351,6 +356,7 @@ export async function startServer(): Promise<void> {
     boot.phase("tracing initialized");
   }
   validateRequiredEnv([
+    "DATABASE_URL",
     "STORAGE_BUCKET",
     "STORAGE_S3_ENDPOINT",
     "STORAGE_S3_ACCESS_KEY",

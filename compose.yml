@@ -294,6 +294,7 @@ services:
       <<: *telemetry-env
       PORT: "4005"
       DATABASE_URL: "postgresql://manifest:manifest@postgres:5432/manifest"
+      MFA_ENCRYPTION_KEY: "0000000000000000000000000000000000000000000000000000000000000000"
       GOOGLE_CLIENT_ID: ""
       GOOGLE_CLIENT_SECRET: ""
       SMTP_HOST: "mailpit"

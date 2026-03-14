@@ -289,7 +289,6 @@ export default function FeedbackPage() {
 
     // Step 1: Upload via server-side proxy
     setUploadStep("creating_session");
-    setUploadStep("uploading");
     const uploadRes = await uploadScriptViaProxy({
       scriptId,
       ownerUserId: signedInUserId,
@@ -297,6 +296,7 @@ export default function FeedbackPage() {
       contentType,
       headers: getAuthHeaders()
     });
+    setUploadStep("uploading");
     if (!uploadRes.ok) {
       const detailPayload = (await uploadRes.json().catch(async () => ({
         detail: await uploadRes.text()

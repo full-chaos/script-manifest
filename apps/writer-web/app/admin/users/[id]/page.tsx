@@ -82,14 +82,13 @@ export default function AdminUserDetailPage() {
         cache: "no-store"
       });
 
+      const body = (await response.json()) as { error?: string; user?: AdminUserDetail };
       if (!response.ok) {
-        const body = (await response.json()) as { error?: string };
         toast.error(body.error ?? "Failed to load user.");
         setUser(null);
         return;
       }
 
-      const body = (await response.json()) as { user?: AdminUserDetail };
       const nextUser = body.user ?? null;
       setUser(nextUser);
       if (nextUser) {

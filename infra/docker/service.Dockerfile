@@ -103,5 +103,6 @@ ENV NODE_ENV=production
 
 USER node
 
-EXPOSE 4000
+ARG SERVICE_PORT=4000
+EXPOSE ${SERVICE_PORT}
 CMD ["sh", "-c", "node services/${SERVICE_NAME}/dist/index.js"]

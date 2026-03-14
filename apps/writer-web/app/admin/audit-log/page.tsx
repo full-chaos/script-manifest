@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { SkeletonCard } from "../../components/skeleton";
 import { EmptyState } from "../../components/emptyState";
 import { EmptyIllustration } from "../../components/illustrations";
@@ -89,6 +89,8 @@ export default function AdminAuditLogPage() {
 
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
+  const mounted = useRef(false);
+
   const totalPages = Math.max(1, Math.ceil(total / PAGE_LIMIT));
 
   const fetchEntries = useCallback(
@@ -128,9 +130,11 @@ export default function AdminAuditLogPage() {
   );
 
   useEffect(() => {
-    void fetchEntries(1);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (!mounted.current) {
+      mounted.current = true;
+      void fetchEntries(1);
+    }
+  }, [fetchEntries]);
 
   function handleApplyFilters() {
     setPage(1);

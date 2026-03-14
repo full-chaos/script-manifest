@@ -53,7 +53,11 @@ describe("SignInPage", () => {
     );
 
     const stored = window.localStorage.getItem("script_manifest_session");
-    expect(stored).toContain("sess_1");
+    // Token is stored in an HttpOnly cookie by the BFF, not in localStorage.
+    // localStorage holds non-sensitive user info only (token field is blank string).
+    expect(stored).not.toBeNull();
+    expect(JSON.parse(stored!).user.id).toBe("user_1");
+    expect(JSON.parse(stored!).token).toBe(""); // token stripped from localStorage
   });
 
   it("shows error state when login fails", async () => {
@@ -119,7 +123,11 @@ describe("SignInPage", () => {
       "/api/v1/auth/oauth/google/start",
       expect.objectContaining({ method: "POST" })
     );
-    expect(window.localStorage.getItem("script_manifest_session")).toContain("oauth_sess_1");
+    const oauthStored = window.localStorage.getItem("script_manifest_session");
+    // Token is stored in an HttpOnly cookie by the BFF, not in localStorage.
+    expect(oauthStored).not.toBeNull();
+    expect(JSON.parse(oauthStored!).user.id).toBe("user_oauth");
+    expect(JSON.parse(oauthStored!).token).toBe(""); // token stripped from localStorage
   });
 });
 

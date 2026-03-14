@@ -32,8 +32,8 @@ test("encrypted value contains two colons (iv:authTag:ciphertext format)", () =>
     const encrypted = encryptSecret("test-secret");
     const parts = encrypted.split(":");
     assert.equal(parts.length, 3);
-    assert.equal(parts[0].length, IV_LENGTH_HEX);
-    assert.equal(parts[1].length, AUTH_TAG_LENGTH_HEX);
+    assert.equal(parts[0]!.length, IV_LENGTH_HEX);
+    assert.equal(parts[1]!.length, AUTH_TAG_LENGTH_HEX);
   });
 });
 

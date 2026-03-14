@@ -26,7 +26,9 @@ export function decryptSecret(encrypted: string): string {
   // Support plaintext fallback for unencrypted legacy secrets
   if (!encrypted.includes(":")) return encrypted;
   const key = getEncryptionKey();
-  const [ivHex, authTagHex, ciphertextHex] = encrypted.split(":");
+  const parts = encrypted.split(":");
+  if (parts.length !== 3) return encrypted; // treat as legacy plaintext
+  const [ivHex, authTagHex, ciphertextHex] = parts as [string, string, string];
   const iv = Buffer.from(ivHex, "hex");
   const authTag = Buffer.from(authTagHex, "hex");
   const ciphertext = Buffer.from(ciphertextHex, "hex");

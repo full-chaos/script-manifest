@@ -31,6 +31,35 @@ export function validateRequiredEnv(vars: string[]): void {
  * @param vars - Array of environment variable names to check.
  * @param serviceName - Optional service name prefix for the warning message.
  */
+/**
+ * Validates that environment variables containing URLs are parseable.
+ *
+ * Checks each variable (if set and non-empty) against the URL constructor.
+ * Throws an Error listing all invalid URLs with the variable name so the
+ * operator knows exactly which env var is misconfigured.
+ *
+ * Skips variables that are not set — use {@link validateRequiredEnv} to
+ * enforce presence separately.
+ *
+ * @param vars - Array of environment variable names expected to hold URLs.
+ * @throws {Error} If any of the set variables contain unparseable URLs.
+ */
+export function validateUrlEnv(vars: string[]): void {
+  const invalid: string[] = [];
+  for (const name of vars) {
+    const value = process.env[name];
+    if (!value) continue; // not set — presence is checked by validateRequiredEnv
+    try {
+      new URL(value);
+    } catch {
+      invalid.push(`${name}="${value}"`);
+    }
+  }
+  if (invalid.length > 0) {
+    throw new Error(`Invalid URL in environment variables: ${invalid.join(", ")}`);
+  }
+}
+
 export function warnMissingEnv(vars: string[], serviceName?: string): void {
   const missing = vars.filter((v) => !process.env[v]);
   if (missing.length > 0) {

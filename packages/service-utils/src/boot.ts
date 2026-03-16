@@ -77,6 +77,27 @@ export function bootstrapService(name: string): BootLogger {
     logger.info("received SIGINT, shutting down");
   });
 
+  // ── URL env var validation ─────────────────────────────────────────
+  // Scan all env vars whose name ends with _URL and verify they are
+  // parseable. This catches misconfigured URLs early with a clear
+  // message naming the offending variable, instead of the unhelpful
+  // "TypeError: Invalid URL" that Node's URL constructor throws deep
+  // inside third-party libraries (pg, kafkajs, OTel, Sentry, etc.).
+  const invalidUrls: string[] = [];
+  for (const [key, value] of Object.entries(process.env)) {
+    if (!key.endsWith("_URL") || !value) continue;
+    try {
+      new URL(value);
+    } catch {
+      invalidUrls.push(`${key}="${value}"`);
+    }
+  }
+  if (invalidUrls.length > 0) {
+    const msg = `Invalid URL environment variable(s): ${invalidUrls.join(", ")}`;
+    logger.fatal(msg);
+    throw new Error(msg);
+  }
+
   // ── Milestone logger ────────────────────────────────────────────────
   return {
     phase(msg: string) {

@@ -35,7 +35,11 @@ export function buildServer(options: NotificationServiceOptions = {}): FastifyIn
   server.addHook("onReady", async () => {
     await repository.init();
     await adminRepository.init();
-    stopConsumer = await startConsumer(repository, server.log);
+    // Start Kafka consumer in the background so it doesn't block the
+    // onReady hook (and health checks) while KafkaJS retries connection.
+    startConsumer(repository, server.log)
+      .then((stop) => { stopConsumer = stop; })
+      .catch((err) => { server.log.error({ err }, "kafka consumer failed to start"); });
   });
 
   server.addHook("onClose", async () => {

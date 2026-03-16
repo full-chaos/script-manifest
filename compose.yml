@@ -130,9 +130,11 @@ services:
       traefik.enable: "true"
       traefik.http.routers.minio-api.rule: "Host(`minio.localhost`)"
       traefik.http.routers.minio-api.entrypoints: "web"
+      traefik.http.routers.minio-api.service: "minio-api"
       traefik.http.services.minio-api.loadbalancer.server.port: "9000"
       traefik.http.routers.minio-console.rule: "Host(`minio-console.localhost`)"
       traefik.http.routers.minio-console.entrypoints: "web"
+      traefik.http.routers.minio-console.service: "minio-console"
       traefik.http.services.minio-console.loadbalancer.server.port: "9001"
     volumes:
       - minio_data:/data

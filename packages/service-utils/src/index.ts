@@ -1,4 +1,4 @@
-export { validateRequiredEnv, warnMissingEnv } from "./env.js";
+export { validateRequiredEnv, validateUrlEnv, warnMissingEnv } from "./env.js";
 export { registerMetrics } from "./metrics.js";
 export { bootstrapService, type BootLogger } from "./boot.js";
 export { setupErrorReporting } from "./errorReporting.js";

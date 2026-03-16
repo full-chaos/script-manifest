@@ -26,15 +26,16 @@ services:
     image: traefik:v3.6.10
     container_name: manifest-traefik
     command:
-      - --api.insecure=false
+      - --api.insecure=true
       - --ping=true
       - --providers.docker=true
       - --providers.docker.exposedbydefault=false
-      - --providers.docker.network=public
+      - --providers.docker.network=script-manifest_public
       - --entrypoints.web.address=:9100
       - --entrypoints.traefik.address=:8080
     ports:
       - "${TRAEFIK_PORT:-9100}:9100"
+      - "8989:8080"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     healthcheck:
@@ -129,9 +130,11 @@ services:
       traefik.enable: "true"
       traefik.http.routers.minio-api.rule: "Host(`minio.localhost`)"
       traefik.http.routers.minio-api.entrypoints: "web"
+      traefik.http.routers.minio-api.service: "minio-api"
       traefik.http.services.minio-api.loadbalancer.server.port: "9000"
       traefik.http.routers.minio-console.rule: "Host(`minio-console.localhost`)"
       traefik.http.routers.minio-console.entrypoints: "web"
+      traefik.http.routers.minio-console.service: "minio-console"
       traefik.http.services.minio-console.loadbalancer.server.port: "9001"
     volumes:
       - minio_data:/data
@@ -164,6 +167,12 @@ services:
       - --advertise-kafka-addr=PLAINTEXT://redpanda:9092
       - --pandaproxy-addr=0.0.0.0:8082
       - --advertise-pandaproxy-addr=redpanda:8082
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9644/v1/status/ready || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
     networks:
       - internal
 
@@ -173,7 +182,8 @@ services:
     container_name: manifest-redpanda-console
 
     depends_on:
-      - redpanda
+      redpanda:
+        condition: service_healthy
     environment:
       KAFKA_BROKERS: redpanda:9092
     networks:
@@ -190,8 +200,8 @@ services:
     networks:
       - internal
       - public
-    ports:
-      - "${MAILPIT_SMTP_PORT:-1025}:1025"
+    # ports:
+    #   - "${MAILPIT_SMTP_PORT:-1025}:1025"
     labels:
       traefik.enable: "true"
       traefik.http.routers.mailpit.rule: "Host(`mailpit.localhost`)"
@@ -238,7 +248,7 @@ services:
   # UI: http://bugsink.localhost:9100
   bugsink:
     # Pinned: BugSink 0.6.2
-    image: bugsink/bugsink:0.6.2
+    image: bugsink/bugsink:latest
     container_name: manifest-bugsink
     environment:
       DATABASE_URL: "postgresql://manifest:manifest@postgres:5432/bugsink"
@@ -334,7 +344,7 @@ services:
       postgres:
         condition: service_healthy
       redpanda:
-        condition: service_started
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:4010/health || exit 1"]
       interval: 10s
@@ -734,7 +744,7 @@ services:
       /workspace/scripts/run-with-log.sh writer-web sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/writer-web dev"
     labels:
       traefik.enable: "true"
-      traefik.http.routers.writer.rule: "Host(`writer.localhost`)"
+      traefik.http.routers.writer.rule: "Host(`localhost`)"
       traefik.http.routers.writer.entrypoints: "web"
       traefik.http.services.writer.loadbalancer.server.port: "3000"
     depends_on:
@@ -744,6 +754,13 @@ services:
         condition: service_started
       script-storage-service:
         condition: service_started
+    healthcheck:
+      test:
+        ["CMD-SHELL", "curl -sf http://localhost:3000/health/live || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 180s
     networks:
       - public
       - internal

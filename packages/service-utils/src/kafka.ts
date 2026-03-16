@@ -9,7 +9,9 @@ export function getKafkaClient(): Kafka | null {
     _kafka = new Kafka({
       clientId: "script-manifest",
       brokers: brokers.split(","),
-      retry: { retries: 3 },
+      connectionTimeout: 5_000,
+      requestTimeout: 30_000,
+      retry: { retries: 3, initialRetryTime: 300, maxRetryTime: 5_000 },
     });
   }
   return _kafka;

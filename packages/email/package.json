@@ -13,7 +13,7 @@
   },
   "dependencies": {
     "nodemailer": "^8.0.2",
-    "resend": "^6.9.3"
+    "resend": "^6.9.4"
   },
   "devDependencies": {
     "@types/node": "^25.5.0",

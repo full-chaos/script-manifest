@@ -14,64 +14,39 @@ permissions:
 jobs:
   build:
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       max-parallel: 4
       matrix:
+        platform:
+          - linux/amd64
+          - linux/arm64
         include:
-          - name: api-gateway
-            dockerfile: infra/docker/service.Dockerfile
-            context: .
-          - name: competition-directory-service
-            dockerfile: infra/docker/service.Dockerfile
-            context: .
-          - name: coverage-marketplace-service
-            dockerfile: infra/docker/service.Dockerfile
-            context: .
-          - name: feedback-exchange-service
-            dockerfile: infra/docker/service.Dockerfile
-            context: .
-          - name: industry-portal-service
-            dockerfile: infra/docker/service.Dockerfile
-            context: .
-          - name: identity-service
-            dockerfile: infra/docker/service.Dockerfile
-            context: .
-          - name: notification-service
-            dockerfile: infra/docker/service.Dockerfile
-            context: .
-          - name: programs-service
-            dockerfile: infra/docker/service.Dockerfile
-            context: .
-          - name: partner-dashboard-service
-            dockerfile: infra/docker/service.Dockerfile
-            context: .
-          - name: profile-project-service
-            dockerfile: infra/docker/service.Dockerfile
-            context: .
-          - name: ranking-service
-            dockerfile: infra/docker/service.Dockerfile
-            context: .
-          - name: script-storage-service
-            dockerfile: infra/docker/service.Dockerfile
-            context: .
-          - name: search-indexer-service
-            dockerfile: infra/docker/service.Dockerfile
-            context: .
-          - name: submission-tracking-service
-            dockerfile: infra/docker/service.Dockerfile
-            context: .
-          - name: writer-web
-            dockerfile: infra/docker/frontend.Dockerfile
-            context: .
+          - platform: linux/amd64
+            runner: ubuntu-latest
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+        name:
+          - api-gateway
+          - competition-directory-service
+          - coverage-marketplace-service
+          - feedback-exchange-service
+          - industry-portal-service
+          - identity-service
+          - notification-service
+          - programs-service
+          - partner-dashboard-service
+          - profile-project-service
+          - ranking-service
+          - script-storage-service
+          - search-indexer-service
+          - submission-tracking-service
+          - writer-web
 
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4
@@ -88,25 +63,108 @@ jobs:
         uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6
         with:
           images: ghcr.io/full-chaos/script-manifest/${{ matrix.name }}
+
+      - name: Resolve Dockerfile
+        id: dockerfile
+        run: |
+          if [ "${{ matrix.name }}" = "writer-web" ]; then
+            echo "path=infra/docker/frontend.Dockerfile" >> "$GITHUB_OUTPUT"
+          else
+            echo "path=infra/docker/service.Dockerfile" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7
+        with:
+          context: .
+          file: ${{ steps.dockerfile.outputs.path }}
+          platforms: ${{ matrix.platform }}
+          outputs: type=image,push-by-digest=true,name-canonical=true,push=true
+          tags: ghcr.io/full-chaos/script-manifest/${{ matrix.name }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            SERVICE_NAME=${{ matrix.name }}
+          cache-from: type=gha,scope=${{ matrix.name }}-${{ matrix.platform }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}-${{ matrix.platform }},ignore-error=true
+
+      - name: Export digest
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+
+      - name: Upload digest
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
+        with:
+          name: digests-${{ matrix.name }}-${{ strategy.job-index }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  merge:
+    name: Merge Manifests
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: api-gateway
+          - name: competition-directory-service
+          - name: coverage-marketplace-service
+          - name: feedback-exchange-service
+          - name: industry-portal-service
+          - name: identity-service
+          - name: notification-service
+          - name: programs-service
+          - name: partner-dashboard-service
+          - name: profile-project-service
+          - name: ranking-service
+          - name: script-storage-service
+          - name: search-indexer-service
+          - name: submission-tracking-service
+          - name: writer-web
+
+    steps:
+      - name: Download digests
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          path: /tmp/digests
+          pattern: digests-${{ matrix.name }}-*
+          merge-multiple: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6
+        with:
+          images: ghcr.io/full-chaos/script-manifest/${{ matrix.name }}
           tags: |
             type=sha,prefix=
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=raw,value=latest,enable={{is_default_branch}}
 
-      - name: Build and push
-        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7
+      - name: Login to GHCR
+        uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 # v4
         with:
-          context: ${{ matrix.context }}
-          file: ${{ matrix.dockerfile }}
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          build-args: |
-            SERVICE_NAME=${{ matrix.name }}
-          cache-from: type=gha,scope=${{ matrix.name }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.name }},ignore-error=true
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create manifest list and push
+        working-directory: /tmp/digests
+        run: |
+          docker buildx imagetools create $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
+            $(printf 'ghcr.io/full-chaos/script-manifest/${{ matrix.name }}@sha256:%s ' *)
+
+      - name: Inspect image
+        run: |
+          docker buildx imagetools inspect ghcr.io/full-chaos/script-manifest/${{ matrix.name }}:${{ steps.meta.outputs.version }}
 
       - name: Scan image with Trivy
         id: trivy-scan

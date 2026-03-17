@@ -98,7 +98,7 @@ export function SiteHeader() {
           ) : null}
           <button
             type="button"
-            className="btn-secondary !p-2"
+            className="btn btn-secondary p-2!"
             aria-expanded={mobileOpen}
             aria-controls="mobile-primary-nav"
             aria-label={mobileOpen ? "Close menu" : "Open menu"}

@@ -80,7 +80,7 @@ export function BugReportWidget() {
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}
-        className="fixed bottom-5 right-5 z-50 flex h-12 w-12 items-center justify-center rounded-full border border-ember-700 bg-gradient-to-br from-ember-500 to-ember-700 text-white shadow-panel transition hover:-translate-y-0.5 hover:shadow-lg"
+        className="fixed bottom-5 right-5 z-50 flex h-12 w-12 items-center justify-center rounded-full border border-ember-700 bg-linear-to-br from-ember-500 to-ember-700 text-white shadow-panel transition hover:-translate-y-0.5 hover:shadow-lg"
         aria-label={open ? "Close bug report" : "Report a bug"}
         aria-expanded={open}
         aria-controls="bug-report-panel"

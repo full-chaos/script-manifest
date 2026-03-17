@@ -1,11 +1,12 @@
 # Deployment Guide
 
-Script Manifest currently ships two Compose-based deployment modes:
+Script Manifest ships deployment assets in three places:
 
 - `compose.yml` for local development and service-by-service work
 - `compose.prod.yml` for production-like image-based runs
+- `deploy/` for Swarm and Helm deployment templates
 
-The approved deployment design also describes future Docker Swarm and Kubernetes targets. Those configuration directories are not present yet, so this guide focuses on the deployment surfaces that exist in the repository today and calls out the intended production wiring where it matters.
+The Swarm stack and Helm chart scaffold are already present in the repo. This guide documents the implemented surfaces and the environment they expect.
 
 ## Local Deployment
 
@@ -80,6 +81,63 @@ For Google sign-in, the callback URL must match the public identity-service URL:
 
 If `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are blank, the identity service falls back to the local mock OAuth flow.
 
+## Swarm Deployment Assets
+
+The Swarm implementation lives under [deploy/swarm](../deploy/swarm) and is indexed from [deploy/README.md](../deploy/README.md).
+
+Files present:
+
+- [deploy/swarm/stack.yml](../deploy/swarm/stack.yml)
+- [deploy/swarm/stack.staging.yml](../deploy/swarm/stack.staging.yml)
+
+What it provides:
+
+- Production-like Swarm stack configuration
+- Staging overlay for the same stack
+- Manager and worker placement constraints
+- Traefik ingress
+- PostgreSQL, Redis, OpenSearch, MinIO, Redpanda, Prometheus, and Alertmanager
+
+Usage:
+
+```bash
+docker swarm init
+docker stack deploy -c deploy/swarm/stack.yml script-manifest
+docker stack deploy -c deploy/swarm/stack.yml -c deploy/swarm/stack.staging.yml script-manifest
+```
+
+The stack expects a `.env` file on the manager node with the required secrets.
+
+## Helm Deployment Assets
+
+The Helm implementation lives under [deploy/helm/script-manifest](../deploy/helm/script-manifest) and is indexed from [deploy/README.md](../deploy/README.md).
+
+Files present:
+
+- [deploy/helm/script-manifest/Chart.yaml](../deploy/helm/script-manifest/Chart.yaml)
+- [deploy/helm/script-manifest/values.yaml](../deploy/helm/script-manifest/values.yaml)
+- [deploy/helm/script-manifest/templates/_helpers.tpl](../deploy/helm/script-manifest/templates/_helpers.tpl)
+- [deploy/helm/script-manifest/templates/namespace.yaml](../deploy/helm/script-manifest/templates/namespace.yaml)
+- [deploy/helm/script-manifest/templates/NOTES.txt](../deploy/helm/script-manifest/templates/NOTES.txt)
+- [deploy/helm/script-manifest/.helmignore](../deploy/helm/script-manifest/.helmignore)
+- [deploy/helm/script-manifest/charts/notification-service](../deploy/helm/script-manifest/charts/notification-service)
+
+What it provides:
+
+- An umbrella chart named `script-manifest`
+- Local defaults for registry, image tag, and environment
+- Optional PostgreSQL and Redis Bitnami dependencies
+- A first service subchart for `notification-service`
+- Namespace creation and release notes
+
+Usage:
+
+```bash
+helm lint deploy/helm/script-manifest
+helm template sm deploy/helm/script-manifest -f deploy/helm/script-manifest/values.yaml
+helm install sm deploy/helm/script-manifest -f deploy/helm/script-manifest/values.yaml -n script-manifest-local --create-namespace
+```
+
 ## Recommended Deployment Checks
 
 1. Validate the rendered Compose config before starting:
@@ -113,13 +171,3 @@ If `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are blank, the identity service
 - The writer web talks to the gateway through `API_GATEWAY_URL`.
 - Storage uploads must use a browser-reachable URL, not the internal MinIO endpoint.
 - In `compose.prod.yml`, the script-storage service reads its S3 secret from `MINIO_ROOT_PASSWORD`; the separate `STORAGE_S3_SECRET_KEY` env name is mainly for other deployment targets.
-
-## Future Targets
-
-The approved deployment design calls for:
-
-- Docker Swarm
-- Kubernetes with Helm
-- Kubernetes with generated raw manifests
-
-Those targets are documented in [the deployment design spec](superpowers/specs/2026-03-11-deployment-documentation-design.md) and can be implemented later without changing the current Compose guidance above.

@@ -15,6 +15,7 @@ Planning and phase documentation index:
 - `docs/phase-inventory.md`
 - `docs/setup.md`
 - `docs/deployment.md`
+- `deploy/README.md`
 
 ## Phase 0 Deliverables
 

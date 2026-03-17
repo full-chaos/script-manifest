@@ -13,6 +13,8 @@ Revisiting the writer ecosystem: portfolio hosting, competition tracking, rankin
 Planning and phase documentation index:
 - `docs/README.md`
 - `docs/phase-inventory.md`
+- `docs/setup.md`
+- `docs/deployment.md`
 
 ## Phase 0 Deliverables
 
@@ -54,3 +56,7 @@ Or run the local compose stack:
 ```bash
 docker compose -f compose.yml up -d
 ```
+
+For the full getting-started flow, including Google OAuth setup, see `docs/setup.md`.
+
+For deployment details, see `docs/deployment.md`.

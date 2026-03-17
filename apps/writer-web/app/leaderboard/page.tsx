@@ -229,7 +229,7 @@ export default function LeaderboardPage() {
                     <span className={`text-sm font-bold ${entry.rank <= 3 ? "text-primary-dark dark:text-primary" : "text-muted"}`}>
                       #{entry.rank}
                     </span>
-                    <span className={`flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br text-sm font-bold text-white ${avatarGradient(entry.writerId)}`}>
+                    <span className={`flex h-11 w-11 items-center justify-center rounded-full bg-linear-to-br text-sm font-bold text-white ${avatarGradient(entry.writerId)}`}>
                       {writerInitials(entry.writerId)}
                     </span>
                   </div>
@@ -246,7 +246,7 @@ export default function LeaderboardPage() {
                     <div className="mt-1.5 flex items-center gap-2">
                       <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-ink-500/10">
                         <div
-                          className="h-full rounded-full bg-gradient-to-r from-ember-500 to-ember-700 transition-all"
+                          className="h-full rounded-full bg-linear-to-r from-ember-500 to-ember-700 transition-all"
                           style={{ width: `${pct}%` }}
                         />
                       </div>

@@ -8,13 +8,13 @@ import { WebVitals } from "./components/WebVitals";
 
 const displayFont = Cormorant_Garamond({
   subsets: ["latin"],
-  variable: "--font-display",
+  variable: "--font-display-face",
   weight: ["500", "600", "700"]
 });
 
 const bodyFont = Manrope({
   subsets: ["latin"],
-  variable: "--font-body",
+  variable: "--font-body-face",
   weight: ["400", "500", "600", "700"]
 });
 

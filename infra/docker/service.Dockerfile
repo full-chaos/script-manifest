@@ -59,7 +59,9 @@ RUN pnpm build --filter=@script-manifest/${SERVICE_NAME}...
 
 # ── Stage 3: Production runtime ──────────────────────────────────────
 FROM node:25-alpine AS runner
-RUN apk add --no-cache curl
+RUN apk update \
+ && apk upgrade --no-cache zlib \
+ && apk add --no-cache curl
 ENV NPM_CONFIG_REGISTRY=https://registry.npmjs.org/ \
     NPM_CONFIG_FETCH_RETRIES=5 \
     NPM_CONFIG_FETCH_RETRY_FACTOR=2 \
@@ -92,6 +94,9 @@ RUN --mount=type=cache,id=pnpm-store-${SERVICE_NAME},target=/pnpm/store,sharing=
       sleep $((attempt * 5)); \
     done; \
     exit 1'
+
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/pnpm \
+ && rm -f /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/pnpm /usr/local/bin/pnpx
 
 # Copy compiled output from all packages in the pruned workspace
 COPY --from=builder /app/packages/ ./packages/

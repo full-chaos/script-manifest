@@ -57,6 +57,10 @@ RUN pnpm build --filter=@script-manifest/writer-web...
 
 # ── Stage 3: Production runtime ──────────────────────────────────────
 FROM node:25-alpine AS runner
+RUN apk update \
+ && apk upgrade --no-cache zlib \
+ && rm -rf /usr/local/lib/node_modules/npm \
+ && rm -f /usr/local/bin/npm /usr/local/bin/npx
 
 WORKDIR /app
 ENV NODE_ENV=production

@@ -137,6 +137,7 @@ export default function SignInPage() {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
+          redirectUri: `${window.location.origin}${window.location.pathname}`,
           loginHint: email.trim() || displayName.trim() || "writer"
         })
       });

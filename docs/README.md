@@ -4,6 +4,8 @@
 
 - Master rebuild plan: `docs/plan.md`
 - Phase inventory and status matrix: `docs/phase-inventory.md`
+- Setup guide: `docs/setup.md`
+- Deployment guide: `docs/deployment.md`
 
 ## Phase Docs
 

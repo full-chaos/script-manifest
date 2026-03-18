@@ -18,13 +18,18 @@ To enable real Google OAuth:
 1. Create a project in [Google Cloud Console](https://console.cloud.google.com/).
 2. Enable the **Google Identity** API.
 3. Under **Credentials**, create an **OAuth 2.0 Client ID** (Web application).
-4. Add `http://localhost:4005/internal/auth/oauth/google/callback` (dev) and your production callback URL as authorized redirect URIs.
-5. Set environment variables:
+4. Add the browser redirect URL as an authorized redirect URI:
+   - Local example: `http://localhost:3000/signin`
+   - Production example: `https://scripts.example.com/signin`
+5. If you want to pin that redirect target centrally, set `GOOGLE_REDIRECT_URI`.
+6. Set environment variables:
    ```
    GOOGLE_CLIENT_ID=<your-client-id>
    GOOGLE_CLIENT_SECRET=<your-client-secret>
+   GOOGLE_REDIRECT_URI=https://scripts.example.com/signin
+   IDENTITY_SERVICE_PUBLIC_URL=https://<your-public-identity-service-host>
    ```
-6. When both env vars are set, the identity service uses the real Google flow. When unset, it falls back to the mock scaffold for local development.
+7. When `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are both set, the identity service uses the real Google flow. When either is unset, it falls back to the mock scaffold for local development.
 
 ## Notes
 

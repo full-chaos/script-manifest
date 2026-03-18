@@ -82,6 +82,7 @@ export function buildServer(options: IdentityServiceOptions = {}): FastifyInstan
   });
   const oauthIssuerBase =
     process.env.IDENTITY_SERVICE_PUBLIC_URL ?? `http://localhost:${process.env.PORT ?? "4005"}`;
+  const googleRedirectUriDefault = process.env.GOOGLE_REDIRECT_URI ?? "";
 
   const googleClientId = process.env.GOOGLE_CLIENT_ID ?? "";
   const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET ?? "";
@@ -452,21 +453,22 @@ export function buildServer(options: IdentityServiceOptions = {}): FastifyInstan
     const state = createOpaqueToken();
     const { codeVerifier, codeChallenge } = generatePKCE();
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+    const requestedRedirectUri = parsedBody.data.redirectUri || undefined;
+    const defaultCallbackUrl = new URL(`/internal/auth/oauth/${provider}/callback`, oauthIssuerBase).toString();
+    const oauthRedirectUri = requestedRedirectUri ?? (googleRedirectUriDefault || defaultCallbackUrl);
 
     if (useRealGoogle && provider === "google") {
       // Real Google OAuth flow
-      const callbackUrl = new URL(`/internal/auth/oauth/${provider}/callback`, oauthIssuerBase);
-
       await repository.saveOAuthState(state, {
         codeVerifier,
         provider,
-        redirectUri: parsedBody.data.redirectUri || undefined,
+        redirectUri: oauthRedirectUri,
         expiresAt
       });
 
       const authorizationUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
       authorizationUrl.searchParams.set("client_id", googleClientId);
-      authorizationUrl.searchParams.set("redirect_uri", callbackUrl.toString());
+      authorizationUrl.searchParams.set("redirect_uri", oauthRedirectUri);
       authorizationUrl.searchParams.set("response_type", "code");
       authorizationUrl.searchParams.set("scope", "openid email profile");
       authorizationUrl.searchParams.set("state", state);
@@ -477,7 +479,7 @@ export function buildServer(options: IdentityServiceOptions = {}): FastifyInstan
       const payload = OAuthStartResponseSchema.parse({
         provider,
         state,
-        callbackUrl: callbackUrl.toString(),
+        callbackUrl: oauthRedirectUri,
         authorizationUrl: authorizationUrl.toString(),
         codeChallenge,
         expiresAt
@@ -493,7 +495,7 @@ export function buildServer(options: IdentityServiceOptions = {}): FastifyInstan
     await repository.saveOAuthState(state, {
       codeVerifier,
       provider,
-      redirectUri: parsedBody.data.redirectUri || undefined,
+      redirectUri: requestedRedirectUri,
       mockEmail: identity.email,
       mockDisplayName: identity.displayName,
       mockCode,
@@ -809,7 +811,7 @@ async function completeOAuthSession(
   useRealGoogle: boolean,
   googleClientId: string,
   googleClientSecret: string,
-  callbackUrl: string
+  fallbackCallbackUrl: string
 ): Promise<
   | { payload: ReturnType<typeof AuthSessionResponseSchema.parse> }
   | { error: string; statusCode: number }
@@ -826,13 +828,14 @@ async function completeOAuthSession(
   if (stored.provider !== provider) {
     return { error: "oauth_provider_mismatch", statusCode: 400 };
   }
+  const redirectUri = stored.redirectUri || fallbackCallbackUrl;
 
   let email: string;
   let displayName: string;
 
   if (useRealGoogle && provider === "google") {
     // Real Google: exchange authorization code for user info
-    const googleResult = await exchangeGoogleCode(input.code, googleClientId, googleClientSecret, callbackUrl, stored.codeVerifier);
+    const googleResult = await exchangeGoogleCode(input.code, googleClientId, googleClientSecret, redirectUri, stored.codeVerifier);
     if ("error" in googleResult) {
       return { error: googleResult.error, statusCode: 400 };
     }

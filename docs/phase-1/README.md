@@ -48,6 +48,12 @@ Or boot infra + app services together:
 docker compose -f compose.yml up -d
 ```
 
+## Setup
+
+For a single place to follow the local bootstrap, environment, and Google OAuth steps, see:
+
+- [`docs/setup.md`](../setup.md)
+
 ## Auth + Profile/Project CRUD (Issue #29)
 
 Identity service endpoints (`:4005`):
@@ -79,6 +85,9 @@ Writer web pages now wired to the gateway:
 
 Profile user guide:
 - `/Users/chris/projects/script-manifest/docs/phase-1/profile-fields-user-manual.md`
+
+OAuth sign-in guide:
+- [`oauth-signin-user-manual.md`](oauth-signin-user-manual.md)
 
 ## Test Coverage Additions
 

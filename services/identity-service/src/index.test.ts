@@ -13,6 +13,68 @@ import { BaseMemoryRepository } from "@script-manifest/service-utils";
 import { buildServer } from "./index.js";
 import { hashPassword } from "./repository.js";
 
+test("identity oauth start uses request redirectUri for real google flow", async (t) => {
+  const originalClientId = process.env.GOOGLE_CLIENT_ID;
+  const originalClientSecret = process.env.GOOGLE_CLIENT_SECRET;
+  const originalRedirectUri = process.env.GOOGLE_REDIRECT_URI;
+  process.env.GOOGLE_CLIENT_ID = "client-id";
+  process.env.GOOGLE_CLIENT_SECRET = "client-secret";
+  delete process.env.GOOGLE_REDIRECT_URI;
+
+  const server = buildServer({ logger: false, repository: new MemoryRepo() });
+  t.after(async () => {
+    await server.close();
+    if (originalClientId === undefined) delete process.env.GOOGLE_CLIENT_ID;
+    else process.env.GOOGLE_CLIENT_ID = originalClientId;
+    if (originalClientSecret === undefined) delete process.env.GOOGLE_CLIENT_SECRET;
+    else process.env.GOOGLE_CLIENT_SECRET = originalClientSecret;
+    if (originalRedirectUri === undefined) delete process.env.GOOGLE_REDIRECT_URI;
+    else process.env.GOOGLE_REDIRECT_URI = originalRedirectUri;
+  });
+
+  const redirectUri = "https://scripts.example.com/signin";
+  const start = await server.inject({
+    method: "POST",
+    url: "/internal/auth/oauth/google/start",
+    payload: { redirectUri }
+  });
+  assert.equal(start.statusCode, 201);
+  const startPayload = start.json();
+  const authorizationUrl = new URL(startPayload.authorizationUrl as string);
+  assert.equal(authorizationUrl.searchParams.get("redirect_uri"), redirectUri);
+  assert.equal(startPayload.callbackUrl, redirectUri);
+});
+
+test("identity oauth start falls back to GOOGLE_REDIRECT_URI for real google flow", async (t) => {
+  const originalClientId = process.env.GOOGLE_CLIENT_ID;
+  const originalClientSecret = process.env.GOOGLE_CLIENT_SECRET;
+  const originalRedirectUri = process.env.GOOGLE_REDIRECT_URI;
+  process.env.GOOGLE_CLIENT_ID = "client-id";
+  process.env.GOOGLE_CLIENT_SECRET = "client-secret";
+  process.env.GOOGLE_REDIRECT_URI = "https://scripts.example.com/signin";
+
+  const server = buildServer({ logger: false, repository: new MemoryRepo() });
+  t.after(async () => {
+    await server.close();
+    if (originalClientId === undefined) delete process.env.GOOGLE_CLIENT_ID;
+    else process.env.GOOGLE_CLIENT_ID = originalClientId;
+    if (originalClientSecret === undefined) delete process.env.GOOGLE_CLIENT_SECRET;
+    else process.env.GOOGLE_CLIENT_SECRET = originalClientSecret;
+    if (originalRedirectUri === undefined) delete process.env.GOOGLE_REDIRECT_URI;
+    else process.env.GOOGLE_REDIRECT_URI = originalRedirectUri;
+  });
+
+  const start = await server.inject({
+    method: "POST",
+    url: "/internal/auth/oauth/google/start"
+  });
+  assert.equal(start.statusCode, 201);
+  const startPayload = start.json();
+  const authorizationUrl = new URL(startPayload.authorizationUrl as string);
+  assert.equal(authorizationUrl.searchParams.get("redirect_uri"), "https://scripts.example.com/signin");
+  assert.equal(startPayload.callbackUrl, "https://scripts.example.com/signin");
+});
+
 class MemoryRepo extends BaseMemoryRepository implements IdentityRepository {
   private users = new Map<string, IdentityUser>();
   private usersByEmail = new Map<string, string>();

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
 import type { AuthSessionResponse } from "@script-manifest/contracts";
 import {
   clearStoredSession,
@@ -14,6 +15,7 @@ import { PasswordStrengthMeter } from "../components/PasswordStrengthMeter";
 type AuthMode = "register" | "login";
 
 export default function SignInPage() {
+  const router = useRouter();
   const [mode, setMode] = useState<AuthMode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -61,7 +63,7 @@ export default function SignInPage() {
       writeStoredSession(completeBody as AuthSessionResponse);
       setSession(completeBody as AuthSessionResponse);
       setPassword("");
-      setStatus("Signed in with Google.");
+      router.replace("/");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "unknown_error");
     } finally {
@@ -104,10 +106,7 @@ export default function SignInPage() {
       writeStoredSession(body as AuthSessionResponse);
       setSession(body as AuthSessionResponse);
       setPassword("");
-      setStatus(mode === "register" ? "Account created." : "Signed in.");
-      if (mode === "login") {
-        setFailureCount(0);
-      }
+      router.replace("/");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "unknown_error");
     } finally {
@@ -176,7 +175,7 @@ export default function SignInPage() {
       writeStoredSession(callbackBody as AuthSessionResponse);
       setSession(callbackBody as AuthSessionResponse);
       setPassword("");
-      setStatus("Signed in with Google.");
+      router.replace("/");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "unknown_error");
     } finally {

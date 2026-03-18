@@ -3,6 +3,11 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import SignInPage from "./page";
 
+const mockReplace = vi.fn();
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: mockReplace, push: vi.fn(), back: vi.fn(), refresh: vi.fn() }),
+}));
+
 function jsonResponse(payload: unknown, status = 200): Response {
   return new Response(JSON.stringify(payload), {
     status,
@@ -14,6 +19,7 @@ describe("SignInPage", () => {
   beforeEach(() => {
     cleanup();
     window.localStorage.clear();
+    mockReplace.mockClear();
     vi.restoreAllMocks();
   });
 
@@ -135,6 +141,7 @@ describe("SignInPage lockout hints", () => {
   beforeEach(() => {
     cleanup();
     window.localStorage.clear();
+    mockReplace.mockClear();
     vi.restoreAllMocks();
   });
 

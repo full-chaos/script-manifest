@@ -36,6 +36,7 @@
   },
   "pnpm": {
     "overrides": {
+      "fast-xml-parser": "^5.5.6",
       "readdir-glob>minimatch": "^5.1.8"
     }
   }

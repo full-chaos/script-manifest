@@ -51,6 +51,7 @@ The identity service supports Google OAuth when both of these env vars are set:
 
 - `GOOGLE_CLIENT_ID`
 - `GOOGLE_CLIENT_SECRET`
+- `GOOGLE_REDIRECT_URI` optionally pins the browser return URL if the frontend does not send one explicitly
 
 When they are blank, the sign-in flow falls back to the mock OAuth scaffold used for local development.
 
@@ -64,22 +65,23 @@ When they are blank, the sign-in flow falls back to the mock OAuth scaffold used
 
 ### 2. Add redirect URIs
 
-Add the identity service callback URL as an authorized redirect URI:
+Add the browser redirect URL as an authorized redirect URI:
 
-- Local default: `http://localhost:4005/internal/auth/oauth/google/callback`
-- Production: `https://<your-public-identity-service-host>/internal/auth/oauth/google/callback`
+- Local example: `http://localhost:3000/signin`
+- Production example: `https://scripts.example.com/signin`
 
-If you deploy behind a proxy or custom domain, set `IDENTITY_SERVICE_PUBLIC_URL` to the public base URL the browser should see. The identity service uses that value to build the callback URL that gets registered with Google.
+The writer web now sends its own sign-in URL as the Google redirect target. If you want to pin that centrally, set `GOOGLE_REDIRECT_URI`.
 
 ### 3. Set environment variables
 
 ```bash
 GOOGLE_CLIENT_ID=<your-client-id>
 GOOGLE_CLIENT_SECRET=<your-client-secret>
+GOOGLE_REDIRECT_URI=https://scripts.example.com/signin
 IDENTITY_SERVICE_PUBLIC_URL=https://<your-public-identity-service-host>
 ```
 
-For local development, `IDENTITY_SERVICE_PUBLIC_URL` can stay at the default of `http://localhost:4005` if you are talking to the identity service directly.
+For local development, `GOOGLE_REDIRECT_URI` can point at your local sign-in page, and `IDENTITY_SERVICE_PUBLIC_URL` can stay at the identity-service host used for internal auth routes.
 
 ### 4. Restart the identity service
 

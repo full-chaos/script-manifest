@@ -61,6 +61,7 @@ The production stack expects these classes of values:
   - `MFA_ENCRYPTION_KEY`
   - `GOOGLE_CLIENT_ID`
   - `GOOGLE_CLIENT_SECRET`
+  - `GOOGLE_REDIRECT_URI`
   - `IDENTITY_SERVICE_PUBLIC_URL`
 - Web and gateway routing:
   - `API_DOMAIN`
@@ -75,9 +76,9 @@ The production stack expects these classes of values:
   - `STRIPE_WEBHOOK_SECRET`
   - `BUGSINK_SECRET_KEY`
 
-For Google sign-in, the callback URL must match the public identity-service URL:
+For Google sign-in, the browser redirect URL must match the Google OAuth client configuration:
 
-- `https://<your-public-identity-service-host>/internal/auth/oauth/google/callback`
+- `https://scripts.example.com/signin`
 
 If `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are blank, the identity service falls back to the local mock OAuth flow.
 
@@ -167,7 +168,7 @@ helm install sm deploy/helm/script-manifest -f deploy/helm/script-manifest/value
 
 - The production Compose file uses GHCR images for all application services.
 - The gateway and writer web run behind Traefik with HTTPS termination.
-- The identity service builds OAuth callback URLs from `IDENTITY_SERVICE_PUBLIC_URL`.
+- The identity service uses the request `redirectUri` or `GOOGLE_REDIRECT_URI` as the Google browser return URL.
 - The writer web talks to the gateway through `API_GATEWAY_URL`.
 - Storage uploads must use a browser-reachable URL, not the internal MinIO endpoint.
 - In `compose.prod.yml`, the script-storage service reads its S3 secret from `MINIO_ROOT_PASSWORD`; the separate `STORAGE_S3_SECRET_KEY` env name is mainly for other deployment targets.

@@ -12,7 +12,7 @@ x-node-dev: &node-dev
   logging: *json-logging
 
 x-telemetry-env: &telemetry-env
-  OTEL_EXPORTER_OTLP_ENDPOINT: "http://signoz-collection-agent:4318/v1/traces"
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://signoz-collection-agent:4317"
 
 networks:
   public:

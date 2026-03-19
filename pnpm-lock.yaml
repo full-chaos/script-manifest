@@ -43,8 +43,8 @@ importers:
   apps/writer-web:
     dependencies:
       '@linear/sdk':
-        specifier: ^76.0.0
-        version: 76.0.0(graphql@15.10.1)
+        specifier: ^77.0.0
+        version: 77.0.0(graphql@15.10.1)
       '@opentelemetry/auto-instrumentations-node':
         specifier: ^0.71.0
         version: 0.71.0(@opentelemetry/api@1.9.0)(@opentelemetry/core@2.6.0(@opentelemetry/api@1.9.0))
@@ -1725,8 +1725,8 @@ packages:
   '@js-sdsl/ordered-map@4.4.2':
     resolution: {integrity: sha512-iUKgm52T8HOE/makSxjqoWhe95ZJA1/G1sYsGev2JDKUSS14KAgg1LHb+Ba+IPow0xflbnSkOsZcO08C7w1gYw==}
 
-  '@linear/sdk@76.0.0':
-    resolution: {integrity: sha512-Xt0x5Kl6qBoWhGFypb8ykyP+c5kT7scmRPs1uJidSPOaRgkMJ/4y41QpmZCWCBUMmZtf/O0VktgQio6rLXT94w==}
+  '@linear/sdk@77.0.0':
+    resolution: {integrity: sha512-pI7ZNh/UZF12JoVhCi8tdubYnCp2DJ1hkraMA+kDyYqjU+elKOVd5yAdN/SoAR17V7Kg8dtDabgArjknvUnQSA==}
     engines: {node: '>=18.x'}
 
   '@lukeed/ms@2.0.2':
@@ -7456,7 +7456,7 @@ snapshots:
 
   '@js-sdsl/ordered-map@4.4.2': {}
 
-  '@linear/sdk@76.0.0(graphql@15.10.1)':
+  '@linear/sdk@77.0.0(graphql@15.10.1)':
     dependencies:
       '@graphql-typed-document-node/core': 3.2.0(graphql@15.10.1)
     transitivePeerDependencies:

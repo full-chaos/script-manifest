@@ -62,7 +62,7 @@ export async function healthCheck(databaseUrl?: string): Promise<{ database: boo
 
 export async function ensureCoreTables(): Promise<void> {
   const db = getPool();
-  const advisoryLockId = 71234567;
+  const advisoryLockId = 71234568;
   await db.query("SELECT pg_advisory_lock($1)", [advisoryLockId]);
 
   try {

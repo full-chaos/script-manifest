@@ -22,6 +22,7 @@ export type IdentityUser = {
   failedLoginAttempts: number;
   lockedUntil: string | null;
   mfaEnabled: boolean;
+  emailVerified: boolean;
 };
 
 export type IdentitySession = {
@@ -270,7 +271,8 @@ export class PgIdentityRepository implements IdentityRepository {
         accountStatus: user.account_status,
         failedLoginAttempts: user.failed_login_attempts,
         lockedUntil: user.locked_until,
-        mfaEnabled: false
+        mfaEnabled: false,
+        emailVerified: false
       };
     } catch (error) {
       await client.query("ROLLBACK");
@@ -298,9 +300,10 @@ export class PgIdentityRepository implements IdentityRepository {
       failed_login_attempts: number;
       locked_until: string | null;
       mfa_enabled: boolean;
+      email_verified: boolean;
     }>(
       `
-        SELECT id, email, display_name, password_hash, password_salt, role, account_status, failed_login_attempts, locked_until, mfa_enabled
+        SELECT id, email, display_name, password_hash, password_salt, role, account_status, failed_login_attempts, locked_until, mfa_enabled, email_verified
         FROM app_users
         WHERE email = $1
       `,
@@ -322,7 +325,8 @@ export class PgIdentityRepository implements IdentityRepository {
       accountStatus: user.account_status,
       failedLoginAttempts: user.failed_login_attempts,
       lockedUntil: user.locked_until,
-      mfaEnabled: user.mfa_enabled
+      mfaEnabled: user.mfa_enabled,
+      emailVerified: user.email_verified
     };
   }
 
@@ -360,6 +364,7 @@ export class PgIdentityRepository implements IdentityRepository {
       failed_login_attempts: number;
       locked_until: string | null;
       mfa_enabled: boolean;
+      email_verified: boolean;
     }>(
       `
         SELECT
@@ -375,7 +380,8 @@ export class PgIdentityRepository implements IdentityRepository {
           u.account_status,
           u.failed_login_attempts,
           u.locked_until,
-          u.mfa_enabled
+          u.mfa_enabled,
+          u.email_verified
         FROM app_sessions s
         JOIN app_users u ON u.id = s.user_id
         WHERE s.token = $1
@@ -409,7 +415,8 @@ export class PgIdentityRepository implements IdentityRepository {
         accountStatus: row.account_status,
         failedLoginAttempts: row.failed_login_attempts,
         lockedUntil: row.locked_until,
-        mfaEnabled: row.mfa_enabled
+        mfaEnabled: row.mfa_enabled,
+        emailVerified: row.email_verified
       }
     };
   }

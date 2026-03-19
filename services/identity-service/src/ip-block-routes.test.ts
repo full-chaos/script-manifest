@@ -49,7 +49,8 @@ class MemoryRepo extends BaseMemoryRepository implements IdentityRepository {
       accountStatus: "active",
       failedLoginAttempts: 0,
       lockedUntil: null,
-      mfaEnabled: false
+      mfaEnabled: false,
+      emailVerified: false
     };
     this.users.set(id, user);
     this.usersByEmail.set(email, id);

@@ -594,7 +594,8 @@ export function buildServer(options: IdentityServiceOptions = {}): FastifyInstan
         id: data.user.id,
         email: data.user.email,
         displayName: data.user.displayName,
-        role: data.user.role
+        role: data.user.role,
+        emailVerified: data.user.emailVerified
       },
       expiresAt: data.session.expiresAt
     });
@@ -652,7 +653,8 @@ export function buildServer(options: IdentityServiceOptions = {}): FastifyInstan
           id: sessionData.user.id,
           email: sessionData.user.email,
           displayName: sessionData.user.displayName,
-          role: sessionData.user.role
+          role: sessionData.user.role,
+          emailVerified: sessionData.user.emailVerified
         }
       });
 
@@ -880,7 +882,8 @@ async function createAuthSessionPayload(
       id: user.id,
       email: user.email,
       displayName: user.displayName,
-      role: user.role
+      role: user.role,
+      emailVerified: user.emailVerified
     }
   });
 }

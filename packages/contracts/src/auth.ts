@@ -44,7 +44,8 @@ export const AuthUserSchema = z.object({
   id: z.string().min(1),
   email: z.string().email(),
   displayName: z.string().min(1),
-  role: z.string().default("writer").optional()
+  role: z.string().default("writer").optional(),
+  emailVerified: z.boolean().default(false)
 });
 
 export type AuthUser = z.infer<typeof AuthUserSchema>;

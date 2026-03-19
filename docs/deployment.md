@@ -172,3 +172,82 @@ helm install sm deploy/helm/script-manifest -f deploy/helm/script-manifest/value
 - The writer web talks to the gateway through `API_GATEWAY_URL`.
 - Storage uploads must use a browser-reachable URL, not the internal MinIO endpoint.
 - In `compose.prod.yml`, the script-storage service reads its S3 secret from `MINIO_ROOT_PASSWORD`; the separate `STORAGE_S3_SECRET_KEY` env name is mainly for other deployment targets.
+
+## Operational Runbooks
+
+### Promote a User to Platform Admin
+
+User roles are stored in `app_users.role`. Valid values: `writer` (default), `admin`.
+
+The first admin **must** be created via direct database access. Once an admin exists, subsequent promotions can use the admin API: `PATCH /api/v1/admin/users/:id` with body `{ "role": "admin" }`.
+
+#### Docker Compose (local development)
+
+```bash
+# Connect to the local PostgreSQL container
+docker exec -it manifest-postgres psql -U manifest -d manifest
+
+# Find the user
+SELECT id, email, role FROM app_users WHERE email = 'user@example.com';
+
+# Promote to admin
+UPDATE app_users SET role = 'admin' WHERE email = 'user@example.com';
+
+# Verify
+SELECT id, email, role FROM app_users WHERE email = 'user@example.com';
+```
+
+#### Docker Swarm (production)
+
+```bash
+# Find the postgres container on the manager node
+docker ps --filter name=script-manifest_postgres --format '{{.ID}}'
+
+# Exec into it (replace <container_id> with the output above)
+docker exec -it <container_id> psql -U manifest -d manifest
+
+# Then run the same SQL as above:
+UPDATE app_users SET role = 'admin' WHERE email = 'user@example.com';
+```
+
+If the database password differs from the default, check the `.env` file on the manager node for `POSTGRES_PASSWORD` and pass it via `PGPASSWORD`:
+
+```bash
+docker exec -it -e PGPASSWORD='<password>' <container_id> psql -U manifest -d manifest
+```
+
+#### Kubernetes (Helm)
+
+```bash
+# Find the postgres pod
+kubectl get pods -n script-manifest -l app=postgresql
+
+# Exec into the pod (replace <pod_name> with the output above)
+kubectl exec -it <pod_name> -n script-manifest -- psql -U manifest -d manifest
+
+# Then run the same SQL as above:
+UPDATE app_users SET role = 'admin' WHERE email = 'user@example.com';
+```
+
+If the password is stored in a Kubernetes Secret:
+
+```bash
+# Retrieve the password
+kubectl get secret -n script-manifest postgresql-credentials -o jsonpath='{.data.password}' | base64 -d
+
+# Use it in the exec
+kubectl exec -it <pod_name> -n script-manifest -- env PGPASSWORD='<password>' psql -U manifest -d manifest
+```
+
+#### Via Admin API (requires an existing admin)
+
+Once at least one admin exists, use the API to promote others:
+
+```bash
+curl -X PATCH https://<api-domain>/api/v1/admin/users/<user-id> \
+  -H "Authorization: Bearer <admin-session-token>" \
+  -H "Content-Type: application/json" \
+  -d '{"role": "admin"}'
+```
+
+Role changes are recorded in the `admin_audit_log` table.

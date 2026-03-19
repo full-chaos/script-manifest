@@ -57,6 +57,12 @@ COPY --from=pruner /app/tsconfig.base.json ./tsconfig.base.json
 ARG SERVICE_NAME
 RUN pnpm build --filter=@script-manifest/${SERVICE_NAME}...
 
+# Bundle manage-admin CLI (self-contained, needs only pg at runtime)
+COPY --from=pruner /app/scripts/manage-admin.ts ./scripts/manage-admin.ts
+RUN npx esbuild scripts/manage-admin.ts --bundle --platform=node --format=cjs \
+    --outfile=scripts/manage-admin.cjs --external:pg --external:pg-native \
+    2>/dev/null || true
+
 # ── Stage 3: Production runtime ──────────────────────────────────────
 FROM node:25-alpine AS runner
 RUN apk update \
@@ -101,6 +107,7 @@ RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/pnpm \
 # Copy compiled output from all packages in the pruned workspace
 COPY --from=builder /app/packages/ ./packages/
 COPY --from=builder /app/services/ ./services/
+COPY --from=builder /app/scripts/manage-admin.cjs ./scripts/manage-admin.cjs
 
 ARG SERVICE_NAME
 ENV SERVICE_NAME=${SERVICE_NAME}

@@ -179,69 +179,42 @@ helm install sm deploy/helm/script-manifest -f deploy/helm/script-manifest/value
 
 User roles are stored in `app_users.role`. Valid values: `writer` (default), `admin`.
 
-The first admin **must** be created via direct database access. Once an admin exists, subsequent promotions can use the admin API: `PATCH /api/v1/admin/users/:id` with body `{ "role": "admin" }`.
+#### Using the CLI (preferred)
 
-#### Docker Compose (local development)
+The `manage-admin` script connects directly to PostgreSQL via `DATABASE_URL` and supports `promote`, `demote`, and `list` commands.
+
+**Local development** (uses tsx, requires a checkout):
 
 ```bash
-# Connect to the local PostgreSQL container
-docker exec -it manifest-postgres psql -U manifest -d manifest
-
-# Find the user
-SELECT id, email, role FROM app_users WHERE email = 'user@example.com';
-
-# Promote to admin
-UPDATE app_users SET role = 'admin' WHERE email = 'user@example.com';
-
-# Verify
-SELECT id, email, role FROM app_users WHERE email = 'user@example.com';
+pnpm manage-admin promote user@example.com
+pnpm manage-admin demote user@example.com
+pnpm manage-admin list
 ```
 
-#### Docker Swarm (production)
+**Inside a running container** (bundled as `scripts/manage-admin.cjs` in all service images):
 
 ```bash
-# Find the postgres container on the manager node
-docker ps --filter name=script-manifest_postgres --format '{{.ID}}'
+# Docker Compose
+docker exec -it <identity-service-container> node scripts/manage-admin.cjs promote user@example.com
 
-# Exec into it (replace <container_id> with the output above)
-docker exec -it <container_id> psql -U manifest -d manifest
+# Docker Swarm
+docker exec -it $(docker ps -q -f name=script-manifest_identity-service) \
+  node scripts/manage-admin.cjs promote user@example.com
 
-# Then run the same SQL as above:
-UPDATE app_users SET role = 'admin' WHERE email = 'user@example.com';
+# Kubernetes
+kubectl exec -it deploy/identity-service -n script-manifest -- \
+  node scripts/manage-admin.cjs promote user@example.com
 ```
 
-If the database password differs from the default, check the `.env` file on the manager node for `POSTGRES_PASSWORD` and pass it via `PGPASSWORD`:
+The script reads `DATABASE_URL` from the environment. Inside containers, this is already set. From a local checkout targeting a remote database:
 
 ```bash
-docker exec -it -e PGPASSWORD='<password>' <container_id> psql -U manifest -d manifest
-```
-
-#### Kubernetes (Helm)
-
-```bash
-# Find the postgres pod
-kubectl get pods -n script-manifest -l app=postgresql
-
-# Exec into the pod (replace <pod_name> with the output above)
-kubectl exec -it <pod_name> -n script-manifest -- psql -U manifest -d manifest
-
-# Then run the same SQL as above:
-UPDATE app_users SET role = 'admin' WHERE email = 'user@example.com';
-```
-
-If the password is stored in a Kubernetes Secret:
-
-```bash
-# Retrieve the password
-kubectl get secret -n script-manifest postgresql-credentials -o jsonpath='{.data.password}' | base64 -d
-
-# Use it in the exec
-kubectl exec -it <pod_name> -n script-manifest -- env PGPASSWORD='<password>' psql -U manifest -d manifest
+DATABASE_URL="postgresql://manifest:<password>@<host>:5432/manifest" pnpm manage-admin promote user@example.com
 ```
 
 #### Via Admin API (requires an existing admin)
 
-Once at least one admin exists, use the API to promote others:
+Once at least one admin exists, subsequent promotions can use the API:
 
 ```bash
 curl -X PATCH https://<api-domain>/api/v1/admin/users/<user-id> \
@@ -251,3 +224,30 @@ curl -X PATCH https://<api-domain>/api/v1/admin/users/<user-id> \
 ```
 
 Role changes are recorded in the `admin_audit_log` table.
+
+#### Direct database access (fallback)
+
+If the CLI is unavailable (e.g., no local checkout on the server), connect to PostgreSQL directly:
+
+**Docker Compose (local):**
+
+```bash
+docker exec -it manifest-postgres psql -U manifest -d manifest -c \
+  "UPDATE app_users SET role = 'admin' WHERE email = 'user@example.com';"
+```
+
+**Docker Swarm:**
+
+```bash
+docker exec -it $(docker ps -q -f name=script-manifest_postgres) \
+  psql -U manifest -d manifest -c \
+  "UPDATE app_users SET role = 'admin' WHERE email = 'user@example.com';"
+```
+
+**Kubernetes (Helm):**
+
+```bash
+kubectl exec -it deploy/postgresql -n script-manifest -- \
+  psql -U manifest -d manifest -c \
+  "UPDATE app_users SET role = 'admin' WHERE email = 'user@example.com';"
+```

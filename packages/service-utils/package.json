@@ -5,7 +5,8 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": "./dist/index.js",
-    "./tracing": "./dist/tracing.js"
+    "./tracing": "./dist/tracing.js",
+    "./instrument": "./dist/instrument.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",

@@ -240,16 +240,7 @@ export function buildServer(options: CompetitionDirectoryOptions = {}): FastifyI
 export async function startServer(): Promise<void> {
   const boot = bootstrapService("competition-directory-service");
   setupErrorReporting("competition-directory-service");
-  if (process.env.OTEL_EXPORTER_OTLP_ENDPOINT) {
-    const { setupTracing } = await import("@script-manifest/service-utils/tracing");
-    const tracingSdk = setupTracing("competition-directory-service");
-    if (tracingSdk) {
-      process.once("SIGTERM", () => {
-        tracingSdk.shutdown().catch((err) => server.log.error(err, "OTel SDK shutdown error"));
-      });
-    }
-    boot.phase("tracing initialized");
-  }
+  
   validateRequiredEnv(["PORT", "SEARCH_INDEXER_URL", "DATABASE_URL"]);
   boot.phase("env validated");
   const port = Number(process.env.PORT ?? 4002);

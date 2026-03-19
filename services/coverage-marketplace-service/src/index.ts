@@ -1436,16 +1436,6 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
 export async function startServer(): Promise<void> {
   const boot = bootstrapService("coverage-marketplace-service");
   setupErrorReporting("coverage-marketplace-service");
-  if (process.env.OTEL_EXPORTER_OTLP_ENDPOINT) {
-    const { setupTracing } = await import("@script-manifest/service-utils/tracing");
-    const tracingSdk = setupTracing("coverage-marketplace-service");
-    if (tracingSdk) {
-      process.once("SIGTERM", () => {
-        tracingSdk.shutdown().catch((err) => server.log.error(err, "OTel SDK shutdown error"));
-      });
-    }
-    boot.phase("tracing initialized");
-  }
   validateRequiredEnv(["DATABASE_URL", "STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"]);
   boot.phase("env validated");
   const port = Number(process.env.PORT ?? 4008);

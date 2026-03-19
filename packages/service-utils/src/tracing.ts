@@ -9,23 +9,15 @@ import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
 /**
  * Initialize OpenTelemetry distributed tracing and metrics for a service.
  *
- * Call this BEFORE creating the Fastify server so that auto-instrumentation
- * can patch Node.js built-ins (http, https, dns, etc.) at startup.
+ * Called by the `--import` preload module (`instrument.ts`) which runs
+ * before any application code, ensuring auto-instrumentation patches
+ * Node.js built-ins (http, dns, pg, etc.) before they are imported.
  *
- * Traces and metrics are exported via OTLP/gRPC to SigNoz (or any
- * compatible collector). Point OTEL_EXPORTER_OTLP_ENDPOINT at your
- * collector's gRPC endpoint (no path suffix — the SDK handles routing):
- *   - Local dev (SigNoz agent):       http://localhost:4317
- *   - Docker Compose:                 http://signoz-collection-agent:4317
+ * Do NOT call this directly from service entry points — use `--import`:
+ *   "dev":   "tsx watch --import @script-manifest/service-utils/instrument src/index.ts"
+ *   "start": "node --import @script-manifest/service-utils/instrument dist/index.js"
  *
- * @param serviceName - The logical service name (e.g. "api-gateway", "identity-service").
- *                      Appears in the SigNoz UI as the service label.
- * @returns The started NodeSDK instance. You can call sdk.shutdown() for graceful shutdown.
- *
- * @example
- * // In your service entry point (before buildServer()):
- * const sdk = setupTracing("identity-service");
- * process.once("SIGTERM", () => sdk.shutdown());
+ * No-op when OTEL_EXPORTER_OTLP_ENDPOINT is unset.
  */
 export function setupTracing(serviceName: string): NodeSDK | undefined {
   // Only enable telemetry when an OTLP endpoint is explicitly configured.

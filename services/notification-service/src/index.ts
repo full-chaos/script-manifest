@@ -132,22 +132,13 @@ export function buildServer(options: NotificationServiceOptions = {}): FastifyIn
 export async function startServer(): Promise<void> {
   const boot = bootstrapService("notification-service");
   setupErrorReporting("notification-service");
-  let tracingSdk: Awaited<ReturnType<typeof import("@script-manifest/service-utils/tracing").setupTracing>> | undefined;
-  if (process.env.OTEL_EXPORTER_OTLP_ENDPOINT) {
-    const { setupTracing } = await import("@script-manifest/service-utils/tracing");
-    tracingSdk = setupTracing("notification-service");
-    boot.phase("tracing initialized");
-  }
+  
   validateRequiredEnv(["PORT", "DATABASE_URL"]);
   boot.phase("env validated");
   const port = Number(process.env.PORT ?? 4010);
   const server = buildServer();
   boot.phase("server built");
-  if (tracingSdk) {
-    process.once("SIGTERM", () => {
-      tracingSdk!.shutdown().catch((err: unknown) => server.log.error(err, "OTel SDK shutdown error"));
-    });
-  }
+  
   // Register Prometheus metrics endpoint (only in production server startup, not tests).
   await registerMetrics(server);
   await server.listen({ port, host: "0.0.0.0" });

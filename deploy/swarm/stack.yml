@@ -240,6 +240,9 @@ services:
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-}
       IDENTITY_SERVICE_PUBLIC_URL: ${IDENTITY_SERVICE_PUBLIC_URL:-http://identity-service:4005}
+      EMAIL_API_KEY: ${EMAIL_API_KEY:?EMAIL_API_KEY is required for transactional email}
+      EMAIL_FROM: ${EMAIL_FROM:-"Script Manifest <noreply@scriptmanifest.com>"}
+      FRONTEND_URL: ${FRONTEND_URL:?FRONTEND_URL is required for email links}
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:4005/health || exit 1"]
       <<: *healthcheck

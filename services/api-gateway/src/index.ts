@@ -184,21 +184,7 @@ export async function startServer(): Promise<void> {
   const boot = bootstrapService("api-gateway");
   setupErrorReporting("api-gateway");
 
-  // Setup distributed tracing when OTEL_EXPORTER_OTLP_ENDPOINT is set.
-  // Guard the dynamic import behind the env-var check so that the heavy
-  // @opentelemetry/auto-instrumentations-node dependency tree is never
-  // loaded when tracing is disabled (avoids inotify/watcher exhaustion
-  // under tsx watch in Docker Compose).
-  if (process.env.OTEL_EXPORTER_OTLP_ENDPOINT) {
-    const { setupTracing } = await import("@script-manifest/service-utils/tracing");
-    const tracingSdk = setupTracing("api-gateway");
-    if (tracingSdk) {
-      process.once("SIGTERM", () => {
-        tracingSdk.shutdown().catch((err) => server.log.error(err, "OTel SDK shutdown error"));
-      });
-    }
-    boot.phase("tracing initialized");
-  }
+  
 
   validateRequiredEnv([
     "IDENTITY_SERVICE_URL",

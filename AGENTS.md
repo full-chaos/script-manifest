@@ -70,6 +70,18 @@ linear i create "[Subtask] <subtask title>" \
     ```
   - Branch format: `<change-type:feat,chore,sec,fix,docs>/<issue>-<short description>` (example: `feat/TICK-111-add-new-thing`).
   - Keep all commits for that feature on its dedicated branch until merged.
+  - **Pushing worktree branches**: Worktrees created from `origin/main` track `main` as upstream. A bare `git push` will push to `main`, not the feature branch. **Always use `gh pr create` to push and open the PR in one step**, or push explicitly with `git push origin HEAD:<branch-name>`:
+    ```bash
+    # CORRECT — gh pr create pushes the branch automatically:
+    gh pr create --head <branch-name> --base main --title "..." --body "..."
+
+    # CORRECT — explicit refspec:
+    git push origin HEAD:<branch-name>
+
+    # WRONG — pushes to tracked upstream (main):
+    git push
+    git push -u origin <branch-name>
+    ```
   - Open a PR for review before merging.
   - Clean up worktrees after the PR is merged:
     ```bash

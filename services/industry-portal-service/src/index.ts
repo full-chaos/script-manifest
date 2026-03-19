@@ -754,16 +754,7 @@ export function buildServer(options: IndustryPortalServiceOptions = {}): Fastify
 export async function startServer(): Promise<void> {
   const boot = bootstrapService("industry-portal-service");
   setupErrorReporting("industry-portal-service");
-  if (process.env.OTEL_EXPORTER_OTLP_ENDPOINT) {
-    const { setupTracing } = await import("@script-manifest/service-utils/tracing");
-    const tracingSdk = setupTracing("industry-portal-service");
-    if (tracingSdk) {
-      process.once("SIGTERM", () => {
-        tracingSdk.shutdown().catch((err) => server.log.error(err, "OTel SDK shutdown error"));
-      });
-    }
-    boot.phase("tracing initialized");
-  }
+  
   validateRequiredEnv(["DATABASE_URL"]);
   boot.phase("env validated");
   const port = Number(process.env.PORT ?? 4009);

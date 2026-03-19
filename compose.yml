@@ -274,6 +274,7 @@ services:
       - .:/workspace
     environment:
       <<: *telemetry-env
+      OTEL_SERVICE_NAME: "profile-project-service"
       PORT: "4001"
       DATABASE_URL: "postgresql://manifest:manifest@postgres:5432/manifest"
       NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
@@ -302,6 +303,7 @@ services:
       - .:/workspace
     environment:
       <<: *telemetry-env
+      OTEL_SERVICE_NAME: "identity-service"
       PORT: "4005"
       DATABASE_URL: "postgresql://manifest:manifest@postgres:5432/manifest"
       MFA_ENCRYPTION_KEY: "0000000000000000000000000000000000000000000000000000000000000000"
@@ -336,6 +338,7 @@ services:
       - .:/workspace
     environment:
       <<: *telemetry-env
+      OTEL_SERVICE_NAME: "notification-service"
       PORT: "4010"
       DATABASE_URL: "postgresql://manifest:manifest@postgres:5432/manifest"
       KAFKA_BROKERS: "redpanda:9092"
@@ -363,6 +366,7 @@ services:
       - .:/workspace
     environment:
       <<: *telemetry-env
+      OTEL_SERVICE_NAME: "search-indexer-service"
       PORT: "4003"
       OPENSEARCH_URL: "http://opensearch:9200"
       OPENSEARCH_INDEX: "competitions_v1"
@@ -388,6 +392,7 @@ services:
       - .:/workspace
     environment:
       <<: *telemetry-env
+      OTEL_SERVICE_NAME: "competition-directory-service"
       PORT: "4002"
       DATABASE_URL: "postgresql://manifest:manifest@postgres:5432/manifest"
       SEARCH_INDEXER_URL: "http://search-indexer-service:4003"
@@ -420,6 +425,7 @@ services:
       - .:/workspace
     environment:
       <<: *telemetry-env
+      OTEL_SERVICE_NAME: "script-storage-service"
       PORT: "4011"
       DATABASE_URL: "postgresql://manifest:manifest@postgres:5432/manifest"
       STORAGE_BUCKET: "scripts"
@@ -456,6 +462,7 @@ services:
       - .:/workspace
     environment:
       <<: *telemetry-env
+      OTEL_SERVICE_NAME: "submission-tracking-service"
       PORT: "4004"
       DATABASE_URL: "postgresql://manifest:manifest@postgres:5432/manifest"
     command: >
@@ -480,6 +487,7 @@ services:
       - .:/workspace
     environment:
       <<: *telemetry-env
+      OTEL_SERVICE_NAME: "feedback-exchange-service"
       PORT: "4006"
       DATABASE_URL: "postgresql://manifest:manifest@postgres:5432/manifest"
       NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
@@ -508,6 +516,7 @@ services:
       - .:/workspace
     environment:
       <<: *telemetry-env
+      OTEL_SERVICE_NAME: "ranking-service"
       PORT: "4007"
       DATABASE_URL: "postgresql://manifest:manifest@postgres:5432/manifest"
       NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
@@ -543,6 +552,7 @@ services:
       - .:/workspace
     environment:
       <<: *telemetry-env
+      OTEL_SERVICE_NAME: "coverage-marketplace-service"
       PORT: "4008"
       DATABASE_URL: "postgresql://manifest:manifest@postgres:5432/manifest"
       NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
@@ -581,6 +591,7 @@ services:
       - .:/workspace
     environment:
       <<: *telemetry-env
+      OTEL_SERVICE_NAME: "industry-portal-service"
       PORT: "4009"
       DATABASE_URL: "postgresql://manifest:manifest@postgres:5432/manifest"
       SCRIPT_STORAGE_SERVICE_URL: "http://script-storage-service:4011"
@@ -612,6 +623,7 @@ services:
       - .:/workspace
     environment:
       <<: *telemetry-env
+      OTEL_SERVICE_NAME: "programs-service"
       PORT: "4012"
       DATABASE_URL: "postgresql://manifest:manifest@postgres:5432/manifest"
       NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
@@ -640,6 +652,7 @@ services:
       - .:/workspace
     environment:
       <<: *telemetry-env
+      OTEL_SERVICE_NAME: "partner-dashboard-service"
       PORT: "4013"
       DATABASE_URL: "postgresql://manifest:manifest@postgres:5432/manifest"
       RANKING_SERVICE_URL: "http://ranking-service:4007"
@@ -671,6 +684,7 @@ services:
       - .:/workspace
     environment:
       <<: *telemetry-env
+      OTEL_SERVICE_NAME: "api-gateway"
       PORT: "4000"
       IDENTITY_SERVICE_URL: "http://identity-service:4005"
       PROFILE_SERVICE_URL: "http://profile-project-service:4001"

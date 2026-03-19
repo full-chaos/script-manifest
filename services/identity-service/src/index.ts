@@ -672,16 +672,7 @@ export function buildServer(options: IdentityServiceOptions = {}): FastifyInstan
 export async function startServer(): Promise<void> {
   const boot = bootstrapService("identity-service");
   setupErrorReporting("identity-service");
-  if (process.env.OTEL_EXPORTER_OTLP_ENDPOINT) {
-    const { setupTracing } = await import("@script-manifest/service-utils/tracing");
-    const tracingSdk = setupTracing("identity-service");
-    if (tracingSdk) {
-      process.once("SIGTERM", () => {
-        tracingSdk.shutdown().catch((err) => server.log.error(err, "OTel SDK shutdown error"));
-      });
-    }
-    boot.phase("tracing initialized");
-  }
+  
 
   validateRequiredEnv(["DATABASE_URL", "MFA_ENCRYPTION_KEY"]);
   boot.phase("env validated");

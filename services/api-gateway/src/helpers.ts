@@ -24,33 +24,33 @@ export type GatewayContext = {
   competitionAdminAllowlist: Set<string>;
   coverageAdminAllowlist: Set<string>;
   industryAdminAllowlist: Set<string>;
-  adminAllowlist: Set<string>;
 };
 
 // ── Auth token TTL cache (CHAOS-581) ─────────────────────────────────
 const AUTH_CACHE_TTL_MS = Number(process.env.AUTH_CACHE_TTL_MS ?? 30_000); // default 30s
 const AUTH_CACHE_MAX = Number(process.env.AUTH_CACHE_MAX ?? 1000);
 
-type AuthCacheEntry = { userId: string | null; expiresAt: number };
+type UserAuth = { userId: string; role?: string };
+type AuthCacheEntry = { auth: UserAuth | null; expiresAt: number };
 const authCache = new Map<string, AuthCacheEntry>();
 
-function authCacheGet(token: string): string | null | undefined {
+function authCacheGet(token: string): UserAuth | null | undefined {
   const entry = authCache.get(token);
   if (!entry) return undefined;
   if (Date.now() > entry.expiresAt) {
     authCache.delete(token);
     return undefined;
   }
-  return entry.userId;
+  return entry.auth;
 }
 
-function authCacheSet(token: string, userId: string | null): void {
+function authCacheSet(token: string, auth: UserAuth | null): void {
   // Evict oldest entries if over max
   if (authCache.size >= AUTH_CACHE_MAX) {
     const firstKey = authCache.keys().next().value;
     if (firstKey !== undefined) authCache.delete(firstKey);
   }
-  authCache.set(token, { userId, expiresAt: Date.now() + AUTH_CACHE_TTL_MS });
+  authCache.set(token, { auth, expiresAt: Date.now() + AUTH_CACHE_TTL_MS });
 }
 
 /** Exposed for testing — clears the auth cache. */
@@ -106,11 +106,47 @@ export async function getUserIdFromAuth(
     return null;
   }
 
-  // Check cache first (CHAOS-581)
   const cached = authCacheGet(authorization);
   if (cached !== undefined) {
-    return cached;
+    return cached?.userId ?? null;
   }
+
+  const auth = await fetchUserAuth(requestFn, identityServiceBase, authorization, logger);
+  return auth?.userId ?? null;
+}
+
+export async function getUserAuthFromToken(
+  requestFn: RequestFn,
+  identityServiceBase: string,
+  authorization: string | undefined,
+  logger?: AuthLogger
+): Promise<{ userId: string; role: string } | null> {
+  if (!authorization) {
+    return null;
+  }
+
+  const cached = authCacheGet(authorization);
+  if (cached !== undefined) {
+    if (cached?.role) {
+      return { userId: cached.userId, role: cached.role };
+    }
+    return null;
+  }
+
+  const auth = await fetchUserAuth(requestFn, identityServiceBase, authorization, logger);
+  if (!auth?.role) {
+    return null;
+  }
+
+  return { userId: auth.userId, role: auth.role };
+}
+
+async function fetchUserAuth(
+  requestFn: RequestFn,
+  identityServiceBase: string,
+  authorization: string,
+  logger?: AuthLogger
+): Promise<UserAuth | null> {
 
   try {
     const response = await requestFn(`${identityServiceBase}/internal/auth/me`, {
@@ -128,14 +164,20 @@ export async function getUserIdFromAuth(
       return null;
     }
 
-    const body = (await response.body.json()) as { user?: { id?: string } };
+    const body = (await response.body.json()) as { user?: { id?: string; role?: string } };
     if (!body?.user?.id) {
       logger?.warn({ body }, "Auth response missing user.id");
       authCacheSet(authorization, null);
       return null;
     }
-    authCacheSet(authorization, body.user.id);
-    return body.user.id;
+
+    const auth: UserAuth = { userId: body.user.id };
+    if (typeof body.user.role === "string" && body.user.role.length > 0) {
+      auth.role = body.user.role;
+    }
+
+    authCacheSet(authorization, auth);
+    return auth;
   } catch (error) {
     logger?.error(error, "Error verifying auth token");
     return null;
@@ -190,6 +232,26 @@ export async function resolveAdminUserId(
   const authedUserId = await getUserIdFromAuth(requestFn, identityServiceBase, authorization, logger);
   if (authedUserId && allowlist.has(authedUserId)) {
     return authedUserId;
+  }
+
+  return null;
+}
+
+export async function resolveAdminByRole(
+  requestFn: RequestFn,
+  identityServiceBase: string,
+  headers: Record<string, unknown>,
+  logger?: AuthLogger
+): Promise<string | null> {
+  const headerAdminUserId = readHeaderValue(headers, "x-admin-user-id");
+  if (headerAdminUserId) {
+    return headerAdminUserId;
+  }
+
+  const authorization = readHeaderValue(headers, "authorization");
+  const auth = await getUserAuthFromToken(requestFn, identityServiceBase, authorization, logger);
+  if (auth?.role === "admin") {
+    return auth.userId;
   }
 
   return null;

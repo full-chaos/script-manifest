@@ -8,17 +8,17 @@ import {
   addAuthUserIdHeader,
   getUserIdFromAuth,
   proxyJsonRequest,
-  resolveAdminUserId
+  resolveAdminByRole
 } from "../helpers.js";
 
 export function registerFeatureFlagRoutes(server: FastifyInstance, ctx: GatewayContext): void {
   // ── Admin: List flags ──────────────────────────────────────────
 
   server.get("/api/v1/admin/feature-flags", async (req, reply) => {
-    const adminId = await resolveAdminUserId(
+    const adminId = await resolveAdminByRole(
       ctx.requestFn, ctx.identityServiceBase,
       req.headers as Record<string, unknown>,
-      ctx.adminAllowlist, req.log
+      req.log
     );
     if (!adminId) return reply.status(403).send({ error: "forbidden" });
 
@@ -33,10 +33,10 @@ export function registerFeatureFlagRoutes(server: FastifyInstance, ctx: GatewayC
   // ── Admin: Create flag ─────────────────────────────────────────
 
   server.post("/api/v1/admin/feature-flags", async (req, reply) => {
-    const adminId = await resolveAdminUserId(
+    const adminId = await resolveAdminByRole(
       ctx.requestFn, ctx.identityServiceBase,
       req.headers as Record<string, unknown>,
-      ctx.adminAllowlist, req.log
+      req.log
     );
     if (!adminId) return reply.status(403).send({ error: "forbidden" });
 
@@ -60,10 +60,10 @@ export function registerFeatureFlagRoutes(server: FastifyInstance, ctx: GatewayC
   // ── Admin: Update flag ─────────────────────────────────────────
 
   server.put<{ Params: { key: string } }>("/api/v1/admin/feature-flags/:key", async (req, reply) => {
-    const adminId = await resolveAdminUserId(
+    const adminId = await resolveAdminByRole(
       ctx.requestFn, ctx.identityServiceBase,
       req.headers as Record<string, unknown>,
-      ctx.adminAllowlist, req.log
+      req.log
     );
     if (!adminId) return reply.status(403).send({ error: "forbidden" });
 
@@ -87,10 +87,10 @@ export function registerFeatureFlagRoutes(server: FastifyInstance, ctx: GatewayC
   // ── Admin: Delete flag ─────────────────────────────────────────
 
   server.delete<{ Params: { key: string } }>("/api/v1/admin/feature-flags/:key", async (req, reply) => {
-    const adminId = await resolveAdminUserId(
+    const adminId = await resolveAdminByRole(
       ctx.requestFn, ctx.identityServiceBase,
       req.headers as Record<string, unknown>,
-      ctx.adminAllowlist, req.log
+      req.log
     );
     if (!adminId) return reply.status(403).send({ error: "forbidden" });
 

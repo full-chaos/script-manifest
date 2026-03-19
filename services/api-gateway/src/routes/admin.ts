@@ -1,11 +1,8 @@
 import type { FastifyInstance } from "fastify";
 import {
-  AdminUserListRequestSchema,
   AdminUserUpdateRequestSchema,
-  AuditLogListRequestSchema,
   ContentReportCreateRequestSchema,
   ModerationActionRequestSchema,
-  ModerationQueueRequestSchema
 } from "@script-manifest/contracts";
 import {
   type GatewayContext,
@@ -13,17 +10,17 @@ import {
   buildQuerySuffix,
   getUserIdFromAuth,
   proxyJsonRequest,
-  resolveAdminUserId
+  resolveAdminByRole
 } from "../helpers.js";
 
 export function registerAdminRoutes(server: FastifyInstance, ctx: GatewayContext): void {
   // ── Admin User Management ──────────────────────────────────────
 
   server.get("/api/v1/admin/users", async (req, reply) => {
-    const adminId = await resolveAdminUserId(
+    const adminId = await resolveAdminByRole(
       ctx.requestFn, ctx.identityServiceBase,
       req.headers as Record<string, unknown>,
-      ctx.adminAllowlist, req.log
+      req.log
     );
     if (!adminId) return reply.status(403).send({ error: "forbidden" });
 
@@ -37,10 +34,10 @@ export function registerAdminRoutes(server: FastifyInstance, ctx: GatewayContext
   });
 
   server.get<{ Params: { id: string } }>("/api/v1/admin/users/:id", async (req, reply) => {
-    const adminId = await resolveAdminUserId(
+    const adminId = await resolveAdminByRole(
       ctx.requestFn, ctx.identityServiceBase,
       req.headers as Record<string, unknown>,
-      ctx.adminAllowlist, req.log
+      req.log
     );
     if (!adminId) return reply.status(403).send({ error: "forbidden" });
 
@@ -53,10 +50,10 @@ export function registerAdminRoutes(server: FastifyInstance, ctx: GatewayContext
   });
 
   server.patch<{ Params: { id: string } }>("/api/v1/admin/users/:id", async (req, reply) => {
-    const adminId = await resolveAdminUserId(
+    const adminId = await resolveAdminByRole(
       ctx.requestFn, ctx.identityServiceBase,
       req.headers as Record<string, unknown>,
-      ctx.adminAllowlist, req.log
+      req.log
     );
     if (!adminId) return reply.status(403).send({ error: "forbidden" });
 
@@ -80,10 +77,10 @@ export function registerAdminRoutes(server: FastifyInstance, ctx: GatewayContext
   // ── Audit Log ────────────────────────────────────────────────
 
   server.get("/api/v1/admin/audit-log", async (req, reply) => {
-    const adminId = await resolveAdminUserId(
+    const adminId = await resolveAdminByRole(
       ctx.requestFn, ctx.identityServiceBase,
       req.headers as Record<string, unknown>,
-      ctx.adminAllowlist, req.log
+      req.log
     );
     if (!adminId) return reply.status(403).send({ error: "forbidden" });
 
@@ -125,10 +122,10 @@ export function registerAdminRoutes(server: FastifyInstance, ctx: GatewayContext
   // ── Moderation Queue (Admin) ─────────────────────────────────
 
   server.get("/api/v1/admin/moderation/queue", async (req, reply) => {
-    const adminId = await resolveAdminUserId(
+    const adminId = await resolveAdminByRole(
       ctx.requestFn, ctx.identityServiceBase,
       req.headers as Record<string, unknown>,
-      ctx.adminAllowlist, req.log
+      req.log
     );
     if (!adminId) return reply.status(403).send({ error: "forbidden" });
 
@@ -142,10 +139,10 @@ export function registerAdminRoutes(server: FastifyInstance, ctx: GatewayContext
   });
 
   server.post<{ Params: { reportId: string } }>("/api/v1/admin/moderation/:reportId/action", async (req, reply) => {
-    const adminId = await resolveAdminUserId(
+    const adminId = await resolveAdminByRole(
       ctx.requestFn, ctx.identityServiceBase,
       req.headers as Record<string, unknown>,
-      ctx.adminAllowlist, req.log
+      req.log
     );
     if (!adminId) return reply.status(403).send({ error: "forbidden" });
 
@@ -169,10 +166,10 @@ export function registerAdminRoutes(server: FastifyInstance, ctx: GatewayContext
   // ── Platform Metrics (Admin Dashboard) ───────────────────────
 
   server.get("/api/v1/admin/metrics", async (req, reply) => {
-    const adminId = await resolveAdminUserId(
+    const adminId = await resolveAdminByRole(
       ctx.requestFn, ctx.identityServiceBase,
       req.headers as Record<string, unknown>,
-      ctx.adminAllowlist, req.log
+      req.log
     );
     if (!adminId) return reply.status(403).send({ error: "forbidden" });
 

@@ -18,7 +18,10 @@ function jsonResponse(payload: unknown, statusCode = 200): RequestResult {
 
 const ADMIN_USER_ID = "admin_01";
 
-function createMockRequestFn(responses: Record<string, { payload: unknown; statusCode?: number }>) {
+function createMockRequestFn(
+  responses: Record<string, { payload: unknown; statusCode?: number }>,
+  authRole = "admin"
+) {
   const calls: { url: string; method: string }[] = [];
 
   const requestFn = (async (url: string, options?: { method?: string; headers?: Record<string, string>; body?: string }) => {
@@ -26,7 +29,7 @@ function createMockRequestFn(responses: Record<string, { payload: unknown; statu
 
     // Auth endpoint — return admin user
     if (String(url).includes("/internal/auth/me")) {
-      return jsonResponse({ user: { id: ADMIN_USER_ID, email: "admin@test.com", displayName: "Admin", role: "admin" } });
+      return jsonResponse({ user: { id: ADMIN_USER_ID, email: "admin@test.com", displayName: "Admin", role: authRole } });
     }
 
     // Match response by URL pattern
@@ -51,8 +54,7 @@ test("GET /api/v1/admin/search/status proxies to search indexer", async (t) => {
 
   const server = await buildServer({
     logger: false,
-    requestFn,
-    adminAllowlist: [ADMIN_USER_ID]
+    requestFn
   });
   t.after(async () => { await server.close(); });
 
@@ -70,12 +72,11 @@ test("GET /api/v1/admin/search/status proxies to search indexer", async (t) => {
 });
 
 test("GET /api/v1/admin/search/status returns 403 without admin", async (t) => {
-  const { requestFn } = createMockRequestFn({});
+  const { requestFn } = createMockRequestFn({}, "writer");
 
   const server = await buildServer({
     logger: false,
-    requestFn,
-    adminAllowlist: []
+    requestFn
   });
   t.after(async () => { await server.close(); });
 
@@ -98,8 +99,7 @@ test("POST /api/v1/admin/search/reindex proxies to search indexer", async (t) =>
 
   const server = await buildServer({
     logger: false,
-    requestFn,
-    adminAllowlist: [ADMIN_USER_ID]
+    requestFn
   });
   t.after(async () => { await server.close(); });
 
@@ -123,8 +123,7 @@ test("POST /api/v1/admin/search/reindex/:type proxies to search indexer", async 
 
   const server = await buildServer({
     logger: false,
-    requestFn,
-    adminAllowlist: [ADMIN_USER_ID]
+    requestFn
   });
   t.after(async () => { await server.close(); });
 

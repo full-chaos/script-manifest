@@ -8,9 +8,11 @@ import {
   buildQuerySuffix,
   clearAuthCache,
   copyAuthHeader,
+  getUserAuthFromToken,
   getUserIdFromAuth,
   parseAllowlist,
   proxyJsonRequest,
+  resolveAdminByRole,
   readHeaderValue,
   resolveAdminUserId,
   safeJsonParse
@@ -120,7 +122,7 @@ test("getUserIdFromAuth returns parsed user id for valid auth response", async (
   const requestFn = (async (url, options) => {
     calledUrl = String(url);
     calledAuth = (options?.headers as Record<string, string> | undefined)?.authorization ?? "";
-    return jsonResponse({ user: { id: "writer_42" } }, 200);
+    return jsonResponse({ user: { id: "writer_42", role: "writer" } }, 200);
   }) as typeof request;
 
   const result = await getUserIdFromAuth(requestFn, "http://identity", "Bearer sess_abc");
@@ -162,7 +164,7 @@ test("resolveAdminUserId prefers explicit admin header when allowlisted", async 
 
 test("resolveAdminUserId falls back to auth identity lookup", async () => {
   clearAuthCache();
-  const requestFn = (async () => jsonResponse({ user: { id: "admin_from_auth" } }, 200)) as typeof request;
+  const requestFn = (async () => jsonResponse({ user: { id: "admin_from_auth", role: "admin" } }, 200)) as typeof request;
 
   const allowlisted = await resolveAdminUserId(
     requestFn,
@@ -243,7 +245,7 @@ test("auth cache returns cached result on second call without hitting identity s
   let callCount = 0;
   const requestFn = (async () => {
     callCount++;
-    return jsonResponse({ user: { id: "cached_user" } }, 200);
+    return jsonResponse({ user: { id: "cached_user", role: "writer" } }, 200);
   }) as typeof request;
 
   const first = await getUserIdFromAuth(requestFn, "http://identity", "Bearer cache_test_1");
@@ -277,7 +279,7 @@ test("clearAuthCache resets cache so next call hits identity service", async () 
   let callCount = 0;
   const requestFn = (async () => {
     callCount++;
-    return jsonResponse({ user: { id: "writer_clear" } }, 200);
+    return jsonResponse({ user: { id: "writer_clear", role: "writer" } }, 200);
   }) as typeof request;
 
   await getUserIdFromAuth(requestFn, "http://identity", "Bearer clear_test_1");
@@ -295,9 +297,9 @@ test("auth cache uses different entries for different tokens", async () => {
   const requestFn = (async (_url, options) => {
     lastCalledAuth = (options?.headers as Record<string, string> | undefined)?.authorization ?? "";
     if (lastCalledAuth === "Bearer user_a") {
-      return jsonResponse({ user: { id: "user_a" } }, 200);
+      return jsonResponse({ user: { id: "user_a", role: "writer" } }, 200);
     }
-    return jsonResponse({ user: { id: "user_b" } }, 200);
+    return jsonResponse({ user: { id: "user_b", role: "writer" } }, 200);
   }) as typeof request;
 
   const a = await getUserIdFromAuth(requestFn, "http://identity", "Bearer user_a");
@@ -307,11 +309,46 @@ test("auth cache uses different entries for different tokens", async () => {
 
   // Both should now be cached — calling with swapped requestFn should still return original
   const aCached = await getUserIdFromAuth(
-    (async () => jsonResponse({ user: { id: "wrong" } }, 200)) as typeof request,
+    (async () => jsonResponse({ user: { id: "wrong", role: "writer" } }, 200)) as typeof request,
     "http://identity",
     "Bearer user_a"
   );
   assert.equal(aCached, "user_a", "cached entry for token A should be returned");
+});
+
+test("getUserAuthFromToken returns user id and role", async () => {
+  const result = await getUserAuthFromToken(
+    (async () => jsonResponse({ user: { id: "admin_1", role: "admin" } }, 200)) as typeof request,
+    "http://identity",
+    "Bearer role_test"
+  );
+
+  assert.deepEqual(result, { userId: "admin_1", role: "admin" });
+});
+
+test("resolveAdminByRole allows header and admin role only", async () => {
+  const headerResult = await resolveAdminByRole(
+    (async () => {
+      throw new Error("requestFn should not be called when x-admin-user-id is present");
+    }) as typeof request,
+    "http://identity",
+    { "x-admin-user-id": "forwarded_admin" }
+  );
+  assert.equal(headerResult, "forwarded_admin");
+
+  const adminResult = await resolveAdminByRole(
+    (async () => jsonResponse({ user: { id: "admin_auth", role: "admin" } }, 200)) as typeof request,
+    "http://identity",
+    { authorization: "Bearer admin_token" }
+  );
+  assert.equal(adminResult, "admin_auth");
+
+  const writerResult = await resolveAdminByRole(
+    (async () => jsonResponse({ user: { id: "writer_auth", role: "writer" } }, 200)) as typeof request,
+    "http://identity",
+    { authorization: "Bearer writer_token" }
+  );
+  assert.equal(writerResult, null);
 });
 
 // ── proxyJsonRequest passthrough tests (CHAOS-584) ──────────────────

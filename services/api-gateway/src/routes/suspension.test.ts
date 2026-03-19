@@ -18,7 +18,10 @@ function jsonResponse(payload: unknown, statusCode = 200): RequestResult {
 
 const ADMIN_USER_ID = "admin_01";
 
-function createMockRequestFn(responses: Record<string, { payload: unknown; statusCode?: number }>) {
+function createMockRequestFn(
+  responses: Record<string, { payload: unknown; statusCode?: number }>,
+  authRole = "admin"
+) {
   const calls: { url: string; method: string }[] = [];
 
   const requestFn = (async (url: string, options?: { method?: string; headers?: Record<string, string>; body?: string }) => {
@@ -26,7 +29,7 @@ function createMockRequestFn(responses: Record<string, { payload: unknown; statu
 
     // Auth endpoint — return admin user
     if (String(url).includes("/internal/auth/me")) {
-      return jsonResponse({ user: { id: ADMIN_USER_ID, email: "admin@test.com", displayName: "Admin", role: "admin" } });
+      return jsonResponse({ user: { id: ADMIN_USER_ID, email: "admin@test.com", displayName: "Admin", role: authRole } });
     }
 
     // IP block check endpoint — not blocked (for the ipBlocklist plugin)
@@ -57,8 +60,7 @@ test("POST /api/v1/admin/users/:id/suspend proxies to identity service", async (
 
   const server = await buildServer({
     logger: false,
-    requestFn,
-    adminAllowlist: [ADMIN_USER_ID]
+    requestFn
   });
   t.after(async () => { await server.close(); });
 
@@ -77,12 +79,11 @@ test("POST /api/v1/admin/users/:id/suspend proxies to identity service", async (
 });
 
 test("POST /api/v1/admin/users/:id/suspend returns 403 without admin", async (t) => {
-  const { requestFn } = createMockRequestFn({});
+  const { requestFn } = createMockRequestFn({}, "writer");
 
   const server = await buildServer({
     logger: false,
-    requestFn,
-    adminAllowlist: []
+    requestFn
   });
   t.after(async () => { await server.close(); });
 
@@ -104,8 +105,7 @@ test("POST /api/v1/admin/users/:id/suspend validates request body", async (t) =>
 
   const server = await buildServer({
     logger: false,
-    requestFn,
-    adminAllowlist: [ADMIN_USER_ID]
+    requestFn
   });
   t.after(async () => { await server.close(); });
 
@@ -132,8 +132,7 @@ test("POST /api/v1/admin/users/:id/ban proxies to identity service", async (t) =
 
   const server = await buildServer({
     logger: false,
-    requestFn,
-    adminAllowlist: [ADMIN_USER_ID]
+    requestFn
   });
   t.after(async () => { await server.close(); });
 
@@ -160,8 +159,7 @@ test("POST /api/v1/admin/users/:id/unsuspend proxies to identity service", async
 
   const server = await buildServer({
     logger: false,
-    requestFn,
-    adminAllowlist: [ADMIN_USER_ID]
+    requestFn
   });
   t.after(async () => { await server.close(); });
 
@@ -184,8 +182,7 @@ test("GET /api/v1/admin/users/:id/suspensions proxies to identity service", asyn
 
   const server = await buildServer({
     logger: false,
-    requestFn,
-    adminAllowlist: [ADMIN_USER_ID]
+    requestFn
   });
   t.after(async () => { await server.close(); });
 
@@ -200,12 +197,11 @@ test("GET /api/v1/admin/users/:id/suspensions proxies to identity service", asyn
 });
 
 test("GET /api/v1/admin/users/:id/suspensions returns 403 without admin", async (t) => {
-  const { requestFn } = createMockRequestFn({});
+  const { requestFn } = createMockRequestFn({}, "writer");
 
   const server = await buildServer({
     logger: false,
-    requestFn,
-    adminAllowlist: []
+    requestFn
   });
   t.after(async () => { await server.close(); });
 

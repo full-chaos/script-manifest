@@ -9,17 +9,17 @@ import {
   addAuthUserIdHeader,
   buildQuerySuffix,
   proxyJsonRequest,
-  resolveAdminUserId
+  resolveAdminByRole
 } from "../helpers.js";
 
 export function registerNotificationAdminRoutes(server: FastifyInstance, ctx: GatewayContext): void {
   // ── Templates ─────────────────────────────────────────────────
 
   server.post("/api/v1/admin/notifications/templates", async (req, reply) => {
-    const adminId = await resolveAdminUserId(
+    const adminId = await resolveAdminByRole(
       ctx.requestFn, ctx.identityServiceBase,
       req.headers as Record<string, unknown>,
-      ctx.adminAllowlist, req.log
+      req.log
     );
     if (!adminId) return reply.status(403).send({ error: "forbidden" });
 
@@ -41,10 +41,10 @@ export function registerNotificationAdminRoutes(server: FastifyInstance, ctx: Ga
   });
 
   server.get("/api/v1/admin/notifications/templates", async (req, reply) => {
-    const adminId = await resolveAdminUserId(
+    const adminId = await resolveAdminByRole(
       ctx.requestFn, ctx.identityServiceBase,
       req.headers as Record<string, unknown>,
-      ctx.adminAllowlist, req.log
+      req.log
     );
     if (!adminId) return reply.status(403).send({ error: "forbidden" });
 
@@ -59,10 +59,10 @@ export function registerNotificationAdminRoutes(server: FastifyInstance, ctx: Ga
   // ── Broadcast ─────────────────────────────────────────────────
 
   server.post("/api/v1/admin/notifications/broadcast", async (req, reply) => {
-    const adminId = await resolveAdminUserId(
+    const adminId = await resolveAdminByRole(
       ctx.requestFn, ctx.identityServiceBase,
       req.headers as Record<string, unknown>,
-      ctx.adminAllowlist, req.log
+      req.log
     );
     if (!adminId) return reply.status(403).send({ error: "forbidden" });
 
@@ -86,10 +86,10 @@ export function registerNotificationAdminRoutes(server: FastifyInstance, ctx: Ga
   // ── Direct Notification ───────────────────────────────────────
 
   server.post("/api/v1/admin/notifications/direct", async (req, reply) => {
-    const adminId = await resolveAdminUserId(
+    const adminId = await resolveAdminByRole(
       ctx.requestFn, ctx.identityServiceBase,
       req.headers as Record<string, unknown>,
-      ctx.adminAllowlist, req.log
+      req.log
     );
     if (!adminId) return reply.status(403).send({ error: "forbidden" });
 
@@ -113,10 +113,10 @@ export function registerNotificationAdminRoutes(server: FastifyInstance, ctx: Ga
   // ── History ───────────────────────────────────────────────────
 
   server.get("/api/v1/admin/notifications/history", async (req, reply) => {
-    const adminId = await resolveAdminUserId(
+    const adminId = await resolveAdminByRole(
       ctx.requestFn, ctx.identityServiceBase,
       req.headers as Record<string, unknown>,
-      ctx.adminAllowlist, req.log
+      req.log
     );
     if (!adminId) return reply.status(403).send({ error: "forbidden" });
 

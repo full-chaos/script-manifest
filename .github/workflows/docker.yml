@@ -2,9 +2,9 @@ name: Build & Push Docker Images
 
 on:
   workflow_run:
-    workflows: [ "CI" ]
-    branches: [ main ]
-    types: [ completed ]
+    workflows: ["CI"]
+    branches: [main]
+    types: [completed]
 
 permissions:
   contents: read
@@ -17,7 +17,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
-      max-parallel: 4
+      # max-parallel: 4
       matrix:
         platform:
           - linux/amd64

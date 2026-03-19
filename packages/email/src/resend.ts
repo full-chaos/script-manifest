@@ -23,13 +23,17 @@ export class ResendEmailService implements EmailService {
 
     const rendered = renderTemplate(options.template, options.data);
 
-    await this.client.emails.send({
+    const { error } = await this.client.emails.send({
       from: this.from,
       to: options.to,
       subject: rendered.subject,
       html: rendered.html,
       text: rendered.text,
     });
+
+    if (error) {
+      throw new Error(`Resend API error [${error.name}]: ${error.message}`);
+    }
   }
 
   private checkRateLimit(to: string): void {

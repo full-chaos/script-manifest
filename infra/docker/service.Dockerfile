@@ -58,10 +58,12 @@ ARG SERVICE_NAME
 RUN pnpm build --filter=@script-manifest/${SERVICE_NAME}...
 
 # Bundle manage-admin CLI (self-contained, needs only pg at runtime)
+# esbuild may fail for services whose turbo-prune tree lacks packages/db;
+# create a stub so the COPY in the runner stage always succeeds.
 COPY --from=pruner /app/scripts/manage-admin.ts ./scripts/manage-admin.ts
 RUN npx esbuild scripts/manage-admin.ts --bundle --platform=node --format=cjs \
     --outfile=scripts/manage-admin.cjs --external:pg --external:pg-native \
-    2>/dev/null || true
+    2>/dev/null || echo '#!/usr/bin/env node\nconsole.error("manage-admin not available in this image");process.exit(1);' > scripts/manage-admin.cjs
 
 # ── Stage 3: Production runtime ──────────────────────────────────────
 FROM node:25-alpine AS runner

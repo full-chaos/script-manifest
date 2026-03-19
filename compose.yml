@@ -289,7 +289,7 @@ services:
       notification-service:
         condition: service_started
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:4001/health || exit 1"]
+      test: ["CMD-SHELL", "curl -sf http://localhost:4001/health/live || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -324,7 +324,7 @@ services:
       mailpit:
         condition: service_started
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:4005/health || exit 1"]
+      test: ["CMD-SHELL", "curl -sf http://localhost:4005/health/live || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -350,7 +350,7 @@ services:
       redpanda:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:4010/health || exit 1"]
+      test: ["CMD-SHELL", "curl -sf http://localhost:4010/health/live || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -376,7 +376,7 @@ services:
       opensearch:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:4003/health || exit 1"]
+      test: ["CMD-SHELL", "curl -sf http://localhost:4003/health/live || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -409,7 +409,7 @@ services:
       notification-service:
         condition: service_started
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:4002/health || exit 1"]
+      test: ["CMD-SHELL", "curl -sf http://localhost:4002/health/live || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -446,7 +446,7 @@ services:
       minio:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:4011/health || exit 1"]
+      test: ["CMD-SHELL", "curl -sf http://localhost:4011/health/live || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -471,7 +471,7 @@ services:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:4004/health || exit 1"]
+      test: ["CMD-SHELL", "curl -sf http://localhost:4004/health/live || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -500,7 +500,7 @@ services:
       notification-service:
         condition: service_started
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:4006/health || exit 1"]
+      test: ["CMD-SHELL", "curl -sf http://localhost:4006/health/live || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -536,7 +536,7 @@ services:
       competition-directory-service:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:4007/health || exit 1"]
+      test: ["CMD-SHELL", "curl -sf http://localhost:4007/health/live || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -575,7 +575,7 @@ services:
       minio:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:4008/health || exit 1"]
+      test: ["CMD-SHELL", "curl -sf http://localhost:4008/health/live || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -607,7 +607,7 @@ services:
       notification-service:
         condition: service_started
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:4009/health || exit 1"]
+      test: ["CMD-SHELL", "curl -sf http://localhost:4009/health/live || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -636,7 +636,7 @@ services:
       notification-service:
         condition: service_started
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:4012/health || exit 1"]
+      test: ["CMD-SHELL", "curl -sf http://localhost:4012/health/live || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -668,7 +668,7 @@ services:
       notification-service:
         condition: service_started
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:4013/health || exit 1"]
+      test: ["CMD-SHELL", "curl -sf http://localhost:4013/health/live || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5

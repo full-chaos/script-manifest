@@ -4,17 +4,17 @@ import {
   type GatewayContext,
   addAuthUserIdHeader,
   proxyJsonRequest,
-  resolveAdminUserId
+  resolveAdminByRole
 } from "../helpers.js";
 
 export function registerSuspensionRoutes(server: FastifyInstance, ctx: GatewayContext): void {
   // ── Suspend User ────────────────────────────────────────────────
 
   server.post<{ Params: { id: string } }>("/api/v1/admin/users/:id/suspend", async (req, reply) => {
-    const adminId = await resolveAdminUserId(
+    const adminId = await resolveAdminByRole(
       ctx.requestFn, ctx.identityServiceBase,
       req.headers as Record<string, unknown>,
-      ctx.adminAllowlist, req.log
+      req.log
     );
     if (!adminId) return reply.status(403).send({ error: "forbidden" });
 
@@ -38,10 +38,10 @@ export function registerSuspensionRoutes(server: FastifyInstance, ctx: GatewayCo
   // ── Ban User ───────────────────────────────────────────────────
 
   server.post<{ Params: { id: string } }>("/api/v1/admin/users/:id/ban", async (req, reply) => {
-    const adminId = await resolveAdminUserId(
+    const adminId = await resolveAdminByRole(
       ctx.requestFn, ctx.identityServiceBase,
       req.headers as Record<string, unknown>,
-      ctx.adminAllowlist, req.log
+      req.log
     );
     if (!adminId) return reply.status(403).send({ error: "forbidden" });
 
@@ -65,10 +65,10 @@ export function registerSuspensionRoutes(server: FastifyInstance, ctx: GatewayCo
   // ── Unsuspend User ─────────────────────────────────────────────
 
   server.post<{ Params: { id: string } }>("/api/v1/admin/users/:id/unsuspend", async (req, reply) => {
-    const adminId = await resolveAdminUserId(
+    const adminId = await resolveAdminByRole(
       ctx.requestFn, ctx.identityServiceBase,
       req.headers as Record<string, unknown>,
-      ctx.adminAllowlist, req.log
+      req.log
     );
     if (!adminId) return reply.status(403).send({ error: "forbidden" });
 
@@ -86,10 +86,10 @@ export function registerSuspensionRoutes(server: FastifyInstance, ctx: GatewayCo
   // ── Get Suspension History ─────────────────────────────────────
 
   server.get<{ Params: { id: string } }>("/api/v1/admin/users/:id/suspensions", async (req, reply) => {
-    const adminId = await resolveAdminUserId(
+    const adminId = await resolveAdminByRole(
       ctx.requestFn, ctx.identityServiceBase,
       req.headers as Record<string, unknown>,
-      ctx.adminAllowlist, req.log
+      req.log
     );
     if (!adminId) return reply.status(403).send({ error: "forbidden" });
 

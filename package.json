@@ -14,6 +14,7 @@
     "test:packages": "pnpm -r --filter './packages/*' test",
     "test:services": "pnpm -r --filter './services/*' test",
     "test:web": "pnpm -r --filter './apps/writer-web' test",
+    "manage-admin": "node --import tsx scripts/manage-admin.ts",
     "test:ops": "node --test scripts/ci/**/*.test.mjs",
     "test:unit": "turbo run test && pnpm run test:ops",
     "test:coverage": "bash ./scripts/run-coverage.sh",

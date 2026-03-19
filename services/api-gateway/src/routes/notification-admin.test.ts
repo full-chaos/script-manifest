@@ -18,7 +18,10 @@ function jsonResponse(payload: unknown, statusCode = 200): RequestResult {
 
 const ADMIN_USER_ID = "admin_01";
 
-function createMockRequestFn(responses: Record<string, { payload: unknown; statusCode?: number }>) {
+function createMockRequestFn(
+  responses: Record<string, { payload: unknown; statusCode?: number }>,
+  authRole = "admin"
+) {
   const calls: { url: string; method: string }[] = [];
 
   const requestFn = (async (url: string, options?: { method?: string; headers?: Record<string, string>; body?: string }) => {
@@ -26,7 +29,7 @@ function createMockRequestFn(responses: Record<string, { payload: unknown; statu
 
     // Auth endpoint — return admin user
     if (String(url).includes("/internal/auth/me")) {
-      return jsonResponse({ user: { id: ADMIN_USER_ID, email: "admin@test.com", displayName: "Admin", role: "admin" } });
+      return jsonResponse({ user: { id: ADMIN_USER_ID, email: "admin@test.com", displayName: "Admin", role: authRole } });
     }
 
     // Match response by URL pattern
@@ -54,8 +57,7 @@ test("POST /api/v1/admin/notifications/templates proxies to notification service
 
   const server = await buildServer({
     logger: false,
-    requestFn,
-    adminAllowlist: [ADMIN_USER_ID]
+    requestFn
   });
   t.after(async () => { await server.close(); });
 
@@ -79,12 +81,11 @@ test("POST /api/v1/admin/notifications/templates proxies to notification service
 });
 
 test("POST /api/v1/admin/notifications/templates returns 403 without admin", async (t) => {
-  const { requestFn } = createMockRequestFn({});
+  const { requestFn } = createMockRequestFn({}, "writer");
 
   const server = await buildServer({
     logger: false,
-    requestFn,
-    adminAllowlist: []
+    requestFn
   });
   t.after(async () => { await server.close(); });
 
@@ -111,8 +112,7 @@ test("POST /api/v1/admin/notifications/templates returns 400 for invalid payload
 
   const server = await buildServer({
     logger: false,
-    requestFn,
-    adminAllowlist: [ADMIN_USER_ID]
+    requestFn
   });
   t.after(async () => { await server.close(); });
 
@@ -138,8 +138,7 @@ test("GET /api/v1/admin/notifications/templates proxies to notification service"
 
   const server = await buildServer({
     logger: false,
-    requestFn,
-    adminAllowlist: [ADMIN_USER_ID]
+    requestFn
   });
   t.after(async () => { await server.close(); });
 
@@ -165,8 +164,7 @@ test("POST /api/v1/admin/notifications/broadcast proxies to notification service
 
   const server = await buildServer({
     logger: false,
-    requestFn,
-    adminAllowlist: [ADMIN_USER_ID]
+    requestFn
   });
   t.after(async () => { await server.close(); });
 
@@ -193,8 +191,7 @@ test("POST /api/v1/admin/notifications/broadcast returns 400 for invalid payload
 
   const server = await buildServer({
     logger: false,
-    requestFn,
-    adminAllowlist: [ADMIN_USER_ID]
+    requestFn
   });
   t.after(async () => { await server.close(); });
 
@@ -223,8 +220,7 @@ test("POST /api/v1/admin/notifications/direct proxies to notification service", 
 
   const server = await buildServer({
     logger: false,
-    requestFn,
-    adminAllowlist: [ADMIN_USER_ID]
+    requestFn
   });
   t.after(async () => { await server.close(); });
 
@@ -251,8 +247,7 @@ test("POST /api/v1/admin/notifications/direct returns 400 for missing userId", a
 
   const server = await buildServer({
     logger: false,
-    requestFn,
-    adminAllowlist: [ADMIN_USER_ID]
+    requestFn
   });
   t.after(async () => { await server.close(); });
 
@@ -280,8 +275,7 @@ test("GET /api/v1/admin/notifications/history proxies to notification service", 
 
   const server = await buildServer({
     logger: false,
-    requestFn,
-    adminAllowlist: [ADMIN_USER_ID]
+    requestFn
   });
   t.after(async () => { await server.close(); });
 
@@ -298,12 +292,11 @@ test("GET /api/v1/admin/notifications/history proxies to notification service", 
 });
 
 test("GET /api/v1/admin/notifications/history returns 403 without admin", async (t) => {
-  const { requestFn } = createMockRequestFn({});
+  const { requestFn } = createMockRequestFn({}, "writer");
 
   const server = await buildServer({
     logger: false,
-    requestFn,
-    adminAllowlist: []
+    requestFn
   });
   t.after(async () => { await server.close(); });
 

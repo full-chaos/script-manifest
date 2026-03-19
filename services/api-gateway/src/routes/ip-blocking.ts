@@ -5,17 +5,17 @@ import {
   addAuthUserIdHeader,
   buildQuerySuffix,
   proxyJsonRequest,
-  resolveAdminUserId
+  resolveAdminByRole
 } from "../helpers.js";
 
 export function registerIpBlockingRoutes(server: FastifyInstance, ctx: GatewayContext): void {
   // ── List Blocked IPs ───────────────────────────────────────────
 
   server.get("/api/v1/admin/ip-blocks", async (req, reply) => {
-    const adminId = await resolveAdminUserId(
+    const adminId = await resolveAdminByRole(
       ctx.requestFn, ctx.identityServiceBase,
       req.headers as Record<string, unknown>,
-      ctx.adminAllowlist, req.log
+      req.log
     );
     if (!adminId) return reply.status(403).send({ error: "forbidden" });
 
@@ -31,10 +31,10 @@ export function registerIpBlockingRoutes(server: FastifyInstance, ctx: GatewayCo
   // ── Add IP Block ───────────────────────────────────────────────
 
   server.post("/api/v1/admin/ip-blocks", async (req, reply) => {
-    const adminId = await resolveAdminUserId(
+    const adminId = await resolveAdminByRole(
       ctx.requestFn, ctx.identityServiceBase,
       req.headers as Record<string, unknown>,
-      ctx.adminAllowlist, req.log
+      req.log
     );
     if (!adminId) return reply.status(403).send({ error: "forbidden" });
 
@@ -58,10 +58,10 @@ export function registerIpBlockingRoutes(server: FastifyInstance, ctx: GatewayCo
   // ── Remove IP Block ───────────────────────────────────────────
 
   server.delete<{ Params: { id: string } }>("/api/v1/admin/ip-blocks/:id", async (req, reply) => {
-    const adminId = await resolveAdminUserId(
+    const adminId = await resolveAdminByRole(
       ctx.requestFn, ctx.identityServiceBase,
       req.headers as Record<string, unknown>,
-      ctx.adminAllowlist, req.log
+      req.log
     );
     if (!adminId) return reply.status(403).send({ error: "forbidden" });
 

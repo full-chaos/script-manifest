@@ -18,7 +18,10 @@ function jsonResponse(payload: unknown, statusCode = 200): RequestResult {
 
 const ADMIN_USER_ID = "admin_01";
 
-function createMockRequestFn(responses: Record<string, { payload: unknown; statusCode?: number }>) {
+function createMockRequestFn(
+  responses: Record<string, { payload: unknown; statusCode?: number }>,
+  authRole = "admin"
+) {
   const calls: { url: string; method: string }[] = [];
 
   const requestFn = (async (url: string, options?: { method?: string; headers?: Record<string, string>; body?: string }) => {
@@ -26,7 +29,7 @@ function createMockRequestFn(responses: Record<string, { payload: unknown; statu
 
     // Auth endpoint — return admin user
     if (String(url).includes("/internal/auth/me")) {
-      return jsonResponse({ user: { id: ADMIN_USER_ID, email: "admin@test.com", displayName: "Admin", role: "admin" } });
+      return jsonResponse({ user: { id: ADMIN_USER_ID, email: "admin@test.com", displayName: "Admin", role: authRole } });
     }
 
     // Match response by URL pattern
@@ -49,8 +52,7 @@ test("GET /api/v1/admin/users proxies to identity service", async (t) => {
 
   const server = await buildServer({
     logger: false,
-    requestFn,
-    adminAllowlist: [ADMIN_USER_ID]
+    requestFn
   });
   t.after(async () => { await server.close(); });
 
@@ -66,13 +68,12 @@ test("GET /api/v1/admin/users proxies to identity service", async (t) => {
   assert.ok(calls.some((c) => c.url.includes("/internal/admin/users")));
 });
 
-test("GET /api/v1/admin/users returns 403 without admin allowlist", async (t) => {
-  const { requestFn } = createMockRequestFn({});
+test("GET /api/v1/admin/users returns 403 without admin role", async (t) => {
+  const { requestFn } = createMockRequestFn({}, "writer");
 
   const server = await buildServer({
     logger: false,
-    requestFn,
-    adminAllowlist: [] // empty allowlist
+    requestFn
   });
   t.after(async () => { await server.close(); });
 
@@ -92,8 +93,7 @@ test("GET /api/v1/admin/audit-log proxies to identity service", async (t) => {
 
   const server = await buildServer({
     logger: false,
-    requestFn,
-    adminAllowlist: [ADMIN_USER_ID]
+    requestFn
   });
   t.after(async () => { await server.close(); });
 
@@ -136,12 +136,11 @@ test("POST /api/v1/reports proxies content report to identity service", async (t
 });
 
 test("GET /api/v1/admin/moderation/queue requires admin", async (t) => {
-  const { requestFn } = createMockRequestFn({});
+  const { requestFn } = createMockRequestFn({}, "writer");
 
   const server = await buildServer({
     logger: false,
-    requestFn,
-    adminAllowlist: []
+    requestFn
   });
   t.after(async () => { await server.close(); });
 
@@ -166,8 +165,7 @@ test("GET /api/v1/admin/metrics aggregates from multiple services", async (t) =>
 
   const server = await buildServer({
     logger: false,
-    requestFn,
-    adminAllowlist: [ADMIN_USER_ID]
+    requestFn
   });
   t.after(async () => { await server.close(); });
 

@@ -3,17 +3,17 @@ import {
   type GatewayContext,
   addAuthUserIdHeader,
   proxyJsonRequest,
-  resolveAdminUserId
+  resolveAdminByRole
 } from "../helpers.js";
 
 export function registerSearchAdminRoutes(server: FastifyInstance, ctx: GatewayContext): void {
   // ── Search Index Status ────────────────────────────────────────
 
   server.get("/api/v1/admin/search/status", async (req, reply) => {
-    const adminId = await resolveAdminUserId(
+    const adminId = await resolveAdminByRole(
       ctx.requestFn, ctx.identityServiceBase,
       req.headers as Record<string, unknown>,
-      ctx.adminAllowlist, req.log
+      req.log
     );
     if (!adminId) return reply.status(403).send({ error: "forbidden" });
 
@@ -28,10 +28,10 @@ export function registerSearchAdminRoutes(server: FastifyInstance, ctx: GatewayC
   // ── Reindex All ────────────────────────────────────────────────
 
   server.post("/api/v1/admin/search/reindex", async (req, reply) => {
-    const adminId = await resolveAdminUserId(
+    const adminId = await resolveAdminByRole(
       ctx.requestFn, ctx.identityServiceBase,
       req.headers as Record<string, unknown>,
-      ctx.adminAllowlist, req.log
+      req.log
     );
     if (!adminId) return reply.status(403).send({ error: "forbidden" });
 
@@ -46,10 +46,10 @@ export function registerSearchAdminRoutes(server: FastifyInstance, ctx: GatewayC
   // ── Reindex by Type ────────────────────────────────────────────
 
   server.post<{ Params: { type: string } }>("/api/v1/admin/search/reindex/:type", async (req, reply) => {
-    const adminId = await resolveAdminUserId(
+    const adminId = await resolveAdminByRole(
       ctx.requestFn, ctx.identityServiceBase,
       req.headers as Record<string, unknown>,
-      ctx.adminAllowlist, req.log
+      req.log
     );
     if (!adminId) return reply.status(403).send({ error: "forbidden" });
 

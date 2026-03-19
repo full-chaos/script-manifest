@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { readStoredSession, writeStoredSession } from "../lib/authSession";
 
 export default function VerifyEmailPage() {
@@ -22,7 +23,7 @@ export default function VerifyEmailPage() {
         </article>
         <article className="panel stack mx-auto max-w-md text-center">
           <p className="text-foreground-secondary">
-            Please <a href="/signin" className="text-ember-500 hover:underline">sign in</a> to verify your email.
+            Please <Link href="/signin" className="text-ember-500 hover:underline">sign in</Link> to verify your email.
           </p>
         </article>
       </section>
@@ -163,9 +164,9 @@ export default function VerifyEmailPage() {
         {success ? <p className="text-sm text-green-600 font-medium">{success}</p> : null}
 
         <div className="pt-2 text-center">
-          <a href="/" className="text-sm text-ember-500 hover:underline">
+          <Link href="/" className="text-sm text-ember-500 hover:underline">
             Back to home
-          </a>
+          </Link>
         </div>
       </article>
     </section>

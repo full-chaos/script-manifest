@@ -106,7 +106,7 @@ export default function SignInPage() {
       writeStoredSession(body as AuthSessionResponse);
       setSession(body as AuthSessionResponse);
       setPassword("");
-      router.replace("/");
+      router.replace(mode === "register" ? "/verify-email" : "/");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "unknown_error");
     } finally {

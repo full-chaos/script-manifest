@@ -33,7 +33,7 @@ export function OnboardingChecklist() {
     {
       id: "verify-email",
       label: "Verify email",
-      href: "/profile" as Route,
+      href: "/verify-email" as Route,
       checked: state.emailVerified,
     },
     {

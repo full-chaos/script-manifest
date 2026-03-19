@@ -172,3 +172,82 @@ helm install sm deploy/helm/script-manifest -f deploy/helm/script-manifest/value
 - The writer web talks to the gateway through `API_GATEWAY_URL`.
 - Storage uploads must use a browser-reachable URL, not the internal MinIO endpoint.
 - In `compose.prod.yml`, the script-storage service reads its S3 secret from `MINIO_ROOT_PASSWORD`; the separate `STORAGE_S3_SECRET_KEY` env name is mainly for other deployment targets.
+
+## Operational Runbooks
+
+### Promote a User to Platform Admin
+
+User roles are stored in `app_users.role`. Valid values: `writer` (default), `admin`.
+
+#### Using the CLI (preferred)
+
+The `manage-admin` script connects directly to PostgreSQL via `DATABASE_URL` and supports `promote`, `demote`, and `list` commands.
+
+**Local development** (uses tsx, requires a checkout):
+
+```bash
+pnpm manage-admin promote user@example.com
+pnpm manage-admin demote user@example.com
+pnpm manage-admin list
+```
+
+**Inside a running container** (bundled as `scripts/manage-admin.cjs` in all service images):
+
+```bash
+# Docker Compose
+docker exec -it <identity-service-container> node scripts/manage-admin.cjs promote user@example.com
+
+# Docker Swarm
+docker exec -it $(docker ps -q -f name=script-manifest_identity-service) \
+  node scripts/manage-admin.cjs promote user@example.com
+
+# Kubernetes
+kubectl exec -it deploy/identity-service -n script-manifest -- \
+  node scripts/manage-admin.cjs promote user@example.com
+```
+
+The script reads `DATABASE_URL` from the environment. Inside containers, this is already set. From a local checkout targeting a remote database:
+
+```bash
+DATABASE_URL="postgresql://manifest:<password>@<host>:5432/manifest" pnpm manage-admin promote user@example.com
+```
+
+#### Via Admin API (requires an existing admin)
+
+Once at least one admin exists, subsequent promotions can use the API:
+
+```bash
+curl -X PATCH https://<api-domain>/api/v1/admin/users/<user-id> \
+  -H "Authorization: Bearer <admin-session-token>" \
+  -H "Content-Type: application/json" \
+  -d '{"role": "admin"}'
+```
+
+Role changes are recorded in the `admin_audit_log` table.
+
+#### Direct database access (fallback)
+
+If the CLI is unavailable (e.g., no local checkout on the server), connect to PostgreSQL directly:
+
+**Docker Compose (local):**
+
+```bash
+docker exec -it manifest-postgres psql -U manifest -d manifest -c \
+  "UPDATE app_users SET role = 'admin' WHERE email = 'user@example.com';"
+```
+
+**Docker Swarm:**
+
+```bash
+docker exec -it $(docker ps -q -f name=script-manifest_postgres) \
+  psql -U manifest -d manifest -c \
+  "UPDATE app_users SET role = 'admin' WHERE email = 'user@example.com';"
+```
+
+**Kubernetes (Helm):**
+
+```bash
+kubectl exec -it deploy/postgresql -n script-manifest -- \
+  psql -U manifest -d manifest -c \
+  "UPDATE app_users SET role = 'admin' WHERE email = 'user@example.com';"
+```

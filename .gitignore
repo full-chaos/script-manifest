@@ -28,6 +28,10 @@ test-results/
 __pycache__/
 .pytest_cache/
 
+# Bundled scripts (built during Docker image build)
+scripts/manage-admin.cjs
+scripts/manage-admin.mjs
+
 # Docker volumes (if bind-mounted later)
 *.log
 

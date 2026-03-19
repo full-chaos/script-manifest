@@ -28,36 +28,36 @@
 
 All 14 services produce structured JSON logs via Pino. The only gap is the bootstrap phase in `packages/service-utils/src/boot.ts` which uses `console.log`/`console.error` — intentionally, since Pino isn't initialized yet, but this means startup and crash messages won't match log aggregator parsers.
 
-### Metrics — ⚠️ Partially Adopted
+### Metrics — ✅ Fully Instrumented
 
 | Area | Status | Details |
 |------|--------|---------|
 | Library | ✅ | `fastify-metrics` wrapping `prom-client` |
-| `/metrics` endpoint | ⚠️ | Only **3/14 services** call `registerMetrics()` |
+| `/metrics` endpoint | ✅ | All **14/14** services call `registerMetrics()` |
 | Default metrics | ✅ | Node.js process metrics (memory, CPU, event loop lag) |
 | Route metrics | ✅ | Per-route HTTP request duration histograms/summaries |
 | Business metrics | ❌ | No custom counters (logins, uploads, payments, etc.) |
-| Prometheus scraping | ⚠️ | `infra/prometheus/prometheus.yml` targets all 14 services, but 11 don't expose the endpoint |
+| Prometheus scraping | ✅ | All 14 services expose the Prometheus endpoint |
 
-**Services WITH metrics**: api-gateway, identity-service, profile-project-service
-**Services WITHOUT**: notification-service, search-indexer-service, script-storage-service, submission-tracking-service, competition-directory-service, programs-service, ranking-service, partner-dashboard-service, industry-portal-service, feedback-exchange-service, coverage-marketplace-service
+OTLP metrics export (gRPC) is now configured alongside Prometheus.
+
+**Services WITH metrics**: All 14 services
+**Services WITHOUT**: None
 
 The shared utility in `packages/service-utils/src/metrics.ts` is well-built — just needs to be called in each service's `startServer()`.
 
-### Tracing — ⚠️ Partially Adopted
+### Tracing — ✅ Fully Instrumented
 
 | Area | Status | Details |
 |------|--------|---------|
 | Library | ✅ | OpenTelemetry `NodeSDK` with auto-instrumentations |
-| Exporter | ✅ | OTLP/HTTP → Jaeger (compose has Jaeger all-in-one) |
-| Activation | ✅ | Guard: only enabled when `OTEL_EXPORTER_OTLP_ENDPOINT` is set |
-| Adoption | ⚠️ | Only **3/14 services** call `setupTracing()` |
+| Exporter | ✅ | OTLP/gRPC → SigNoz |
+| Activation | ✅ | Guard: enabled when `OTEL_EXPORTER_OTLP_ENDPOINT` is set |
+| Adoption | ✅ | All **14/14** call `setupTracing()` |
 | Custom spans | ❌ | No manual instrumentation for background jobs or complex flows |
 
-**Services WITH tracing**: api-gateway, identity-service, profile-project-service
-**Services WITHOUT**: Same 11 as metrics
-
-Since `setupTracing()` must be called before Fastify is created (to patch Node built-ins), services that skip it cannot participate in distributed trace propagation — cross-service calls hitting uninstrumented services break the trace chain.
+**Services WITH tracing**: All 14 services
+**Services WITHOUT**: None
 
 ### Health Checks — ⚠️ Inconsistent
 
@@ -217,17 +217,17 @@ No `@fastify/helmet` or equivalent in the api-gateway or any service.
 | api-gateway | ✅ | ✅ | ✅ | ✅ | ✅ (downstream) | ✅ + OTel |
 | identity-service | ✅ | ✅ | ✅ | ✅ | ✅ (DB) | ✅ + OTel |
 | profile-project-service | ✅ | ✅ | ✅ | ✅ | ✅ (DB) | ✅ + OTel |
-| script-storage-service | ✅ | ✅ | ❌ | ❌ | ❌ shallow | ✅ |
-| submission-tracking-service | ✅ | ❌ | ❌ | ❌ | ❌ shallow | ✅ |
-| ranking-service | ✅ | ✅ | ❌ | ❌ | ❌ shallow | ✅ |
-| programs-service | ✅ | ❌ | ❌ | ❌ | ❌ shallow | ✅ + scheduler |
-| partner-dashboard-service | ✅ | ❌ | ❌ | ❌ | ❌ shallow | ✅ |
-| notification-service | ✅ | ❌ | ❌ | ❌ | ❌ shallow | ✅ |
-| industry-portal-service | ✅ | ❌ | ❌ | ❌ | ❌ shallow | ✅ |
-| feedback-exchange-service | ✅ | ✅ | ❌ | ❌ | ❌ shallow | ✅ |
-| coverage-marketplace-service | ✅ | ✅ | ❌ | ❌ | ❌ shallow | ⚠️ timer not on `onClose` |
-| competition-directory-service | ✅ | ❌ | ❌ | ❌ | ❌ shallow | ✅ |
-| search-indexer-service | ✅ | ✅ | ❌ | ❌ | ✅ (OpenSearch) | ✅ |
+| script-storage-service | ✅ | ✅ | ✅ | ✅ | ✅ shallow | ✅ |
+| submission-tracking-service | ✅ | ✅ | ✅ | ✅ | ✅ shallow | ✅ |
+| ranking-service | ✅ | ✅ | ✅ | ✅ | ✅ shallow | ✅ |
+| programs-service | ✅ | ✅ | ✅ | ✅ | ✅ shallow | ✅ |
+| partner-dashboard-service | ✅ | ✅ | ✅ | ✅ | ✅ shallow | ✅ |
+| notification-service | ✅ | ✅ | ✅ | ✅ | ✅ shallow | ✅ |
+| industry-portal-service | ✅ | ✅ | ✅ | ✅ | ✅ shallow | ✅ |
+| feedback-exchange-service | ✅ | ✅ | ✅ | ✅ | ✅ shallow | ✅ |
+| coverage-marketplace-service | ✅ | ✅ | ✅ | ✅ | ✅ shallow | ✅ |
+| competition-directory-service | ✅ | ✅ | ✅ | ✅ | ✅ shallow | ✅ |
+| search-indexer-service | ✅ | ✅ | ✅ | ✅ | ✅ (OpenSearch) | ✅ |
 
 ### Notification Publishers
 
@@ -253,7 +253,6 @@ Three services have `notificationPublisher.ts` files (ranking-service, feedback-
 
 | # | Item | Effort |
 |---|------|--------|
-| 4 | Roll out `registerMetrics()` + `setupTracing()` to remaining 11 services | 3hr |
 | 5 | Add `validateRequiredEnv()` to 6 services that skip it | 1hr |
 | 6 | Add Zod validation to api-gateway proxy routes (POST/PUT/PATCH) | 4hr |
 | 7 | Define Docker networks in `compose.prod.yml` — isolate internal services | 2hr |
@@ -292,8 +291,8 @@ Three services have `notificationPublisher.ts` files (ranking-service, feedback-
 | Domain | Grade | Key Gap |
 |--------|-------|---------|
 | **Logging** | B+ | Boot-phase uses `console` instead of structured logger |
-| **Metrics** | D | Only 3/14 services instrumented |
-| **Tracing** | D | Only 3/14 services instrumented |
+| **Metrics** | B | Key gap: No custom business metrics |
+| **Tracing** | B+ | Key gap: No custom spans for background jobs |
 | **Health Checks** | C | Most are shallow; no dependency probes |
 | **Alerting** | F | None exists |
 | **Authentication** | B+ | Solid; missing token refresh |

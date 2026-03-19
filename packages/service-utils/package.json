@@ -14,12 +14,14 @@
     "lint": "eslint src/"
   },
   "dependencies": {
-    "@script-manifest/contracts": "workspace:*",
     "@opentelemetry/auto-instrumentations-node": "^0.71.0",
-    "@opentelemetry/exporter-trace-otlp-http": "^0.213.0",
+    "@opentelemetry/exporter-metrics-otlp-grpc": "^0.213.0",
+    "@opentelemetry/exporter-trace-otlp-grpc": "^0.213.0",
     "@opentelemetry/resources": "^2.6.0",
+    "@opentelemetry/sdk-metrics": "^2.6.0",
     "@opentelemetry/sdk-node": "^0.213.0",
     "@opentelemetry/semantic-conventions": "^1.40.0",
+    "@script-manifest/contracts": "workspace:*",
     "@sentry/node": "^10.43.0",
     "fastify": "^5.8.2",
     "fastify-metrics": "^12.1.0",

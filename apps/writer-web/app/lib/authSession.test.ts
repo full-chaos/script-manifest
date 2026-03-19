@@ -16,7 +16,8 @@ const SAMPLE_SESSION = {
   user: {
     id: "writer_01",
     email: "writer@example.com",
-    displayName: "Writer One"
+    displayName: "Writer One",
+    emailVerified: false
   }
 };
 
@@ -121,7 +122,7 @@ describe("readStoredUserId", () => {
 
 describe("formatUserLabel", () => {
   it("formats display name and email together", () => {
-    const label = formatUserLabel({ id: "u1", email: "test@x.com", displayName: "Test User" });
+    const label = formatUserLabel({ id: "u1", email: "test@x.com", displayName: "Test User", emailVerified: false });
     expect(label).toBe("Test User (test@x.com)");
   });
 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import Link from "next/link";
 import type { Route } from "next";
 import { usePathname, useRouter } from "next/navigation";
@@ -49,18 +49,16 @@ function isActive(pathname: string, href: string): boolean {
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const [authorized, setAuthorized] = useState<boolean | null>(null);
+  const session = readStoredSession();
+  const isAdmin = session?.user.role === "admin";
 
   useEffect(() => {
-    const session = readStoredSession();
-    if (!session || session.user.role !== "admin") {
+    if (!isAdmin) {
       router.replace("/");
-      return;
     }
-    setAuthorized(true);
-  }, [router]);
+  }, [isAdmin, router]);
 
-  if (!authorized) {
+  if (!isAdmin) {
     return null;
   }
 

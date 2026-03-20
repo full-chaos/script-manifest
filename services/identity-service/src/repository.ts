@@ -333,7 +333,7 @@ export class PgIdentityRepository implements IdentityRepository {
   async createSession(userId: string): Promise<IdentitySession> {
     const db = getPool();
     const token = `sess_${randomUUID()}`;
-    const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 
     await db.query(
       `

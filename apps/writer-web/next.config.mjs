@@ -1,3 +1,5 @@
+import { withSentryConfig } from '@sentry/nextjs';
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'standalone',
@@ -5,4 +7,11 @@ const nextConfig = {
   typedRoutes: true
 };
 
-export default nextConfig;
+const sentryOptions = {
+  silent: true,
+  disableServerWebpackPlugin: !process.env.SENTRY_DSN,
+  disableClientWebpackPlugin: !process.env.NEXT_PUBLIC_SENTRY_DSN,
+  hideSourceMaps: true,
+};
+
+export default withSentryConfig(nextConfig, sentryOptions);

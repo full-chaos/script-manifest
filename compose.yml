@@ -715,6 +715,7 @@ services:
       COVERAGE_ADMIN_ALLOWLIST: "admin_01,user_admin_01"
       INDUSTRY_ADMIN_ALLOWLIST: "admin_01,user_admin_01"
       COMPETITION_ADMIN_ALLOWLIST: "admin_01,user_admin_01"
+      NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
       SEARCH_INDEXER_URL: "http://search-indexer-service:4003"
       RATE_LIMIT_MAX: "1000"
     command: >
@@ -746,6 +747,8 @@ services:
       programs-service:
         condition: service_healthy
       partner-dashboard-service:
+        condition: service_healthy
+      notification-service:
         condition: service_healthy
       search-indexer-service:
         condition: service_healthy

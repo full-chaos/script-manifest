@@ -2,7 +2,7 @@ import Fastify, { type FastifyInstance } from "fastify";
 import rateLimit from "@fastify/rate-limit";
 import { randomUUID } from "node:crypto";
 import { request as undiciRequest } from "undici";
-import { bootstrapService, registerMetrics, setupErrorReporting, validateRequiredEnv, isMainModule, readHeader } from "@script-manifest/service-utils";
+import { bootstrapService, registerMetrics, registerSentryErrorHandler, setupErrorReporting, validateRequiredEnv, isMainModule, readHeader } from "@script-manifest/service-utils";
 import { healthCheck } from "@script-manifest/db";
 import {
   ProgramApplicationCreateRequestSchema,
@@ -738,6 +738,7 @@ export async function startServer(): Promise<void> {
   
   // Register Prometheus metrics endpoint (only in production server startup, not tests).
   await registerMetrics(server);
+  registerSentryErrorHandler(server);
   await server.listen({ port, host: "0.0.0.0" });
   boot.ready(port);
 }

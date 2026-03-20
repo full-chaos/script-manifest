@@ -1,6 +1,6 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import { randomUUID } from "node:crypto";
-import { bootstrapService, registerMetrics, setupErrorReporting, validateRequiredEnv, isMainModule, verifyServiceToken } from "@script-manifest/service-utils";
+import { bootstrapService, registerMetrics, registerSentryErrorHandler, setupErrorReporting, validateRequiredEnv, isMainModule, verifyServiceToken } from "@script-manifest/service-utils";
 import { closePool } from "@script-manifest/db";
 import {
   NotificationEventEnvelopeSchema
@@ -141,6 +141,7 @@ export async function startServer(): Promise<void> {
   
   // Register Prometheus metrics endpoint (only in production server startup, not tests).
   await registerMetrics(server);
+  registerSentryErrorHandler(server);
   await server.listen({ port, host: "0.0.0.0" });
   boot.ready(port);
 }

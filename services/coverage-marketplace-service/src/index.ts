@@ -2,7 +2,7 @@ import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
 import rateLimit from "@fastify/rate-limit";
 import { randomUUID } from "node:crypto";
 import { Counter } from "prom-client";
-import { bootstrapService, registerMetrics, setupErrorReporting, validateRequiredEnv, getAuthUserId, isMainModule, readHeader, verifyServiceToken } from "@script-manifest/service-utils";
+import { bootstrapService, registerMetrics, registerSentryErrorHandler, setupErrorReporting, validateRequiredEnv, getAuthUserId, isMainModule, readHeader, verifyServiceToken } from "@script-manifest/service-utils";
 import { closePool, healthCheck } from "@script-manifest/db";
 import {
   CoverageProviderCreateRequestSchema,
@@ -1443,6 +1443,7 @@ export async function startServer(): Promise<void> {
   boot.phase("server built");
   // Register Prometheus metrics endpoint (only in production server startup, not tests).
   await registerMetrics(server);
+  registerSentryErrorHandler(server);
   await server.listen({ port, host: "0.0.0.0" });
   boot.ready(port);
 }

@@ -32,7 +32,7 @@ import { registerFeatureFlagRoutes } from "./routes/feature-flags.js";
 import { registerMfaRoutes } from "./routes/mfa.js";
 import { registerHealthRoutes } from "./routes/health.js";
 import { registerIpBlocklist } from "./plugins/ipBlocklist.js";
-import { registerMetrics } from "@script-manifest/service-utils";
+import { registerMetrics, registerSentryErrorHandler } from "@script-manifest/service-utils";
 
 export type ApiGatewayOptions = {
   logger?: boolean;
@@ -226,6 +226,7 @@ export async function startServer(): Promise<void> {
   // Register Prometheus metrics endpoint (only in production server startup, not tests).
   await registerMetrics(server);
   boot.phase("metrics registered");
+  registerSentryErrorHandler(server);
   await server.listen({ port, host: "0.0.0.0" });
   boot.ready(port);
 }

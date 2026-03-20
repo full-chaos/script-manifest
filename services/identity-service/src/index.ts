@@ -39,7 +39,7 @@ import { registerFeatureFlagRoutes } from "./feature-flag-routes.js";
 import { type MfaRepository, PgMfaRepository, MemoryMfaRepository } from "./mfa-repository.js";
 import { registerMfaRoutes, createMfaChallenge } from "./mfa-routes.js";
 import type { EmailService } from "@script-manifest/email";
-import { registerMetrics } from "@script-manifest/service-utils";
+import { registerMetrics, registerSentryErrorHandler } from "@script-manifest/service-utils";
 
 const loginCounter = new Counter({
   name: "identity_logins_total",
@@ -688,6 +688,7 @@ export async function startServer(): Promise<void> {
   boot.phase("server built");
   // Register Prometheus metrics endpoint (only in production server startup, not tests).
   await registerMetrics(server);
+  registerSentryErrorHandler(server);
   await server.listen({ port, host: "0.0.0.0" });
   boot.ready(port);
 }

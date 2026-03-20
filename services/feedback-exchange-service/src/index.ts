@@ -1,7 +1,7 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import { randomUUID } from "node:crypto";
 import { Counter } from "prom-client";
-import { bootstrapService, registerMetrics, setupErrorReporting, validateRequiredEnv, getAuthUserId, isMainModule, publishNotificationEvent } from "@script-manifest/service-utils";
+import { bootstrapService, registerMetrics, registerSentryErrorHandler, setupErrorReporting, validateRequiredEnv, getAuthUserId, isMainModule, publishNotificationEvent } from "@script-manifest/service-utils";
 import { healthCheck } from "@script-manifest/db";
 import {
   FeedbackListingCreateRequestSchema,
@@ -536,6 +536,7 @@ export async function startServer(): Promise<void> {
   boot.phase("server built");
   // Register Prometheus metrics endpoint (only in production server startup, not tests).
   await registerMetrics(server);
+  registerSentryErrorHandler(server);
   await server.listen({ port, host: "0.0.0.0" });
   boot.ready(port);
 }

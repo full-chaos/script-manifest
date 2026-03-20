@@ -19,7 +19,7 @@ import {
   type ProfileProjectRepository,
   PgProfileProjectRepository
 } from "./repository.js";
-import { registerMetrics } from "@script-manifest/service-utils";
+import { registerMetrics, registerSentryErrorHandler } from "@script-manifest/service-utils";
 
 type PublishNotificationEvent = typeof publishNotificationEvent;
 
@@ -603,6 +603,7 @@ export async function startServer(): Promise<void> {
   
   // Register Prometheus metrics endpoint (only in production server startup, not tests).
   await registerMetrics(server);
+  registerSentryErrorHandler(server);
   await server.listen({ port, host: "0.0.0.0" });
   boot.ready(port);
 }

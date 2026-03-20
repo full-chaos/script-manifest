@@ -238,4 +238,113 @@ describe("proxyRequest", () => {
       globalThis.fetch = originalFetch;
     }
   });
+
+  it("returns 503 for admin paths when auth service is unavailable (network error)", async () => {
+    mockCookiesWithToken("admin_tok");
+    const originalFetch = globalThis.fetch;
+    process.env.API_GATEWAY_URL = "http://gateway";
+
+    globalThis.fetch = (async () => {
+      throw new Error("ECONNREFUSED");
+    }) as typeof fetch;
+
+    try {
+      const response = await proxyRequest(
+        new Request("http://localhost/api/v1/admin/users", { method: "GET" }),
+        "/api/v1/admin/users"
+      );
+
+      expect(response.status).toBe(503);
+      const body = await response.json();
+      expect(body.error).toBe("service_unavailable");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("returns 503 for admin paths when auth service returns 500", async () => {
+    mockCookiesWithToken("admin_tok");
+    const originalFetch = globalThis.fetch;
+    process.env.API_GATEWAY_URL = "http://gateway";
+
+    globalThis.fetch = (async () =>
+      new Response(JSON.stringify({ error: "internal" }), { status: 500 })
+    ) as typeof fetch;
+
+    try {
+      const response = await proxyRequest(
+        new Request("http://localhost/api/v1/admin/users", { method: "GET" }),
+        "/api/v1/admin/users"
+      );
+
+      expect(response.status).toBe(503);
+      const body = await response.json();
+      expect(body.error).toBe("service_unavailable");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("returns 403 for admin paths when user is not admin", async () => {
+    mockCookiesWithToken("writer_tok");
+    const originalFetch = globalThis.fetch;
+    process.env.API_GATEWAY_URL = "http://gateway";
+    let callCount = 0;
+
+    globalThis.fetch = (async () => {
+      callCount++;
+      // First call is the /auth/me role check
+      if (callCount === 1) {
+        return new Response(
+          JSON.stringify({ user: { id: "u1", email: "a@b.c", displayName: "Writer", role: "writer" } }),
+          { status: 200 }
+        );
+      }
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    }) as typeof fetch;
+
+    try {
+      const response = await proxyRequest(
+        new Request("http://localhost/api/v1/admin/users", { method: "GET" }),
+        "/api/v1/admin/users"
+      );
+
+      expect(response.status).toBe(403);
+      const body = await response.json();
+      expect(body.error).toBe("forbidden");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("allows admin paths when user has admin role", async () => {
+    mockCookiesWithToken("admin_tok");
+    const originalFetch = globalThis.fetch;
+    process.env.API_GATEWAY_URL = "http://gateway";
+    let callCount = 0;
+
+    globalThis.fetch = (async () => {
+      callCount++;
+      if (callCount === 1) {
+        return new Response(
+          JSON.stringify({ user: { id: "u1", email: "a@b.c", displayName: "Admin", role: "admin" } }),
+          { status: 200 }
+        );
+      }
+      return new Response(JSON.stringify({ users: [] }), { status: 200 });
+    }) as typeof fetch;
+
+    try {
+      const response = await proxyRequest(
+        new Request("http://localhost/api/v1/admin/users", { method: "GET" }),
+        "/api/v1/admin/users"
+      );
+
+      expect(response.status).toBe(200);
+      const body = await response.json();
+      expect(body.users).toEqual([]);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
 });

@@ -85,8 +85,8 @@ export default function AdminDashboardPage() {
           toast.error(body.error ?? "Failed to load admin metrics.");
           return;
         }
-        const body = (await response.json()) as PlatformMetrics;
-        setMetrics(body);
+        const body = (await response.json()) as { metrics: PlatformMetrics };
+        setMetrics(body.metrics);
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "Failed to load admin metrics.");
       } finally {
@@ -129,7 +129,7 @@ export default function AdminDashboardPage() {
                 className="subcard flex flex-col items-center gap-1 py-5 text-center"
               >
                 <span className={`text-3xl font-bold tabular-nums ${accentStyles[card.accent]}`}>
-                  {card.value.toLocaleString()}
+                  {(card.value ?? 0).toLocaleString()}
                 </span>
                 <span className="text-xs font-medium uppercase tracking-[0.1em] text-muted">
                   {card.label}

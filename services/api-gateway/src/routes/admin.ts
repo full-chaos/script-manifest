@@ -8,6 +8,7 @@ import {
   type GatewayContext,
   addAuthUserIdHeader,
   buildQuerySuffix,
+  clearAuthCacheByUserId,
   getUserIdFromAuth,
   proxyJsonRequest,
   resolveAdminByRole
@@ -62,7 +63,7 @@ export function registerAdminRoutes(server: FastifyInstance, ctx: GatewayContext
       return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
     }
 
-    return proxyJsonRequest(
+    const result = await proxyJsonRequest(
       reply, ctx.requestFn,
       `${ctx.identityServiceBase}/internal/admin/users/${encodeURIComponent(req.params.id)}`,
       {
@@ -72,6 +73,12 @@ export function registerAdminRoutes(server: FastifyInstance, ctx: GatewayContext
       },
       req.id
     );
+
+    if (parsed.data.role) {
+      clearAuthCacheByUserId(req.params.id);
+    }
+
+    return result;
   });
 
   // ── Audit Log ────────────────────────────────────────────────

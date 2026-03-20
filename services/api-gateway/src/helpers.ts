@@ -58,6 +58,15 @@ export function clearAuthCache(): void {
   authCache.clear();
 }
 
+/** Evict cached auth entries for a specific user (e.g. after role change). */
+export function clearAuthCacheByUserId(userId: string): void {
+  for (const [token, entry] of authCache) {
+    if (entry.auth?.userId === userId) {
+      authCache.delete(token);
+    }
+  }
+}
+
 const devServiceTokenSecret = randomBytes(32).toString("hex");
 
 function resolveServiceTokenSecret(): string | null {

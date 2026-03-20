@@ -2,6 +2,9 @@ import type { AuthSessionResponse, AuthUser } from "@script-manifest/contracts";
 
 export const SESSION_STORAGE_KEY = "script_manifest_session";
 export const SESSION_CHANGED_EVENT = "script_manifest_session_changed";
+export const REFRESH_THROTTLE_MS = 30_000;
+
+let _lastRefreshAt = 0;
 
 /**
  * Read the stored session for UI purposes.
@@ -92,4 +95,44 @@ export function getAuthHeaders(): Record<string, string> {
 
 export function formatUserLabel(user: AuthUser): string {
   return `${user.displayName} (${user.email})`;
+}
+
+export async function refreshSession(): Promise<void> {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  if (!window.localStorage.getItem(SESSION_STORAGE_KEY)) {
+    return;
+  }
+
+  const now = Date.now();
+  if (now - _lastRefreshAt < REFRESH_THROTTLE_MS) {
+    return;
+  }
+
+  _lastRefreshAt = now;
+
+  try {
+    const response = await fetch("/api/v1/auth/me", {
+      credentials: "include"
+    });
+
+    if (!response.ok) {
+      return;
+    }
+
+    const payload = (await response.json()) as Pick<AuthSessionResponse, "user" | "expiresAt">;
+    writeStoredSession({
+      token: "",
+      user: payload.user,
+      expiresAt: payload.expiresAt
+    });
+  } catch {
+    return;
+  }
+}
+
+export function _resetRefreshThrottle(): void {
+  _lastRefreshAt = 0;
 }

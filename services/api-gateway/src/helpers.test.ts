@@ -7,6 +7,7 @@ import {
   addAuthUserIdHeader,
   buildQuerySuffix,
   clearAuthCache,
+  clearAuthCacheByUserId,
   copyAuthHeader,
   getUserAuthFromToken,
   getUserIdFromAuth,
@@ -314,6 +315,59 @@ test("auth cache uses different entries for different tokens", async () => {
     "Bearer user_a"
   );
   assert.equal(aCached, "user_a", "cached entry for token A should be returned");
+});
+
+test("clearAuthCacheByUserId evicts entries for the target user only", async () => {
+  clearAuthCache();
+
+  let callCount = 0;
+  const requestFn = (async (_url, options) => {
+    callCount++;
+    const authorization = (options?.headers as Record<string, string> | undefined)?.authorization ?? "";
+    if (authorization === "Bearer token_a") {
+      return jsonResponse({ user: { id: "user_a", role: "writer" } }, 200);
+    }
+    if (authorization === "Bearer token_b") {
+      return jsonResponse({ user: { id: "user_b", role: "writer" } }, 200);
+    }
+    return jsonResponse({}, 401);
+  }) as typeof request;
+
+  const userAFirst = await getUserIdFromAuth(requestFn, "http://identity", "Bearer token_a");
+  const userBFirst = await getUserIdFromAuth(requestFn, "http://identity", "Bearer token_b");
+  assert.equal(userAFirst, "user_a");
+  assert.equal(userBFirst, "user_b");
+  assert.equal(callCount, 2);
+
+  clearAuthCacheByUserId("user_a");
+
+  const userASecond = await getUserIdFromAuth(requestFn, "http://identity", "Bearer token_a");
+  assert.equal(userASecond, "user_a");
+  assert.equal(callCount, 3, "user_a entry should be evicted and re-fetched");
+
+  const userBSecond = await getUserIdFromAuth(requestFn, "http://identity", "Bearer token_b");
+  assert.equal(userBSecond, "user_b");
+  assert.equal(callCount, 3, "user_b entry should remain cached");
+});
+
+test("clearAuthCacheByUserId is a no-op when user has no cached entries", async () => {
+  clearAuthCache();
+
+  let callCount = 0;
+  const requestFn = (async () => {
+    callCount++;
+    return jsonResponse({ user: { id: "user_a", role: "writer" } }, 200);
+  }) as typeof request;
+
+  const first = await getUserIdFromAuth(requestFn, "http://identity", "Bearer token_a");
+  assert.equal(first, "user_a");
+  assert.equal(callCount, 1);
+
+  clearAuthCacheByUserId("nonexistent_user");
+
+  const second = await getUserIdFromAuth(requestFn, "http://identity", "Bearer token_a");
+  assert.equal(second, "user_a");
+  assert.equal(callCount, 1, "non-matching user eviction should not evict existing entries");
 });
 
 test("getUserAuthFromToken returns user id and role", async () => {

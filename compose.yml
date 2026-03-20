@@ -787,7 +787,7 @@ services:
         condition: service_started
     healthcheck:
       test:
-        ["CMD-SHELL", "curl -sf http://localhost:3000/health/live || exit 1"]
+        ["CMD-SHELL", "curl -sf http://localhost:3000/health/ready || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5

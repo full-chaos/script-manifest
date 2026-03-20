@@ -1,8 +1,9 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
 import type { Route } from "next";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   Users,
@@ -16,6 +17,7 @@ import {
   ToggleRight,
   ShieldBan
 } from "lucide-react";
+import { readStoredSession } from "../lib/authSession";
 
 type NavItem = {
   href: Route;
@@ -46,6 +48,19 @@ function isActive(pathname: string, href: string): boolean {
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const session = readStoredSession();
+  const isAdmin = session?.user.role === "admin";
+
+  useEffect(() => {
+    if (!isAdmin) {
+      router.replace("/");
+    }
+  }, [isAdmin, router]);
+
+  if (!isAdmin) {
+    return null;
+  }
 
   return (
     <div className="flex flex-col lg:flex-row gap-4">

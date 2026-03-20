@@ -715,6 +715,7 @@ services:
       COVERAGE_ADMIN_ALLOWLIST: "admin_01,user_admin_01"
       INDUSTRY_ADMIN_ALLOWLIST: "admin_01,user_admin_01"
       COMPETITION_ADMIN_ALLOWLIST: "admin_01,user_admin_01"
+      SEARCH_INDEXER_URL: "http://search-indexer-service:4003"
       RATE_LIMIT_MAX: "1000"
     command: >
       /workspace/scripts/run-with-log.sh api-gateway sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/api-gateway dev"
@@ -745,6 +746,8 @@ services:
       programs-service:
         condition: service_healthy
       partner-dashboard-service:
+        condition: service_healthy
+      search-indexer-service:
         condition: service_healthy
     healthcheck:
       test:

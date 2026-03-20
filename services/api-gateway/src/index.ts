@@ -214,7 +214,7 @@ export async function startServer(): Promise<void> {
     industryPortalBase: process.env.INDUSTRY_PORTAL_SERVICE_URL,
     programsServiceBase: process.env.PROGRAMS_SERVICE_URL,
     partnerDashboardServiceBase: process.env.PARTNER_DASHBOARD_SERVICE_URL,
-    searchIndexerBase: process.env.SEARCH_INDEXER_SERVICE_URL,
+    searchIndexerBase: process.env.SEARCH_INDEXER_URL,
     enableIpBlocklist: true,
     competitionAdminAllowlist: parseAllowlist(process.env.COMPETITION_ADMIN_ALLOWLIST ?? ""),
     coverageAdminAllowlist: parseAllowlist(process.env.COVERAGE_ADMIN_ALLOWLIST ?? ""),

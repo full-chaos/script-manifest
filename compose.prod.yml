@@ -517,6 +517,7 @@ services:
       COMPETITION_ADMIN_ALLOWLIST: ${COMPETITION_ADMIN_ALLOWLIST:-}
       COVERAGE_ADMIN_ALLOWLIST: ${COVERAGE_ADMIN_ALLOWLIST:-}
       INDUSTRY_ADMIN_ALLOWLIST: ${INDUSTRY_ADMIN_ALLOWLIST:-}
+      SEARCH_INDEXER_URL: "http://search-indexer-service:4003"
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
     depends_on:
       traefik:
@@ -542,6 +543,8 @@ services:
       industry-portal-service:
         condition: service_healthy
       script-storage-service:
+        condition: service_healthy
+      search-indexer-service:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:4000/health/live || exit 1"]

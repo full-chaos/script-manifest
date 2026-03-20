@@ -5,7 +5,7 @@ import type { Route } from "next";
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import type { AuthUser } from "@script-manifest/contracts";
-import { SESSION_CHANGED_EVENT, readStoredSession } from "../lib/authSession";
+import { SESSION_CHANGED_EVENT, readStoredSession, refreshSession } from "../lib/authSession";
 import { Menu, X } from "lucide-react";
 import { ThemeToggle } from "./themeToggle";
 
@@ -56,9 +56,17 @@ export function SiteHeader() {
     window.addEventListener("storage", syncSession);
     window.addEventListener(SESSION_CHANGED_EVENT, syncSession);
 
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        void refreshSession();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
     return () => {
       window.removeEventListener("storage", syncSession);
       window.removeEventListener(SESSION_CHANGED_EVENT, syncSession);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, []);
 

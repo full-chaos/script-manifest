@@ -21,6 +21,7 @@ function formatEventLabel(event: NotificationItem): string {
     ranking_tier_changed: "Ranking tier changed",
     partner_submission_received: "Submission received",
     partner_results_published: "Results published",
+    partner_entrant_message_sent: "New message",
   };
   return labels[event.eventType] ?? event.eventType.replaceAll("_", " ");
 }

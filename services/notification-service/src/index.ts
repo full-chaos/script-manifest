@@ -144,7 +144,7 @@ export function buildServer(options: NotificationServiceOptions = {}): FastifyIn
   });
 
   // Register admin routes for notification management
-  registerNotificationAdminRoutes(server, adminRepository);
+  registerNotificationAdminRoutes(server, adminRepository, repository);
 
   return server;
 }

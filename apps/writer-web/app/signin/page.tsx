@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import type { AuthSessionResponse } from "@script-manifest/contracts";
 import {
@@ -27,22 +27,7 @@ export default function SignInPage() {
   const [oauthSubmitting, setOauthSubmitting] = useState(false);
   const [acceptTerms, setAcceptTerms] = useState(false);
 
-  // On mount: restore session + handle Google OAuth callback redirect
-  useEffect(() => {
-    setSession(readStoredSession());
-
-    // Detect ?code=&state= query params from Google OAuth redirect
-    const params = new URLSearchParams(window.location.search);
-    const code = params.get("code");
-    const state = params.get("state");
-    if (code && state) {
-      // Clear query params from URL to prevent replay
-      window.history.replaceState({}, "", window.location.pathname);
-      void completeOAuthFromRedirect(state, code);
-    }
-  }, []);
-
-  async function completeOAuthFromRedirect(state: string, code: string) {
+  const completeOAuthFromRedirect = useCallback(async (state: string, code: string) => {
     setOauthSubmitting(true);
     setStatus("");
 
@@ -69,7 +54,19 @@ export default function SignInPage() {
     } finally {
       setOauthSubmitting(false);
     }
-  }
+  }, [router]);
+
+  useEffect(() => {
+    setSession(readStoredSession());
+
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get("code");
+    const state = params.get("state");
+    if (code && state) {
+      window.history.replaceState({}, "", window.location.pathname);
+      void completeOAuthFromRedirect(state, code);
+    }
+  }, [completeOAuthFromRedirect]);
 
   const modeLabel = useMemo(() => (mode === "register" ? "Create account" : "Sign in"), [mode]);
 

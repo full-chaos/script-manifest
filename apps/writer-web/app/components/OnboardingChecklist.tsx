@@ -4,20 +4,57 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import type { Route } from "next";
 import { CheckCircle2, Circle, X } from "lucide-react";
-import { readStoredSession } from "../lib/authSession";
+import type { OnboardingStatus } from "@script-manifest/contracts";
 
 const ONBOARDING_DISMISSED_KEY = "onboarding-dismissed";
 
+type ChecklistState = {
+  mounted: boolean;
+  dismissed: boolean;
+  status: OnboardingStatus | null;
+};
+
 export function OnboardingChecklist() {
-  const [state, setState] = useState({ mounted: false, dismissed: true, emailVerified: false });
+  const [state, setState] = useState<ChecklistState>({
+    mounted: false,
+    dismissed: true,
+    status: null,
+  });
 
   useEffect(() => {
     const isDismissed = window.localStorage.getItem(ONBOARDING_DISMISSED_KEY) === "true";
-    const session = readStoredSession() as { user?: { emailVerified?: boolean }; emailVerified?: boolean } | null;
-    const isVerified = (session?.user?.emailVerified ?? session?.emailVerified) === true;
 
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- mounted pattern requires client-side localStorage access
-    setState({ mounted: true, dismissed: isDismissed, emailVerified: isVerified });
+    if (isDismissed) {
+      queueMicrotask(() => setState({ mounted: true, dismissed: true, status: null }));
+      return;
+    }
+
+    let cancelled = false;
+
+    async function fetchStatus() {
+      try {
+        const response = await fetch("/api/v1/onboarding-status", { cache: "no-store" });
+        if (!response.ok || cancelled) return;
+        const body = (await response.json()) as { status?: OnboardingStatus };
+        if (cancelled) return;
+        setState({
+          mounted: true,
+          dismissed: false,
+          status: body.status ?? null,
+        });
+      } catch {
+        if (!cancelled) {
+          setState({ mounted: true, dismissed: false, status: null });
+        }
+      }
+    }
+
+    queueMicrotask(() => setState((prev) => ({ ...prev, mounted: true, dismissed: false })));
+    void fetchStatus();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   if (!state.mounted || state.dismissed) {
@@ -29,36 +66,38 @@ export function OnboardingChecklist() {
     setState((prev) => ({ ...prev, dismissed: true }));
   };
 
+  const s = state.status;
+
   const checklistItems = [
     {
       id: "verify-email",
       label: "Verify email",
       href: "/verify-email" as Route,
-      checked: state.emailVerified,
+      checked: s?.emailVerified ?? false,
     },
     {
       id: "complete-profile",
       label: "Complete your profile",
       href: "/profile" as Route,
-      checked: false,
+      checked: s?.profileCompleted ?? false,
     },
     {
       id: "upload-script",
       label: "Upload your first script",
       href: "/projects" as Route,
-      checked: false,
+      checked: s?.firstScriptUploaded ?? false,
     },
     {
       id: "browse-competitions",
       label: "Browse competitions",
       href: "/competitions" as Route,
-      checked: false,
+      checked: s?.competitionsVisited ?? false,
     },
     {
       id: "explore-coverage",
       label: "Explore coverage services",
       href: "/coverage" as Route,
-      checked: false,
+      checked: s?.coverageVisited ?? false,
     },
   ];
 

@@ -45,12 +45,9 @@ export function writeStoredSession(session: AuthSessionResponse): void {
     return;
   }
 
-  // Strip the raw token — never store it in localStorage.
-  // The HttpOnly cookie is the authoritative store for the token.
-  const { token: _token, ...safeSession } = session;
   const safeWithPlaceholder: AuthSessionResponse = {
-    ...safeSession,
-    token: "" // keep shape compatible with AuthSessionResponse type
+    ...session,
+    token: "",
   };
 
   window.localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(safeWithPlaceholder));

@@ -79,7 +79,6 @@ describe("PaymentMethodsPage", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn<typeof fetch>(async (input, init) => {
-        const url = typeof input === "string" ? input : (input as Request).url;
         const reqMethod = typeof input === "string" ? init?.method : (input as Request).method;
 
         if (reqMethod === "DELETE") {

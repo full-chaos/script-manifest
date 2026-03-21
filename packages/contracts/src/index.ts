@@ -18,3 +18,4 @@ export * from "./search-admin.js";
 export * from "./mfa.js";
 export * from "./feature-flags.js";
 export * from "./ip-blocking.js";
+export * from "./onboarding.js";

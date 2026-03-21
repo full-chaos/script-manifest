@@ -38,6 +38,8 @@ import { type FeatureFlagRepository, PgFeatureFlagRepository, MemoryFeatureFlagR
 import { registerFeatureFlagRoutes } from "./feature-flag-routes.js";
 import { type MfaRepository, PgMfaRepository, MemoryMfaRepository } from "./mfa-repository.js";
 import { registerMfaRoutes, createMfaChallenge } from "./mfa-routes.js";
+import { type OnboardingRepository, PgOnboardingRepository, MemoryOnboardingRepository } from "./onboarding-repository.js";
+import { registerOnboardingRoutes } from "./onboarding-routes.js";
 import type { EmailService } from "@script-manifest/email";
 import { registerMetrics, registerSentryErrorHandler } from "@script-manifest/service-utils";
 
@@ -59,6 +61,7 @@ export type IdentityServiceOptions = {
   ipBlockRepository?: IpBlockRepository;
   featureFlagRepository?: FeatureFlagRepository;
   mfaRepository?: MfaRepository;
+  onboardingRepository?: OnboardingRepository;
   emailService?: EmailService;
 };
 
@@ -71,6 +74,7 @@ export function buildServer(options: IdentityServiceOptions = {}): FastifyInstan
   const ipBlockRepo = options.ipBlockRepository ?? (options.repository ? new MemoryIpBlockRepository() : new PgIpBlockRepository());
   const flagRepo = options.featureFlagRepository ?? (options.repository ? new MemoryFeatureFlagRepository() : new PgFeatureFlagRepository());
   const mfaRepo = options.mfaRepository ?? (options.repository ? new MemoryMfaRepository() : new PgMfaRepository());
+  const onboardingRepo = options.onboardingRepository ?? (options.repository ? new MemoryOnboardingRepository() : new PgOnboardingRepository());
   const emailService = options.emailService;
   const runHealthCheck = options.repository ? () => repository.healthCheck() : healthCheck;
   const server = Fastify({
@@ -95,6 +99,7 @@ export function buildServer(options: IdentityServiceOptions = {}): FastifyInstan
     await ipBlockRepo.init();
     await flagRepo.init();
     await mfaRepo.init();
+    await onboardingRepo.init();
   });
 
   server.register(rateLimit, {
@@ -663,6 +668,7 @@ export function buildServer(options: IdentityServiceOptions = {}): FastifyInstan
   });
 
   registerMfaRoutes(server, mfaRepo, repository);
+  registerOnboardingRoutes(server, onboardingRepo, repository);
   registerAdminRoutes(server, adminRepo);
   registerSuspensionRoutes(server, suspensionRepo, adminRepo);
   registerIpBlockRoutes(server, ipBlockRepo, adminRepo);

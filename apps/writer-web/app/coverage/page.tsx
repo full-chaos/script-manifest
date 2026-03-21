@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { CoverageService, CoverageProvider, CoverageTier } from "@script-manifest/contracts";
 import { EmptyState } from "../components/emptyState";
 import { EmptyIllustration } from "../components/illustrations";
@@ -45,8 +45,17 @@ export default function CoverageMarketplacePage() {
     }
   }, [maxPrice, minPrice, tierFilter, toast]);
 
+  const onboardingMarked = useRef(false);
   useEffect(() => {
     void loadData();
+    if (!onboardingMarked.current) {
+      onboardingMarked.current = true;
+      void fetch("/api/v1/onboarding-progress", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ coverageVisited: true }),
+      });
+    }
   }, [loadData]);
 
   function getProviderName(providerId: string): string {

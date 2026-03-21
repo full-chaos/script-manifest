@@ -50,6 +50,7 @@ export const NotificationEventEnvelopeSchema = z.object({
   eventId: z.string().min(1),
   eventType: NotificationEventTypeSchema,
   occurredAt: z.string().datetime({ offset: true }),
+  readAt: z.string().datetime({ offset: true }).nullable().optional(),
   actorUserId: z.string().min(1).optional(),
   targetUserId: z.string().min(1),
   resourceType: NotificationResourceTypeSchema,

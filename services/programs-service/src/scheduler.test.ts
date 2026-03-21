@@ -6,14 +6,14 @@ import type { ProgramsSchedulerDependencies } from "./scheduler.js";
 
 type RequestFn = ProgramsSchedulerDependencies["requestFn"];
 
-const okRequest: RequestFn = async () => {
+const okRequest: RequestFn = (async () => {
   return {
     statusCode: 202,
     body: {
       text: async () => ""
     }
-  } as unknown as Awaited<ReturnType<RequestFn>>;
-};
+  };
+}) as unknown as RequestFn;
 
 test("runProgramsSchedulerJob session_reminder skips out-of-window candidates", async (t) => {
   t.mock.method(Date, "now", () => new Date("2026-03-01T12:00:00.000Z").getTime());
@@ -57,13 +57,14 @@ test("startProgramsScheduler schedules tick and runs default jobs", async (t) =>
   let intervalCallback: (() => void) | undefined;
   const logs: string[] = [];
 
-  t.mock.method(globalThis, "setInterval", ((callback: TimerHandler) => {
+  t.mock.method(globalThis, "setInterval", ((...args: unknown[]) => {
+    const callback = args[0];
     if (typeof callback === "function") {
-      intervalCallback = callback;
+      intervalCallback = callback as () => void;
     }
     return 1 as unknown as ReturnType<typeof setInterval>;
-  }) as typeof setInterval);
-  t.mock.method(globalThis, "clearInterval", (() => undefined) as typeof clearInterval);
+  }) as unknown as typeof setInterval);
+  t.mock.method(globalThis, "clearInterval", ((() => undefined) as unknown as typeof clearInterval));
 
   const repository = {
     listApplicationReminderCandidates: async () => [],
@@ -76,7 +77,7 @@ test("startProgramsScheduler schedules tick and runs default jobs", async (t) =>
     requestFn: okRequest,
     notificationServiceBase: "http://notification",
     logger: {
-      info: (_payload, message) => logs.push(message),
+      info: (_payload: unknown, message: string) => logs.push(message),
       error: () => undefined
     }
   }, { intervalMs: 50, enabled: true });

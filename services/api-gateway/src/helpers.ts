@@ -243,6 +243,13 @@ export async function resolveAdminUserId(
     return authedUserId;
   }
 
+  if (authedUserId) {
+    const auth = await getUserAuthFromToken(requestFn, identityServiceBase, authorization, logger);
+    if (auth?.role === "admin") {
+      return auth.userId;
+    }
+  }
+
   return null;
 }
 

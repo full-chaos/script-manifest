@@ -11,11 +11,9 @@ import {
   copyAuthHeader,
   getUserAuthFromToken,
   getUserIdFromAuth,
-  parseAllowlist,
   proxyJsonRequest,
   resolveAdminByRole,
   readHeaderValue,
-  resolveAdminUserId,
   safeJsonParse
 } from "./helpers.js";
 
@@ -91,11 +89,6 @@ test("header helpers keep auth behavior deterministic", () => {
 
     assert.equal(readHeaderValue({ authorization: "Bearer sess_1" }, "authorization"), "Bearer sess_1");
     assert.equal(readHeaderValue({ authorization: "" }, "authorization"), undefined);
-    assert.deepEqual(parseAllowlist(" admin_1,admin_2 , ,admin_3 "), [
-      "admin_1",
-      "admin_2",
-      "admin_3"
-    ]);
   } finally {
     if (previousSecret === undefined) {
       delete process.env.SERVICE_TOKEN_SECRET;
@@ -146,42 +139,6 @@ test("getUserIdFromAuth returns null for non-200 or malformed responses", async 
     "Bearer sess_1"
   );
   assert.equal(missingUser, null);
-});
-
-test("resolveAdminUserId trusts explicit admin header", async () => {
-  const requestFn = (async () => {
-    throw new Error("requestFn should not be called when admin header is present");
-  }) as typeof request;
-
-  const result = await resolveAdminUserId(
-    requestFn,
-    "http://identity",
-    { "x-admin-user-id": "admin_01", authorization: "Bearer sess_1" },
-    new Set(["someone_else"])
-  );
-
-  assert.equal(result, "admin_01");
-});
-
-test("resolveAdminUserId falls back to auth identity lookup", async () => {
-  clearAuthCache();
-  const requestFn = (async () => jsonResponse({ user: { id: "admin_from_auth", role: "admin" } }, 200)) as typeof request;
-
-  const allowlisted = await resolveAdminUserId(
-    requestFn,
-    "http://identity",
-    { authorization: "Bearer sess_1" },
-    new Set(["admin_from_auth"])
-  );
-  assert.equal(allowlisted, "admin_from_auth");
-
-  const rejected = await resolveAdminUserId(
-    requestFn,
-    "http://identity",
-    { authorization: "Bearer sess_1" },
-    new Set(["someone_else"])
-  );
-  assert.equal(rejected, null);
 });
 
 test("proxyJsonRequest forwards response body and request id header", async () => {

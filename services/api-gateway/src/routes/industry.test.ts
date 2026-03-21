@@ -58,16 +58,15 @@ test("industry account create proxies authenticated context", async (t) => {
   assert.equal(authHeaders[0], "industry_01");
 });
 
-test("industry verify route requires allowlisted admin", async (t) => {
+test("industry verify route requires admin", async (t) => {
   const urls: string[] = [];
   const adminHeaders: string[] = [];
   const server = await buildServer({
     logger: false,
-    industryAdminAllowlist: ["admin_writer"],
     requestFn: (async (url, options) => {
       const urlStr = String(url);
       if (urlStr.includes("/internal/auth/me")) {
-        return jsonResponse({ user: { id: "admin_writer" }, expiresAt: "2026-12-31T00:00:00.000Z" });
+        return jsonResponse({ user: { id: "admin_writer", role: "admin" }, expiresAt: "2026-12-31T00:00:00.000Z" });
       }
       urls.push(urlStr);
       adminHeaders.push(
@@ -207,16 +206,15 @@ test("industry list routes proxy writer auth context", async (t) => {
   assert.equal(headers[0]?.["x-auth-user-id"], "industry_01");
 });
 
-test("industry mandate create route requires allowlisted admin", async (t) => {
+test("industry mandate create route requires admin", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
   const server = await buildServer({
     logger: false,
-    industryAdminAllowlist: ["admin_writer"],
     requestFn: (async (url, options) => {
       const urlStr = String(url);
       if (urlStr.includes("/internal/auth/me")) {
-        return jsonResponse({ user: { id: "admin_writer" }, expiresAt: "2026-12-31T00:00:00.000Z" });
+        return jsonResponse({ user: { id: "admin_writer", role: "admin" }, expiresAt: "2026-12-31T00:00:00.000Z" });
       }
       urls.push(urlStr);
       headers.push((options?.headers as Record<string, string> | undefined) ?? {});
@@ -323,11 +321,10 @@ test("industry mandate review and index rebuild routes require admin", async (t)
   const headers: Record<string, string>[] = [];
   const server = await buildServer({
     logger: false,
-    industryAdminAllowlist: ["admin_writer"],
     requestFn: (async (url, options) => {
       const urlStr = String(url);
       if (urlStr.includes("/internal/auth/me")) {
-        return jsonResponse({ user: { id: "admin_writer" }, expiresAt: "2026-12-31T00:00:00.000Z" });
+        return jsonResponse({ user: { id: "admin_writer", role: "admin" }, expiresAt: "2026-12-31T00:00:00.000Z" });
       }
       urls.push(urlStr);
       headers.push((options?.headers as Record<string, string> | undefined) ?? {});

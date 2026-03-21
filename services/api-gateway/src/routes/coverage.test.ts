@@ -769,16 +769,15 @@ test("POST /api/v1/coverage/orders/:orderId/dispute requires auth", async (t) =>
   assert.equal(headers[0]?.["x-auth-user-id"], "writer_01");
 });
 
-test("GET /api/v1/coverage/disputes requires allowlisted admin", async (t) => {
+test("GET /api/v1/coverage/disputes requires admin", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
   const server = await buildServer({
     logger: false,
-    coverageAdminAllowlist: ["admin_01"],
     requestFn: (async (url, options) => {
       const urlStr = String(url);
       if (urlStr.includes("/internal/auth/me")) {
-        return jsonResponse({ user: { id: "admin_01" }, expiresAt: "2026-12-31T00:00:00.000Z" });
+        return jsonResponse({ user: { id: "admin_01", role: "admin" }, expiresAt: "2026-12-31T00:00:00.000Z" });
       }
       urls.push(urlStr);
       headers.push((options?.headers as Record<string, string> | undefined) ?? {});
@@ -808,16 +807,15 @@ test("GET /api/v1/coverage/disputes requires allowlisted admin", async (t) => {
   assert.equal(headers[0]?.["x-auth-user-id"], "admin_01");
 });
 
-test("PATCH /api/v1/coverage/disputes/:disputeId requires allowlisted admin", async (t) => {
+test("PATCH /api/v1/coverage/disputes/:disputeId requires admin", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
   const server = await buildServer({
     logger: false,
-    coverageAdminAllowlist: ["admin_01"],
     requestFn: (async (url, options) => {
       const urlStr = String(url);
       if (urlStr.includes("/internal/auth/me")) {
-        return jsonResponse({ user: { id: "admin_01" }, expiresAt: "2026-12-31T00:00:00.000Z" });
+        return jsonResponse({ user: { id: "admin_01", role: "admin" }, expiresAt: "2026-12-31T00:00:00.000Z" });
       }
       urls.push(urlStr);
       headers.push((options?.headers as Record<string, string> | undefined) ?? {});
@@ -849,16 +847,15 @@ test("PATCH /api/v1/coverage/disputes/:disputeId requires allowlisted admin", as
   assert.equal(headers[0]?.["x-auth-user-id"], "admin_01");
 });
 
-test("GET /api/v1/coverage/admin/providers/review-queue requires allowlisted admin", async (t) => {
+test("GET /api/v1/coverage/admin/providers/review-queue requires admin", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
   const server = await buildServer({
     logger: false,
-    coverageAdminAllowlist: ["admin_01"],
     requestFn: (async (url, options) => {
       const urlStr = String(url);
       if (urlStr.includes("/internal/auth/me")) {
-        return jsonResponse({ user: { id: "admin_01" }, expiresAt: "2026-12-31T00:00:00.000Z" });
+        return jsonResponse({ user: { id: "admin_01", role: "admin" }, expiresAt: "2026-12-31T00:00:00.000Z" });
       }
       urls.push(urlStr);
       headers.push((options?.headers as Record<string, string> | undefined) ?? {});
@@ -927,16 +924,15 @@ test("GET /api/v1/coverage/providers/:providerId/earnings-statement requires aut
   assert.equal(headers[0]?.["x-auth-user-id"], "provider_01");
 });
 
-test("admin payout-ledger and SLA maintenance routes require allowlisted admin", async (t) => {
+test("admin payout-ledger and SLA maintenance routes require admin", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
   const server = await buildServer({
     logger: false,
-    coverageAdminAllowlist: ["admin_01"],
     requestFn: (async (url, options) => {
       const urlStr = String(url);
       if (urlStr.includes("/internal/auth/me")) {
-        return jsonResponse({ user: { id: "admin_01" }, expiresAt: "2026-12-31T00:00:00.000Z" });
+        return jsonResponse({ user: { id: "admin_01", role: "admin" }, expiresAt: "2026-12-31T00:00:00.000Z" });
       }
       urls.push(urlStr);
       headers.push((options?.headers as Record<string, string> | undefined) ?? {});
@@ -974,16 +970,15 @@ test("admin payout-ledger and SLA maintenance routes require allowlisted admin",
   assert.equal(headers[1]?.["x-auth-user-id"], "admin_01");
 });
 
-test("GET /api/v1/coverage/disputes/:disputeId/events requires allowlisted admin", async (t) => {
+test("GET /api/v1/coverage/disputes/:disputeId/events requires admin", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
   const server = await buildServer({
     logger: false,
-    coverageAdminAllowlist: ["admin_01"],
     requestFn: (async (url, options) => {
       const urlStr = String(url);
       if (urlStr.includes("/internal/auth/me")) {
-        return jsonResponse({ user: { id: "admin_01" }, expiresAt: "2026-12-31T00:00:00.000Z" });
+        return jsonResponse({ user: { id: "admin_01", role: "admin" }, expiresAt: "2026-12-31T00:00:00.000Z" });
       }
       urls.push(urlStr);
       headers.push((options?.headers as Record<string, string> | undefined) ?? {});

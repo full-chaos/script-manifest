@@ -21,9 +21,6 @@ export type GatewayContext = {
   programsServiceBase: string;
   partnerDashboardServiceBase: string;
   searchIndexerBase: string;
-  competitionAdminAllowlist: Set<string>;
-  coverageAdminAllowlist: Set<string>;
-  industryAdminAllowlist: Set<string>;
 };
 
 // ── Auth token TTL cache (CHAOS-581) ─────────────────────────────────
@@ -219,33 +216,6 @@ export function copyAuthHeader(authorization: string | undefined): Record<string
   return { authorization };
 }
 
-export async function resolveAdminUserId(
-  requestFn: RequestFn,
-  identityServiceBase: string,
-  headers: Record<string, unknown>,
-  allowlist: Set<string>,
-  logger?: AuthLogger
-): Promise<string | null> {
-  // CHAOS-911 / defense-in-depth: x-admin-user-id here is trusted because the
-  // BFF now validates admin role and injects this header before proxying
-  // requests to the gateway (PR #354). preValidation in index.ts still strips
-  // client-supplied x-admin-user-id, so values read here are from trusted
-  // internal callers, not end users. Do not call this function from contexts
-  // where that trust boundary is not enforced.
-  const headerAdminUserId = readHeaderValue(headers, "x-admin-user-id");
-  if (headerAdminUserId) {
-    return headerAdminUserId;
-  }
-
-  const authorization = readHeaderValue(headers, "authorization");
-  const authedUserId = await getUserIdFromAuth(requestFn, identityServiceBase, authorization, logger);
-  if (authedUserId && allowlist.has(authedUserId)) {
-    return authedUserId;
-  }
-
-  return null;
-}
-
 export async function resolveAdminByRole(
   requestFn: RequestFn,
   identityServiceBase: string,
@@ -298,13 +268,6 @@ export function readHeaderValue(headers: Record<string, unknown>, headerName: st
     return rawValue;
   }
   return undefined;
-}
-
-export function parseAllowlist(rawValue: string): string[] {
-  return rawValue
-    .split(",")
-    .map((entry) => entry.trim())
-    .filter((entry) => entry.length > 0);
 }
 
 export async function proxyJsonRequest(

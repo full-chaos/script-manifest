@@ -555,12 +555,11 @@ test("api-gateway proxies placement listing/detail/verify endpoints", async (t) 
   assert.equal(methods[4], "POST");
 });
 
-test("api-gateway competition admin curation requires allowlisted admin", async (t) => {
+test("api-gateway competition admin curation requires admin", async (t) => {
   const urls: string[] = [];
   const adminHeaders: string[] = [];
   const server = await buildServer({
     logger: false,
-    competitionAdminAllowlist: ["admin_writer"],
     requestFn: (async (url, options) => {
       const urlStr = String(url);
       urls.push(urlStr);
@@ -703,11 +702,10 @@ test("api-gateway responds to OPTIONS preflight with CORS headers", async (t) =>
   );
 });
 
-test("api-gateway admin prestige upsert requires allowlisted admin", async (t) => {
+test("api-gateway admin prestige upsert requires admin", async (t) => {
   const urls: string[] = [];
   const server = await buildServer({
     logger: false,
-    competitionAdminAllowlist: ["admin_writer"],
     requestFn: (async (url) => {
       const urlStr = String(url);
       urls.push(urlStr);

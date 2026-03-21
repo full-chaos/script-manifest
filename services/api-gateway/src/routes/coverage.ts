@@ -17,7 +17,7 @@ import {
   buildQuerySuffix,
   getUserIdFromAuth,
   proxyJsonRequest,
-  resolveAdminUserId
+  resolveAdminByRole
 } from "../helpers.js";
 
 export function registerCoverageRoutes(server: FastifyInstance, ctx: GatewayContext): void {
@@ -85,7 +85,7 @@ export function registerCoverageRoutes(server: FastifyInstance, ctx: GatewayCont
   server.get("/api/v1/coverage/admin/providers/review-queue", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } }
   }, async (req, reply) => {
-    const adminId = await resolveAdminUserId(ctx.requestFn, ctx.identityServiceBase, req.headers, ctx.coverageAdminAllowlist, req.log);
+    const adminId = await resolveAdminByRole(ctx.requestFn, ctx.identityServiceBase, req.headers, req.log);
     if (!adminId) return reply.status(403).send({ error: "forbidden" });
     return proxyJsonRequest(reply, ctx.requestFn,
       `${ctx.coverageMarketplaceBase}/internal/admin/providers/review-queue`,
@@ -97,7 +97,7 @@ export function registerCoverageRoutes(server: FastifyInstance, ctx: GatewayCont
   server.post<{ Params: { providerId: string } }>("/api/v1/coverage/admin/providers/:providerId/review", {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } }
   }, async (req, reply) => {
-    const adminId = await resolveAdminUserId(ctx.requestFn, ctx.identityServiceBase, req.headers, ctx.coverageAdminAllowlist, req.log);
+    const adminId = await resolveAdminByRole(ctx.requestFn, ctx.identityServiceBase, req.headers, req.log);
     if (!adminId) return reply.status(403).send({ error: "forbidden" });
     const { providerId } = req.params;
     const parsed = CoverageProviderReviewRequestSchema.safeParse(req.body);
@@ -325,7 +325,7 @@ export function registerCoverageRoutes(server: FastifyInstance, ctx: GatewayCont
   server.get("/api/v1/coverage/disputes", {
     config: { rateLimit: { max: 30, timeWindow: "1 minute" } }
   }, async (req, reply) => {
-    const adminId = await resolveAdminUserId(ctx.requestFn, ctx.identityServiceBase, req.headers, ctx.coverageAdminAllowlist, req.log);
+    const adminId = await resolveAdminByRole(ctx.requestFn, ctx.identityServiceBase, req.headers, req.log);
     if (!adminId) return reply.status(403).send({ error: "forbidden" });
     const qs = buildQuerySuffix(req.query);
     return proxyJsonRequest(reply, ctx.requestFn,
@@ -337,7 +337,7 @@ export function registerCoverageRoutes(server: FastifyInstance, ctx: GatewayCont
   server.patch<{ Params: { disputeId: string } }>("/api/v1/coverage/disputes/:disputeId", {
     config: { rateLimit: { max: 30, timeWindow: "1 minute" } }
   }, async (req, reply) => {
-    const adminId = await resolveAdminUserId(ctx.requestFn, ctx.identityServiceBase, req.headers, ctx.coverageAdminAllowlist, req.log);
+    const adminId = await resolveAdminByRole(ctx.requestFn, ctx.identityServiceBase, req.headers, req.log);
     if (!adminId) return reply.status(403).send({ error: "forbidden" });
     const { disputeId } = req.params;
     const parsed = CoverageDisputeResolveRequestSchema.safeParse(req.body);
@@ -354,7 +354,7 @@ export function registerCoverageRoutes(server: FastifyInstance, ctx: GatewayCont
   server.get<{ Params: { disputeId: string } }>("/api/v1/coverage/disputes/:disputeId/events", {
     config: { rateLimit: { max: 30, timeWindow: "1 minute" } }
   }, async (req, reply) => {
-    const adminId = await resolveAdminUserId(ctx.requestFn, ctx.identityServiceBase, req.headers, ctx.coverageAdminAllowlist, req.log);
+    const adminId = await resolveAdminByRole(ctx.requestFn, ctx.identityServiceBase, req.headers, req.log);
     if (!adminId) return reply.status(403).send({ error: "forbidden" });
     const { disputeId } = req.params;
     return proxyJsonRequest(reply, ctx.requestFn,
@@ -367,7 +367,7 @@ export function registerCoverageRoutes(server: FastifyInstance, ctx: GatewayCont
   server.get("/api/v1/coverage/admin/payout-ledger", {
     config: { rateLimit: { max: 15, timeWindow: "1 minute" } }
   }, async (req, reply) => {
-    const adminId = await resolveAdminUserId(ctx.requestFn, ctx.identityServiceBase, req.headers, ctx.coverageAdminAllowlist, req.log);
+    const adminId = await resolveAdminByRole(ctx.requestFn, ctx.identityServiceBase, req.headers, req.log);
     if (!adminId) return reply.status(403).send({ error: "forbidden" });
     const qs = buildQuerySuffix(req.query);
     return proxyJsonRequest(reply, ctx.requestFn,
@@ -380,7 +380,7 @@ export function registerCoverageRoutes(server: FastifyInstance, ctx: GatewayCont
   server.post("/api/v1/coverage/admin/jobs/sla-maintenance", {
     config: { rateLimit: { max: 10, timeWindow: "1 minute" } }
   }, async (req, reply) => {
-    const adminId = await resolveAdminUserId(ctx.requestFn, ctx.identityServiceBase, req.headers, ctx.coverageAdminAllowlist, req.log);
+    const adminId = await resolveAdminByRole(ctx.requestFn, ctx.identityServiceBase, req.headers, req.log);
     if (!adminId) return reply.status(403).send({ error: "forbidden" });
     // TODO: add validation schema
     return proxyJsonRequest(reply, ctx.requestFn,

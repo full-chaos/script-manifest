@@ -89,16 +89,15 @@ test("programs routes proxy application-form lookups", async (t) => {
   assert.equal(form.json().form.fields[0]?.key, "goals");
 });
 
-test("admin programs routes enforce allowlist and proxy lifecycle endpoints", async (t) => {
+test("admin programs routes require admin and proxy lifecycle endpoints", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
   const server = await buildServer({
     logger: false,
-    industryAdminAllowlist: ["admin_01"],
     requestFn: (async (url, options) => {
       const urlStr = String(url);
       if (urlStr.includes("/internal/auth/me")) {
-        return jsonResponse({ user: { id: "admin_01" }, expiresAt: "2026-12-31T00:00:00.000Z" });
+        return jsonResponse({ user: { id: "admin_01", role: "admin" }, expiresAt: "2026-12-31T00:00:00.000Z" });
       }
       urls.push(urlStr);
       headers.push((options?.headers as Record<string, string> | undefined) ?? {});
@@ -228,12 +227,11 @@ test("programs routes proxy query filters and support bearer-based admin resolut
   const headers: Record<string, string>[] = [];
   const server = await buildServer({
     logger: false,
-    industryAdminAllowlist: ["admin_01"],
     requestFn: (async (url, options) => {
       const urlStr = String(url);
       if (urlStr.includes("/internal/auth/me")) {
         return jsonResponse({
-          user: { id: "admin_01" },
+          user: { id: "admin_01", role: "admin" },
           expiresAt: "2026-12-31T00:00:00.000Z"
         });
       }
@@ -273,13 +271,12 @@ test("programs routes proxy advanced phase-6 admin workflows", async (t) => {
   const headers: Record<string, string>[] = [];
   const server = await buildServer({
     logger: false,
-    industryAdminAllowlist: ["admin_01"],
     programsServiceBase: "http://programs-svc",
     identityServiceBase: "http://identity-svc",
     requestFn: (async (url, options) => {
       const currentUrl = String(url);
       if (currentUrl.includes("/internal/auth/me")) {
-        return jsonResponse({ user: { id: "admin_01" }, expiresAt: "2026-12-31T00:00:00.000Z" });
+        return jsonResponse({ user: { id: "admin_01", role: "admin" }, expiresAt: "2026-12-31T00:00:00.000Z" });
       }
       urls.push(currentUrl);
       headers.push((options?.headers as Record<string, string> | undefined) ?? {});

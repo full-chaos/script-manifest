@@ -1,19 +1,30 @@
 import assert from "node:assert/strict";
-import test from "node:test";
-import * as db from "@script-manifest/db";
-import { PgFeedbackExchangeRepository } from "./repository.js";
+import test, { mock } from "node:test";
 
-test("PgFeedbackExchangeRepository listListings builds filtered query and pagination", async (t) => {
+type QueryResult = { rows: unknown[]; rowCount?: number };
+type QueryFn = (sql: string, values?: unknown[]) => Promise<QueryResult>;
+
+let queryImpl: QueryFn = async () => ({ rows: [], rowCount: 0 });
+const query: QueryFn = async (sql, values = []) => queryImpl(sql, values);
+
+await mock.module("@script-manifest/db", {
+  namedExports: {
+    getPool: () => ({ query }),
+    ensureFeedbackExchangeTables: async () => undefined
+  }
+});
+
+const { PgFeedbackExchangeRepository } = await import("./repository.js");
+
+test("PgFeedbackExchangeRepository listListings builds filtered query and pagination", async () => {
   let capturedSql = "";
   let capturedValues: unknown[] = [];
 
-  t.mock.method(db, "getPool", () => ({
-    query: async (sql: string, values: unknown[] = []) => {
-      capturedSql = sql;
-      capturedValues = values;
-      return { rows: [] };
-    }
-  }));
+  queryImpl = async (sql, values = []) => {
+    capturedSql = sql;
+    capturedValues = values;
+    return { rows: [] };
+  };
 
   const repo = new PgFeedbackExchangeRepository();
   const listings = await repo.listListings({
@@ -36,10 +47,10 @@ test("PgFeedbackExchangeRepository listListings builds filtered query and pagina
   assert.deepEqual(capturedValues, ["open", "drama", "feature", "writer_1", 10, 20]);
 });
 
-test("PgFeedbackExchangeRepository createTransaction maps DB row", async (t) => {
-  t.mock.method(db, "getPool", () => ({
-    query: async () => ({
-      rows: [{
+test("PgFeedbackExchangeRepository createTransaction maps DB row", async () => {
+  queryImpl = async () => ({
+    rows: [
+      {
         id: "txn_1",
         idempotency_key: "idem_1",
         debit_user_id: "SYSTEM",
@@ -49,9 +60,9 @@ test("PgFeedbackExchangeRepository createTransaction maps DB row", async (t) => 
         reference_type: "",
         reference_id: "",
         created_at: "2026-03-01T00:00:00.000Z"
-      }]
-    })
-  }));
+      }
+    ]
+  });
 
   const repo = new PgFeedbackExchangeRepository();
   const txn = await repo.createTransaction({

@@ -25,7 +25,6 @@ const initialDraft: CompetitionDraft = {
 };
 
 export default function AdminCompetitionsPage() {
-  const [adminUserId, setAdminUserId] = useState("admin_01");
   const [draft, setDraft] = useState<CompetitionDraft>(initialDraft);
   const [rows, setRows] = useState<Competition[]>([]);
   const [loading, setLoading] = useState(false);
@@ -81,7 +80,6 @@ export default function AdminCompetitionsPage() {
         method: "POST",
         headers: {
           "content-type": "application/json",
-          "x-admin-user-id": adminUserId,
           ...getAuthHeaders()
         },
         body: JSON.stringify(payload)
@@ -115,7 +113,6 @@ export default function AdminCompetitionsPage() {
         method: "PUT",
         headers: {
           "content-type": "application/json",
-          "x-admin-user-id": adminUserId,
           ...getAuthHeaders()
         },
         body: JSON.stringify(row)
@@ -142,25 +139,6 @@ export default function AdminCompetitionsPage() {
         <p className="max-w-3xl text-foreground-secondary">
           Curate vetted competitions and maintain metadata quality from one controlled workflow.
         </p>
-      </article>
-
-      <article className="panel stack">
-        <div className="grid-two">
-          <label className="stack-tight">
-            <span>Admin user ID (allowlisted)</span>
-            <input
-              className="input"
-              value={adminUserId}
-              onChange={(event) => setAdminUserId(event.target.value)}
-              placeholder="admin_01"
-            />
-          </label>
-          <div className="inline-form">
-            <button type="button" className="btn btn-secondary" onClick={() => void loadCompetitions()} disabled={loading}>
-              Refresh list
-            </button>
-          </div>
-        </div>
       </article>
 
       <article className="panel stack">

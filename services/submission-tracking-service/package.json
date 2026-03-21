@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch --import @script-manifest/service-utils/instrument src/index.ts",
+    "dev": "tsx watch --watch-path=../../packages/contracts/dist --watch-path=../../packages/db/dist --watch-path=../../packages/service-utils/dist --import @script-manifest/service-utils/instrument src/index.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node --import @script-manifest/service-utils/instrument dist/index.js",
     "test": "node --import tsx --test src/**/*.test.ts",

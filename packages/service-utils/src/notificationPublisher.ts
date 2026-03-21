@@ -5,6 +5,7 @@ import {
 import type { Producer } from "kafkajs";
 import { request } from "undici";
 import { getKafkaClient } from "./kafka.js";
+import { makeServiceHeaders } from "./serviceHeaders.js";
 
 const notificationServiceBase = process.env.NOTIFICATION_SERVICE_URL ?? "http://localhost:4010";
 let producer: Producer | null = null;
@@ -35,7 +36,7 @@ export async function publishNotificationEvent(event: NotificationEventEnvelope)
 
   const response = await request(`${notificationServiceBase}/internal/events`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: makeServiceHeaders(validatedEvent.targetUserId),
     body: JSON.stringify(validatedEvent)
   });
 

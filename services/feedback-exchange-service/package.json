@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch --import @script-manifest/service-utils/instrument src/index.ts",
+    "dev": "tsx watch --watch-path=../../packages/contracts/dist --watch-path=../../packages/db/dist --watch-path=../../packages/service-utils/dist --import @script-manifest/service-utils/instrument src/index.ts",
     "start": "node --import @script-manifest/service-utils/instrument dist/index.js",
     "build": "tsc",
     "test": "node --import tsx --test src/index.test.ts",

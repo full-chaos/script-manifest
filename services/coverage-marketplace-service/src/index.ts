@@ -2,7 +2,7 @@ import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
 import rateLimit from "@fastify/rate-limit";
 import { randomUUID } from "node:crypto";
 import { Counter } from "prom-client";
-import { bootstrapService, registerMetrics, registerSentryErrorHandler, setupErrorReporting, validateRequiredEnv, getAuthUserId, isMainModule, readHeader, verifyServiceToken } from "@script-manifest/service-utils";
+import { bootstrapService, registerMetrics, registerSentryErrorHandler, setupErrorReporting, validateRequiredEnv, getAuthUserId, isMainModule, readHeader, requireAdminServiceToken } from "@script-manifest/service-utils";
 import { closePool, healthCheck } from "@script-manifest/db";
 import {
   CoverageProviderCreateRequestSchema,
@@ -93,12 +93,7 @@ function mapDeclineCodeToReason(declineCode?: string): string {
 }
 
 function isAdminServiceToken(headers: Record<string, unknown>): boolean {
-  const token = headers["x-service-token"];
-  if (typeof token !== "string") return false;
-  const secret = process.env.SERVICE_TOKEN_SECRET;
-  if (!secret) return false;
-  const payload = verifyServiceToken(token, secret);
-  return payload?.role === "admin";
+  return requireAdminServiceToken(headers) !== null;
 }
 
 async function transferToProviderOrQueueRetry(params: {

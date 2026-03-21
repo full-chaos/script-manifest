@@ -1,5 +1,4 @@
 import { cookies } from "next/headers";
-import { NextResponse } from "next/server";
 import { proxyRequest } from "../../_proxy";
 
 export const runtime = "nodejs";

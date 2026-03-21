@@ -64,7 +64,7 @@ describe("BecomeProviderPage", () => {
     const provider = makeProvider();
     setSession(provider.userId);
 
-    const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
+    const fetchMock = vi.fn<typeof fetch>(async (input) => {
       const url = typeof input === "string" ? input : (input as Request).url;
       if (url === "/api/v1/coverage/providers") {
         return jsonResponse({ providers: [provider] });

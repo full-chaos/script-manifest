@@ -1,5 +1,4 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { NextResponse } from "next/server";
 
 // Mock next/headers so the route can set cookies in tests
 const mockCookieSet = vi.fn();

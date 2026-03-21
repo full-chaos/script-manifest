@@ -272,6 +272,18 @@ services:
       traefik.http.routers.bugsink.rule: "Host(`bugsink.localhost`)"
       traefik.http.routers.bugsink.entrypoints: "web"
       traefik.http.services.bugsink.loadbalancer.server.port: "8000"
+  shared-package-watcher:
+    <<: *node-dev
+    container_name: manifest-shared-package-watcher
+    working_dir: /workspace
+    volumes:
+      - .:/workspace
+    command: >
+      sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && /workspace/scripts/watch-shared-packages.sh /workspace 3"
+    networks:
+      - internal
+    restart: unless-stopped
+
   profile-project-service:
     <<: *node-dev
     container_name: manifest-profile-project-service

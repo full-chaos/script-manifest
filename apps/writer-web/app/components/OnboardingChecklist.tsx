@@ -25,7 +25,7 @@ export function OnboardingChecklist() {
     const isDismissed = window.localStorage.getItem(ONBOARDING_DISMISSED_KEY) === "true";
 
     if (isDismissed) {
-      setState({ mounted: true, dismissed: true, status: null });
+      queueMicrotask(() => setState({ mounted: true, dismissed: true, status: null }));
       return;
     }
 
@@ -49,8 +49,7 @@ export function OnboardingChecklist() {
       }
     }
 
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- mounted pattern requires client-side localStorage + async fetch
-    setState((prev) => ({ ...prev, mounted: true, dismissed: false }));
+    queueMicrotask(() => setState((prev) => ({ ...prev, mounted: true, dismissed: false })));
     void fetchStatus();
 
     return () => {

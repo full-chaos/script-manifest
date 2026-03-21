@@ -3,10 +3,11 @@ import { render, screen, fireEvent, cleanup, waitFor } from "@testing-library/re
 import { NotificationBell } from "./notificationBell";
 
 function mockFetch(responses: Record<string, unknown>) {
+  const entries = Object.entries(responses).sort(([a], [b]) => b.length - a.length);
   return vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
     const url = typeof input === "string" ? input : (input as Request).url;
 
-    for (const [pattern, body] of Object.entries(responses)) {
+    for (const [pattern, body] of entries) {
       if (url.includes(pattern)) {
         return { ok: true, json: async () => body } as Response;
       }
@@ -83,10 +84,8 @@ describe("NotificationBell", () => {
     fireEvent.click(screen.getByTestId("notification-bell"));
 
     await waitFor(() => {
-      expect(screen.getByTestId("notification-dropdown")).toBeInTheDocument();
+      expect(screen.getByText("Competition deadline approaching")).toBeInTheDocument();
     });
-
-    expect(screen.getByText("Competition deadline approaching")).toBeInTheDocument();
   });
 
   it("shows empty state when no notifications", async () => {

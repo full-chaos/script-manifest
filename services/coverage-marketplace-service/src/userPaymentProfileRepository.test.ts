@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import test, { mock } from "node:test";
 
-const query = mock.fn(async () => ({ rows: [] }));
+const query = mock.fn<(sql: string, params?: unknown[]) => Promise<{ rows: unknown[]; rowCount?: number }>>(
+  async () => ({ rows: [] }),
+);
 
 await mock.module("node:crypto", {
   namedExports: { randomUUID: () => "uuid-fixed" },
@@ -24,7 +26,7 @@ test("findByUserId returns null when no profile exists", async () => {
 
   assert.strictEqual(result, null);
   assert.equal(query.mock.callCount(), 1);
-  assert.match(query.mock.calls[0]!.arguments[0] as string, /user_payment_profiles/);
+  assert.match(query.mock.calls[0]!.arguments[0], /user_payment_profiles/);
   assert.deepEqual(query.mock.calls[0]!.arguments[1], ["user-1"]);
 });
 
@@ -49,7 +51,8 @@ test("create inserts with generated UUID", async () => {
   await repo.create("user-3", "cus_xyz");
 
   assert.equal(query.mock.callCount(), 1);
-  const [sql, values] = query.mock.calls[0]!.arguments as [string, unknown[]];
+  const sql = query.mock.calls[0]!.arguments[0];
+  const values = query.mock.calls[0]!.arguments[1] as unknown[];
   assert.match(sql, /INSERT INTO user_payment_profiles/);
   assert.match(sql, /ON CONFLICT \(user_id\) DO NOTHING/);
   assert.equal(values[0], "uppr_uuid-fixed");

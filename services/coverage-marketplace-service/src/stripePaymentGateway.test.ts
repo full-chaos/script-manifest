@@ -43,6 +43,10 @@ function createGatewayWithMocks() {
   return { gateway, mockStripe };
 }
 
+function getCallArg(mockFn: { mock: { calls: Array<{ arguments: unknown[] }> } }, callIdx: number, argIdx: number): unknown {
+  return (mockFn.mock.calls[callIdx]!.arguments as unknown[])[argIdx];
+}
+
 test("createConnectAccount creates account and returns onboarding URL", async () => {
   const { gateway, mockStripe } = createGatewayWithMocks();
   const result = await gateway.createConnectAccount("provider@test.com");
@@ -76,9 +80,9 @@ test("createPaymentIntent creates intent with manual capture", async () => {
 
   assert.equal(result.intentId, "pi_1");
   assert.equal(result.clientSecret, "pi_1_secret");
-  const call = mockStripe.paymentIntents.create.mock.calls[0]!;
-  assert.equal((call.arguments[0] as Record<string, unknown>).amount, 5000);
-  assert.equal((call.arguments[0] as Record<string, unknown>).capture_method, "manual");
+  const arg0 = getCallArg(mockStripe.paymentIntents.create, 0, 0) as Record<string, unknown>;
+  assert.equal(arg0.amount, 5000);
+  assert.equal(arg0.capture_method, "manual");
 });
 
 test("capturePayment captures the payment intent", async () => {
@@ -109,14 +113,14 @@ test("refund creates a refund for full amount", async () => {
 test("refund creates a partial refund with amount", async () => {
   const { gateway, mockStripe } = createGatewayWithMocks();
   await gateway.refund("pi_1", 2000, "idem_ref");
-  const call = mockStripe.refunds.create.mock.calls[0]!;
-  assert.equal((call.arguments[0] as Record<string, unknown>).amount, 2000);
+  const arg0 = getCallArg(mockStripe.refunds.create, 0, 0) as Record<string, unknown>;
+  assert.equal(arg0.amount, 2000);
 });
 
 test("constructWebhookEvent delegates to stripe webhooks", () => {
   const { gateway } = createGatewayWithMocks();
   const event = gateway.constructWebhookEvent("payload", "sig_header");
-  assert.equal((event as Record<string, unknown>).type, "payment_intent.succeeded");
+  assert.equal((event as unknown as Record<string, unknown>).type, "payment_intent.succeeded");
 });
 
 test("createCustomer creates a Stripe customer", async () => {
@@ -147,7 +151,9 @@ test("getReceiptUrl returns receipt URL from latest charge", async () => {
 
 test("getReceiptUrl returns null when no receipt", async () => {
   const { gateway, mockStripe } = createGatewayWithMocks();
-  mockStripe.paymentIntents.retrieve.mock.mockImplementation(async () => ({ latest_charge: null }));
+  mockStripe.paymentIntents.retrieve.mock.mockImplementation(
+    async () => ({ latest_charge: null }) as unknown as Awaited<ReturnType<typeof mockStripe.paymentIntents.retrieve>>,
+  );
   const url = await gateway.getReceiptUrl("pi_1");
   assert.strictEqual(url, null);
 });

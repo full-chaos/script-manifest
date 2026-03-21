@@ -134,6 +134,11 @@ export default function CompetitionsPage() {
     if (session) {
       setSignedInUserId(session.user.id);
       setReminderTargetUserId(session.user.id);
+      void fetch("/api/v1/onboarding-progress", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ competitionsVisited: true }),
+      });
     }
 
     void runSearch(initialFilters);

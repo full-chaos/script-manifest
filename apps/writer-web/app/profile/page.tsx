@@ -159,6 +159,11 @@ export default function ProfilePage() {
         isSearchable: updated.isSearchable
       });
       toast.success("Profile saved.");
+      void fetch("/api/v1/onboarding-progress", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ profileCompleted: true }),
+      });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to save profile.");
     } finally {

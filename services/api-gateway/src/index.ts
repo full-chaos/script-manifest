@@ -30,6 +30,7 @@ import { registerNotificationAdminRoutes } from "./routes/notification-admin.js"
 import { registerSearchAdminRoutes } from "./routes/search-admin.js";
 import { registerFeatureFlagRoutes } from "./routes/feature-flags.js";
 import { registerMfaRoutes } from "./routes/mfa.js";
+import { registerOnboardingRoutes } from "./routes/onboarding.js";
 import { registerHealthRoutes } from "./routes/health.js";
 import { registerIpBlocklist } from "./plugins/ipBlocklist.js";
 import { registerMetrics, registerSentryErrorHandler } from "@script-manifest/service-utils";
@@ -154,6 +155,7 @@ export async function buildServer(options: ApiGatewayOptions = {}): Promise<Fast
   registerNotificationAdminRoutes(server, ctx);
   registerSearchAdminRoutes(server, ctx);
   registerFeatureFlagRoutes(server, ctx);
+  registerOnboardingRoutes(server, ctx);
 
   return server;
 }

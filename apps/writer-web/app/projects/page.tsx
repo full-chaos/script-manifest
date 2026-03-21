@@ -344,6 +344,11 @@ export default function ProjectsPage() {
       setProjects((current) => [created, ...current]);
       await selectProject(created.id);
       toast.success("Project created.");
+      void fetch("/api/v1/onboarding-progress", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ firstScriptUploaded: true }),
+      });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to create project.");
     } finally {

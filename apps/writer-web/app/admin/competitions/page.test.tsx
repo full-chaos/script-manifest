@@ -60,7 +60,7 @@ describe("AdminCompetitionsPage", () => {
       "/api/v1/admin/competitions",
       expect.objectContaining({
         method: "POST",
-        headers: expect.objectContaining({ "x-admin-user-id": "admin_01" })
+        headers: expect.objectContaining({ "content-type": "application/json" })
       })
     );
   });

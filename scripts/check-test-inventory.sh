@@ -6,8 +6,8 @@ WRITER_WEB_ROOT="$REPO_ROOT/apps/writer-web"
 WRITER_WEB_APP_DIR="$WRITER_WEB_ROOT/app"
 E2E_TEST_DIR="$REPO_ROOT/tests/e2e"
 
-MIN_PAGE_TESTS=8
-MIN_ROUTE_TESTS=5
+MIN_PAGE_TESTS=15
+MIN_ROUTE_TESTS=14
 MIN_E2E_TESTS=3
 
 page_test_count="$(find "$WRITER_WEB_APP_DIR" -type f \( -name 'page.test.ts' -o -name 'page.test.tsx' \) | wc -l | tr -d '[:space:]')"

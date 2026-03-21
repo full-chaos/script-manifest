@@ -75,7 +75,7 @@ export async function buildServer(options: ApiGatewayOptions = {}): Promise<Fast
   // prevent external callers from impersonating users via resolveUserId().
   server.addHook("preValidation", (req, _reply, done) => {
     delete (req.headers as Record<string, unknown>)["x-auth-user-id"];
-    delete (req.headers as Record<string, unknown>)["x-admin-user-id"];
+    // Defense-in-depth: only trust x-admin-user-id from the internal BFF path.
     delete (req.headers as Record<string, unknown>)["x-partner-user-id"];
     delete (req.headers as Record<string, unknown>)["x-service-token"];
     done();

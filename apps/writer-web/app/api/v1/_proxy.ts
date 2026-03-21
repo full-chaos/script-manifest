@@ -10,11 +10,11 @@ function getApiGatewayBase(): string {
 const ADMIN_PATH_PREFIX = "/api/v1/admin/";
 
 type RoleResult =
-  | { kind: "resolved"; role: string | null }
+  | { kind: "resolved"; role: string | null; userId: string | null }
   | { kind: "unavailable" };
 
 async function resolveCallerRole(authorization: string | null): Promise<RoleResult> {
-  if (!authorization) return { kind: "resolved", role: null };
+  if (!authorization) return { kind: "resolved", role: null, userId: null };
   try {
     const identityBase = process.env.API_GATEWAY_URL ?? defaultGatewayBase;
     const meResponse = await fetch(new URL("/api/v1/auth/me", identityBase), {
@@ -22,9 +22,13 @@ async function resolveCallerRole(authorization: string | null): Promise<RoleResu
       cache: "no-store"
     });
     if (meResponse.status >= 500) return { kind: "unavailable" };
-    if (!meResponse.ok) return { kind: "resolved", role: null };
-    const body = (await meResponse.json()) as { user?: { role?: string } };
-    return { kind: "resolved", role: body.user?.role ?? null };
+    if (!meResponse.ok) return { kind: "resolved", role: null, userId: null };
+    const body = (await meResponse.json()) as { user?: { id?: string; role?: string } };
+    return {
+      kind: "resolved",
+      role: body.user?.role ?? null,
+      userId: body.user?.id ?? null
+    };
   } catch {
     return { kind: "unavailable" };
   }
@@ -59,9 +63,10 @@ export async function proxyRequest(request: Request, path: string): Promise<Next
         { status: 503 }
       );
     }
-    if (result.role !== "admin") {
+    if (result.role !== "admin" || !result.userId) {
       return NextResponse.json({ error: "forbidden", detail: "Admin role required." }, { status: 403 });
     }
+    headers.set("x-admin-user-id", result.userId);
   }
 
   const url = new URL(request.url);

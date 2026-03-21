@@ -321,11 +321,11 @@ describe("proxyRequest", () => {
     mockCookiesWithToken("admin_tok");
     const originalFetch = globalThis.fetch;
     process.env.API_GATEWAY_URL = "http://gateway";
-    let callCount = 0;
+    const calls: Array<{ url: string; init?: RequestInit }> = [];
 
-    globalThis.fetch = (async () => {
-      callCount++;
-      if (callCount === 1) {
+    globalThis.fetch = (async (input, init) => {
+      calls.push({ url: String(input), init });
+      if (calls.length === 1) {
         return new Response(
           JSON.stringify({ user: { id: "u1", email: "a@b.c", displayName: "Admin", role: "admin" } }),
           { status: 200 }
@@ -343,6 +343,42 @@ describe("proxyRequest", () => {
       expect(response.status).toBe(200);
       const body = await response.json();
       expect(body.users).toEqual([]);
+      expect(calls).toHaveLength(2);
+      const upstreamCall = calls[1]!;
+      expect(upstreamCall.url).toBe("http://gateway/api/v1/admin/users");
+      expect((upstreamCall.init?.headers as Headers | undefined)?.get("x-admin-user-id")).toBe("u1");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("returns 403 for admin paths when admin role response has no user id", async () => {
+    mockCookiesWithToken("admin_tok");
+    const originalFetch = globalThis.fetch;
+    process.env.API_GATEWAY_URL = "http://gateway";
+    let callCount = 0;
+
+    globalThis.fetch = (async () => {
+      callCount++;
+      if (callCount === 1) {
+        return new Response(
+          JSON.stringify({ user: { email: "a@b.c", displayName: "Admin", role: "admin" } }),
+          { status: 200 }
+        );
+      }
+      return new Response(JSON.stringify({ users: [] }), { status: 200 });
+    }) as typeof fetch;
+
+    try {
+      const response = await proxyRequest(
+        new Request("http://localhost/api/v1/admin/users", { method: "GET" }),
+        "/api/v1/admin/users"
+      );
+
+      expect(response.status).toBe(403);
+      const body = await response.json();
+      expect(body.error).toBe("forbidden");
+      expect(callCount).toBe(1);
     } finally {
       globalThis.fetch = originalFetch;
     }

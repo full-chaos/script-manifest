@@ -6,7 +6,7 @@ import swaggerUi from "@fastify/swagger-ui";
 import { randomUUID } from "node:crypto";
 import { request } from "undici";
 import { validateRequiredEnv, bootstrapService, setupErrorReporting, isMainModule } from "@script-manifest/service-utils";
-import { type GatewayContext, type RequestFn, parseAllowlist, clearAuthCache } from "./helpers.js";
+import { type GatewayContext, type RequestFn, clearAuthCache } from "./helpers.js";
 import helmet from "@fastify/helmet";
 import { registerRateLimit } from "./plugins/rateLimit.js";
 import { registerRequestId } from "./plugins/requestId.js";
@@ -51,9 +51,6 @@ export type ApiGatewayOptions = {
   partnerDashboardServiceBase?: string;
   searchIndexerBase?: string;
   enableIpBlocklist?: boolean;
-  competitionAdminAllowlist?: string[];
-  coverageAdminAllowlist?: string[];
-  industryAdminAllowlist?: string[];
   redisUrl?: string;
 };
 
@@ -129,19 +126,7 @@ export async function buildServer(options: ApiGatewayOptions = {}): Promise<Fast
     industryPortalBase: options.industryPortalBase ?? "http://localhost:4009",
     programsServiceBase: options.programsServiceBase ?? "http://localhost:4012",
     partnerDashboardServiceBase: options.partnerDashboardServiceBase ?? "http://localhost:4013",
-    searchIndexerBase: options.searchIndexerBase ?? "http://localhost:4003",
-    competitionAdminAllowlist: new Set(
-      options.competitionAdminAllowlist ??
-        parseAllowlist(process.env.COMPETITION_ADMIN_ALLOWLIST ?? "")
-    ),
-    coverageAdminAllowlist: new Set(
-      options.coverageAdminAllowlist ??
-        parseAllowlist(process.env.COVERAGE_ADMIN_ALLOWLIST ?? "")
-    ),
-    industryAdminAllowlist: new Set(
-      options.industryAdminAllowlist ??
-        parseAllowlist(process.env.INDUSTRY_ADMIN_ALLOWLIST ?? "")
-    )
+    searchIndexerBase: options.searchIndexerBase ?? "http://localhost:4003"
   };
 
   registerHealthRoutes(server, ctx);
@@ -193,9 +178,6 @@ export async function startServer(): Promise<void> {
     "INDUSTRY_PORTAL_SERVICE_URL",
     "PROGRAMS_SERVICE_URL",
     "PARTNER_DASHBOARD_SERVICE_URL",
-    "COMPETITION_ADMIN_ALLOWLIST",
-    "COVERAGE_ADMIN_ALLOWLIST",
-    "INDUSTRY_ADMIN_ALLOWLIST",
     "SERVICE_TOKEN_SECRET", // CHAOS-914: required in production to prevent random fallback
   ]);
   boot.phase("env validated");
@@ -216,9 +198,6 @@ export async function startServer(): Promise<void> {
     partnerDashboardServiceBase: process.env.PARTNER_DASHBOARD_SERVICE_URL,
     searchIndexerBase: process.env.SEARCH_INDEXER_URL,
     enableIpBlocklist: true,
-    competitionAdminAllowlist: parseAllowlist(process.env.COMPETITION_ADMIN_ALLOWLIST ?? ""),
-    coverageAdminAllowlist: parseAllowlist(process.env.COVERAGE_ADMIN_ALLOWLIST ?? ""),
-    industryAdminAllowlist: parseAllowlist(process.env.INDUSTRY_ADMIN_ALLOWLIST ?? ""),
     redisUrl: process.env.REDIS_URL,
   });
   boot.phase("server built");

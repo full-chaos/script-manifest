@@ -4,7 +4,7 @@ import {
   type GatewayContext,
   buildQuerySuffix,
   proxyJsonRequest,
-  resolveAdminUserId
+  resolveAdminByRole
 } from "../helpers.js";
 
 export function registerCompetitionRoutes(server: FastifyInstance, ctx: GatewayContext): void {
@@ -36,7 +36,7 @@ export function registerCompetitionRoutes(server: FastifyInstance, ctx: GatewayC
   });
 
   server.post("/api/v1/admin/competitions", async (req, reply) => {
-    const adminUserId = await resolveAdminUserId(ctx.requestFn, ctx.identityServiceBase, req.headers, ctx.competitionAdminAllowlist, req.log);
+    const adminUserId = await resolveAdminByRole(ctx.requestFn, ctx.identityServiceBase, req.headers, req.log);
     if (!adminUserId) {
       return reply.status(403).send({ error: "forbidden" });
     }
@@ -60,7 +60,7 @@ export function registerCompetitionRoutes(server: FastifyInstance, ctx: GatewayC
 
   server.put<{ Params: { competitionId: string } }>("/api/v1/admin/competitions/:competitionId", async (req, reply) => {
     const { competitionId } = req.params;
-    const adminUserId = await resolveAdminUserId(ctx.requestFn, ctx.identityServiceBase, req.headers, ctx.competitionAdminAllowlist, req.log);
+    const adminUserId = await resolveAdminByRole(ctx.requestFn, ctx.identityServiceBase, req.headers, req.log);
     if (!adminUserId) {
       return reply.status(403).send({ error: "forbidden" });
     }

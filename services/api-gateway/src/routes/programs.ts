@@ -12,7 +12,7 @@ import {
   buildQuerySuffix,
   getUserIdFromAuth,
   proxyJsonRequest,
-  resolveAdminUserId,
+  resolveAdminByRole,
   type GatewayContext
 } from "../helpers.js";
 
@@ -92,7 +92,7 @@ export function registerProgramsRoutes(server: FastifyInstance, ctx: GatewayCont
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       const { programId } = req.params;
-      const adminUserId = await resolveAdminUserId(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, ctx.industryAdminAllowlist, req.log);
+      const adminUserId = await resolveAdminByRole(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, req.log);
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -112,7 +112,7 @@ export function registerProgramsRoutes(server: FastifyInstance, ctx: GatewayCont
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       const { programId, applicationId } = req.params;
-      const adminUserId = await resolveAdminUserId(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, ctx.industryAdminAllowlist, req.log);
+      const adminUserId = await resolveAdminByRole(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, req.log);
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -140,7 +140,7 @@ export function registerProgramsRoutes(server: FastifyInstance, ctx: GatewayCont
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       const { programId } = req.params;
-      const adminUserId = await resolveAdminUserId(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, ctx.industryAdminAllowlist, req.log);
+      const adminUserId = await resolveAdminByRole(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, req.log);
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -165,7 +165,7 @@ export function registerProgramsRoutes(server: FastifyInstance, ctx: GatewayCont
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       const { programId } = req.params;
-      const adminUserId = await resolveAdminUserId(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, ctx.industryAdminAllowlist, req.log);
+      const adminUserId = await resolveAdminByRole(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, req.log);
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -190,7 +190,7 @@ export function registerProgramsRoutes(server: FastifyInstance, ctx: GatewayCont
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       const { programId } = req.params;
-      const adminUserId = await resolveAdminUserId(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, ctx.industryAdminAllowlist, req.log);
+      const adminUserId = await resolveAdminByRole(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, req.log);
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -210,7 +210,7 @@ export function registerProgramsRoutes(server: FastifyInstance, ctx: GatewayCont
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       const { programId } = req.params;
-      const adminUserId = await resolveAdminUserId(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, ctx.industryAdminAllowlist, req.log);
+      const adminUserId = await resolveAdminByRole(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, req.log);
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -238,7 +238,7 @@ export function registerProgramsRoutes(server: FastifyInstance, ctx: GatewayCont
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       const { programId } = req.params;
-      const adminUserId = await resolveAdminUserId(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, ctx.industryAdminAllowlist, req.log);
+      const adminUserId = await resolveAdminByRole(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, req.log);
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -263,7 +263,7 @@ export function registerProgramsRoutes(server: FastifyInstance, ctx: GatewayCont
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       const { programId } = req.params;
-      const adminUserId = await resolveAdminUserId(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, ctx.industryAdminAllowlist, req.log);
+      const adminUserId = await resolveAdminByRole(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, req.log);
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -288,7 +288,7 @@ export function registerProgramsRoutes(server: FastifyInstance, ctx: GatewayCont
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       const { programId } = req.params;
-      const adminUserId = await resolveAdminUserId(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, ctx.industryAdminAllowlist, req.log);
+      const adminUserId = await resolveAdminByRole(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, req.log);
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -316,7 +316,7 @@ export function registerProgramsRoutes(server: FastifyInstance, ctx: GatewayCont
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       const { programId, sessionId } = req.params;
-      const adminUserId = await resolveAdminUserId(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, ctx.industryAdminAllowlist, req.log);
+      const adminUserId = await resolveAdminByRole(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, req.log);
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -344,7 +344,7 @@ export function registerProgramsRoutes(server: FastifyInstance, ctx: GatewayCont
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       const { programId, sessionId } = req.params;
-      const adminUserId = await resolveAdminUserId(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, ctx.industryAdminAllowlist, req.log);
+      const adminUserId = await resolveAdminByRole(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, req.log);
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -369,7 +369,7 @@ export function registerProgramsRoutes(server: FastifyInstance, ctx: GatewayCont
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       const { programId, sessionId } = req.params;
-      const adminUserId = await resolveAdminUserId(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, ctx.industryAdminAllowlist, req.log);
+      const adminUserId = await resolveAdminByRole(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, req.log);
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -390,7 +390,7 @@ export function registerProgramsRoutes(server: FastifyInstance, ctx: GatewayCont
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       const { programId } = req.params;
-      const adminUserId = await resolveAdminUserId(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, ctx.industryAdminAllowlist, req.log);
+      const adminUserId = await resolveAdminByRole(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, req.log);
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -418,7 +418,7 @@ export function registerProgramsRoutes(server: FastifyInstance, ctx: GatewayCont
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       const { programId } = req.params;
-      const adminUserId = await resolveAdminUserId(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, ctx.industryAdminAllowlist, req.log);
+      const adminUserId = await resolveAdminByRole(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, req.log);
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -443,7 +443,7 @@ export function registerProgramsRoutes(server: FastifyInstance, ctx: GatewayCont
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       const { programId } = req.params;
-      const adminUserId = await resolveAdminUserId(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, ctx.industryAdminAllowlist, req.log);
+      const adminUserId = await resolveAdminByRole(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, req.log);
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -469,7 +469,7 @@ export function registerProgramsRoutes(server: FastifyInstance, ctx: GatewayCont
     handler: async (req, reply) => {
       const { programId } = req.params;
       const querySuffix = buildQuerySuffix(req.query);
-      const adminUserId = await resolveAdminUserId(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, ctx.industryAdminAllowlist, req.log);
+      const adminUserId = await resolveAdminByRole(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, req.log);
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -488,7 +488,7 @@ export function registerProgramsRoutes(server: FastifyInstance, ctx: GatewayCont
   server.post("/api/v1/admin/programs/jobs/run", {
     config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
-      const adminUserId = await resolveAdminUserId(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, ctx.industryAdminAllowlist, req.log);
+      const adminUserId = await resolveAdminByRole(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, req.log);
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }
@@ -513,7 +513,7 @@ export function registerProgramsRoutes(server: FastifyInstance, ctx: GatewayCont
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     handler: async (req, reply) => {
       const { programId } = req.params;
-      const adminUserId = await resolveAdminUserId(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, ctx.industryAdminAllowlist, req.log);
+      const adminUserId = await resolveAdminByRole(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, req.log);
       if (!adminUserId) {
         return reply.status(403).send({ error: "forbidden" });
       }

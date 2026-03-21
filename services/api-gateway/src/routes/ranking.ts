@@ -10,7 +10,7 @@ import {
   buildQuerySuffix,
   getUserIdFromAuth,
   proxyJsonRequest,
-  resolveAdminUserId
+  resolveAdminByRole
 } from "../helpers.js";
 
 export function registerRankingRoutes(server: FastifyInstance, ctx: GatewayContext): void {
@@ -84,7 +84,7 @@ export function registerRankingRoutes(server: FastifyInstance, ctx: GatewayConte
   // ── Admin: prestige ───────────────────────────────────────────────
 
   server.get("/api/v1/admin/rankings/prestige", async (req, reply) => {
-    const adminId = await resolveAdminUserId(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, ctx.competitionAdminAllowlist, req.log);
+    const adminId = await resolveAdminByRole(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, req.log);
     if (!adminId) {
       return reply.status(403).send({ error: "forbidden" });
     }
@@ -98,7 +98,7 @@ export function registerRankingRoutes(server: FastifyInstance, ctx: GatewayConte
 
   server.put<{ Params: { competitionId: string } }>("/api/v1/admin/rankings/prestige/:competitionId", async (req, reply) => {
     const { competitionId } = req.params;
-    const adminId = await resolveAdminUserId(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, ctx.competitionAdminAllowlist, req.log);
+    const adminId = await resolveAdminByRole(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, req.log);
     if (!adminId) {
       return reply.status(403).send({ error: "forbidden" });
     }
@@ -124,7 +124,7 @@ export function registerRankingRoutes(server: FastifyInstance, ctx: GatewayConte
   // ── Admin: recompute ──────────────────────────────────────────────
 
   server.post("/api/v1/admin/rankings/recompute", async (req, reply) => {
-    const adminId = await resolveAdminUserId(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, ctx.competitionAdminAllowlist, req.log);
+    const adminId = await resolveAdminByRole(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, req.log);
     if (!adminId) {
       return reply.status(403).send({ error: "forbidden" });
     }
@@ -143,7 +143,7 @@ export function registerRankingRoutes(server: FastifyInstance, ctx: GatewayConte
   // ── Admin: appeals management ─────────────────────────────────────
 
   server.get("/api/v1/admin/rankings/appeals", async (req, reply) => {
-    const adminId = await resolveAdminUserId(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, ctx.competitionAdminAllowlist, req.log);
+    const adminId = await resolveAdminByRole(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, req.log);
     if (!adminId) {
       return reply.status(403).send({ error: "forbidden" });
     }
@@ -158,7 +158,7 @@ export function registerRankingRoutes(server: FastifyInstance, ctx: GatewayConte
 
   server.post<{ Params: { appealId: string } }>("/api/v1/admin/rankings/appeals/:appealId/resolve", async (req, reply) => {
     const { appealId } = req.params;
-    const adminId = await resolveAdminUserId(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, ctx.competitionAdminAllowlist, req.log);
+    const adminId = await resolveAdminByRole(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, req.log);
     if (!adminId) {
       return reply.status(403).send({ error: "forbidden" });
     }
@@ -184,7 +184,7 @@ export function registerRankingRoutes(server: FastifyInstance, ctx: GatewayConte
   // ── Admin: anti-gaming flags ──────────────────────────────────────
 
   server.get("/api/v1/admin/rankings/flags", async (req, reply) => {
-    const adminId = await resolveAdminUserId(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, ctx.competitionAdminAllowlist, req.log);
+    const adminId = await resolveAdminByRole(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, req.log);
     if (!adminId) {
       return reply.status(403).send({ error: "forbidden" });
     }
@@ -199,7 +199,7 @@ export function registerRankingRoutes(server: FastifyInstance, ctx: GatewayConte
 
   server.post<{ Params: { flagId: string } }>("/api/v1/admin/rankings/flags/:flagId/resolve", async (req, reply) => {
     const { flagId } = req.params;
-    const adminId = await resolveAdminUserId(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, ctx.competitionAdminAllowlist, req.log);
+    const adminId = await resolveAdminByRole(ctx.requestFn, ctx.identityServiceBase, req.headers as Record<string, unknown>, req.log);
     if (!adminId) {
       return reply.status(403).send({ error: "forbidden" });
     }

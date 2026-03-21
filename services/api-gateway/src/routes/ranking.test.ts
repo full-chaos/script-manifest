@@ -152,15 +152,14 @@ test("POST /api/v1/rankings/appeals requires auth and proxies with user id", asy
   assert.equal(headers[0]?.["x-auth-user-id"], "writer_01");
 });
 
-test("GET /api/v1/admin/rankings/prestige requires allowlisted admin", async (t) => {
+test("GET /api/v1/admin/rankings/prestige requires admin", async (t) => {
   const urls: string[] = [];
   const server = await buildServer({
     logger: false,
-    competitionAdminAllowlist: ["admin_01"],
     requestFn: (async (url) => {
       const urlStr = String(url);
       if (urlStr.includes("/internal/auth/me")) {
-        return jsonResponse({ user: { id: "admin_01" }, expiresAt: "2026-12-31T00:00:00.000Z" });
+        return jsonResponse({ user: { id: "admin_01", role: "admin" }, expiresAt: "2026-12-31T00:00:00.000Z" });
       }
       urls.push(urlStr);
       return jsonResponse({ prestige: [] });
@@ -188,16 +187,15 @@ test("GET /api/v1/admin/rankings/prestige requires allowlisted admin", async (t)
   assert.equal(urls[0], "http://ranking-svc/internal/prestige");
 });
 
-test("PUT /api/v1/admin/rankings/prestige/:competitionId requires allowlisted admin", async (t) => {
+test("PUT /api/v1/admin/rankings/prestige/:competitionId requires admin", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
   const server = await buildServer({
     logger: false,
-    competitionAdminAllowlist: ["admin_01"],
     requestFn: (async (url, options) => {
       const urlStr = String(url);
       if (urlStr.includes("/internal/auth/me")) {
-        return jsonResponse({ user: { id: "admin_01" }, expiresAt: "2026-12-31T00:00:00.000Z" });
+        return jsonResponse({ user: { id: "admin_01", role: "admin" }, expiresAt: "2026-12-31T00:00:00.000Z" });
       }
       urls.push(urlStr);
       headers.push((options?.headers as Record<string, string> | undefined) ?? {});
@@ -228,16 +226,15 @@ test("PUT /api/v1/admin/rankings/prestige/:competitionId requires allowlisted ad
   assert.equal(headers[0]?.["x-auth-user-id"], "admin_01");
 });
 
-test("POST /api/v1/admin/rankings/recompute requires allowlisted admin", async (t) => {
+test("POST /api/v1/admin/rankings/recompute requires admin", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];
   const server = await buildServer({
     logger: false,
-    competitionAdminAllowlist: ["admin_01"],
     requestFn: (async (url, options) => {
       const urlStr = String(url);
       if (urlStr.includes("/internal/auth/me")) {
-        return jsonResponse({ user: { id: "admin_01" }, expiresAt: "2026-12-31T00:00:00.000Z" });
+        return jsonResponse({ user: { id: "admin_01", role: "admin" }, expiresAt: "2026-12-31T00:00:00.000Z" });
       }
       urls.push(urlStr);
       headers.push((options?.headers as Record<string, string> | undefined) ?? {});
@@ -271,11 +268,10 @@ test("GET /api/v1/admin/rankings/appeals requires admin and forwards query param
   const urls: string[] = [];
   const server = await buildServer({
     logger: false,
-    competitionAdminAllowlist: ["admin_01"],
     requestFn: (async (url) => {
       const urlStr = String(url);
       if (urlStr.includes("/internal/auth/me")) {
-        return jsonResponse({ user: { id: "admin_01" }, expiresAt: "2026-12-31T00:00:00.000Z" });
+        return jsonResponse({ user: { id: "admin_01", role: "admin" }, expiresAt: "2026-12-31T00:00:00.000Z" });
       }
       urls.push(urlStr);
       return jsonResponse({ appeals: [] });
@@ -307,11 +303,10 @@ test("POST /api/v1/admin/rankings/appeals/:appealId/resolve requires admin", asy
   const headers: Record<string, string>[] = [];
   const server = await buildServer({
     logger: false,
-    competitionAdminAllowlist: ["admin_01"],
     requestFn: (async (url, options) => {
       const urlStr = String(url);
       if (urlStr.includes("/internal/auth/me")) {
-        return jsonResponse({ user: { id: "admin_01" }, expiresAt: "2026-12-31T00:00:00.000Z" });
+        return jsonResponse({ user: { id: "admin_01", role: "admin" }, expiresAt: "2026-12-31T00:00:00.000Z" });
       }
       urls.push(urlStr);
       headers.push((options?.headers as Record<string, string> | undefined) ?? {});
@@ -346,11 +341,10 @@ test("GET /api/v1/admin/rankings/flags requires admin and proxies query params",
   const urls: string[] = [];
   const server = await buildServer({
     logger: false,
-    competitionAdminAllowlist: ["admin_01"],
     requestFn: (async (url) => {
       const urlStr = String(url);
       if (urlStr.includes("/internal/auth/me")) {
-        return jsonResponse({ user: { id: "admin_01" }, expiresAt: "2026-12-31T00:00:00.000Z" });
+        return jsonResponse({ user: { id: "admin_01", role: "admin" }, expiresAt: "2026-12-31T00:00:00.000Z" });
       }
       urls.push(urlStr);
       return jsonResponse({ flags: [] });
@@ -382,11 +376,10 @@ test("POST /api/v1/admin/rankings/flags/:flagId/resolve requires admin", async (
   const headers: Record<string, string>[] = [];
   const server = await buildServer({
     logger: false,
-    competitionAdminAllowlist: ["admin_01"],
     requestFn: (async (url, options) => {
       const urlStr = String(url);
       if (urlStr.includes("/internal/auth/me")) {
-        return jsonResponse({ user: { id: "admin_01" }, expiresAt: "2026-12-31T00:00:00.000Z" });
+        return jsonResponse({ user: { id: "admin_01", role: "admin" }, expiresAt: "2026-12-31T00:00:00.000Z" });
       }
       urls.push(urlStr);
       headers.push((options?.headers as Record<string, string> | undefined) ?? {});

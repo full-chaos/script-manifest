@@ -14,6 +14,4 @@ test("verify email page renders and allows resend", async ({ page }) => {
   await page.goto("/verify-email");
   await expect(page.locator("h1, h2").first()).toBeVisible();
 
-  // TODO: enable after fixing pre-existing contrast violations
-  // TODO: generate screenshot baselines in CI
 });

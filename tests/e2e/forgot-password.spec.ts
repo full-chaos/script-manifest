@@ -12,6 +12,4 @@ test("forgot password accepts email and submits request", async ({ page }) => {
   await page.goto("/forgot-password");
   await expect(page.locator("h1, h2").first()).toBeVisible();
 
-  // TODO: enable after fixing pre-existing contrast violations
-  // TODO: generate screenshot baselines in CI
 });

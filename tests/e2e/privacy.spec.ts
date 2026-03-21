@@ -13,6 +13,4 @@ test("privacy page renders static privacy content", async ({ page }) => {
   await expect(page.locator("h1, h2").first()).toBeVisible();
   await expect(page.locator("h1, h2").first()).toBeVisible();
 
-  // TODO: enable after fixing pre-existing contrast violations
-  // TODO: generate screenshot baselines in CI
 });

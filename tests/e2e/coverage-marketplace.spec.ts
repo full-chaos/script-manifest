@@ -75,6 +75,4 @@ test("coverage provider dashboard renders provider and order data", async ({ pag
   await page.goto("/coverage/dashboard");
   await expect(page.locator("h1, h2, h3").first()).toBeVisible();
 
-  // TODO: enable after fixing pre-existing contrast violations
-  // TODO: generate screenshot baselines in CI
 });

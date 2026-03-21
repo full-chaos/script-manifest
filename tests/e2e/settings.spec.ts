@@ -15,6 +15,4 @@ test("account settings renders and supports account deletion flow", async ({ pag
   await expect(page.locator("h1, h2").first()).toBeVisible();
   await expect(page.locator("h1, h2").first()).toBeVisible();
 
-  // TODO: enable after fixing pre-existing contrast violations
-  // TODO: generate screenshot baselines in CI
 });

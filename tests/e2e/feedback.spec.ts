@@ -109,6 +109,4 @@ test("feedback exchange loads listings and authenticated controls", async ({ pag
   await page.goto("/feedback");
   await expect(page.locator("h1, h2").first()).toBeVisible();
 
-  // TODO: enable after fixing pre-existing contrast violations
-  // TODO: generate screenshot baselines in CI
 });

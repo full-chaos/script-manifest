@@ -93,6 +93,4 @@ test("submissions page loads authenticated submission list", async ({ page }) =>
   await page.goto("/submissions");
   await expect(page.locator("h1, h2").first()).toBeVisible();
 
-  // TODO: enable after fixing pre-existing contrast violations
-  // TODO: generate screenshot baselines in CI
 });

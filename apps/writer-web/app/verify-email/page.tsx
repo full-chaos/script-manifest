@@ -3,7 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { readStoredSession, writeStoredSession } from "../lib/authSession";
+import { readStoredSession, refreshSession } from "../lib/authSession";
 
 export default function VerifyEmailPage() {
   const router = useRouter();
@@ -25,6 +25,25 @@ export default function VerifyEmailPage() {
           <p className="text-foreground-secondary">
             Please <Link href="/signin" className="text-ember-500 hover:underline">sign in</Link> to verify your email.
           </p>
+        </article>
+      </section>
+    );
+  }
+
+  if (session.user.emailVerified) {
+    return (
+      <section className="space-y-4" data-testid="verify-email-page">
+        <article className="hero-card animate-in">
+          <p className="eyebrow">Account</p>
+          <h1 className="text-4xl text-foreground">Email verified</h1>
+        </article>
+        <article className="panel stack mx-auto max-w-md text-center">
+          <p className="text-foreground-secondary">
+            Your email address has already been verified.
+          </p>
+          <Link href="/" className="btn btn-primary inline-flex justify-center">
+            Back to home
+          </Link>
         </article>
       </section>
     );
@@ -58,14 +77,7 @@ export default function VerifyEmailPage() {
         return;
       }
       
-      try {
-        const data = await res.json();
-        if (data && typeof data === "object" && "token" in data && data.token) {
-          writeStoredSession(data);
-        }
-      } catch {
-      }
-      
+      await refreshSession();
       router.replace("/");
     } catch {
       setError("Network error. Please try again.");

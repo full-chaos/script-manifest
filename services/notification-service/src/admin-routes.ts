@@ -6,7 +6,9 @@ import {
   NotificationHistoryRequestSchema
 } from "@script-manifest/contracts";
 import { verifyServiceToken } from "@script-manifest/service-utils";
+import { randomUUID } from "node:crypto";
 import type { NotificationAdminRepository } from "./admin-repository.js";
+import type { NotificationRepository } from "./repository.js";
 
 function readAdminUserId(headers: Record<string, unknown>): string | null {
   const raw = headers["x-auth-user-id"];
@@ -37,7 +39,7 @@ function estimateRecipientCount(audience: string): number {
   return 0;
 }
 
-export function registerNotificationAdminRoutes(server: FastifyInstance, adminRepo: NotificationAdminRepository): void {
+export function registerNotificationAdminRoutes(server: FastifyInstance, adminRepo: NotificationAdminRepository, eventRepo?: NotificationRepository): void {
   // ── Templates ─────────────────────────────────────────────────
 
   server.post("/internal/admin/notifications/templates", async (req, reply) => {
@@ -74,9 +76,22 @@ export function registerNotificationAdminRoutes(server: FastifyInstance, adminRe
 
     const broadcast = await adminRepo.createBroadcast({ ...parsed.data, sentBy: adminId });
 
-    // Simulate send: calculate recipient count and mark as sent
     const recipientCount = estimateRecipientCount(parsed.data.audience);
     await adminRepo.updateBroadcastStatus(broadcast.id, "sent", recipientCount);
+
+    if (eventRepo && parsed.data.audience.startsWith("user:")) {
+      const targetUserId = parsed.data.audience.slice("user:".length);
+      await eventRepo.pushEvent({
+        eventId: randomUUID(),
+        eventType: "partner_entrant_message_sent",
+        occurredAt: new Date().toISOString(),
+        actorUserId: adminId,
+        targetUserId,
+        resourceType: "system",
+        resourceId: broadcast.id,
+        payload: { subject: parsed.data.subject, body: parsed.data.body },
+      });
+    }
 
     return reply.status(201).send({
       broadcast: {
@@ -107,6 +122,19 @@ export function registerNotificationAdminRoutes(server: FastifyInstance, adminRe
     });
 
     await adminRepo.updateBroadcastStatus(broadcast.id, "sent", 1);
+
+    if (eventRepo) {
+      await eventRepo.pushEvent({
+        eventId: randomUUID(),
+        eventType: "partner_entrant_message_sent",
+        occurredAt: new Date().toISOString(),
+        actorUserId: adminId,
+        targetUserId: parsed.data.userId,
+        resourceType: "system",
+        resourceId: broadcast.id,
+        payload: { subject: parsed.data.subject, body: parsed.data.body },
+      });
+    }
 
     return reply.status(201).send({
       broadcast: {

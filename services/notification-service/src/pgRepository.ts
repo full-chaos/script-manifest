@@ -8,6 +8,7 @@ type NotificationEventRow = {
   event_id: string;
   event_type: NotificationEventEnvelope["eventType"];
   occurred_at: Date;
+  read_at: Date | null;
   actor_user_id: string | null;
   target_user_id: string;
   resource_type: NotificationEventEnvelope["resourceType"];
@@ -21,6 +22,7 @@ function mapEvent(row: NotificationEventRow): NotificationEventEnvelope {
     eventId: row.event_id,
     eventType: row.event_type,
     occurredAt: row.occurred_at.toISOString(),
+    readAt: row.read_at?.toISOString() ?? null,
     actorUserId: row.actor_user_id ?? undefined,
     targetUserId: row.target_user_id,
     resourceType: row.resource_type,
@@ -75,11 +77,27 @@ export class PgNotificationRepository implements NotificationRepository {
       `SELECT *
        FROM notification_events
        WHERE target_user_id = $1
-       ORDER BY occurred_at ASC
+       ORDER BY occurred_at DESC
        LIMIT $2 OFFSET $3`,
       [targetUserId, limit, offset]
     );
 
     return result.rows.map(mapEvent);
+  }
+
+  async markEventRead(eventId: string, targetUserId: string): Promise<boolean> {
+    const result = await getPool().query(
+      `UPDATE notification_events SET read_at = NOW() WHERE event_id = $1 AND target_user_id = $2 AND read_at IS NULL`,
+      [eventId, targetUserId]
+    );
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  async getUnreadCount(targetUserId: string): Promise<number> {
+    const result = await getPool().query<{ count: string }>(
+      `SELECT COUNT(*) AS count FROM notification_events WHERE target_user_id = $1 AND read_at IS NULL`,
+      [targetUserId]
+    );
+    return Number(result.rows[0]?.count ?? 0);
   }
 }

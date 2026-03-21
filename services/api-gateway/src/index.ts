@@ -27,6 +27,7 @@ import { registerAdminRoutes } from "./routes/admin.js";
 import { registerSuspensionRoutes } from "./routes/suspension.js";
 import { registerIpBlockingRoutes } from "./routes/ip-blocking.js";
 import { registerNotificationAdminRoutes } from "./routes/notification-admin.js";
+import { registerNotificationRoutes } from "./routes/notifications.js";
 import { registerSearchAdminRoutes } from "./routes/search-admin.js";
 import { registerFeatureFlagRoutes } from "./routes/feature-flags.js";
 import { registerMfaRoutes } from "./routes/mfa.js";
@@ -153,6 +154,7 @@ export async function buildServer(options: ApiGatewayOptions = {}): Promise<Fast
     registerIpBlocklist(server, ctx.requestFn, ctx.identityServiceBase);
   }
   registerNotificationAdminRoutes(server, ctx);
+  registerNotificationRoutes(server, ctx);
   registerSearchAdminRoutes(server, ctx);
   registerFeatureFlagRoutes(server, ctx);
   registerOnboardingRoutes(server, ctx);

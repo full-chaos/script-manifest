@@ -123,6 +123,26 @@ export function buildServer(options: NotificationServiceOptions = {}): FastifyIn
     return reply.send({ events });
   });
 
+  server.get<{ Params: { targetUserId: string } }>("/internal/events/:targetUserId/unread-count", async (req, reply) => {
+    if (!verifyInternalServiceToken(req.headers as Record<string, unknown>)) {
+      return reply.status(403).send({ error: "forbidden" });
+    }
+    const count = await repository.getUnreadCount(req.params.targetUserId);
+    return reply.send({ count });
+  });
+
+  server.patch<{ Params: { eventId: string }; Body: { targetUserId: string } }>("/internal/events/:eventId/read", async (req, reply) => {
+    if (!verifyInternalServiceToken(req.headers as Record<string, unknown>)) {
+      return reply.status(403).send({ error: "forbidden" });
+    }
+    const body = req.body as { targetUserId?: string };
+    if (!body.targetUserId) {
+      return reply.status(400).send({ error: "missing_target_user_id" });
+    }
+    const updated = await repository.markEventRead(req.params.eventId, body.targetUserId);
+    return reply.send({ updated });
+  });
+
   // Register admin routes for notification management
   registerNotificationAdminRoutes(server, adminRepository);
 

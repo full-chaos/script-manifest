@@ -6,4 +6,6 @@ export interface NotificationRepository {
 
   pushEvent(event: NotificationEventEnvelope): Promise<void>;
   getEventsByTargetUser(targetUserId: string, limit?: number, offset?: number): Promise<NotificationEventEnvelope[]>;
+  markEventRead(eventId: string, targetUserId: string): Promise<boolean>;
+  getUnreadCount(targetUserId: string): Promise<number>;
 }

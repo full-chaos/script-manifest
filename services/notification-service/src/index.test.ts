@@ -24,6 +24,23 @@ class MemoryNotificationRepository implements NotificationRepository {
   async getEventsByTargetUser(targetUserId: string, _limit?: number, _offset?: number): Promise<NotificationEventEnvelope[]> {
     return this.events.filter((event) => event.targetUserId === targetUserId);
   }
+
+  async markEventRead(eventId: string, targetUserId: string): Promise<boolean> {
+    const index = this.events.findIndex((event) => event.eventId === eventId && event.targetUserId === targetUserId && !event.readAt);
+    if (index < 0) {
+      return false;
+    }
+    const event = this.events[index];
+    if (!event) {
+      return false;
+    }
+    this.events[index] = { ...event, readAt: new Date().toISOString() };
+    return true;
+  }
+
+  async getUnreadCount(targetUserId: string): Promise<number> {
+    return this.events.filter((event) => event.targetUserId === targetUserId && !event.readAt).length;
+  }
 }
 
 const SERVICE_SECRET = randomBytes(32).toString("hex");

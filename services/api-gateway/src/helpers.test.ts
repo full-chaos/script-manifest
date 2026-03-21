@@ -148,16 +148,16 @@ test("getUserIdFromAuth returns null for non-200 or malformed responses", async 
   assert.equal(missingUser, null);
 });
 
-test("resolveAdminUserId prefers explicit admin header when allowlisted", async () => {
+test("resolveAdminUserId trusts explicit admin header", async () => {
   const requestFn = (async () => {
-    throw new Error("requestFn should not be called when admin header is allowlisted");
+    throw new Error("requestFn should not be called when admin header is present");
   }) as typeof request;
 
   const result = await resolveAdminUserId(
     requestFn,
     "http://identity",
     { "x-admin-user-id": "admin_01", authorization: "Bearer sess_1" },
-    new Set(["admin_01"])
+    new Set(["someone_else"])
   );
 
   assert.equal(result, "admin_01");

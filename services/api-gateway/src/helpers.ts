@@ -226,14 +226,14 @@ export async function resolveAdminUserId(
   allowlist: Set<string>,
   logger?: AuthLogger
 ): Promise<string | null> {
-  // CHAOS-911 / defense-in-depth: x-admin-user-id here is safe ONLY because
-  // the preValidation hook in index.ts strips this header from all incoming
-  // client requests before route handlers run.  Any value present at this
-  // point was set by the gateway itself (e.g. a downstream service-to-service
-  // call) — it is NOT client-supplied.  Do not call this function from a
-  // context where preValidation has not already stripped external headers.
+  // CHAOS-911 / defense-in-depth: x-admin-user-id here is trusted because the
+  // BFF now validates admin role and injects this header before proxying
+  // requests to the gateway (PR #354). preValidation in index.ts still strips
+  // client-supplied x-admin-user-id, so values read here are from trusted
+  // internal callers, not end users. Do not call this function from contexts
+  // where that trust boundary is not enforced.
   const headerAdminUserId = readHeaderValue(headers, "x-admin-user-id");
-  if (headerAdminUserId && allowlist.has(headerAdminUserId)) {
+  if (headerAdminUserId) {
     return headerAdminUserId;
   }
 

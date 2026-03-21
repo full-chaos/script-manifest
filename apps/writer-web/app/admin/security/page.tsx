@@ -171,6 +171,11 @@ export default function AdminSecurityPage() {
         { headers: getAuthHeaders(), cache: "no-store" }
       );
 
+      if (response.status === 404) {
+        setSuspensions([]);
+        return;
+      }
+
       if (!response.ok) {
         const body = (await response.json().catch(() => ({}))) as { error?: string };
         toast.error(body.error ?? "Failed to load suspension history.");

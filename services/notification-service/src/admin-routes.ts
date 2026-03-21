@@ -5,32 +5,10 @@ import {
   SendDirectNotificationRequestSchema,
   NotificationHistoryRequestSchema
 } from "@script-manifest/contracts";
-import { verifyServiceToken } from "@script-manifest/service-utils";
+import { requireAdminServiceToken } from "@script-manifest/service-utils";
 import { randomUUID } from "node:crypto";
 import type { NotificationAdminRepository } from "./admin-repository.js";
 import type { NotificationRepository } from "./repository.js";
-
-function readAdminUserId(headers: Record<string, unknown>): string | null {
-  const raw = headers["x-auth-user-id"];
-  return typeof raw === "string" && raw.length > 0 ? raw : null;
-}
-
-function readServiceRole(headers: Record<string, unknown>): string | null {
-  const token = headers["x-service-token"];
-  if (typeof token !== "string") return null;
-
-  const secret = process.env.SERVICE_TOKEN_SECRET;
-  if (!secret) return null;
-
-  const payload = verifyServiceToken(token, secret);
-  return payload?.role ?? null;
-}
-
-function requireAdmin(headers: Record<string, unknown>): string | null {
-  const role = readServiceRole(headers);
-  if (role !== "admin") return null;
-  return readAdminUserId(headers);
-}
 
 function estimateRecipientCount(audience: string): number {
   if (audience === "all") return 100; // placeholder estimate
@@ -43,7 +21,7 @@ export function registerNotificationAdminRoutes(server: FastifyInstance, adminRe
   // ── Templates ─────────────────────────────────────────────────
 
   server.post("/internal/admin/notifications/templates", async (req, reply) => {
-    const adminId = requireAdmin(req.headers as Record<string, unknown>);
+    const adminId = requireAdminServiceToken(req.headers as Record<string, unknown>);
     if (!adminId) return reply.status(403).send({ error: "forbidden" });
 
     const parsed = CreateNotificationTemplateRequestSchema.safeParse(req.body);
@@ -56,7 +34,7 @@ export function registerNotificationAdminRoutes(server: FastifyInstance, adminRe
   });
 
   server.get("/internal/admin/notifications/templates", async (req, reply) => {
-    const adminId = requireAdmin(req.headers as Record<string, unknown>);
+    const adminId = requireAdminServiceToken(req.headers as Record<string, unknown>);
     if (!adminId) return reply.status(403).send({ error: "forbidden" });
 
     const templates = await adminRepo.listTemplates();
@@ -66,7 +44,7 @@ export function registerNotificationAdminRoutes(server: FastifyInstance, adminRe
   // ── Broadcast ─────────────────────────────────────────────────
 
   server.post("/internal/admin/notifications/broadcast", async (req, reply) => {
-    const adminId = requireAdmin(req.headers as Record<string, unknown>);
+    const adminId = requireAdminServiceToken(req.headers as Record<string, unknown>);
     if (!adminId) return reply.status(403).send({ error: "forbidden" });
 
     const parsed = SendBroadcastRequestSchema.safeParse(req.body);
@@ -106,7 +84,7 @@ export function registerNotificationAdminRoutes(server: FastifyInstance, adminRe
   // ── Direct Notification ───────────────────────────────────────
 
   server.post("/internal/admin/notifications/direct", async (req, reply) => {
-    const adminId = requireAdmin(req.headers as Record<string, unknown>);
+    const adminId = requireAdminServiceToken(req.headers as Record<string, unknown>);
     if (!adminId) return reply.status(403).send({ error: "forbidden" });
 
     const parsed = SendDirectNotificationRequestSchema.safeParse(req.body);
@@ -150,7 +128,7 @@ export function registerNotificationAdminRoutes(server: FastifyInstance, adminRe
   // ── History ───────────────────────────────────────────────────
 
   server.get("/internal/admin/notifications/history", async (req, reply) => {
-    const adminId = requireAdmin(req.headers as Record<string, unknown>);
+    const adminId = requireAdminServiceToken(req.headers as Record<string, unknown>);
     if (!adminId) return reply.status(403).send({ error: "forbidden" });
 
     const parsed = NotificationHistoryRequestSchema.safeParse(req.query);

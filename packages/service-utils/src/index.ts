@@ -13,3 +13,4 @@ export { createFastifyServer, type CreateServerOptions } from "./server.js";
 export { registerHealthRoutes, type RegisterHealthRoutesOptions, type HealthCheckResult } from "./health.js";
 export { BaseMemoryRepository } from "./testing/BaseMemoryRepository.js";
 export { getKafkaClient, _resetKafkaClient } from "./kafka.js";
+export { makeServiceHeaders, verifyInternalToken, requireServiceToken, requireAdminServiceToken, resolveServiceSecret } from "./serviceHeaders.js";

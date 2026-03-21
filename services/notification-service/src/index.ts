@@ -1,6 +1,6 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import { randomUUID } from "node:crypto";
-import { bootstrapService, registerMetrics, registerSentryErrorHandler, setupErrorReporting, validateRequiredEnv, isMainModule, verifyServiceToken } from "@script-manifest/service-utils";
+import { bootstrapService, registerMetrics, registerSentryErrorHandler, setupErrorReporting, validateRequiredEnv, isMainModule, requireServiceToken } from "@script-manifest/service-utils";
 import { closePool } from "@script-manifest/db";
 import {
   NotificationEventEnvelopeSchema
@@ -85,17 +85,8 @@ export function buildServer(options: NotificationServiceOptions = {}): FastifyIn
     });
   });
 
-  function verifyInternalServiceToken(headers: Record<string, unknown>): boolean {
-    const token = headers["x-service-token"];
-    if (typeof token !== "string") return false;
-    const secret = process.env.SERVICE_TOKEN_SECRET;
-    if (!secret) return false;
-    const payload = verifyServiceToken(token, secret);
-    return payload !== null;
-  }
-
   server.post("/internal/events", async (req, reply) => {
-    if (!verifyInternalServiceToken(req.headers as Record<string, unknown>)) {
+    if (!requireServiceToken(req.headers as Record<string, unknown>)) {
       return reply.status(403).send({ error: "forbidden" });
     }
 
@@ -112,7 +103,7 @@ export function buildServer(options: NotificationServiceOptions = {}): FastifyIn
   });
 
   server.get<{ Params: { targetUserId: string }; Querystring: { limit?: string; offset?: string } }>("/internal/events/:targetUserId", async (req, reply) => {
-    if (!verifyInternalServiceToken(req.headers as Record<string, unknown>)) {
+    if (!requireServiceToken(req.headers as Record<string, unknown>)) {
       return reply.status(403).send({ error: "forbidden" });
     }
 
@@ -124,7 +115,7 @@ export function buildServer(options: NotificationServiceOptions = {}): FastifyIn
   });
 
   server.get<{ Params: { targetUserId: string } }>("/internal/events/:targetUserId/unread-count", async (req, reply) => {
-    if (!verifyInternalServiceToken(req.headers as Record<string, unknown>)) {
+    if (!requireServiceToken(req.headers as Record<string, unknown>)) {
       return reply.status(403).send({ error: "forbidden" });
     }
     const count = await repository.getUnreadCount(req.params.targetUserId);
@@ -132,7 +123,7 @@ export function buildServer(options: NotificationServiceOptions = {}): FastifyIn
   });
 
   server.patch<{ Params: { eventId: string }; Body: { targetUserId: string } }>("/internal/events/:eventId/read", async (req, reply) => {
-    if (!verifyInternalServiceToken(req.headers as Record<string, unknown>)) {
+    if (!requireServiceToken(req.headers as Record<string, unknown>)) {
       return reply.status(403).send({ error: "forbidden" });
     }
     const body = req.body as { targetUserId?: string };

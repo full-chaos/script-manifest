@@ -45,7 +45,7 @@ describe("SiteHeader", () => {
     expect(screen.queryByRole("link", { name: "Admin" })).not.toBeInTheDocument();
   });
 
-  it("shows admin navigation for admin users", async () => {
+  it("shows admin link in user menu for admin users", async () => {
     mockUseAuth.mockReturnValue({
       user: {
         id: "user_admin_01",
@@ -59,7 +59,10 @@ describe("SiteHeader", () => {
 
     render(<SiteHeader />);
 
-    expect(await screen.findByText("Admin User")).toBeInTheDocument();
+    // Admin link is in the UserMenu dropdown, not in the top nav
+    const menuButton = await screen.findByRole("button", { name: /Admin User/i });
+    fireEvent.click(menuButton);
+
     expect(screen.getByRole("link", { name: "Admin" })).toHaveAttribute("href", "/admin");
   });
 

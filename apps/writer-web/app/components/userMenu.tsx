@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ChevronDown, LogOut, Settings, User } from "lucide-react";
+import { ChevronDown, LogOut, Settings, ShieldCheck, User } from "lucide-react";
 import { refreshAuth, useAuth } from "../lib/AuthProvider";
 
 export function UserMenu() {
@@ -80,6 +80,16 @@ export function UserMenu() {
               <Settings className="h-4 w-4 text-foreground-secondary" />
               Settings
             </Link>
+            {user.role === "admin" && (
+              <Link
+                href="/admin"
+                className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-foreground hover:bg-background-secondary"
+                onClick={() => setOpen(false)}
+              >
+                <ShieldCheck className="h-4 w-4 text-foreground-secondary" />
+                Admin
+              </Link>
+            )}
           </div>
 
           <div className="border-t border-border/60 py-1">

@@ -2,6 +2,10 @@
 
 Writer-first platform for profiles, scripts, competitions, submissions, peer feedback, and paid coverage.
 
+# REFERENCE
+
+Always reference AGENTS.md for the latest info and instructions
+
 ## Stack
 
 - **Monorepo**: pnpm 9.12, Turborepo 2.x, TypeScript 5.9 strict

@@ -65,16 +65,23 @@ function noAuthHeaders(): Record<string, string> {
   };
 }
 
+const TEST_USERS = [
+  { id: "writer_01", role: "writer" },
+  { id: "writer_02", role: "writer" },
+  { id: ADMIN_USER_ID, role: "admin" },
+];
+
 function createServer() {
   const originalSecret = process.env.SERVICE_TOKEN_SECRET;
   process.env.SERVICE_TOKEN_SECRET = SERVICE_SECRET;
 
   const memoryRepo = new MemoryNotificationRepository();
-  const adminRepo = new MemoryNotificationAdminRepository();
+  const adminRepo = new MemoryNotificationAdminRepository(TEST_USERS);
   const server = buildServer({ logger: false, repository: memoryRepo, adminRepository: adminRepo });
 
   return {
     server,
+    memoryRepo,
     cleanup: async () => {
       await server.close();
       if (originalSecret !== undefined) {
@@ -187,8 +194,8 @@ test("GET /internal/admin/notifications/templates returns 403 without admin auth
 
 // ── Broadcast Tests ─────────────────────────────────────────────
 
-test("POST /internal/admin/notifications/broadcast creates and sends a broadcast", async (t) => {
-  const { server, cleanup } = createServer();
+test("POST /internal/admin/notifications/broadcast fans out events to all users", async (t) => {
+  const { server, memoryRepo, cleanup } = createServer();
   t.after(cleanup);
 
   const res = await server.inject({
@@ -206,7 +213,39 @@ test("POST /internal/admin/notifications/broadcast creates and sends a broadcast
   const body = res.json() as { broadcast: { id: string; status: string; recipientCount: number } };
   assert.ok(body.broadcast.id);
   assert.equal(body.broadcast.status, "sent");
-  assert.ok(body.broadcast.recipientCount > 0);
+  assert.equal(body.broadcast.recipientCount, TEST_USERS.length);
+
+  // Each user should have received a notification event
+  for (const user of TEST_USERS) {
+    const count = await memoryRepo.getUnreadCount(user.id);
+    assert.equal(count, 1, `expected 1 unread notification for ${user.id}`);
+  }
+});
+
+test("POST /internal/admin/notifications/broadcast fans out only to matching role", async (t) => {
+  const { server, memoryRepo, cleanup } = createServer();
+  t.after(cleanup);
+
+  const res = await server.inject({
+    method: "POST",
+    url: "/internal/admin/notifications/broadcast",
+    headers: adminHeaders(),
+    payload: {
+      subject: "Admin Notice",
+      body: "Admin-only update.",
+      audience: "role:admin"
+    }
+  });
+
+  assert.equal(res.statusCode, 201);
+  const body = res.json() as { broadcast: { recipientCount: number } };
+  assert.equal(body.broadcast.recipientCount, 1);
+
+  // Only admin user should have the event
+  const adminCount = await memoryRepo.getUnreadCount(ADMIN_USER_ID);
+  assert.equal(adminCount, 1);
+  const writerCount = await memoryRepo.getUnreadCount("writer_01");
+  assert.equal(writerCount, 0);
 });
 
 test("POST /internal/admin/notifications/broadcast returns 403 without admin auth", async (t) => {

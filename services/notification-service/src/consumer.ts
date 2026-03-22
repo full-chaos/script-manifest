@@ -19,13 +19,17 @@ export async function startConsumer(
     await consumer.subscribe({ topic: "notification-events", fromBeginning: false });
     await consumer.run({
       eachMessage: async ({ message }) => {
+        let event;
         try {
           const raw = JSON.parse(message.value!.toString());
-          const event = NotificationEventEnvelopeSchema.parse(raw);
-          await repository.pushEvent(event);
+          event = NotificationEventEnvelopeSchema.parse(raw);
         } catch (err) {
-          logger.error({ err, offset: message.offset }, "failed to process notification event from kafka");
+          // Parse/schema errors are permanent — log and skip to avoid infinite retry
+          logger.error({ err, offset: message.offset }, "malformed notification event, skipping");
+          return;
         }
+        // pushEvent errors (e.g. DB hiccup) propagate → KafkaJS retries from last committed offset
+        await repository.pushEvent(event);
       },
     });
   } catch (err) {

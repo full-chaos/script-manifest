@@ -4,7 +4,8 @@ export const TEST_USER = {
   id: "user_e2e_01",
   email: "e2e.writer@example.com",
   displayName: "E2E Writer",
-  role: "writer"
+  role: "writer",
+  emailVerified: true
 } as const;
 
 export const TEST_SESSION = {
@@ -13,22 +14,22 @@ export const TEST_SESSION = {
   user: TEST_USER
 } as const;
 
-const SESSION_STORAGE_KEY = "script_manifest_session";
-
 export async function seedSession(page: Page): Promise<void> {
-  await page.addInitScript((session) => {
-    window.localStorage.setItem("script_manifest_session", JSON.stringify(session));
-    window.dispatchEvent(new CustomEvent("script_manifest_session_changed"));
-  }, TEST_SESSION);
+  await page.route("**/api/v1/auth/me", async (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ user: TEST_USER, expiresAt: TEST_SESSION.expiresAt })
+    })
+  );
 }
 
 export async function clearSession(page: Page): Promise<void> {
-  await page.addInitScript(() => {
-    window.localStorage.removeItem("script_manifest_session");
-    window.dispatchEvent(new CustomEvent("script_manifest_session_changed"));
-  });
-}
-
-export function sessionStorageKey(): string {
-  return SESSION_STORAGE_KEY;
+  await page.route("**/api/v1/auth/me", async (route) =>
+    route.fulfill({
+      status: 401,
+      contentType: "application/json",
+      body: JSON.stringify({ error: "unauthorized" })
+    })
+  );
 }

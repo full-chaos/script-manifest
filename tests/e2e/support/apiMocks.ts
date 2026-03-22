@@ -40,25 +40,40 @@ function jsonReply(route: Route, status: number, payload: unknown): Promise<void
 }
 
 export async function mockAuthEndpoints(page: Page): Promise<void> {
-  await page.route("**/api/v1/auth/register", async (route) =>
-    jsonReply(route, 201, {
+  let authenticated = false;
+
+  await page.route("**/api/v1/auth/me", async (route) => {
+    if (authenticated) {
+      return jsonReply(route, 200, {
+        user: TEST_USER,
+        expiresAt: "2099-01-01T00:00:00.000Z"
+      });
+    }
+    return jsonReply(route, 401, { error: "unauthorized" });
+  });
+
+  await page.route("**/api/v1/auth/register", async (route) => {
+    authenticated = true;
+    return jsonReply(route, 201, {
       token: "sess_e2e_auth",
       expiresAt: "2099-01-01T00:00:00.000Z",
       user: TEST_USER
-    })
-  );
+    });
+  });
 
-  await page.route("**/api/v1/auth/login", async (route) =>
-    jsonReply(route, 200, {
+  await page.route("**/api/v1/auth/login", async (route) => {
+    authenticated = true;
+    return jsonReply(route, 200, {
       token: "sess_e2e_auth",
       expiresAt: "2099-01-01T00:00:00.000Z",
       user: TEST_USER
-    })
-  );
+    });
+  });
 
-  await page.route("**/api/v1/auth/logout", async (route) =>
-    route.fulfill({ status: 204, body: "" })
-  );
+  await page.route("**/api/v1/auth/logout", async (route) => {
+    authenticated = false;
+    return route.fulfill({ status: 204, body: "" });
+  });
 }
 
 export async function mockProfileAndProjectEndpoints(page: Page): Promise<void> {

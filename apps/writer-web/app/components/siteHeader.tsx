@@ -14,20 +14,16 @@ type NavLink = {
   href: Route;
   label: string;
   signedInOnly?: boolean;
-  adminOnly?: boolean;
 };
 
 const navLinks: NavLink[] = [
   { href: "/" as Route, label: "Home" },
   { href: "/leaderboard" as Route, label: "Leaderboard" },
   { href: "/competitions" as Route, label: "Competitions" },
-  { href: "/profile" as Route, label: "Profile", signedInOnly: true },
   { href: "/projects" as Route, label: "Projects", signedInOnly: true },
   { href: "/submissions" as Route, label: "Submissions", signedInOnly: true },
   { href: "/feedback" as Route, label: "Feedback", signedInOnly: true },
   { href: "/coverage" as Route, label: "Coverage", signedInOnly: true },
-  { href: "/coverage/dashboard" as Route, label: "Provider Dashboard", signedInOnly: true },
-  { href: "/admin" as Route, label: "Admin", signedInOnly: true, adminOnly: true }
 ];
 
 function isActive(pathname: string, href: string): boolean {
@@ -50,15 +46,7 @@ export function SiteHeader() {
 
   const visibleLinks = useMemo(
     () =>
-      navLinks.filter((link) => {
-        if (link.signedInOnly && !user) {
-          return false;
-        }
-        if (!link.adminOnly) {
-          return true;
-        }
-        return user?.role === "admin";
-      }),
+      navLinks.filter((link) => !link.signedInOnly || user),
     [user]
   );
 

@@ -587,6 +587,7 @@ services:
       STRIPE_WEBHOOK_SECRET: ""
       PLATFORM_COMMISSION_RATE: "0.15"
       COVERAGE_ADMIN_ALLOWLIST: "admin_01,user_admin_01"
+      SERVICE_TOKEN_SECRET: "local-dev-token-secret"
       STORAGE_S3_ENDPOINT: "http://minio:9000"
       STORAGE_S3_ACCESS_KEY: "manifest"
       STORAGE_S3_SECRET_KEY: "manifest123"

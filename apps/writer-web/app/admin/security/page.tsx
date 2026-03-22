@@ -67,7 +67,7 @@ export default function AdminSecurityPage() {
         params.set("limit", String(blocksLimit));
 
         const response = await fetch(`/api/v1/admin/ip-blocks?${params.toString()}`, {
-          headers: getAuthHeaders(),
+          headers: {},
           cache: "no-store"
         });
 
@@ -114,7 +114,7 @@ export default function AdminSecurityPage() {
 
       const response = await fetch("/api/v1/admin/ip-blocks", {
         method: "POST",
-        headers: { ...getAuthHeaders(), "content-type": "application/json" },
+        headers: { ...{}, "content-type": "application/json" },
         body: JSON.stringify(body)
       });
 
@@ -140,7 +140,7 @@ export default function AdminSecurityPage() {
     try {
       const response = await fetch(`/api/v1/admin/ip-blocks/${encodeURIComponent(id)}`, {
         method: "DELETE",
-        headers: getAuthHeaders()
+        headers: {}
       });
 
       if (!response.ok) {
@@ -168,7 +168,7 @@ export default function AdminSecurityPage() {
     try {
       const response = await fetch(
         `/api/v1/admin/users/${encodeURIComponent(suspensionUserId.trim())}/suspensions`,
-        { headers: getAuthHeaders(), cache: "no-store" }
+        { headers: {}, cache: "no-store" }
       );
 
       if (response.status === 404) {

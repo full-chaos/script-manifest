@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useCallback, type FormEvent } from "react";
-import { readStoredSession } from "../../lib/authSession";
+import { useState, useCallback, useEffect, type FormEvent } from "react";
+import { useAuth } from "../../lib/AuthProvider";
 
 type MfaState =
   | { step: "loading" }
@@ -13,7 +13,7 @@ type MfaState =
   | { step: "confirm-disable" };
 
 export default function SecuritySettingsPage() {
-  const [session] = useState(() => readStoredSession());
+  const { user, loading: authLoading } = useAuth();
   const [mfaState, setMfaState] = useState<MfaState>({ step: "loading" });
   const [totpCode, setTotpCode] = useState("");
   const [password, setPassword] = useState("");
@@ -22,20 +22,12 @@ export default function SecuritySettingsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
-  const authHeaders = useCallback((): Record<string, string> => {
-    if (!session?.token) return { "content-type": "application/json" };
-    return {
-      authorization: `Bearer ${session.token}`,
-      "content-type": "application/json"
-    };
-  }, [session]);
-
   // Load MFA status on first render
   const loadStatus = useCallback(async () => {
-    if (!session?.token) return;
+    if (!user) return;
     try {
       const res = await fetch("/api/v1/auth/mfa/status", {
-        headers: { authorization: `Bearer ${session.token}` }
+        credentials: "include"
       });
       if (res.ok) {
         const data = await res.json();
@@ -49,14 +41,15 @@ export default function SecuritySettingsPage() {
     } finally {
       setLoaded(true);
     }
-  }, [session]);
+  }, [user]);
 
-  // Load on mount
-  if (!loaded && session) {
-    loadStatus();
-  }
+  useEffect(() => {
+    if (!loaded && user) {
+      void loadStatus();
+    }
+  }, [loadStatus, loaded, user]);
 
-  if (!session) {
+  if (!authLoading && !user) {
     return (
       <section className="space-y-4">
         <article className="hero-card animate-in">
@@ -78,7 +71,8 @@ export default function SecuritySettingsPage() {
     try {
       const res = await fetch("/api/v1/auth/mfa/setup", {
         method: "POST",
-        headers: authHeaders()
+        headers: { "content-type": "application/json" },
+        credentials: "include"
       });
       if (!res.ok) {
         const body = await res.json();
@@ -101,7 +95,8 @@ export default function SecuritySettingsPage() {
     try {
       const res = await fetch("/api/v1/auth/mfa/verify-setup", {
         method: "POST",
-        headers: authHeaders(),
+        headers: { "content-type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ code: totpCode })
       });
       if (!res.ok) {
@@ -126,7 +121,8 @@ export default function SecuritySettingsPage() {
     try {
       const res = await fetch("/api/v1/auth/mfa/disable", {
         method: "POST",
-        headers: authHeaders(),
+        headers: { "content-type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ password, code: disableCode })
       });
       if (!res.ok) {

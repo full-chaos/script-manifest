@@ -14,7 +14,7 @@ import { EmptyState } from "../components/emptyState";
 import { EmptyIllustration } from "../components/illustrations";
 import { SkeletonCard } from "../components/skeleton";
 import { useToast } from "../components/toast";
-import { getAuthHeaders, readStoredSession } from "../lib/authSession";
+import { useAuth } from "../lib/AuthProvider";
 import { type ScriptUploadProxyResponse, uploadScriptViaProxy } from "../lib/scriptUpload";
 
 function createScriptId(): string {
@@ -80,6 +80,7 @@ const statusColors: Record<string, string> = {
 
 export default function FeedbackPage() {
   const toast = useToast();
+  const { user } = useAuth();
   const [signedInUserId, setSignedInUserId] = useState("");
   const [balance, setBalance] = useState<number | null>(null);
   const [listings, setListings] = useState<FeedbackListing[]>([]);
@@ -138,16 +139,13 @@ export default function FeedbackPage() {
   const signupTokensGrantedRef = useRef(false);
 
   useEffect(() => {
-    const session = readStoredSession();
-    if (session) {
-      setSignedInUserId(session.user.id);
-    }
-  }, []);
+    setSignedInUserId(user?.id ?? "");
+  }, [user]);
 
   const loadBalance = useCallback(async () => {
     try {
       const response = await fetch("/api/v1/feedback/tokens/balance", {
-        headers: getAuthHeaders()
+        headers: {}
       });
       if (response.ok) {
         const body = (await response.json()) as TokenBalanceResponse;
@@ -162,7 +160,7 @@ export default function FeedbackPage() {
     try {
       await fetch("/api/v1/feedback/tokens/grant-signup", {
         method: "POST",
-        headers: getAuthHeaders()
+        headers: {}
       });
       await loadBalance();
     } catch {
@@ -196,7 +194,7 @@ export default function FeedbackPage() {
     try {
       const response = await fetch(
         `/api/v1/projects?ownerUserId=${encodeURIComponent(signedInUserId)}`,
-        { headers: getAuthHeaders() }
+        { headers: {} }
       );
       if (response.ok) {
         const body = (await response.json()) as { projects?: Project[] };
@@ -213,7 +211,7 @@ export default function FeedbackPage() {
     try {
       const response = await fetch(
         `/api/v1/projects/${encodeURIComponent(projectId)}/drafts`,
-        { headers: getAuthHeaders() }
+        { headers: {} }
       );
       if (response.ok) {
         const body = (await response.json()) as { drafts?: ProjectDraft[] };
@@ -228,7 +226,7 @@ export default function FeedbackPage() {
     try {
       const response = await fetch(
         `/api/v1/feedback/reviews?reviewerUserId=${encodeURIComponent(signedInUserId)}`,
-        { headers: getAuthHeaders() }
+        { headers: {} }
       );
       if (response.ok) {
         const body = (await response.json()) as { reviews?: FeedbackReview[] };
@@ -294,7 +292,7 @@ export default function FeedbackPage() {
       ownerUserId: signedInUserId,
       file: uploadFile,
       contentType,
-      headers: getAuthHeaders()
+      headers: {}
     });
     setUploadStep("uploading");
     if (!uploadRes.ok) {
@@ -311,7 +309,7 @@ export default function FeedbackPage() {
     setUploadStep("registering");
     const registerRes = await fetch("/api/v1/scripts/register", {
       method: "POST",
-      headers: { "content-type": "application/json", ...getAuthHeaders() },
+      headers: { "content-type": "application/json", ...{} },
       body: JSON.stringify({
         scriptId,
         ownerUserId: signedInUserId,
@@ -332,7 +330,7 @@ export default function FeedbackPage() {
     setUploadStep("creating_project");
     const projRes = await fetch("/api/v1/projects", {
       method: "POST",
-      headers: { "content-type": "application/json", ...getAuthHeaders() },
+      headers: { "content-type": "application/json", ...{} },
       body: JSON.stringify({
         title: createForm.title || uploadFile.name.replace(/\.[^.]+$/, ""),
         genre: createForm.genre || "unspecified",
@@ -350,7 +348,7 @@ export default function FeedbackPage() {
     // Step 4: Create draft linking script to project
     await fetch(`/api/v1/projects/${encodeURIComponent(projectId)}/drafts`, {
       method: "POST",
-      headers: { "content-type": "application/json", ...getAuthHeaders() },
+      headers: { "content-type": "application/json", ...{} },
       body: JSON.stringify({
         scriptId: registeredScriptId,
         versionLabel: "v1",
@@ -387,7 +385,7 @@ export default function FeedbackPage() {
 
       const response = await fetch("/api/v1/feedback/listings", {
         method: "POST",
-        headers: { "content-type": "application/json", ...getAuthHeaders() },
+        headers: { "content-type": "application/json", ...{} },
         body: JSON.stringify({
           projectId,
           scriptId,
@@ -421,7 +419,7 @@ export default function FeedbackPage() {
     try {
       const response = await fetch(`/api/v1/feedback/listings/${encodeURIComponent(listingId)}/claim`, {
         method: "POST",
-        headers: getAuthHeaders()
+        headers: {}
       });
       const body = (await response.json()) as { error?: string };
       if (!response.ok) {
@@ -439,7 +437,7 @@ export default function FeedbackPage() {
     try {
       const response = await fetch(`/api/v1/feedback/listings/${encodeURIComponent(listingId)}/cancel`, {
         method: "POST",
-        headers: getAuthHeaders()
+        headers: {}
       });
       const body = (await response.json()) as { error?: string };
       if (!response.ok) {
@@ -476,7 +474,7 @@ export default function FeedbackPage() {
     try {
       const response = await fetch(`/api/v1/feedback/reviews/${encodeURIComponent(reviewTarget.id)}/submit`, {
         method: "POST",
-        headers: { "content-type": "application/json", ...getAuthHeaders() },
+        headers: { "content-type": "application/json", ...{} },
         body: JSON.stringify({
           rubric: {
             storyStructure: { score: Number(rubricForm.storyStructureScore), comment: rubricForm.storyStructureComment },
@@ -516,7 +514,7 @@ export default function FeedbackPage() {
     try {
       const response = await fetch(`/api/v1/feedback/reviews/${encodeURIComponent(ratingReviewId)}/rate`, {
         method: "POST",
-        headers: { "content-type": "application/json", ...getAuthHeaders() },
+        headers: { "content-type": "application/json", ...{} },
         body: JSON.stringify({ score: Number(ratingScore), comment: ratingComment })
       });
       const body = (await response.json()) as { error?: string };

@@ -105,7 +105,7 @@ export default function AdminAuditLogPage() {
         params.set("limit", String(PAGE_LIMIT));
 
         const response = await fetch(`/api/v1/admin/audit-log?${params.toString()}`, {
-          headers: { ...getAuthHeaders() },
+          headers: { ...{} },
           cache: "no-store"
         });
 

@@ -78,7 +78,7 @@ export default function AdminUserDetailPage() {
     setLoading(true);
     try {
       const response = await fetch(`/api/v1/admin/users/${encodeURIComponent(userId)}`, {
-        headers: getAuthHeaders(),
+        headers: {},
         cache: "no-store"
       });
 
@@ -114,7 +114,7 @@ export default function AdminUserDetailPage() {
     try {
       const response = await fetch(`/api/v1/admin/users/${encodeURIComponent(userId)}`, {
         method: "PATCH",
-        headers: { "content-type": "application/json", ...getAuthHeaders() },
+        headers: { "content-type": "application/json", ...{} },
         body: JSON.stringify({
           action: "suspend",
           reason: suspendReason.trim(),
@@ -148,7 +148,7 @@ export default function AdminUserDetailPage() {
     try {
       const response = await fetch(`/api/v1/admin/users/${encodeURIComponent(userId)}`, {
         method: "PATCH",
-        headers: { "content-type": "application/json", ...getAuthHeaders() },
+        headers: { "content-type": "application/json", ...{} },
         body: JSON.stringify({
           action: "ban",
           reason: banReason.trim()
@@ -177,7 +177,7 @@ export default function AdminUserDetailPage() {
     try {
       const response = await fetch(`/api/v1/admin/users/${encodeURIComponent(userId)}`, {
         method: "PATCH",
-        headers: { "content-type": "application/json", ...getAuthHeaders() },
+        headers: { "content-type": "application/json", ...{} },
         body: JSON.stringify({ action: "reactivate" })
       });
 
@@ -203,7 +203,7 @@ export default function AdminUserDetailPage() {
     try {
       const response = await fetch(`/api/v1/admin/users/${encodeURIComponent(userId)}`, {
         method: "PATCH",
-        headers: { "content-type": "application/json", ...getAuthHeaders() },
+        headers: { "content-type": "application/json", ...{} },
         body: JSON.stringify({ action: "changeRole", role: newRole })
       });
 

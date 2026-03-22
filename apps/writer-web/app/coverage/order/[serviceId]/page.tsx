@@ -7,7 +7,7 @@ import { EmptyState } from "../../../components/emptyState";
 import { EmptyIllustration } from "../../../components/illustrations";
 import { SkeletonCard } from "../../../components/skeleton";
 import { useToast } from "../../../components/toast";
-import { getAuthHeaders, readStoredSession } from "../../../lib/authSession";
+import { useAuth } from "../../../lib/AuthProvider";
 import { StripeProvider } from "../../components/StripeProvider";
 import { PaymentForm } from "../../components/PaymentForm";
 
@@ -15,6 +15,7 @@ export default function OrderFlowPage() {
   const params = useParams();
   const serviceId = params.serviceId as string;
   const toast = useToast();
+  const { user } = useAuth();
   const [signedInUserId, setSignedInUserId] = useState("");
   const [loading, setLoading] = useState(false);
   const [service, setService] = useState<CoverageService | null>(null);
@@ -26,11 +27,8 @@ export default function OrderFlowPage() {
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
 
   useEffect(() => {
-    const session = readStoredSession();
-    if (session) {
-      setSignedInUserId(session.user.id);
-    }
-  }, []);
+    setSignedInUserId(user?.id ?? "");
+  }, [user]);
 
   const loadService = useCallback(async () => {
     setLoading(true);
@@ -60,7 +58,7 @@ export default function OrderFlowPage() {
     try {
       const response = await fetch("/api/v1/coverage/orders", {
         method: "POST",
-        headers: { "content-type": "application/json", ...getAuthHeaders() },
+        headers: { "content-type": "application/json", ...{} },
         body: JSON.stringify({ serviceId, scriptId, projectId })
       });
 

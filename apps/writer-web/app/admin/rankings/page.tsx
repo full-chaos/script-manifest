@@ -109,7 +109,7 @@ export default function AdminRankingsPage() {
     try {
       const params = appealFilter !== "all" ? `?status=${appealFilter}` : "";
       const response = await fetch(`/api/v1/admin/rankings/appeals${params}`, {
-        headers: getAuthHeaders(),
+        headers: {},
         cache: "no-store"
       });
       const body = (await response.json()) as { appeals?: Appeal[]; error?: string };
@@ -130,7 +130,7 @@ export default function AdminRankingsPage() {
     try {
       const params = flagFilter !== "all" ? `?status=${flagFilter}` : "";
       const response = await fetch(`/api/v1/admin/rankings/flags${params}`, {
-        headers: getAuthHeaders(),
+        headers: {},
         cache: "no-store"
       });
       const body = (await response.json()) as { flags?: AntiGamingFlag[]; error?: string };
@@ -150,7 +150,7 @@ export default function AdminRankingsPage() {
     setPrestigeLoading(true);
     try {
       const response = await fetch("/api/v1/admin/rankings/prestige", {
-        headers: getAuthHeaders(),
+        headers: {},
         cache: "no-store"
       });
       const body = (await response.json()) as { entries?: PrestigeEntry[]; error?: string };
@@ -193,7 +193,7 @@ export default function AdminRankingsPage() {
         `/api/v1/admin/rankings/appeals/${encodeURIComponent(resolveAppealTarget.id)}/resolve`,
         {
           method: "POST",
-          headers: { "content-type": "application/json", ...getAuthHeaders() },
+          headers: { "content-type": "application/json", ...{} },
           body: JSON.stringify({
             status: appealDecision,
             resolutionNote: appealResolutionNote
@@ -232,7 +232,7 @@ export default function AdminRankingsPage() {
         `/api/v1/admin/rankings/flags/${encodeURIComponent(resolveFlagTarget.id)}/resolve`,
         {
           method: "POST",
-          headers: { "content-type": "application/json", ...getAuthHeaders() },
+          headers: { "content-type": "application/json", ...{} },
           body: JSON.stringify({ status: flagDecision })
         }
       );
@@ -269,7 +269,7 @@ export default function AdminRankingsPage() {
         `/api/v1/admin/rankings/prestige/${encodeURIComponent(editPrestigeTarget.competitionId)}`,
         {
           method: "PUT",
-          headers: { "content-type": "application/json", ...getAuthHeaders() },
+          headers: { "content-type": "application/json", ...{} },
           body: JSON.stringify({
             tier: editTier,
             multiplier: Number(editMultiplier)
@@ -297,7 +297,7 @@ export default function AdminRankingsPage() {
     try {
       const response = await fetch("/api/v1/admin/rankings/recompute", {
         method: "POST",
-        headers: getAuthHeaders()
+        headers: {}
       });
       const body = (await response.json()) as { error?: string };
       if (!response.ok) {

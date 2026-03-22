@@ -91,7 +91,7 @@ export default function AdminUsersPage() {
         }
 
         const response = await fetch(`/api/v1/admin/users?${params.toString()}`, {
-          headers: getAuthHeaders(),
+          headers: {},
           cache: "no-store"
         });
 

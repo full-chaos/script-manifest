@@ -3,18 +3,18 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { readStoredSession, refreshSession } from "../lib/authSession";
+import { refreshAuth, useAuth } from "../lib/AuthProvider";
 
 export default function VerifyEmailPage() {
   const router = useRouter();
-  const [session] = useState(() => readStoredSession());
+  const { user, loading } = useAuth();
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [resending, setResending] = useState(false);
 
-  if (!session) {
+  if (!loading && !user) {
     return (
       <section className="space-y-4" data-testid="verify-email-page">
         <article className="hero-card animate-in">
@@ -30,7 +30,7 @@ export default function VerifyEmailPage() {
     );
   }
 
-  if (session.user.emailVerified) {
+  if (user?.emailVerified) {
     return (
       <section className="space-y-4" data-testid="verify-email-page">
         <article className="hero-card animate-in">
@@ -77,7 +77,7 @@ export default function VerifyEmailPage() {
         return;
       }
       
-      await refreshSession();
+      refreshAuth();
       router.replace("/");
     } catch {
       setError("Network error. Please try again.");
@@ -95,7 +95,7 @@ export default function VerifyEmailPage() {
       const res = await fetch("/api/v1/auth/resend-verification", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email: session?.user.email })
+        body: JSON.stringify({ email: user?.email })
       });
       
       if (!res.ok) {
@@ -130,7 +130,7 @@ export default function VerifyEmailPage() {
 
       <article className="panel stack mx-auto max-w-lg">
         <p className="text-foreground-secondary text-sm">
-          We sent a 6-digit verification code to <strong className="text-foreground font-medium">{session.user.email}</strong>.
+          We sent a 6-digit verification code to <strong className="text-foreground font-medium">{user?.email}</strong>.
           Please enter it below to verify your email address.
         </p>
 

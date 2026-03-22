@@ -44,7 +44,7 @@ export default function TransactionsPage() {
     try {
       const qs = `?limit=${PAGE_SIZE}&offset=${nextOffset}`;
       const res = await fetch(`/api/v1/coverage/my-orders${qs}`, {
-        headers: getAuthHeaders(),
+        headers: {},
         cache: "no-store"
       });
       if (res.ok) {

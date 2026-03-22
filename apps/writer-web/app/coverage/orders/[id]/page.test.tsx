@@ -1,6 +1,7 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CoverageDelivery, CoverageOrder, CoverageProvider } from "@script-manifest/contracts";
+import { mockUseAuth } from "../../../../vitest.setup";
 import { ToastProvider } from "../../../components/toast";
 import OrderDetailPage from "./page";
 
@@ -17,18 +18,16 @@ function renderPage() {
 }
 
 function setSession(userId: string) {
-  window.localStorage.setItem(
-    "script_manifest_session",
-    JSON.stringify({
-      token: "sess_order",
-      expiresAt: "2026-02-28T00:00:00.000Z",
-      user: {
-        id: userId,
-        email: "writer@example.com",
-        displayName: "Writer User"
-      }
-    })
-  );
+  mockUseAuth.mockReturnValue({
+    user: {
+      id: userId,
+      email: "writer@example.com",
+      displayName: "Writer User",
+      role: "writer",
+      emailVerified: true
+    },
+    loading: false
+  });
 }
 
 function makeOrder(overrides: Partial<CoverageOrder> = {}): CoverageOrder {
@@ -100,7 +99,7 @@ describe("OrderDetailPage", () => {
   beforeEach(() => {
     cleanup();
     vi.restoreAllMocks();
-    window.localStorage.clear();
+    mockUseAuth.mockReturnValue({ user: null, loading: false });
   });
 
   it("fetches delivery from the dedicated delivery endpoint", async () => {

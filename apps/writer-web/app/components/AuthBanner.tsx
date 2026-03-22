@@ -2,10 +2,8 @@
 
 import Link from "next/link";
 import type { Route } from "next";
-import { useCallback, useSyncExternalStore, useState } from "react";
-import type { AuthUser } from "@script-manifest/contracts";
+import { useAuth } from "../lib/AuthProvider";
 import { FolderOpen, Send, Trophy, TrendingUp, UserPen, type LucideIcon } from "lucide-react";
-import { SESSION_CHANGED_EVENT, readStoredSession } from "../lib/authSession";
 import { HeroIllustration, TrustIllustration } from "./illustrations";
 import { OnboardingChecklist } from "./OnboardingChecklist";
 
@@ -37,31 +35,7 @@ function SurfaceIcon({ iconKey }: { iconKey: SurfaceIconKey }) {
 }
 
 export function AuthBanner({ writerSurfaces, trustPrinciples }: AuthBannerProps) {
-  const [user, setUser] = useState<AuthUser | null>(null);
-
-  const subscribe = useCallback((onStoreChange: () => void) => {
-    const syncSession = () => {
-      setUser(readStoredSession()?.user ?? null);
-      onStoreChange();
-    };
-    syncSession();
-    window.addEventListener("storage", syncSession);
-    window.addEventListener(SESSION_CHANGED_EVENT, syncSession);
-    return () => {
-      window.removeEventListener("storage", syncSession);
-      window.removeEventListener(SESSION_CHANGED_EVENT, syncSession);
-    };
-  }, []);
-
-  const mounted = useSyncExternalStore(
-    subscribe,
-    () => true,
-    () => false
-  );
-
-  if (!mounted) {
-    return null;
-  }
+  const { user } = useAuth();
 
   if (!user) {
     return (

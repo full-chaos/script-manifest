@@ -78,7 +78,7 @@ export default function AdminDashboardPage() {
     async function loadMetrics() {
       try {
         const response = await fetch("/api/v1/admin/metrics", {
-          headers: getAuthHeaders()
+          headers: {}
         });
         if (!response.ok) {
           const body = (await response.json().catch(() => ({}))) as { error?: string };

@@ -3,9 +3,8 @@
 import Link from "next/link";
 import type { Route } from "next";
 import { usePathname } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
-import type { AuthUser } from "@script-manifest/contracts";
-import { SESSION_CHANGED_EVENT, readStoredSession, refreshSession } from "../lib/authSession";
+import { useMemo, useState } from "react";
+import { useAuth } from "../lib/AuthProvider";
 import { Menu, X } from "lucide-react";
 import { NotificationBell } from "./notificationBell";
 import { ThemeToggle } from "./themeToggle";
@@ -40,36 +39,13 @@ function isActive(pathname: string, href: string): boolean {
 
 export function SiteHeader() {
   const pathname = usePathname();
-  const [user, setUser] = useState<AuthUser | null>(null);
+  const { user } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [prevPathname, setPrevPathname] = useState(pathname);
   if (prevPathname !== pathname) {
     setPrevPathname(pathname);
     setMobileOpen(false);
   }
-
-  useEffect(() => {
-    const syncSession = () => {
-      setUser(readStoredSession()?.user ?? null);
-    };
-
-    syncSession();
-    window.addEventListener("storage", syncSession);
-    window.addEventListener(SESSION_CHANGED_EVENT, syncSession);
-
-    const handleVisibilityChange = () => {
-      if (!document.hidden) {
-        void refreshSession();
-      }
-    };
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-
-    return () => {
-      window.removeEventListener("storage", syncSession);
-      window.removeEventListener(SESSION_CHANGED_EVENT, syncSession);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-    };
-  }, []);
 
   const visibleLinks = useMemo(
     () =>

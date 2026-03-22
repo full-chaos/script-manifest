@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { mockUseAuth } from "../../../vitest.setup";
 import AdminCompetitionsPage from "./page";
 
 function jsonResponse(payload: unknown, status = 200): Response {
@@ -12,7 +13,16 @@ function jsonResponse(payload: unknown, status = 200): Response {
 
 describe("AdminCompetitionsPage", () => {
   beforeEach(() => {
-    window.localStorage.clear();
+    mockUseAuth.mockReturnValue({
+      user: {
+        id: "user_1",
+        email: "w@test.com",
+        displayName: "Writer",
+        role: "admin",
+        emailVerified: true
+      },
+      loading: false
+    });
     vi.restoreAllMocks();
   });
 

@@ -1,6 +1,7 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { mockRefreshAuth, mockUseAuth } from "../../vitest.setup";
 import SignInPage from "./page";
 
 const mockReplace = vi.fn();
@@ -18,12 +19,13 @@ function jsonResponse(payload: unknown, status = 200): Response {
 describe("SignInPage", () => {
   beforeEach(() => {
     cleanup();
-    window.localStorage.clear();
+    mockUseAuth.mockReturnValue({ user: null, loading: false });
+    mockRefreshAuth.mockReset();
     mockReplace.mockClear();
     vi.restoreAllMocks();
   });
 
-  it("registers a user and stores the auth session", async () => {
+  it("registers a user and refreshes auth context", async () => {
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
       jsonResponse(
         {
@@ -52,18 +54,14 @@ describe("SignInPage", () => {
     const createButtons = screen.getAllByRole("button", { name: "Create account" });
     await user.click(createButtons.find(b => (b as HTMLButtonElement).type === "submit")!);
 
-    await screen.findByText(/Signed in as/);
+    await waitFor(() => {
+      expect(mockRefreshAuth).toHaveBeenCalled();
+      expect(mockReplace).toHaveBeenCalledWith("/verify-email");
+    });
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/v1/auth/register",
       expect.objectContaining({ method: "POST" })
     );
-
-    const stored = window.localStorage.getItem("script_manifest_session");
-    // Token is stored in an HttpOnly cookie by the BFF, not in localStorage.
-    // localStorage holds non-sensitive user info only (token field is blank string).
-    expect(stored).not.toBeNull();
-    expect(JSON.parse(stored!).user.id).toBe("user_1");
-    expect(JSON.parse(stored!).token).toBe(""); // token stripped from localStorage
   });
 
   it("shows error state when login fails", async () => {
@@ -124,23 +122,22 @@ describe("SignInPage", () => {
     const user = userEvent.setup();
 
     await user.click(screen.getByRole("button", { name: "Continue with Google" }));
-    await screen.findByText(/Signed in as/);
+    await waitFor(() => {
+      expect(mockRefreshAuth).toHaveBeenCalled();
+      expect(mockReplace).toHaveBeenCalledWith("/");
+    });
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/v1/auth/oauth/google/start",
       expect.objectContaining({ method: "POST" })
     );
-    const oauthStored = window.localStorage.getItem("script_manifest_session");
-    // Token is stored in an HttpOnly cookie by the BFF, not in localStorage.
-    expect(oauthStored).not.toBeNull();
-    expect(JSON.parse(oauthStored!).user.id).toBe("user_oauth");
-    expect(JSON.parse(oauthStored!).token).toBe(""); // token stripped from localStorage
   });
 });
 
 describe("SignInPage lockout hints", () => {
   beforeEach(() => {
     cleanup();
-    window.localStorage.clear();
+    mockUseAuth.mockReturnValue({ user: null, loading: false });
+    mockRefreshAuth.mockReset();
     mockReplace.mockClear();
     vi.restoreAllMocks();
   });
@@ -201,7 +198,7 @@ describe("SignInPage lockout hints", () => {
     expect(screen.getByText(/temporarily locked/)).toBeInTheDocument();
   });
 
-  it("clears hints after successful login", async () => {
+  it("navigates after successful login following failures", async () => {
     const fetchMock = vi.fn<typeof fetch>()
       .mockImplementationOnce(() => Promise.resolve(jsonResponse({ error: "invalid_credentials" }, 401)))
       .mockImplementationOnce(() => Promise.resolve(jsonResponse({ error: "invalid_credentials" }, 401)))
@@ -221,10 +218,15 @@ describe("SignInPage lockout hints", () => {
     await submitLoginForm(user);
     expect(screen.getByText(/Reset your password/)).toBeInTheDocument();
 
-    // Successful login (4th attempt) — wait for "Signed in as" instead
-    await submitLoginForm(user, /Signed in as/);
+    const signInButtons = screen.getAllByRole("button", { name: /^Sign in$/ });
+    const submitBtn = signInButtons.find(b => (b as HTMLButtonElement).type === "submit")!;
+    await user.click(submitBtn);
+    await waitFor(() => {
+      expect(mockRefreshAuth).toHaveBeenCalled();
+      expect(mockReplace).toHaveBeenCalledWith("/");
+    });
 
-    expect(screen.queryByText(/Reset your password/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/temporarily locked/)).not.toBeInTheDocument();
+    expect(mockRefreshAuth).toHaveBeenCalled();
+    expect(mockReplace).toHaveBeenCalledWith("/");
   });
 });

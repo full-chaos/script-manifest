@@ -4,10 +4,11 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import type { CoverageProvider, CoverageProviderStatus } from "@script-manifest/contracts";
 import { SkeletonCard } from "../../components/skeleton";
 import { useToast } from "../../components/toast";
-import { getAuthHeaders, readStoredSession } from "../../lib/authSession";
+import { useAuth } from "../../lib/AuthProvider";
 
 export default function BecomeProviderPage() {
   const toast = useToast();
+  const { user } = useAuth();
   const [signedInUserId, setSignedInUserId] = useState("");
   const [loading, setLoading] = useState(false);
   const [provider, setProvider] = useState<CoverageProvider | null>(null);
@@ -18,17 +19,14 @@ export default function BecomeProviderPage() {
   const [gettingOnboardingLink, setGettingOnboardingLink] = useState(false);
 
   useEffect(() => {
-    const session = readStoredSession();
-    if (session) {
-      setSignedInUserId(session.user.id);
-    }
-  }, []);
+    setSignedInUserId(user?.id ?? "");
+  }, [user]);
 
   const loadProvider = useCallback(async () => {
     setLoading(true);
     try {
       const response = await fetch("/api/v1/coverage/providers", {
-        headers: getAuthHeaders(),
+        headers: {},
         cache: "no-store"
       });
 
@@ -57,7 +55,7 @@ export default function BecomeProviderPage() {
       const specialtiesArray = specialties.split(",").map((s) => s.trim()).filter(Boolean);
       const response = await fetch("/api/v1/coverage/providers", {
         method: "POST",
-        headers: { "content-type": "application/json", ...getAuthHeaders() },
+        headers: { "content-type": "application/json", ...{} },
         body: JSON.stringify({ displayName, bio, specialties: specialtiesArray })
       });
 
@@ -88,7 +86,7 @@ export default function BecomeProviderPage() {
     try {
       const response = await fetch(`/api/v1/coverage/providers/${encodeURIComponent(provider.id)}/stripe-onboarding`, {
         method: "GET",
-        headers: getAuthHeaders()
+        headers: {}
       });
 
       const body = (await response.json()) as { url?: string; error?: string };

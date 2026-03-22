@@ -2,10 +2,10 @@
 
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
-import { clearStoredSession, readStoredSession } from "../../lib/authSession";
+import { refreshAuth, useAuth } from "../../lib/AuthProvider";
 
 export default function AccountSettingsPage() {
-  const [session] = useState(() => readStoredSession());
+  const { user } = useAuth();
   const [showConfirm, setShowConfirm] = useState(false);
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -21,9 +21,9 @@ export default function AccountSettingsPage() {
       const res = await fetch("/api/v1/auth/account", {
         method: "DELETE",
         headers: {
-          "content-type": "application/json",
-          authorization: `Bearer ${session?.token ?? ""}`,
+          "content-type": "application/json"
         },
+        credentials: "include",
         body: JSON.stringify({ password }),
       });
 
@@ -37,7 +37,7 @@ export default function AccountSettingsPage() {
         return;
       }
 
-      clearStoredSession();
+      refreshAuth();
       setDeleted(true);
     } catch {
       setError("Network error. Please try again.");
@@ -46,7 +46,7 @@ export default function AccountSettingsPage() {
     }
   }
 
-  if (!session) {
+  if (!user) {
     return (
       <section className="space-y-4">
         <article className="hero-card animate-in">

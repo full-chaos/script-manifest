@@ -1,11 +1,12 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
+import { mockUseAuth } from "../vitest.setup";
 import HomePage from "./page";
 
 describe("HomePage", () => {
   beforeEach(() => {
     cleanup();
-    window.localStorage.clear();
+    mockUseAuth.mockReturnValue({ user: null, loading: false });
   });
 
   it("shows a logged-out landing page by default", async () => {
@@ -23,18 +24,16 @@ describe("HomePage", () => {
   });
 
   it("shows quick actions when a session exists", async () => {
-    window.localStorage.setItem(
-      "script_manifest_session",
-      JSON.stringify({
-        token: "sess_1",
-        expiresAt: "2026-02-13T00:00:00.000Z",
-        user: {
-          id: "writer_01",
-          email: "writer@example.com",
-          displayName: "Writer One"
-        }
-      })
-    );
+    mockUseAuth.mockReturnValue({
+      user: {
+        id: "writer_01",
+        email: "writer@example.com",
+        displayName: "Writer One",
+        role: "writer",
+        emailVerified: true
+      },
+      loading: false
+    });
 
     render(<HomePage />);
 

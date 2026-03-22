@@ -3,7 +3,7 @@ import test from "node:test";
 import { API_BASE_URL, authHeaders, expectOkJson, jsonRequest, makeUnique, registerUser } from "./helpers.js";
 
 type NotificationEvent = {
-  id: string;
+  eventId: string;
   readAt: string | null;
 };
 
@@ -11,7 +11,7 @@ function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-test("compose flow: notification delivery, read acknowledgement, and unread count updates", { skip: "Feedback claim → notification pipeline not yet wired in compose" }, async () => {
+test("compose flow: notification delivery, read acknowledgement, and unread count updates", async () => {
   const owner = await registerUser("notification-owner");
   const reviewer = await registerUser("notification-reviewer");
 
@@ -89,7 +89,7 @@ test("compose flow: notification delivery, read acknowledgement, and unread coun
   assert.ok(unreadEvent, "expected at least one unread notification event");
 
   const markRead = await jsonRequest<{ updated?: boolean }>(
-    `${API_BASE_URL}/api/v1/notifications/${encodeURIComponent(unreadEvent.id)}/read`,
+    `${API_BASE_URL}/api/v1/notifications/${encodeURIComponent(unreadEvent.eventId)}/read`,
     {
       method: "PATCH",
       headers: authHeaders(owner.token)

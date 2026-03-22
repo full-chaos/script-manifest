@@ -124,12 +124,11 @@ export class PgMfaRepository implements MfaRepository {
     `);
     await db.query(`
       CREATE TABLE IF NOT EXISTS user_mfa (
-        id TEXT PRIMARY KEY,
-        user_id TEXT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+        user_id TEXT PRIMARY KEY REFERENCES app_users(id) ON DELETE CASCADE,
         totp_secret TEXT NOT NULL,
-        enabled_at TIMESTAMPTZ,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        UNIQUE(user_id)
+        backup_codes TEXT[] NOT NULL DEFAULT '{}',
+        enabled_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        last_used_at TIMESTAMPTZ
       );
     `);
     await db.query(`
@@ -161,16 +160,15 @@ export class PgMfaRepository implements MfaRepository {
 
   async setupMfa(userId: string, secret: string): Promise<void> {
     const db = getPool();
-    const id = `mfa_${randomUUID()}`;
     const encryptedSecret = encryptSecret(secret);
     // Upsert: replace any existing pending setup
     await db.query(
       `
-        INSERT INTO user_mfa (id, user_id, totp_secret)
-        VALUES ($1, $2, $3)
-        ON CONFLICT (user_id) DO UPDATE SET totp_secret = $3, enabled_at = NULL
+        INSERT INTO user_mfa (user_id, totp_secret)
+        VALUES ($1, $2)
+        ON CONFLICT (user_id) DO UPDATE SET totp_secret = $2, enabled_at = NULL
       `,
-      [id, userId, encryptedSecret]
+      [userId, encryptedSecret]
     );
   }
 

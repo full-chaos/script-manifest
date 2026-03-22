@@ -9,7 +9,7 @@ type MfaChallengeResponse = {
   token?: string;
 };
 
-test("compose flow: MFA TOTP enrollment challenge verification and disable", { skip: "Schema drift: migration 016 creates user_mfa without id column but mfa-repository expects it" }, async () => {
+test("compose flow: MFA TOTP enrollment challenge verification and disable", async () => {
   const user = await registerUser("mfa-totp-flow");
 
   const setup = await expectOkJson<{ secret: string }>(

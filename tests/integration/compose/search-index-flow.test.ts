@@ -1,65 +1,75 @@
 import assert from "node:assert/strict";
+import { scryptSync } from "node:crypto";
 import test from "node:test";
-import { API_BASE_URL, authHeaders, expectOkJson, jsonRequest, makeUnique, registerUser } from "./helpers.js";
+import { getPool } from "../../../packages/db/src/index.js";
+import { API_BASE_URL, authHeaders, expectOkJson, jsonRequest, loginUser, makeUnique } from "./helpers.js";
 
-type SearchEntry = {
-  id?: string;
-  projectId?: string;
+type CompetitionEntry = {
+  id: string;
   title?: string;
-  name?: string;
 };
 
-type SearchResponse = {
-  results?: SearchEntry[];
-  items?: SearchEntry[];
-  projects?: SearchEntry[];
-};
+const ADMIN_USER_ID = "admin_01";
+const ADMIN_EMAIL = "admin_01_harness@example.com";
+const ADMIN_PASSWORD = "AdminPass1!";
+
+const db = getPool(process.env.INTEGRATION_DATABASE_URL ?? "postgresql://manifest:manifest@localhost:5432/manifest");
+
+function hashPassword(password: string, salt: string): string {
+  return scryptSync(password, salt, 64, { N: 16384, r: 8, p: 1 }).toString("hex");
+}
+
+async function ensureAdminUser(): Promise<string> {
+  const salt = "harness_admin_salt_01";
+  const hash = hashPassword(ADMIN_PASSWORD, salt);
+  await db.query(
+    `INSERT INTO app_users (id, email, password_hash, password_salt, display_name, role, created_at, terms_accepted_at)
+     VALUES ($1,$2,$3,$4,'Integration Admin','admin',NOW(),NOW())
+     ON CONFLICT (id)
+     DO UPDATE SET email = EXCLUDED.email, password_hash = EXCLUDED.password_hash,
+                   password_salt = EXCLUDED.password_salt, role = EXCLUDED.role`,
+    [ADMIN_USER_ID, ADMIN_EMAIL, hash, salt]
+  );
+  const session = await loginUser(ADMIN_EMAIL, ADMIN_PASSWORD);
+  return session.token;
+}
 
 function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-test("compose flow: create project then query search index for indexed result", { skip: "GET /api/v1/search endpoint not yet implemented in gateway" }, async () => {
-  const session = await registerUser("search-index-flow");
-  const uniqueTitle = makeUnique("search_index_project");
+test("compose flow: create competition then query competitions search for indexed result", async () => {
+  const adminToken = await ensureAdminUser();
+  const uniqueTitle = makeUnique("search_index_competition");
+  const competitionId = makeUnique("competition_search_flow");
 
-  const project = await expectOkJson<{ project: { id: string; title: string } }>(`${API_BASE_URL}/api/v1/projects`, {
+  await expectOkJson<{ competition: { id: string; title: string } }>(`${API_BASE_URL}/api/v1/admin/competitions`, {
     method: "POST",
     headers: {
       "content-type": "application/json",
-      ...authHeaders(session.token)
+      ...authHeaders(adminToken)
     },
     body: JSON.stringify({
+      id: competitionId,
       title: uniqueTitle,
-      logline: "Project used for search indexing integration flow.",
-      synopsis: "Exercise async indexing and search query path.",
+      description: "Competition used for compose search integration flow.",
       format: "feature",
       genre: "drama",
-      pageCount: 108,
-      isDiscoverable: true
+      feeUsd: 25,
+      deadline: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString()
     })
   }, 201);
-  const projectId = project.project.id;
-  assert.ok(projectId.length > 0);
 
   let found = false;
   for (let attempt = 0; attempt < 30; attempt += 1) {
-    const search = await jsonRequest<SearchResponse>(
-      `${API_BASE_URL}/api/v1/search?q=${encodeURIComponent(uniqueTitle)}`,
+    const search = await jsonRequest<{ competitions: CompetitionEntry[] }>(
+      `${API_BASE_URL}/api/v1/competitions?q=${encodeURIComponent(uniqueTitle)}`,
       { method: "GET" }
     );
 
     if (search.status === 200) {
-      const entries = [
-        ...(search.body.results ?? []),
-        ...(search.body.items ?? []),
-        ...(search.body.projects ?? [])
-      ];
-
-      found = entries.some((entry) => {
-        const candidateId = entry.projectId ?? entry.id;
-        const candidateTitle = entry.title ?? entry.name;
-        return candidateId === projectId || candidateTitle === uniqueTitle;
+      found = search.body.competitions.some((entry) => {
+        return entry.id === competitionId || entry.title === uniqueTitle;
       });
       if (found) {
         break;
@@ -69,5 +79,5 @@ test("compose flow: create project then query search index for indexed result", 
     await wait(500);
   }
 
-  assert.equal(found, true, "expected search results to include newly created project");
+  assert.equal(found, true, "expected competitions results to include newly created competition");
 });

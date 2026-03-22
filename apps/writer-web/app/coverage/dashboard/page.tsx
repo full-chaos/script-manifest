@@ -7,13 +7,14 @@ import { EmptyState } from "../../components/emptyState";
 import { EmptyIllustration } from "../../components/illustrations";
 import { SkeletonCard } from "../../components/skeleton";
 import { useToast } from "../../components/toast";
-import { getAuthHeaders, readStoredSession } from "../../lib/authSession";
+import { useAuth } from "../../lib/AuthProvider";
 
 type Tab = "incoming" | "active" | "completed";
 
 export default function ProviderDashboardPage() {
   const toast = useToast();
-  const [signedInUserId] = useState(() => readStoredSession()?.user.id ?? "");
+  const { user } = useAuth();
+  const signedInUserId = user?.id ?? "";
   const [loading, setLoading] = useState(false);
   const [provider, setProvider] = useState<CoverageProvider | null>(null);
   const [orders, setOrders] = useState<CoverageOrder[]>([]);
@@ -24,7 +25,7 @@ export default function ProviderDashboardPage() {
     try {
       // Check if user has a provider profile
       const providerRes = await fetch("/api/v1/coverage/providers", {
-        headers: getAuthHeaders(),
+        headers: {},
         cache: "no-store"
       });
 
@@ -36,7 +37,7 @@ export default function ProviderDashboardPage() {
         if (userProvider) {
           // Load orders for this provider
           const ordersRes = await fetch(`/api/v1/coverage/orders?providerId=${encodeURIComponent(userProvider.id)}`, {
-            headers: getAuthHeaders(),
+            headers: {},
             cache: "no-store"
           });
 
@@ -63,7 +64,7 @@ export default function ProviderDashboardPage() {
     try {
       const response = await fetch(`/api/v1/coverage/orders/${encodeURIComponent(orderId)}/claim`, {
         method: "POST",
-        headers: getAuthHeaders()
+        headers: {}
       });
 
       const body = (await response.json()) as { error?: string };

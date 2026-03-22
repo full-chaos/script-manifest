@@ -6,7 +6,6 @@ import type { Route } from "next";
 import { Users, Shield, Trophy } from "lucide-react";
 import { SkeletonCard } from "../components/skeleton";
 import { useToast } from "../components/toast";
-import { getAuthHeaders } from "../lib/authSession";
 
 type PlatformMetrics = {
   totalUsers: number;
@@ -78,7 +77,7 @@ export default function AdminDashboardPage() {
     async function loadMetrics() {
       try {
         const response = await fetch("/api/v1/admin/metrics", {
-          headers: getAuthHeaders()
+          headers: {}
         });
         if (!response.ok) {
           const body = (await response.json().catch(() => ({}))) as { error?: string };

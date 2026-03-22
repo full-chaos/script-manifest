@@ -2,13 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import type { AuthSessionResponse } from "@script-manifest/contracts";
-import {
-  clearStoredSession,
-  formatUserLabel,
-  readStoredSession,
-  writeStoredSession
-} from "../lib/authSession";
+import { refreshAuth, useAuth } from "../lib/AuthProvider";
+import { formatUserLabel } from "../lib/authSession";
 import { SignInIllustration } from "../components/illustrations";
 import { PasswordStrengthMeter } from "../components/PasswordStrengthMeter";
 
@@ -16,11 +11,11 @@ type AuthMode = "register" | "login";
 
 export default function SignInPage() {
   const router = useRouter();
+  const { user } = useAuth();
   const [mode, setMode] = useState<AuthMode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
-  const [session, setSession] = useState<AuthSessionResponse | null>(null);
   const [status, setStatus] = useState<string>("");
   const [failureCount, setFailureCount] = useState(0);
   const [submitting, setSubmitting] = useState(false);
@@ -45,8 +40,7 @@ export default function SignInPage() {
         return;
       }
 
-      writeStoredSession(completeBody as AuthSessionResponse);
-      setSession(completeBody as AuthSessionResponse);
+      refreshAuth();
       setPassword("");
       router.replace("/");
     } catch (error) {
@@ -57,8 +51,6 @@ export default function SignInPage() {
   }, [router]);
 
   useEffect(() => {
-    setSession(readStoredSession());
-
     const params = new URLSearchParams(window.location.search);
     const code = params.get("code");
     const state = params.get("state");
@@ -100,8 +92,7 @@ export default function SignInPage() {
         return;
       }
 
-      writeStoredSession(body as AuthSessionResponse);
-      setSession(body as AuthSessionResponse);
+      refreshAuth();
       setPassword("");
       router.replace(mode === "register" ? "/verify-email" : "/");
     } catch (error) {
@@ -118,8 +109,7 @@ export default function SignInPage() {
       // POST to logout: the BFF clears the HttpOnly sm_session cookie server-side
       await fetch("/api/v1/auth/logout", { method: "POST" });
     } finally {
-      clearStoredSession();
-      setSession(null);
+      refreshAuth();
       setStatus("Signed out.");
     }
   }
@@ -169,8 +159,7 @@ export default function SignInPage() {
         return;
       }
 
-      writeStoredSession(callbackBody as AuthSessionResponse);
-      setSession(callbackBody as AuthSessionResponse);
+      refreshAuth();
       setPassword("");
       router.replace("/");
     } catch (error) {
@@ -195,12 +184,11 @@ export default function SignInPage() {
 
       <article className="panel stack mx-auto max-w-md">
 
-        {session ? (
+        {user ? (
           <div className="stack">
             <p>
-              Signed in as <strong>{formatUserLabel(session.user)}</strong>
+              Signed in as <strong>{formatUserLabel(user)}</strong>
             </p>
-            <p className="muted">Session expires: {new Date(session.expiresAt).toLocaleString()}</p>
             <div className="inline-form">
               <button type="button" className="btn btn-secondary" onClick={signOut}>
                 Sign out

@@ -15,7 +15,7 @@ import { EmptyIllustration } from "../components/illustrations";
 import { Modal } from "../components/modal";
 import { SkeletonCard } from "../components/skeleton";
 import { useToast } from "../components/toast";
-import { getAuthHeaders, readStoredSession } from "../lib/authSession";
+import { useAuth } from "../lib/AuthProvider";
 
 const statuses: SubmissionStatus[] = [
   "pending",
@@ -27,6 +27,7 @@ const statuses: SubmissionStatus[] = [
 
 export default function SubmissionsPage() {
   const toast = useToast();
+  const { user, loading: authLoading } = useAuth();
   const [writerId, setWriterId] = useState("");
   const [projectId, setProjectId] = useState("");
   const [competitionId, setCompetitionId] = useState("");
@@ -54,7 +55,7 @@ export default function SubmissionsPage() {
     setLoading(true);
     setMessage("");
     try {
-      const authHeaders = getAuthHeaders();
+      const authHeaders = {};
       const [projectResponse, competitionResponse, submissionResponse] = await Promise.all([
         fetch(`/api/v1/projects?ownerUserId=${encodeURIComponent(targetWriterId)}`, { cache: "no-store", headers: authHeaders }),
         fetch("/api/v1/competitions", { cache: "no-store" }),
@@ -98,15 +99,16 @@ export default function SubmissionsPage() {
   }, [toast, writerId]);
 
   useEffect(() => {
-    const session = readStoredSession();
-    if (!session) {
+    if (authLoading) return;
+
+    if (!user) {
       setMessage("Sign in to load submissions.");
       setInitialLoading(false);
       return;
     }
 
-    setWriterId(session.user.id);
-  }, []);
+    setWriterId(user.id);
+  }, [user, authLoading]);
 
   useEffect(() => {
     if (writerId) {
@@ -126,7 +128,7 @@ export default function SubmissionsPage() {
     try {
       const response = await fetch("/api/v1/submissions", {
         method: "POST",
-        headers: { "content-type": "application/json", ...getAuthHeaders() },
+        headers: { "content-type": "application/json", ...{} },
         body: JSON.stringify({
           projectId,
           competitionId,
@@ -166,7 +168,7 @@ export default function SubmissionsPage() {
     try {
       const response = await fetch(`/api/v1/submissions/${encodeURIComponent(submissionId)}/project`, {
         method: "PATCH",
-        headers: { "content-type": "application/json", ...getAuthHeaders() },
+        headers: { "content-type": "application/json", ...{} },
         body: JSON.stringify({ projectId: targetProjectId })
       });
       const body = await response.json();
@@ -201,7 +203,7 @@ export default function SubmissionsPage() {
         `/api/v1/submissions/${encodeURIComponent(targetSubmissionId)}/placements`,
         {
           method: "POST",
-          headers: { "content-type": "application/json", ...getAuthHeaders() },
+          headers: { "content-type": "application/json", ...{} },
           body: JSON.stringify({ status: placementStatus })
         }
       );
@@ -235,7 +237,7 @@ export default function SubmissionsPage() {
     try {
       const response = await fetch(`/api/v1/placements/${encodeURIComponent(placementId)}/verify`, {
         method: "POST",
-        headers: { "content-type": "application/json", ...getAuthHeaders() },
+        headers: { "content-type": "application/json", ...{} },
         body: JSON.stringify({ verificationState })
       });
       const body = await response.json();

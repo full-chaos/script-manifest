@@ -6,7 +6,6 @@ import { EmptyState } from "../../components/emptyState";
 import { EmptyIllustration } from "../../components/illustrations";
 import { SkeletonCard } from "../../components/skeleton";
 import { useToast } from "../../components/toast";
-import { getAuthHeaders } from "../../lib/authSession";
 import { Modal } from "../../components/modal";
 
 export default function AdminDisputesPage() {
@@ -23,7 +22,7 @@ export default function AdminDisputesPage() {
     setLoading(true);
     try {
       const response = await fetch("/api/v1/coverage/disputes", {
-        headers: getAuthHeaders(),
+        headers: {},
         cache: "no-store"
       });
 
@@ -59,7 +58,7 @@ export default function AdminDisputesPage() {
 
       const response = await fetch(`/api/v1/coverage/disputes/${encodeURIComponent(resolvingDispute.id)}`, {
         method: "PATCH",
-        headers: { "content-type": "application/json", ...getAuthHeaders() },
+        headers: { "content-type": "application/json", ...{} },
         body: JSON.stringify(body)
       });
 

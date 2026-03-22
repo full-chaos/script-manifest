@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import type { WriterProfile, WriterProfileUpdateRequest } from "@script-manifest/contracts";
 import { SkeletonText } from "../components/skeleton";
 import { useToast } from "../components/toast";
-import { getAuthHeaders, readStoredSession } from "../lib/authSession";
+import { useAuth } from "../lib/AuthProvider";
 
 type EditableProfile = {
   displayName: string;
@@ -40,6 +40,7 @@ function isPreviewableImageUrl(value: string): boolean {
 
 export default function ProfilePage() {
   const toast = useToast();
+  const { user, loading: authLoading } = useAuth();
   const [writerId, setWriterId] = useState("");
   const [profile, setProfile] = useState<WriterProfile | null>(null);
   const [draft, setDraft] = useState<EditableProfile>(initialDraft);
@@ -61,7 +62,7 @@ export default function ProfilePage() {
     try {
       const response = await fetch(`/api/v1/profiles/${encodeURIComponent(targetWriterId)}`, {
         cache: "no-store",
-        headers: getAuthHeaders()
+        headers: {}
       });
       const body = await response.json();
       if (!response.ok) {
@@ -91,15 +92,16 @@ export default function ProfilePage() {
   }, [toast, writerId]);
 
   useEffect(() => {
-    const session = readStoredSession();
-    if (!session) {
+    if (authLoading) return;
+
+    if (!user) {
       setStatus("Sign in to load your profile.");
       setInitialLoading(false);
       return;
     }
 
-    setWriterId(session.user.id);
-  }, []);
+    setWriterId(user.id);
+  }, [user, authLoading]);
 
   useEffect(() => {
     if (writerId) {
@@ -137,7 +139,7 @@ export default function ProfilePage() {
     try {
       const response = await fetch(`/api/v1/profiles/${encodeURIComponent(writerId)}`, {
         method: "PUT",
-        headers: { "content-type": "application/json", ...getAuthHeaders() },
+        headers: { "content-type": "application/json", ...{} },
         body: JSON.stringify(payload)
       });
       const body = await response.json();
@@ -176,7 +178,7 @@ export default function ProfilePage() {
     setStatus("");
     try {
       const response = await fetch(`/api/v1/export/${format}`, {
-        headers: getAuthHeaders()
+        headers: {}
       });
       if (!response.ok) {
         const body = await response.json().catch(() => null);

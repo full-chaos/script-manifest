@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { mockUseAuth } from "../../../../vitest.setup";
 import { ToastProvider } from "../../../components/toast";
 import OrderFlowPage from "./page";
 
@@ -10,15 +11,16 @@ vi.mock("next/navigation", () => ({
 describe("OrderFlowPage", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
-    window.localStorage.clear();
-    window.localStorage.setItem(
-      "script_manifest_session",
-      JSON.stringify({
-        token: "sess_writer",
-        expiresAt: "2026-03-01T00:00:00.000Z",
-        user: { id: "writer_1", email: "writer@example.com", displayName: "Writer" }
-      })
-    );
+    mockUseAuth.mockReturnValue({
+      user: {
+        id: "writer_1",
+        email: "writer@example.com",
+        displayName: "Writer",
+        role: "writer",
+        emailVerified: true
+      },
+      loading: false
+    });
     globalThis.fetch = vi.fn<typeof fetch>().mockResolvedValue(
       new Response(
         JSON.stringify({

@@ -2,11 +2,6 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import TransactionsPage from "./page";
 
-// Mock dependencies
-vi.mock("../../lib/authSession", () => ({
-  getAuthHeaders: vi.fn(() => ({ Authorization: "Bearer test" }))
-}));
-
 vi.mock("../../components/toast", () => ({
   useToast: () => ({
     error: vi.fn(),

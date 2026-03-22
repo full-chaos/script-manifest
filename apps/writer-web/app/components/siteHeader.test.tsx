@@ -1,5 +1,6 @@
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { mockUseAuth } from "../../vitest.setup";
 import { SiteHeader } from "./siteHeader";
 
 let mockPathname = "/";
@@ -10,7 +11,7 @@ vi.mock("next/navigation", () => ({
 
 describe("SiteHeader", () => {
   beforeEach(() => {
-    window.localStorage.clear();
+    mockUseAuth.mockReturnValue({ user: null, loading: false });
     mockPathname = "/";
   });
 
@@ -25,18 +26,16 @@ describe("SiteHeader", () => {
   });
 
   it("shows signed-in navigation", async () => {
-    window.localStorage.setItem(
-      "script_manifest_session",
-      JSON.stringify({
-        token: "sess_1",
-        expiresAt: "2026-02-13T00:00:00.000Z",
-        user: {
-          id: "writer_01",
-          email: "writer@example.com",
-          displayName: "Writer One"
-        }
-      })
-    );
+    mockUseAuth.mockReturnValue({
+      user: {
+        id: "writer_01",
+        email: "writer@example.com",
+        displayName: "Writer One",
+        role: "writer",
+        emailVerified: true
+      },
+      loading: false
+    });
 
     render(<SiteHeader />);
 
@@ -47,19 +46,16 @@ describe("SiteHeader", () => {
   });
 
   it("shows admin navigation for admin users", async () => {
-    window.localStorage.setItem(
-      "script_manifest_session",
-      JSON.stringify({
-        token: "sess_1",
-        expiresAt: "2026-02-13T00:00:00.000Z",
-        user: {
-          id: "user_admin_01",
-          email: "admin@example.com",
-          displayName: "Admin User",
-          role: "admin"
-        }
-      })
-    );
+    mockUseAuth.mockReturnValue({
+      user: {
+        id: "user_admin_01",
+        email: "admin@example.com",
+        displayName: "Admin User",
+        role: "admin",
+        emailVerified: true
+      },
+      loading: false
+    });
 
     render(<SiteHeader />);
 
@@ -124,18 +120,16 @@ describe("SiteHeader", () => {
   it("shows current page label only for visible links", async () => {
     mockPathname = "/projects";
 
-    window.localStorage.setItem(
-      "script_manifest_session",
-      JSON.stringify({
-        token: "sess_1",
-        expiresAt: "2026-02-13T00:00:00.000Z",
-        user: {
-          id: "writer_01",
-          email: "writer@example.com",
-          displayName: "Writer One"
-        }
-      })
-    );
+    mockUseAuth.mockReturnValue({
+      user: {
+        id: "writer_01",
+        email: "writer@example.com",
+        displayName: "Writer One",
+        role: "writer",
+        emailVerified: true
+      },
+      loading: false
+    });
 
     const { container } = render(<SiteHeader />);
 

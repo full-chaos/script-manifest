@@ -15,7 +15,7 @@ import { EmptyState } from "../components/emptyState";
 import { Modal } from "../components/modal";
 import { SkeletonCard } from "../components/skeleton";
 import { useToast } from "../components/toast";
-import { getAuthHeaders, readStoredSession } from "../lib/authSession";
+import { useAuth } from "../lib/AuthProvider";
 import { type ScriptUploadProxyResponse, uploadScriptViaProxy } from "../lib/scriptUpload";
 
 type ProjectForm = {
@@ -79,6 +79,7 @@ function getScriptContentType(file: File): string {
 
 export default function ProjectsPage() {
   const toast = useToast();
+  const { user, loading: authLoading } = useAuth();
   const [ownerUserId, setOwnerUserId] = useState("");
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState("");
@@ -120,7 +121,7 @@ export default function ProjectsPage() {
     try {
       const response = await fetch(
         `/api/v1/scripts/${encodeURIComponent(scriptId)}/access-requests?ownerUserId=${encodeURIComponent(ownerUserId)}`,
-        { cache: "no-store", headers: getAuthHeaders() }
+        { cache: "no-store", headers: {} }
       );
       const body = await response.json();
       if (!response.ok) {
@@ -145,7 +146,7 @@ export default function ProjectsPage() {
 
     setContextLoading(true);
     try {
-      const authHeaders = getAuthHeaders();
+      const authHeaders = {};
       const [coWritersResponse, draftsResponse] = await Promise.all([
         fetch(`/api/v1/projects/${encodeURIComponent(projectId)}/co-writers`, { cache: "no-store", headers: authHeaders }),
         fetch(`/api/v1/projects/${encodeURIComponent(projectId)}/drafts`, { cache: "no-store", headers: authHeaders })
@@ -192,7 +193,7 @@ export default function ProjectsPage() {
         `/api/v1/scripts/${encodeURIComponent(selectedScriptId)}/access-requests`,
         {
           method: "POST",
-          headers: { "content-type": "application/json", ...getAuthHeaders() },
+          headers: { "content-type": "application/json", ...{} },
           body: JSON.stringify({
             requesterUserId: requesterUserId.trim(),
             ownerUserId: ownerUserId,
@@ -229,7 +230,7 @@ export default function ProjectsPage() {
         `/api/v1/scripts/${encodeURIComponent(selectedScriptId)}/access-requests/${encodeURIComponent(requestId)}/${action}`,
         {
           method: "POST",
-          headers: { "content-type": "application/json", ...getAuthHeaders() },
+          headers: { "content-type": "application/json", ...{} },
           body: JSON.stringify({
             decisionReason: decisionReason.trim() || undefined
           })
@@ -267,7 +268,7 @@ export default function ProjectsPage() {
     try {
       const response = await fetch(
         `/api/v1/projects?ownerUserId=${encodeURIComponent(targetOwnerId)}`,
-        { cache: "no-store", headers: getAuthHeaders() }
+        { cache: "no-store", headers: {} }
       );
       const body = await response.json();
       if (!response.ok) {
@@ -291,15 +292,16 @@ export default function ProjectsPage() {
   }, [loadProjectContext, ownerUserId, selectedProjectId, toast]);
 
   useEffect(() => {
-    const session = readStoredSession();
-    if (!session) {
+    if (authLoading) return;
+
+    if (!user) {
       setStatus("Sign in to load your projects.");
       setInitialLoading(false);
       return;
     }
 
-    setOwnerUserId(session.user.id);
-  }, []);
+    setOwnerUserId(user.id);
+  }, [user, authLoading]);
 
   useEffect(() => {
     if (ownerUserId) {
@@ -329,7 +331,7 @@ export default function ProjectsPage() {
     try {
       const response = await fetch("/api/v1/projects", {
         method: "POST",
-        headers: { "content-type": "application/json", ...getAuthHeaders() },
+        headers: { "content-type": "application/json", ...{} },
         body: JSON.stringify(payload)
       });
       const body = await response.json();
@@ -361,7 +363,7 @@ export default function ProjectsPage() {
     try {
       const response = await fetch(`/api/v1/projects/${encodeURIComponent(projectId)}`, {
         method: "DELETE",
-        headers: getAuthHeaders()
+        headers: {}
       });
       if (!response.ok) {
         const body = await response.json();
@@ -397,7 +399,7 @@ export default function ProjectsPage() {
         `/api/v1/projects/${encodeURIComponent(selectedProjectId)}/co-writers`,
         {
           method: "POST",
-          headers: { "content-type": "application/json", ...getAuthHeaders() },
+          headers: { "content-type": "application/json", ...{} },
           body: JSON.stringify({
             coWriterUserId,
             creditOrder: Number.isFinite(coWriterCreditOrder) ? coWriterCreditOrder : 1
@@ -431,7 +433,7 @@ export default function ProjectsPage() {
     try {
       const response = await fetch(
         `/api/v1/projects/${encodeURIComponent(selectedProjectId)}/co-writers/${encodeURIComponent(coWriterId)}`,
-        { method: "DELETE", headers: getAuthHeaders() }
+        { method: "DELETE", headers: {} }
       );
       if (!response.ok) {
         const body = await response.json();
@@ -471,7 +473,7 @@ export default function ProjectsPage() {
         ownerUserId,
         file: draftUploadFile,
         contentType,
-        headers: getAuthHeaders()
+        headers: {}
       });
       if (!uploadResponse.ok) {
         const detailPayload = (await uploadResponse.json().catch(async () => ({
@@ -486,7 +488,7 @@ export default function ProjectsPage() {
       setUploadStep("registering");
       const registerResponse = await fetch("/api/v1/scripts/register", {
         method: "POST",
-        headers: { "content-type": "application/json", ...getAuthHeaders() },
+        headers: { "content-type": "application/json", ...{} },
         body: JSON.stringify({
           scriptId,
           ownerUserId,
@@ -536,7 +538,7 @@ export default function ProjectsPage() {
     try {
       const response = await fetch(`/api/v1/projects/${encodeURIComponent(selectedProjectId)}/drafts`, {
         method: "POST",
-        headers: { "content-type": "application/json", ...getAuthHeaders() },
+        headers: { "content-type": "application/json", ...{} },
         body: JSON.stringify({
           scriptId: draftForm.scriptId,
           versionLabel: draftForm.versionLabel,
@@ -576,7 +578,7 @@ export default function ProjectsPage() {
         `/api/v1/projects/${encodeURIComponent(selectedProjectId)}/drafts/${encodeURIComponent(draftId)}/primary`,
         {
           method: "POST",
-          headers: { "content-type": "application/json", ...getAuthHeaders() }
+          headers: { "content-type": "application/json", ...{} }
         }
       );
       const body = await response.json();
@@ -605,7 +607,7 @@ export default function ProjectsPage() {
         `/api/v1/projects/${encodeURIComponent(selectedProjectId)}/drafts/${encodeURIComponent(draftId)}`,
         {
           method: "PATCH",
-          headers: { "content-type": "application/json", ...getAuthHeaders() },
+          headers: { "content-type": "application/json", ...{} },
           body: JSON.stringify({ lifecycleState: "archived" })
         }
       );

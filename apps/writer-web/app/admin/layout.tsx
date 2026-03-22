@@ -17,7 +17,7 @@ import {
   ToggleRight,
   ShieldBan
 } from "lucide-react";
-import { readStoredSession } from "../lib/authSession";
+import { useAuth } from "../lib/AuthProvider";
 
 type NavItem = {
   href: Route;
@@ -49,16 +49,16 @@ function isActive(pathname: string, href: string): boolean {
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const session = readStoredSession();
-  const isAdmin = session?.user.role === "admin";
+  const { user, loading } = useAuth();
+  const isAdmin = user?.role === "admin";
 
   useEffect(() => {
-    if (!isAdmin) {
+    if (!loading && !isAdmin) {
       router.replace("/");
     }
-  }, [isAdmin, router]);
+  }, [isAdmin, loading, router]);
 
-  if (!isAdmin) {
+  if (loading || !isAdmin) {
     return null;
   }
 

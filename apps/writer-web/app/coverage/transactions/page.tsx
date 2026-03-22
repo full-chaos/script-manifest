@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { getAuthHeaders } from "../../lib/authSession";
 import { EmptyState } from "../../components/emptyState";
 import { EmptyIllustration } from "../../components/illustrations";
 import { SkeletonCard } from "../../components/skeleton";
@@ -44,7 +43,7 @@ export default function TransactionsPage() {
     try {
       const qs = `?limit=${PAGE_SIZE}&offset=${nextOffset}`;
       const res = await fetch(`/api/v1/coverage/my-orders${qs}`, {
-        headers: getAuthHeaders(),
+        headers: {},
         cache: "no-store"
       });
       if (res.ok) {

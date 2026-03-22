@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useToast } from "../../components/toast";
-import { getAuthHeaders } from "../../lib/authSession";
 import { EmptyState } from "../../components/emptyState";
 import { EmptyIllustration } from "../../components/illustrations";
 import { SkeletonCard } from "../../components/skeleton";
@@ -87,7 +86,7 @@ export default function AdminNotificationsPage() {
     setTemplatesLoading(true);
     try {
       const response = await fetch("/api/v1/admin/notifications/templates", {
-        headers: getAuthHeaders(),
+        headers: {},
         cache: "no-store"
       });
       if (response.ok) {
@@ -114,7 +113,7 @@ export default function AdminNotificationsPage() {
         limit: String(HISTORY_LIMIT)
       });
       const response = await fetch(`/api/v1/admin/notifications/history?${params.toString()}`, {
-        headers: getAuthHeaders(),
+        headers: {},
         cache: "no-store"
       });
       if (response.ok) {
@@ -149,7 +148,7 @@ export default function AdminNotificationsPage() {
         // Direct notification
         const response = await fetch("/api/v1/admin/notifications/direct", {
           method: "POST",
-          headers: { "content-type": "application/json", ...getAuthHeaders() },
+          headers: { "content-type": "application/json", ...{} },
           body: JSON.stringify({
             userId: userIdValue,
             subject,
@@ -168,7 +167,7 @@ export default function AdminNotificationsPage() {
         const audience = audienceType === "role" ? `role:${roleValue}` : "all";
         const response = await fetch("/api/v1/admin/notifications/broadcast", {
           method: "POST",
-          headers: { "content-type": "application/json", ...getAuthHeaders() },
+          headers: { "content-type": "application/json", ...{} },
           body: JSON.stringify({
             subject,
             body,

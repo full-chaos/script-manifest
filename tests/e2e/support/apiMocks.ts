@@ -111,6 +111,10 @@ export async function mockProfileAndProjectEndpoints(page: Page): Promise<void> 
     const method = request.method().toUpperCase();
     const path = url.pathname;
 
+    if (path === "/api/v1/auth/me" && method === "GET") {
+      return jsonReply(route, 200, { user: TEST_USER, expiresAt: "2099-01-01T00:00:00.000Z" });
+    }
+
     if (path === `/api/v1/profiles/${encodeURIComponent(TEST_USER.id)}` && method === "GET") {
       return jsonReply(route, 200, { profile });
     }

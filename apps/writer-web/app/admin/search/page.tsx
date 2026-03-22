@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useToast } from "../../components/toast";
-import { getAuthHeaders } from "../../lib/authSession";
 import { SkeletonCard } from "../../components/skeleton";
 
 type IndexStatus = {
@@ -43,7 +42,7 @@ export default function SearchAdminPage() {
   const loadStatus = useCallback(async () => {
     try {
       const response = await fetch("/api/v1/admin/search/status", {
-        headers: getAuthHeaders()
+        headers: {}
       });
       if (!response.ok) {
         const body = (await response.json().catch(() => ({}))) as { error?: string };
@@ -72,7 +71,7 @@ export default function SearchAdminPage() {
         : "/api/v1/admin/search/reindex";
       const response = await fetch(url, {
         method: "POST",
-        headers: getAuthHeaders()
+        headers: {}
       });
       if (!response.ok) {
         const body = (await response.json().catch(() => ({}))) as { error?: string };

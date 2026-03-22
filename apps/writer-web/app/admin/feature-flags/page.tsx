@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useToast } from "../../components/toast";
-import { getAuthHeaders } from "../../lib/authSession";
 import { EmptyState } from "../../components/emptyState";
 import { EmptyIllustration } from "../../components/illustrations";
 import { SkeletonCard } from "../../components/skeleton";
@@ -42,7 +41,7 @@ export default function FeatureFlagsPage() {
   const loadFlags = useCallback(async () => {
     try {
       const response = await fetch("/api/v1/admin/feature-flags", {
-        headers: getAuthHeaders()
+        headers: {}
       });
       if (!response.ok) {
         const body = (await response.json().catch(() => ({}))) as { error?: string };
@@ -69,7 +68,7 @@ export default function FeatureFlagsPage() {
     try {
       const response = await fetch("/api/v1/admin/feature-flags", {
         method: "POST",
-        headers: { "content-type": "application/json", ...getAuthHeaders() },
+        headers: { "content-type": "application/json", ...{} },
         body: JSON.stringify({ key: newKey.trim(), description: newDescription.trim() })
       });
       if (!response.ok) {
@@ -94,7 +93,7 @@ export default function FeatureFlagsPage() {
     try {
       const response = await fetch(`/api/v1/admin/feature-flags/${encodeURIComponent(key)}`, {
         method: "PUT",
-        headers: { "content-type": "application/json", ...getAuthHeaders() },
+        headers: { "content-type": "application/json", ...{} },
         body: JSON.stringify({ enabled: !currentEnabled })
       });
       if (!response.ok) {
@@ -126,7 +125,7 @@ export default function FeatureFlagsPage() {
         .filter(s => s.length > 0);
       const response = await fetch(`/api/v1/admin/feature-flags/${encodeURIComponent(editingKey)}`, {
         method: "PUT",
-        headers: { "content-type": "application/json", ...getAuthHeaders() },
+        headers: { "content-type": "application/json", ...{} },
         body: JSON.stringify({
           description: editDescription,
           rolloutPct: editRollout,
@@ -153,7 +152,7 @@ export default function FeatureFlagsPage() {
     try {
       const response = await fetch(`/api/v1/admin/feature-flags/${encodeURIComponent(key)}`, {
         method: "DELETE",
-        headers: getAuthHeaders()
+        headers: {}
       });
       if (!response.ok && response.status !== 204) {
         const body = (await response.json().catch(() => ({}))) as { error?: string };

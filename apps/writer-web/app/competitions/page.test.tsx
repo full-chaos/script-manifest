@@ -1,6 +1,7 @@
 import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { mockUseAuth } from "../../vitest.setup";
 import { ToastProvider } from "../components/toast";
 import CompetitionsPage from "./page";
 
@@ -18,19 +19,16 @@ function renderWithProviders(ui: React.ReactElement) {
 describe("CompetitionsPage", () => {
   beforeEach(() => {
     cleanup();
-    window.localStorage.clear();
-    window.localStorage.setItem(
-      "script_manifest_session",
-      JSON.stringify({
-        token: "sess_1",
-        expiresAt: "2026-02-13T00:00:00.000Z",
-        user: {
-          id: "writer_01",
-          email: "writer@example.com",
-          displayName: "Writer One"
-        }
-      })
-    );
+    mockUseAuth.mockReturnValue({
+      user: {
+        id: "writer_01",
+        email: "writer@example.com",
+        displayName: "Writer One",
+        role: "writer",
+        emailVerified: true
+      },
+      loading: false
+    });
     vi.restoreAllMocks();
   });
 

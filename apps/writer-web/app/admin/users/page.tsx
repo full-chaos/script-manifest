@@ -7,7 +7,6 @@ import { EmptyState } from "../../components/emptyState";
 import { EmptyIllustration } from "../../components/illustrations";
 import { SkeletonCard } from "../../components/skeleton";
 import { useToast } from "../../components/toast";
-import { getAuthHeaders } from "../../lib/authSession";
 
 type AdminUser = {
   id: string;
@@ -91,7 +90,7 @@ export default function AdminUsersPage() {
         }
 
         const response = await fetch(`/api/v1/admin/users?${params.toString()}`, {
-          headers: getAuthHeaders(),
+          headers: {},
           cache: "no-store"
         });
 

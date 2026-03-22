@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { getAuthHeaders } from "../../lib/authSession";
 import { EmptyState } from "../../components/emptyState";
 import { EmptyIllustration } from "../../components/illustrations";
 import { SkeletonCard } from "../../components/skeleton";
@@ -25,7 +24,7 @@ export default function PaymentMethodsPage() {
     setLoading(true);
     try {
       const res = await fetch("/api/v1/coverage/payment-methods", {
-        headers: getAuthHeaders(),
+        headers: {},
         cache: "no-store"
       });
       if (res.ok) {
@@ -48,7 +47,7 @@ export default function PaymentMethodsPage() {
     try {
       const res = await fetch(`/api/v1/coverage/payment-methods/${encodeURIComponent(id)}`, {
         method: "DELETE",
-        headers: getAuthHeaders()
+        headers: {}
       });
       if (res.ok) {
         setMethods(prev => prev.filter(m => m.id !== id));

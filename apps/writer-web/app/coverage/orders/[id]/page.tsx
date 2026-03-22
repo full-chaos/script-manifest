@@ -7,13 +7,14 @@ import { EmptyState } from "../../../components/emptyState";
 import { EmptyIllustration } from "../../../components/illustrations";
 import { SkeletonCard } from "../../../components/skeleton";
 import { useToast } from "../../../components/toast";
-import { getAuthHeaders, readStoredSession } from "../../../lib/authSession";
+import { useAuth } from "../../../lib/AuthProvider";
 import { Modal } from "../../../components/modal";
 
 export default function OrderDetailPage() {
   const params = useParams();
   const orderId = params.id as string;
   const toast = useToast();
+  const { user } = useAuth();
   const [signedInUserId, setSignedInUserId] = useState("");
   const [loading, setLoading] = useState(false);
   const [order, setOrder] = useState<CoverageOrder | null>(null);
@@ -31,17 +32,14 @@ export default function OrderDetailPage() {
   const [delivering, setDelivering] = useState(false);
 
   useEffect(() => {
-    const session = readStoredSession();
-    if (session) {
-      setSignedInUserId(session.user.id);
-    }
-  }, []);
+    setSignedInUserId(user?.id ?? "");
+  }, [user]);
 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
       const orderResponse = await fetch(`/api/v1/coverage/orders/${encodeURIComponent(orderId)}`, {
-        headers: getAuthHeaders(),
+        headers: {},
         cache: "no-store"
       });
 
@@ -64,11 +62,11 @@ export default function OrderDetailPage() {
 
       const [providerResponse, deliveryResponse] = await Promise.all([
         fetch(`/api/v1/coverage/providers/${encodeURIComponent(nextOrder.providerId)}`, {
-          headers: getAuthHeaders(),
+          headers: {},
           cache: "no-store"
         }),
         fetch(`/api/v1/coverage/orders/${encodeURIComponent(orderId)}/delivery`, {
-          headers: getAuthHeaders(),
+          headers: {},
           cache: "no-store"
         })
       ]);
@@ -114,7 +112,7 @@ export default function OrderDetailPage() {
     try {
       const response = await fetch(`/api/v1/coverage/orders/${encodeURIComponent(orderId)}/retry-payment`, {
         method: "POST",
-        headers: { "content-type": "application/json", ...getAuthHeaders() }
+        headers: { "content-type": "application/json", ...{} }
       });
       const body = (await response.json()) as { error?: string };
       if (!response.ok) {
@@ -134,7 +132,7 @@ export default function OrderDetailPage() {
     try {
       const response = await fetch(`/api/v1/coverage/orders/${encodeURIComponent(orderId)}/claim`, {
         method: "POST",
-        headers: getAuthHeaders()
+        headers: {}
       });
 
       const body = (await response.json()) as { error?: string };
@@ -157,7 +155,7 @@ export default function OrderDetailPage() {
     try {
       const response = await fetch(`/api/v1/coverage/orders/${encodeURIComponent(orderId)}/deliver`, {
         method: "POST",
-        headers: { "content-type": "application/json", ...getAuthHeaders() },
+        headers: { "content-type": "application/json", ...{} },
         body: JSON.stringify({
           summary: "Sample coverage summary",
           strengths: "Strong character development",
@@ -186,7 +184,7 @@ export default function OrderDetailPage() {
     try {
       const response = await fetch(`/api/v1/coverage/orders/${encodeURIComponent(orderId)}/complete`, {
         method: "POST",
-        headers: getAuthHeaders()
+        headers: {}
       });
 
       const body = (await response.json()) as { error?: string };
@@ -206,7 +204,7 @@ export default function OrderDetailPage() {
     try {
       const response = await fetch(`/api/v1/coverage/orders/${encodeURIComponent(orderId)}/dispute`, {
         method: "POST",
-        headers: { "content-type": "application/json", ...getAuthHeaders() },
+        headers: { "content-type": "application/json", ...{} },
         body: JSON.stringify({
           reason: "quality",
           description: "The coverage did not meet expectations"
@@ -230,7 +228,7 @@ export default function OrderDetailPage() {
     try {
       const response = await fetch(`/api/v1/coverage/orders/${encodeURIComponent(orderId)}/cancel`, {
         method: "POST",
-        headers: getAuthHeaders()
+        headers: {}
       });
 
       const body = (await response.json()) as { error?: string };
@@ -252,7 +250,7 @@ export default function OrderDetailPage() {
     try {
       const response = await fetch(`/api/v1/coverage/orders/${encodeURIComponent(orderId)}/review`, {
         method: "POST",
-        headers: { "content-type": "application/json", ...getAuthHeaders() },
+        headers: { "content-type": "application/json", ...{} },
         body: JSON.stringify({ rating: Number(rating), comment })
       });
 

@@ -5,7 +5,6 @@ import { SkeletonCard } from "../../components/skeleton";
 import { EmptyState } from "../../components/emptyState";
 import { EmptyIllustration } from "../../components/illustrations";
 import { useToast } from "../../components/toast";
-import { getAuthHeaders } from "../../lib/authSession";
 
 type AuditLogEntry = {
   id: string;
@@ -105,7 +104,7 @@ export default function AdminAuditLogPage() {
         params.set("limit", String(PAGE_LIMIT));
 
         const response = await fetch(`/api/v1/admin/audit-log?${params.toString()}`, {
-          headers: { ...getAuthHeaders() },
+          headers: { ...{} },
           cache: "no-store"
         });
 

@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { render, screen, fireEvent, cleanup, waitFor } from "@testing-library/react";
+import { mockUseAuth } from "../../vitest.setup";
 import { OnboardingChecklist } from "./OnboardingChecklist";
 
 function mockFetchStatus(status: Record<string, boolean>) {
@@ -11,12 +12,23 @@ function mockFetchStatus(status: Record<string, boolean>) {
 
 describe("OnboardingChecklist", () => {
   beforeEach(() => {
+    mockUseAuth.mockReturnValue({
+      user: {
+        id: "user_1",
+        email: "w@test.com",
+        displayName: "Writer",
+        role: "writer",
+        emailVerified: true
+      },
+      loading: false
+    });
     window.localStorage.clear();
     vi.restoreAllMocks();
   });
 
   afterEach(() => {
     cleanup();
+    mockUseAuth.mockReset();
     window.localStorage.clear();
     vi.restoreAllMocks();
   });

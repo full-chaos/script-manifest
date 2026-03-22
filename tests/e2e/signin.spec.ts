@@ -14,11 +14,8 @@ test("sign-in page supports register and sign-out journey", async ({ page }) => 
   await page.getByRole("checkbox").check();
   await page.locator("form").getByRole("button", { name: "Create account" }).nth(1).click();
 
-  // After successful registration the page redirects to email verification
   await page.waitForURL("/verify-email");
 
-  // Navigate back to /signin — mock flow has no HttpOnly cookie so proxy
-  // allows through, but localStorage session triggers the authenticated view
   await page.goto("/signin");
   await expect(page.getByText(/Signed in as/i)).toBeVisible();
   await expectNoSeriousA11yViolations(page);

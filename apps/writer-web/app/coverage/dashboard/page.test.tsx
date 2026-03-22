@@ -1,20 +1,22 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { mockUseAuth } from "../../../vitest.setup";
 import { ToastProvider } from "../../components/toast";
 import ProviderDashboardPage from "./page";
 
 describe("ProviderDashboardPage", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
-    window.localStorage.clear();
-    window.localStorage.setItem(
-      "script_manifest_session",
-      JSON.stringify({
-        token: "sess_coverage",
-        expiresAt: "2026-03-01T00:00:00.000Z",
-        user: { id: "user_provider_1", email: "provider@example.com", displayName: "Provider" }
-      })
-    );
+    mockUseAuth.mockReturnValue({
+      user: {
+        id: "user_provider_1",
+        email: "provider@example.com",
+        displayName: "Provider",
+        role: "writer",
+        emailVerified: true
+      },
+      loading: false
+    });
     globalThis.fetch = vi.fn<typeof fetch>(async (input) => {
       const url = typeof input === "string" ? input : input.toString();
       if (url.startsWith("/api/v1/coverage/providers")) {

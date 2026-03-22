@@ -7,7 +7,7 @@ import { EmptyState } from "../components/emptyState";
 import { EmptyIllustration } from "../components/illustrations";
 import { SkeletonCard } from "../components/skeleton";
 import { useToast } from "../components/toast";
-import { readStoredSession } from "../lib/authSession";
+import { useAuth } from "../lib/AuthProvider";
 
 type Filters = {
   query: string;
@@ -69,6 +69,7 @@ function competitionInitial(title: string): string {
 
 export default function CompetitionsPage() {
   const toast = useToast();
+  const { user } = useAuth();
   const [filters, setFilters] = useState<Filters>(initialFilters);
   const [results, setResults] = useState<Competition[]>([]);
   const [loading, setLoading] = useState(false);
@@ -130,17 +131,22 @@ export default function CompetitionsPage() {
   }, [filters, runSearch]);
 
   useEffect(() => {
-    const session = readStoredSession();
-    if (session) {
-      setSignedInUserId(session.user.id);
-      setReminderTargetUserId(session.user.id);
+    if (user) {
+      setSignedInUserId(user.id);
+      setReminderTargetUserId(user.id);
       void fetch("/api/v1/onboarding-progress", {
         method: "PATCH",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ competitionsVisited: true }),
       });
+      return;
     }
 
+    setSignedInUserId("");
+    setReminderTargetUserId("");
+  }, [user]);
+
+  useEffect(() => {
     void runSearch(initialFilters);
   }, [runSearch]);
 

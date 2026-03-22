@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CoverageProvider } from "@script-manifest/contracts";
+import { mockUseAuth } from "../../../vitest.setup";
 import { ToastProvider } from "../../components/toast";
 import BecomeProviderPage from "./page";
 
@@ -13,18 +14,16 @@ function renderPage() {
 }
 
 function setSession(userId: string) {
-  window.localStorage.setItem(
-    "script_manifest_session",
-    JSON.stringify({
-      token: "sess_coverage",
-      expiresAt: "2026-02-28T00:00:00.000Z",
-      user: {
-        id: userId,
-        email: "provider@example.com",
-        displayName: "Provider User"
-      }
-    })
-  );
+  mockUseAuth.mockReturnValue({
+    user: {
+      id: userId,
+      email: "provider@example.com",
+      displayName: "Provider User",
+      role: "writer",
+      emailVerified: true
+    },
+    loading: false
+  });
 }
 
 function makeProvider(overrides: Partial<CoverageProvider> = {}): CoverageProvider {
@@ -56,7 +55,7 @@ describe("BecomeProviderPage", () => {
   beforeEach(() => {
     cleanup();
     vi.restoreAllMocks();
-    window.localStorage.clear();
+    mockUseAuth.mockReturnValue({ user: null, loading: false });
     window.location.hash = "";
   });
 

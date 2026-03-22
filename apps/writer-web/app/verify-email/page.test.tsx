@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { mockUseAuth } from "../../vitest.setup";
 import VerifyEmailPage from "./page";
 
 const mockReplace = vi.fn();
@@ -11,7 +12,7 @@ vi.mock("next/navigation", () => ({
 describe("VerifyEmailPage", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
-    window.localStorage.clear();
+    mockUseAuth.mockReturnValue({ user: null, loading: false });
     mockReplace.mockReset();
     globalThis.fetch = vi.fn();
   });

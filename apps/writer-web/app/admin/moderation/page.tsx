@@ -5,7 +5,6 @@ import { EmptyState } from "../../components/emptyState";
 import { EmptyIllustration } from "../../components/illustrations";
 import { SkeletonCard } from "../../components/skeleton";
 import { useToast } from "../../components/toast";
-import { getAuthHeaders } from "../../lib/authSession";
 import { Modal } from "../../components/modal";
 
 type ContentReport = {
@@ -84,7 +83,7 @@ export default function AdminModerationPage() {
       }
 
       const response = await fetch(`/api/v1/admin/moderation/queue?${params.toString()}`, {
-        headers: getAuthHeaders(),
+        headers: {},
         cache: "no-store",
         signal: controller.signal
       });
@@ -144,7 +143,7 @@ export default function AdminModerationPage() {
 
       const response = await fetch(`/api/v1/admin/moderation/${encodeURIComponent(actionReport.id)}/action`, {
         method: "POST",
-        headers: { "content-type": "application/json", ...getAuthHeaders() },
+        headers: { "content-type": "application/json", ...{} },
         body: JSON.stringify(payload)
       });
 

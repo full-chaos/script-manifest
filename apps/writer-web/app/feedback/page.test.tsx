@@ -1,16 +1,8 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { mockUseAuth } from "../../vitest.setup";
 import { ToastProvider } from "../components/toast";
 import FeedbackPage from "./page";
-
-vi.mock("../lib/authSession", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../lib/authSession")>();
-  return {
-    ...actual,
-    readStoredSession: vi.fn(() => null),
-    getAuthHeaders: vi.fn(() => ({}))
-  };
-});
 
 function renderPage() {
   return render(
@@ -38,7 +30,7 @@ function mockFetch(responses: Record<string, unknown>) {
 describe("FeedbackPage", () => {
   beforeEach(() => {
     cleanup();
-    window.localStorage.clear();
+    mockUseAuth.mockReturnValue({ user: null, loading: false });
     vi.restoreAllMocks();
   });
 

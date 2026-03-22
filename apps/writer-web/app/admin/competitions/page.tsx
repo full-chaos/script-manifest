@@ -2,7 +2,6 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import type { Competition } from "@script-manifest/contracts";
-import { getAuthHeaders } from "../../lib/authSession";
 
 type CompetitionDraft = {
   id: string;
@@ -80,7 +79,7 @@ export default function AdminCompetitionsPage() {
         method: "POST",
         headers: {
           "content-type": "application/json",
-          ...getAuthHeaders()
+          ...{}
         },
         body: JSON.stringify(payload)
       });
@@ -113,7 +112,7 @@ export default function AdminCompetitionsPage() {
         method: "PUT",
         headers: {
           "content-type": "application/json",
-          ...getAuthHeaders()
+          ...{}
         },
         body: JSON.stringify(row)
       });

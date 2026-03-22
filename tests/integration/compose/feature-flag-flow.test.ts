@@ -75,7 +75,7 @@ test("compose flow: feature flag create list toggle client-evaluate and delete",
         "content-type": "application/json",
         ...authHeaders(adminToken)
       },
-      body: JSON.stringify({ enabled: true })
+      body: JSON.stringify({ enabled: true, rolloutPct: 100 })
     },
     200
   );

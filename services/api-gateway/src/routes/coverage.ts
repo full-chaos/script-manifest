@@ -346,7 +346,7 @@ export function registerCoverageRoutes(server: FastifyInstance, ctx: GatewayCont
     }
     return proxyJsonRequest(reply, ctx.requestFn,
       `${ctx.coverageMarketplaceBase}/internal/disputes/${encodeURIComponent(disputeId)}`,
-      { method: "PATCH", headers: addAuthUserIdHeader({ "content-type": "application/json" }, adminId), body: JSON.stringify(parsed.data) }
+      { method: "PATCH", headers: addAuthUserIdHeader({ "content-type": "application/json" }, adminId, "admin"), body: JSON.stringify(parsed.data) }
     );
   });
 

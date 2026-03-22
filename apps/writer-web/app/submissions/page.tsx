@@ -27,7 +27,7 @@ const statuses: SubmissionStatus[] = [
 
 export default function SubmissionsPage() {
   const toast = useToast();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [writerId, setWriterId] = useState("");
   const [projectId, setProjectId] = useState("");
   const [competitionId, setCompetitionId] = useState("");
@@ -99,6 +99,8 @@ export default function SubmissionsPage() {
   }, [toast, writerId]);
 
   useEffect(() => {
+    if (authLoading) return;
+
     if (!user) {
       setMessage("Sign in to load submissions.");
       setInitialLoading(false);
@@ -106,7 +108,7 @@ export default function SubmissionsPage() {
     }
 
     setWriterId(user.id);
-  }, [user]);
+  }, [user, authLoading]);
 
   useEffect(() => {
     if (writerId) {

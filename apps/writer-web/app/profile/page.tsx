@@ -40,7 +40,7 @@ function isPreviewableImageUrl(value: string): boolean {
 
 export default function ProfilePage() {
   const toast = useToast();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [writerId, setWriterId] = useState("");
   const [profile, setProfile] = useState<WriterProfile | null>(null);
   const [draft, setDraft] = useState<EditableProfile>(initialDraft);
@@ -92,6 +92,8 @@ export default function ProfilePage() {
   }, [toast, writerId]);
 
   useEffect(() => {
+    if (authLoading) return;
+
     if (!user) {
       setStatus("Sign in to load your profile.");
       setInitialLoading(false);
@@ -99,7 +101,7 @@ export default function ProfilePage() {
     }
 
     setWriterId(user.id);
-  }, [user]);
+  }, [user, authLoading]);
 
   useEffect(() => {
     if (writerId) {

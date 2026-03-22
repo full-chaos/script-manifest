@@ -79,7 +79,7 @@ function getScriptContentType(file: File): string {
 
 export default function ProjectsPage() {
   const toast = useToast();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [ownerUserId, setOwnerUserId] = useState("");
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState("");
@@ -292,6 +292,8 @@ export default function ProjectsPage() {
   }, [loadProjectContext, ownerUserId, selectedProjectId, toast]);
 
   useEffect(() => {
+    if (authLoading) return;
+
     if (!user) {
       setStatus("Sign in to load your projects.");
       setInitialLoading(false);
@@ -299,7 +301,7 @@ export default function ProjectsPage() {
     }
 
     setOwnerUserId(user.id);
-  }, [user]);
+  }, [user, authLoading]);
 
   useEffect(() => {
     if (ownerUserId) {

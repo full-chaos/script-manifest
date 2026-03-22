@@ -8,6 +8,7 @@ import { useAuth } from "../lib/AuthProvider";
 import { Menu, X } from "lucide-react";
 import { NotificationBell } from "./notificationBell";
 import { ThemeToggle } from "./themeToggle";
+import { UserMenu } from "./userMenu";
 
 type NavLink = {
   href: Route;
@@ -124,18 +125,7 @@ export function SiteHeader() {
           <div className="flex items-center gap-2 border-l border-border/60 pl-4">
             <ThemeToggle />
             {user ? <NotificationBell /> : null}
-            {user ? (
-              <span className="rounded-full border border-border/65 bg-background-secondary px-2.5 py-0.5 text-xs text-foreground-secondary">
-                {user.displayName}
-              </span>
-            ) : (
-              <span className="rounded-full border border-border/65 bg-background-secondary px-2.5 py-0.5 text-xs text-foreground-secondary">
-                Guest
-              </span>
-            )}
-            <Link href="/signin" className="btn btn-primary no-underline">
-              {user ? "Account" : "Sign in"}
-            </Link>
+            <UserMenu />
           </div>
         </div>
       </div>
@@ -169,9 +159,7 @@ export function SiteHeader() {
           <div className="inline-form">
             <ThemeToggle />
             {user ? <NotificationBell /> : null}
-            <Link href="/signin" className="btn btn-primary no-underline" onClick={() => setMobileOpen(false)}>
-              {user ? "Account" : "Sign in"}
-            </Link>
+            <UserMenu />
           </div>
         </div>
       ) : null}

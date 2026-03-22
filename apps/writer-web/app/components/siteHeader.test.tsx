@@ -41,7 +41,7 @@ describe("SiteHeader", () => {
 
     expect(await screen.findByText("Writer One")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Projects" })).toHaveAttribute("href", "/projects");
-    expect(screen.getByRole("link", { name: "Account" })).toHaveAttribute("href", "/signin");
+    expect(screen.getByRole("button", { name: /Writer One/i })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Admin" })).not.toBeInTheDocument();
   });
 

@@ -4,7 +4,6 @@ import { useEffect, useState, type FormEvent } from "react";
 import type { Competition } from "@script-manifest/contracts";
 
 type CompetitionDraft = {
-  id: string;
   title: string;
   description: string;
   format: string;
@@ -13,8 +12,7 @@ type CompetitionDraft = {
   deadline: string;
 };
 
-const initialDraft: CompetitionDraft = {
-  id: "",
+const emptyDraft: CompetitionDraft = {
   title: "",
   description: "",
   format: "feature",
@@ -23,8 +21,27 @@ const initialDraft: CompetitionDraft = {
   deadline: ""
 };
 
+function toLocalDatetime(iso: string): string {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function competitionToDraft(c: Competition): CompetitionDraft {
+  return {
+    title: c.title,
+    description: c.description,
+    format: c.format,
+    genre: c.genre,
+    feeUsd: String(c.feeUsd),
+    deadline: toLocalDatetime(c.deadline),
+  };
+}
+
 export default function AdminCompetitionsPage() {
-  const [draft, setDraft] = useState<CompetitionDraft>(initialDraft);
+  const [draft, setDraft] = useState<CompetitionDraft>(emptyDraft);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [rows, setRows] = useState<Competition[]>([]);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState("");
@@ -54,18 +71,23 @@ export default function AdminCompetitionsPage() {
     void loadCompetitions();
   }, []);
 
-  async function submitCreate(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!draft.id.trim()) {
-      setStatus("Competition ID is required.");
-      return;
-    }
+  function startEdit(competition: Competition) {
+    setEditingId(competition.id);
+    setDraft(competitionToDraft(competition));
+  }
 
+  function cancelEdit() {
+    setEditingId(null);
+    setDraft(emptyDraft);
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
     setLoading(true);
     setStatus("");
 
     const payload = {
-      id: draft.id.trim(),
+      id: editingId ?? crypto.randomUUID(),
       title: draft.title.trim(),
       description: draft.description.trim(),
       format: draft.format.trim(),
@@ -75,54 +97,26 @@ export default function AdminCompetitionsPage() {
     };
 
     try {
-      const response = await fetch("/api/v1/admin/competitions", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          ...{}
-        },
+      const url = editingId
+        ? `/api/v1/admin/competitions/${encodeURIComponent(editingId)}`
+        : "/api/v1/admin/competitions";
+      const method = editingId ? "PUT" : "POST";
+
+      const response = await fetch(url, {
+        method,
+        headers: { "content-type": "application/json" },
         body: JSON.stringify(payload)
       });
       const body = await response.json();
       if (!response.ok) {
-        setStatus(body.error ? `Error: ${body.error}` : "Create failed.");
+        setStatus(body.error ? `Error: ${body.error}` : `${editingId ? "Update" : "Create"} failed.`);
         return;
       }
 
-      setDraft(initialDraft);
+      setDraft(emptyDraft);
+      setEditingId(null);
       await loadCompetitions();
-      setStatus("Competition upserted.");
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : "unknown_error");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function submitUpdate(competitionId: string) {
-    const row = rows.find((entry) => entry.id === competitionId);
-    if (!row) {
-      return;
-    }
-
-    setLoading(true);
-    setStatus("");
-    try {
-      const response = await fetch(`/api/v1/admin/competitions/${encodeURIComponent(competitionId)}`, {
-        method: "PUT",
-        headers: {
-          "content-type": "application/json",
-          ...{}
-        },
-        body: JSON.stringify(row)
-      });
-      const body = await response.json();
-      if (!response.ok) {
-        setStatus(body.error ? `Error: ${body.error}` : "Update failed.");
-        return;
-      }
-
-      setStatus(`Competition ${competitionId} updated.`);
+      setStatus(editingId ? `Competition "${payload.title}" updated.` : `Competition "${payload.title}" created.`);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "unknown_error");
     } finally {
@@ -141,49 +135,48 @@ export default function AdminCompetitionsPage() {
       </article>
 
       <article className="panel stack">
-        <h2 className="section-title">Create or upsert competition</h2>
-        <form className="stack" onSubmit={submitCreate}>
-          <div className="grid-two">
-            <label className="stack-tight">
-              <span>ID</span>
-              <input className="input" value={draft.id} onChange={(event) => setDraft((current) => ({ ...current, id: event.target.value }))} required />
-            </label>
-            <label className="stack-tight">
-              <span>Title</span>
-              <input className="input" value={draft.title} onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} required />
-            </label>
-          </div>
+        <div className="flex items-center justify-between">
+          <h2 className="section-title">{editingId ? `Editing: ${editingId}` : "Create competition"}</h2>
+          {editingId ? (
+            <button type="button" className="btn btn-secondary text-xs" onClick={cancelEdit}>Cancel edit</button>
+          ) : null}
+        </div>
+        <form className="stack" onSubmit={handleSubmit}>
+          <label className="stack-tight">
+            <span>Title</span>
+            <input className="input" value={draft.title} onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))} required />
+          </label>
 
           <label className="stack-tight">
             <span>Description</span>
-            <textarea className="input textarea" rows={3} value={draft.description} onChange={(event) => setDraft((current) => ({ ...current, description: event.target.value }))} />
+            <textarea className="input textarea" rows={3} value={draft.description} onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))} />
           </label>
 
           <div className="grid-two">
             <label className="stack-tight">
               <span>Format</span>
-              <input className="input" value={draft.format} onChange={(event) => setDraft((current) => ({ ...current, format: event.target.value }))} required />
+              <input className="input" value={draft.format} onChange={(e) => setDraft((d) => ({ ...d, format: e.target.value }))} required />
             </label>
             <label className="stack-tight">
               <span>Genre</span>
-              <input className="input" value={draft.genre} onChange={(event) => setDraft((current) => ({ ...current, genre: event.target.value }))} required />
+              <input className="input" value={draft.genre} onChange={(e) => setDraft((d) => ({ ...d, genre: e.target.value }))} required />
             </label>
           </div>
 
           <div className="grid-two">
             <label className="stack-tight">
               <span>Fee USD</span>
-              <input className="input" type="number" min={0} value={draft.feeUsd} onChange={(event) => setDraft((current) => ({ ...current, feeUsd: event.target.value }))} required />
+              <input className="input" type="number" min={0} value={draft.feeUsd} onChange={(e) => setDraft((d) => ({ ...d, feeUsd: e.target.value }))} required />
             </label>
             <label className="stack-tight">
               <span>Deadline</span>
-              <input className="input" type="datetime-local" value={draft.deadline} onChange={(event) => setDraft((current) => ({ ...current, deadline: event.target.value }))} required />
+              <input className="input" type="datetime-local" value={draft.deadline} onChange={(e) => setDraft((d) => ({ ...d, deadline: e.target.value }))} required />
             </label>
           </div>
 
           <div className="inline-form">
             <button type="submit" className="btn btn-primary" disabled={loading}>
-              {loading ? "Saving..." : "Save competition"}
+              {loading ? "Saving..." : editingId ? "Update competition" : "Create competition"}
             </button>
           </div>
         </form>
@@ -198,12 +191,20 @@ export default function AdminCompetitionsPage() {
               <strong>{competition.title}</strong>
               <span className="badge">{competition.id}</span>
             </div>
+            {competition.description ? (
+              <p className="mt-1 text-sm text-foreground-secondary line-clamp-2">{competition.description}</p>
+            ) : null}
             <p className="muted mt-2">
               {competition.format} | {competition.genre} | ${competition.feeUsd} | {new Date(competition.deadline).toLocaleDateString()}
             </p>
             <div className="inline-form mt-3">
-              <button type="button" className="btn btn-secondary" onClick={() => void submitUpdate(competition.id)} disabled={loading}>
-                Re-save metadata
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => startEdit(competition)}
+                disabled={loading || editingId === competition.id}
+              >
+                {editingId === competition.id ? "Editing..." : "Edit"}
               </button>
             </div>
           </article>

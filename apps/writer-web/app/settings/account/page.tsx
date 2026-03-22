@@ -93,10 +93,10 @@ export default function AccountSettingsPage() {
         <div className="stack">
           <h2 className="text-lg font-semibold text-foreground">Account Information</h2>
           <p className="text-foreground-secondary text-sm">
-            Email: <strong>{session.user.email}</strong>
+            Email: <strong>{user?.email}</strong>
           </p>
           <p className="text-foreground-secondary text-sm">
-            Display name: <strong>{session.user.displayName}</strong>
+            Display name: <strong>{user?.displayName}</strong>
           </p>
         </div>
 

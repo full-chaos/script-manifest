@@ -8,7 +8,6 @@ import { SkeletonCard } from "../../../components/skeleton";
 import { EmptyState } from "../../../components/emptyState";
 import { EmptyIllustration } from "../../../components/illustrations";
 import { useToast } from "../../../components/toast";
-import { getAuthHeaders } from "../../../lib/authSession";
 import { Modal } from "../../../components/modal";
 
 type AdminUserDetail = {

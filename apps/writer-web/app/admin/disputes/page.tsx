@@ -6,7 +6,6 @@ import { EmptyState } from "../../components/emptyState";
 import { EmptyIllustration } from "../../components/illustrations";
 import { SkeletonCard } from "../../components/skeleton";
 import { useToast } from "../../components/toast";
-import { getAuthHeaders } from "../../lib/authSession";
 import { Modal } from "../../components/modal";
 
 export default function AdminDisputesPage() {

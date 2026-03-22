@@ -4,7 +4,6 @@ import type { ScriptViewResponse } from "@script-manifest/contracts";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { getAuthHeaders } from "../../../lib/authSession";
 
 type ViewState = {
   loading: boolean;

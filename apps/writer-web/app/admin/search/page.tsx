@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useToast } from "../../components/toast";
-import { getAuthHeaders } from "../../lib/authSession";
 import { SkeletonCard } from "../../components/skeleton";
 
 type IndexStatus = {

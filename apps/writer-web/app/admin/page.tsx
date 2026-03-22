@@ -6,7 +6,6 @@ import type { Route } from "next";
 import { Users, Shield, Trophy } from "lucide-react";
 import { SkeletonCard } from "../components/skeleton";
 import { useToast } from "../components/toast";
-import { getAuthHeaders } from "../lib/authSession";
 
 type PlatformMetrics = {
   totalUsers: number;

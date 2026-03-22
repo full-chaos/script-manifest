@@ -2,7 +2,6 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import type { Competition } from "@script-manifest/contracts";
-import { getAuthHeaders } from "../../lib/authSession";
 
 type CompetitionDraft = {
   id: string;

@@ -178,7 +178,38 @@ test("startConsumer logs and skips invalid JSON messages", async () => {
 
   assert.equal(repo.pushedEvents.length, 0);
   assert.equal(errors.length, 1);
-  assert.equal(errors[0]?.message, "failed to process notification event from kafka");
+  assert.equal(errors[0]?.message, "malformed notification event, skipping");
+});
+
+test("startConsumer propagates pushEvent errors for KafkaJS retry", async () => {
+  const repo = new MemoryNotificationRepository();
+  // Override pushEvent to simulate a transient DB failure
+  repo.pushEvent = async () => { throw new Error("ECONNREFUSED"); };
+
+  const { logger } = createLogger();
+  const kafkaMock = setupKafkaMock();
+
+  await startConsumer(repo, logger);
+  const eachMessage = kafkaMock.getEachMessage();
+  assert.ok(eachMessage, "expected eachMessage handler to be registered");
+
+  const event = {
+    eventId: "evt_fail",
+    eventType: "script_downloaded",
+    occurredAt: "2026-02-06T10:00:00Z",
+    targetUserId: "writer_01",
+    resourceType: "script",
+    resourceId: "script_01",
+    payload: { source: "kafka" },
+  };
+
+  // The error should propagate (not be swallowed) so KafkaJS retries
+  await assert.rejects(
+    () => eachMessage({
+      message: { value: Buffer.from(JSON.stringify(event)), offset: "5" },
+    }),
+    { message: "ECONNREFUSED" }
+  );
 });
 
 test("startConsumer degrades gracefully when Kafka is set but unreachable", async () => {

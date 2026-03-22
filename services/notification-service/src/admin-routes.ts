@@ -10,11 +10,30 @@ import { randomUUID } from "node:crypto";
 import type { NotificationAdminRepository } from "./admin-repository.js";
 import type { NotificationRepository } from "./repository.js";
 
-function estimateRecipientCount(audience: string): number {
-  if (audience === "all") return 100; // placeholder estimate
-  if (audience.startsWith("role:")) return 10; // placeholder
-  if (audience.startsWith("user:")) return 1;
-  return 0;
+async function fanOutEvents(
+  adminRepo: NotificationAdminRepository,
+  eventRepo: NotificationRepository,
+  audience: string,
+  broadcastId: string,
+  adminId: string,
+  subject: string,
+  body: string
+): Promise<number> {
+  const userIds = await adminRepo.getUserIdsByAudience(audience);
+  const now = new Date().toISOString();
+  for (const targetUserId of userIds) {
+    await eventRepo.pushEvent({
+      eventId: randomUUID(),
+      eventType: "partner_entrant_message_sent",
+      occurredAt: now,
+      actorUserId: adminId,
+      targetUserId,
+      resourceType: "system",
+      resourceId: broadcastId,
+      payload: { subject, body },
+    });
+  }
+  return userIds.length;
 }
 
 export function registerNotificationAdminRoutes(server: FastifyInstance, adminRepo: NotificationAdminRepository, eventRepo?: NotificationRepository): void {
@@ -54,22 +73,14 @@ export function registerNotificationAdminRoutes(server: FastifyInstance, adminRe
 
     const broadcast = await adminRepo.createBroadcast({ ...parsed.data, sentBy: adminId });
 
-    const recipientCount = estimateRecipientCount(parsed.data.audience);
-    await adminRepo.updateBroadcastStatus(broadcast.id, "sent", recipientCount);
-
-    if (eventRepo && parsed.data.audience.startsWith("user:")) {
-      const targetUserId = parsed.data.audience.slice("user:".length);
-      await eventRepo.pushEvent({
-        eventId: randomUUID(),
-        eventType: "partner_entrant_message_sent",
-        occurredAt: new Date().toISOString(),
-        actorUserId: adminId,
-        targetUserId,
-        resourceType: "system",
-        resourceId: broadcast.id,
-        payload: { subject: parsed.data.subject, body: parsed.data.body },
-      });
+    let recipientCount = 0;
+    if (eventRepo) {
+      recipientCount = await fanOutEvents(
+        adminRepo, eventRepo, parsed.data.audience,
+        broadcast.id, adminId, parsed.data.subject, parsed.data.body
+      );
     }
+    await adminRepo.updateBroadcastStatus(broadcast.id, "sent", recipientCount);
 
     return reply.status(201).send({
       broadcast: {
@@ -92,34 +103,29 @@ export function registerNotificationAdminRoutes(server: FastifyInstance, adminRe
       return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
     }
 
+    const audience = `user:${parsed.data.userId}`;
     const broadcast = await adminRepo.createBroadcast({
       subject: parsed.data.subject,
       body: parsed.data.body,
-      audience: `user:${parsed.data.userId}`,
+      audience,
       sentBy: adminId
     });
 
-    await adminRepo.updateBroadcastStatus(broadcast.id, "sent", 1);
-
+    let recipientCount = 0;
     if (eventRepo) {
-      await eventRepo.pushEvent({
-        eventId: randomUUID(),
-        eventType: "partner_entrant_message_sent",
-        occurredAt: new Date().toISOString(),
-        actorUserId: adminId,
-        targetUserId: parsed.data.userId,
-        resourceType: "system",
-        resourceId: broadcast.id,
-        payload: { subject: parsed.data.subject, body: parsed.data.body },
-      });
+      recipientCount = await fanOutEvents(
+        adminRepo, eventRepo, audience,
+        broadcast.id, adminId, parsed.data.subject, parsed.data.body
+      );
     }
+    await adminRepo.updateBroadcastStatus(broadcast.id, "sent", recipientCount);
 
     return reply.status(201).send({
       broadcast: {
         ...broadcast,
         status: "sent" as const,
-        audience: `user:${parsed.data.userId}`,
-        recipientCount: 1,
+        audience,
+        recipientCount,
         sentAt: new Date().toISOString()
       }
     });

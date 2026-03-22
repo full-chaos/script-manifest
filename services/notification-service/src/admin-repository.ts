@@ -20,6 +20,7 @@ export interface NotificationAdminRepository {
   createBroadcast(input: SendBroadcastRequest & { sentBy: string }): Promise<NotificationBroadcast>;
   listBroadcasts(params: { status?: BroadcastStatus; page: number; limit: number }): Promise<{ broadcasts: NotificationBroadcast[]; total: number }>;
   updateBroadcastStatus(id: string, status: BroadcastStatus, recipientCount?: number): Promise<boolean>;
+  getUserIdsByAudience(audience: string): Promise<string[]>;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────
@@ -33,6 +34,22 @@ function toISOString(val: unknown): string {
 export class MemoryNotificationAdminRepository implements NotificationAdminRepository {
   private templates: NotificationTemplate[] = [];
   private broadcasts: NotificationBroadcast[] = [];
+  private users: Array<{ id: string; role: string }> = [];
+
+  constructor(users?: Array<{ id: string; role: string }>) {
+    if (users) this.users = users;
+  }
+
+  async getUserIdsByAudience(audience: string): Promise<string[]> {
+    if (audience.startsWith("user:")) {
+      return [audience.slice("user:".length)];
+    }
+    if (audience.startsWith("role:")) {
+      const role = audience.slice("role:".length);
+      return this.users.filter((u) => u.role === role).map((u) => u.id);
+    }
+    return this.users.map((u) => u.id);
+  }
 
   async init(): Promise<void> {
     return Promise.resolve();
@@ -174,6 +191,23 @@ function mapBroadcast(row: BroadcastRow): NotificationBroadcast {
 export class PgNotificationAdminRepository implements NotificationAdminRepository {
   async init(): Promise<void> {
     // Tables are managed by migration 015
+  }
+
+  async getUserIdsByAudience(audience: string): Promise<string[]> {
+    if (audience.startsWith("user:")) {
+      return [audience.slice("user:".length)];
+    }
+    if (audience.startsWith("role:")) {
+      const role = audience.slice("role:".length);
+      const result = await getPool().query<{ id: string }>(
+        `SELECT id FROM app_users WHERE role = $1`,
+        [role]
+      );
+      return result.rows.map((r) => r.id);
+    }
+    // "all" — return every user
+    const result = await getPool().query<{ id: string }>(`SELECT id FROM app_users`);
+    return result.rows.map((r) => r.id);
   }
 
   async createTemplate(input: CreateNotificationTemplateRequest & { createdBy: string }): Promise<NotificationTemplate> {

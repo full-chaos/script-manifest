@@ -113,6 +113,7 @@ COPY --from=builder /app/scripts/manage-admin.cjs ./scripts/manage-admin.cjs
 
 ARG SERVICE_NAME
 ENV SERVICE_NAME=${SERVICE_NAME}
+ENV OTEL_SERVICE_NAME=${SERVICE_NAME}
 ENV NODE_ENV=production
 
 USER node

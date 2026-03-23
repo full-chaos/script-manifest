@@ -186,7 +186,15 @@ jobs:
         run: pnpm exec playwright install --with-deps chromium
 
       - name: Run Playwright E2E suite
-        run: pnpm run test:e2e
+        run: pnpm run test:e2e:update
+
+      - name: Upload updated snapshots
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
+        with:
+          name: playwright-snapshots
+          path: tests/e2e/**/*-snapshots/*.png
+          if-no-files-found: warn
 
       - name: Upload Playwright report
         if: always()

@@ -23,8 +23,8 @@ export const metadata: Metadata = {
   description: "A writer-first platform for profiles, scripts, competitions, and submissions.",
   manifest: "/manifest.webmanifest",
   icons: {
-    icon: [{ url: "/pwa/writer-hub-192.svg", type: "image/svg+xml" }],
-    apple: [{ url: "/pwa/writer-hub-192.svg", type: "image/svg+xml" }]
+    icon: [{ url: "/favicon.ico", type: "image/x-icon" }],
+    apple: [{ url: "/favicon.ico", type: "image/x-icon" }]
   }
 };
 

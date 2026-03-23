@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import type { Route } from "next";
 import { usePathname } from "next/navigation";
 import { useMemo, useState } from "react";
@@ -58,12 +59,16 @@ export function SiteHeader() {
   return (
     <header className="panel sticky top-3 z-40">
       <div className="flex items-center justify-between gap-4">
-        <div className="space-y-0.5">
-          <Link href="/" className="font-display text-3xl font-semibold text-foreground no-underline">
-            Script Manifest
-          </Link>
-          <p className="text-xs font-medium uppercase tracking-[0.16em] text-foreground-secondary">Writer Hub</p>
-        </div>
+        <Link href="/" className="flex items-center gap-2 no-underline">
+          <Image
+            src="/script-manifest.png"
+            alt="Script Manifest"
+            width={40}
+            height={40}
+            priority
+          />
+          <span className="text-xs font-medium uppercase tracking-[0.16em] text-foreground-secondary">Writer Hub</span>
+        </Link>
 
         <div className="flex items-center gap-2 lg:hidden">
           <ThemeToggle />

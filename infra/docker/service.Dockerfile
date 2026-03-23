@@ -119,4 +119,5 @@ USER node
 
 ARG SERVICE_PORT=4000
 EXPOSE ${SERVICE_PORT}
-CMD ["sh", "-c", "node --import @script-manifest/service-utils/instrument services/${SERVICE_NAME}/dist/index.js"]
+WORKDIR /app/services/${SERVICE_NAME}
+CMD ["node", "--import", "@script-manifest/service-utils/instrument", "dist/index.js"]

@@ -47,6 +47,17 @@ vi.mock("next/link", () => ({
   }) => React.createElement("a", { href, ...props }, children)
 }));
 
+vi.mock("next/image", () => ({
+  default: ({
+    src,
+    alt,
+    ...props
+  }: {
+    src: string;
+    alt: string;
+  }) => React.createElement("img", { src, alt, ...props })
+}));
+
 const mockUseAuth = vi.fn<() => { user: null | Record<string, unknown>; loading: boolean }>(
   () => ({ user: null, loading: false }),
 );

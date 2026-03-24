@@ -91,8 +91,12 @@ wait_for_service_health() {
         return 0
       fi
       if [[ "$status" == "exited" || "$status" == "dead" || "$status" == "unhealthy" ]]; then
-        echo "Service '$service' is in unexpected state '$status'."
-        run_compose logs --tail=50 "$service" || true
+        echo "::group::Service '$service' is in unexpected state '$status' — full logs"
+        run_compose logs "$service" || true
+        echo "::endgroup::"
+        echo "::group::Docker health check log for '$service'"
+        docker inspect --format='{{range .State.Health.Log}}EXIT={{.ExitCode}} OUT={{.Output}}---{{end}}' "$container_id" 2>/dev/null || true
+        echo "::endgroup::"
         return 1
       fi
     fi

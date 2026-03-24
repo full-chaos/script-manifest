@@ -6,8 +6,11 @@ import { closePool } from "@script-manifest/db";
 import {
   CompetitionFiltersSchema,
   CompetitionUpsertRequestSchema,
+  CompetitionVisibilityUpdateSchema,
+  CompetitionAccessTypeUpdateSchema,
   NotificationEventEnvelopeSchema,
-  type Competition
+  type Competition,
+  type CompetitionUpsertRequest
 } from "@script-manifest/contracts";
 import { z } from "zod";
 import type { CompetitionDirectoryRepository } from "./repository.js";
@@ -164,6 +167,82 @@ export function buildServer(options: CompetitionDirectoryOptions = {}): FastifyI
     return upsertCompetition(parsedBody.data, repository, requestFn, searchIndexerBase, server, reply);
   });
 
+  server.post<{ Params: { competitionId: string } }>("/internal/admin/competitions/:competitionId/cancel", async (req, reply) => {
+    const adminUserId = readHeader(req, "x-admin-user-id");
+    if (!adminUserId || !adminAllowlist.has(adminUserId)) {
+      return reply.status(403).send({ error: "forbidden" });
+    }
+
+    const { competitionId } = req.params;
+    const competition = await repository.cancelCompetition(competitionId);
+    if (!competition) {
+      return reply.status(404).send({ error: "not_found_or_already_cancelled" });
+    }
+
+    const deindex = await removeCompetitionFromIndexer(requestFn, searchIndexerBase, competitionId);
+    if (!deindex.ok) {
+      server.log.warn({ competitionId }, "competition cancelled but de-indexing failed");
+    }
+
+    return reply.send({ competition, cancelled: true, deindexed: deindex.ok });
+  });
+
+  server.patch<{ Params: { competitionId: string } }>("/internal/admin/competitions/:competitionId/visibility", async (req, reply) => {
+    const adminUserId = readHeader(req, "x-admin-user-id");
+    if (!adminUserId || !adminAllowlist.has(adminUserId)) {
+      return reply.status(403).send({ error: "forbidden" });
+    }
+
+    const { competitionId } = req.params;
+    const parsed = CompetitionVisibilityUpdateSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
+    }
+
+    const competition = await repository.updateVisibility(competitionId, parsed.data.visibility);
+    if (!competition) {
+      return reply.status(404).send({ error: "not_found" });
+    }
+
+    if (parsed.data.visibility === "unlisted") {
+      const deindex = await removeCompetitionFromIndexer(requestFn, searchIndexerBase, competitionId);
+      if (!deindex.ok) {
+        server.log.warn({ competitionId }, "competition hidden but de-indexing failed");
+      }
+      return reply.send({ competition, deindexed: deindex.ok });
+    }
+
+    const indexing = await pushCompetitionToIndexer(requestFn, searchIndexerBase, competition);
+    if (!indexing.ok) {
+      server.log.warn({ competitionId }, "competition unhidden but re-indexing failed");
+    }
+    return reply.send({ competition, indexed: indexing.ok });
+  });
+
+  server.patch<{ Params: { competitionId: string } }>("/internal/admin/competitions/:competitionId/access-type", async (req, reply) => {
+    const adminUserId = readHeader(req, "x-admin-user-id");
+    if (!adminUserId || !adminAllowlist.has(adminUserId)) {
+      return reply.status(403).send({ error: "forbidden" });
+    }
+
+    const { competitionId } = req.params;
+    const parsed = CompetitionAccessTypeUpdateSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
+    }
+
+    const competition = await repository.updateAccessType(competitionId, parsed.data.accessType);
+    if (!competition) {
+      return reply.status(404).send({ error: "not_found" });
+    }
+
+    const indexing = await pushCompetitionToIndexer(requestFn, searchIndexerBase, competition);
+    if (!indexing.ok) {
+      server.log.warn({ competitionId }, "access type updated but re-indexing failed");
+    }
+    return reply.send({ competition, indexed: indexing.ok });
+  });
+
   server.post("/internal/competitions/reindex", async (_req, reply) => {
     const allCompetitions = await repository.getAllCompetitions();
 
@@ -278,6 +357,23 @@ async function pushCompetitionToIndexer(
   }
 }
 
+async function removeCompetitionFromIndexer(
+  requestFn: RequestFn,
+  searchIndexerBase: string,
+  competitionId: string
+): Promise<{ ok: boolean; body?: unknown }> {
+  try {
+    const upstream = await requestFn(
+      `${searchIndexerBase}/internal/index/competition/${encodeURIComponent(competitionId)}`,
+      { method: "DELETE" }
+    );
+    const body = await readBody(upstream);
+    return { ok: upstream.statusCode >= 200 && upstream.statusCode < 300 || upstream.statusCode === 404, body };
+  } catch {
+    return { ok: false };
+  }
+}
+
 async function readBody(upstream: Awaited<ReturnType<typeof request>>): Promise<unknown> {
   const raw = await upstream.body.text();
   if (!raw) {
@@ -292,22 +388,31 @@ async function readBody(upstream: Awaited<ReturnType<typeof request>>): Promise<
 }
 
 async function upsertCompetition(
-  competition: Competition,
+  input: CompetitionUpsertRequest,
   repository: CompetitionDirectoryRepository,
   requestFn: RequestFn,
   searchIndexerBase: string,
   server: FastifyInstance,
   reply: FastifyReply
 ) {
+  const competition: Competition = {
+    ...input,
+    status: "active",
+    visibility: "listed",
+    accessType: "open"
+  };
   const { existed } = await repository.upsertCompetition(competition);
 
-  const indexing = await pushCompetitionToIndexer(requestFn, searchIndexerBase, competition);
+  const current = existed ? await repository.getCompetition(input.id) : competition;
+  const toIndex = current ?? competition;
+
+  const indexing = await pushCompetitionToIndexer(requestFn, searchIndexerBase, toIndex);
   if (!indexing.ok) {
-    server.log.warn({ competitionId: competition.id }, "competition saved but indexing failed");
+    server.log.warn({ competitionId: input.id }, "competition saved but indexing failed");
   }
 
   return reply.status(existed ? 200 : 201).send({
-    competition,
+    competition: toIndex,
     upserted: true,
     created: !existed,
     indexed: indexing.ok

@@ -1,5 +1,9 @@
 import type { FastifyInstance } from "fastify";
-import { CompetitionUpsertRequestSchema } from "@script-manifest/contracts";
+import {
+  CompetitionUpsertRequestSchema,
+  CompetitionVisibilityUpdateSchema,
+  CompetitionAccessTypeUpdateSchema
+} from "@script-manifest/contracts";
 import {
   type GatewayContext,
   buildQuerySuffix,
@@ -78,6 +82,79 @@ export function registerCompetitionRoutes(server: FastifyInstance, ctx: GatewayC
       `${ctx.competitionDirectoryBase}/internal/admin/competitions/${encodeURIComponent(competitionId)}`,
       {
         method: "PUT",
+        headers: {
+          "content-type": "application/json",
+          "x-admin-user-id": adminUserId
+        },
+        body: JSON.stringify(parsed.data)
+      }
+    );
+  });
+
+  server.post<{ Params: { competitionId: string } }>("/api/v1/admin/competitions/:competitionId/cancel", async (req, reply) => {
+    const { competitionId } = req.params;
+    const adminUserId = await resolveAdminByRole(ctx.requestFn, ctx.identityServiceBase, req.headers, req.log);
+    if (!adminUserId) {
+      return reply.status(403).send({ error: "forbidden" });
+    }
+
+    return proxyJsonRequest(
+      reply,
+      ctx.requestFn,
+      `${ctx.competitionDirectoryBase}/internal/admin/competitions/${encodeURIComponent(competitionId)}/cancel`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-admin-user-id": adminUserId
+        }
+      }
+    );
+  });
+
+  server.patch<{ Params: { competitionId: string } }>("/api/v1/admin/competitions/:competitionId/visibility", async (req, reply) => {
+    const { competitionId } = req.params;
+    const adminUserId = await resolveAdminByRole(ctx.requestFn, ctx.identityServiceBase, req.headers, req.log);
+    if (!adminUserId) {
+      return reply.status(403).send({ error: "forbidden" });
+    }
+    const parsed = CompetitionVisibilityUpdateSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
+    }
+
+    return proxyJsonRequest(
+      reply,
+      ctx.requestFn,
+      `${ctx.competitionDirectoryBase}/internal/admin/competitions/${encodeURIComponent(competitionId)}/visibility`,
+      {
+        method: "PATCH",
+        headers: {
+          "content-type": "application/json",
+          "x-admin-user-id": adminUserId
+        },
+        body: JSON.stringify(parsed.data)
+      }
+    );
+  });
+
+  server.patch<{ Params: { competitionId: string } }>("/api/v1/admin/competitions/:competitionId/access-type", async (req, reply) => {
+    const { competitionId } = req.params;
+    const adminUserId = await resolveAdminByRole(ctx.requestFn, ctx.identityServiceBase, req.headers, req.log);
+    if (!adminUserId) {
+      return reply.status(403).send({ error: "forbidden" });
+    }
+    const parsed = CompetitionAccessTypeUpdateSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
+    }
+
+    return proxyJsonRequest(
+      reply,
+      ctx.requestFn,
+      `${ctx.competitionDirectoryBase}/internal/admin/competitions/${encodeURIComponent(competitionId)}/access-type`,
+      {
+        method: "PATCH",
         headers: {
           "content-type": "application/json",
           "x-admin-user-id": adminUserId

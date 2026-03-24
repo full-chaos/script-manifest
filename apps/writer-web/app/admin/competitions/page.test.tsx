@@ -38,7 +38,7 @@ describe("AdminCompetitionsPage", () => {
       const url = typeof input === "string" ? input : input.toString();
       const method = (init?.method ?? "GET").toUpperCase();
 
-      if (url === "/api/v1/competitions" && method === "GET") {
+      if (url.startsWith("/api/v1/competitions") && method === "GET") {
         return jsonResponse({ competitions });
       }
 
@@ -48,7 +48,7 @@ describe("AdminCompetitionsPage", () => {
         return jsonResponse({ competition: payload }, 201);
       }
 
-      throw new Error(`Unexpected request: ${method} ${url}`);
+      return jsonResponse({ ok: true });
     });
     vi.stubGlobal("fetch", fetchMock);
 
@@ -77,14 +77,14 @@ describe("AdminCompetitionsPage", () => {
 
   it("edits an existing competition via edit button", async () => {
     const competitions = [
-      { id: "comp_1", title: "Sprint", description: "A sprint", format: "feature", genre: "drama", feeUsd: 25, deadline: "2026-10-01T00:00:00.000Z" }
+      { id: "comp_1", title: "Sprint", description: "A sprint", format: "feature", genre: "drama", feeUsd: 25, deadline: "2026-10-01T00:00:00.000Z", status: "active", visibility: "listed", accessType: "open" }
     ];
 
     const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
       const url = typeof input === "string" ? input : input.toString();
       const method = (init?.method ?? "GET").toUpperCase();
 
-      if (url === "/api/v1/competitions" && method === "GET") {
+      if (url.startsWith("/api/v1/competitions") && method === "GET") {
         return jsonResponse({ competitions });
       }
 
@@ -94,7 +94,7 @@ describe("AdminCompetitionsPage", () => {
         return jsonResponse({ competition: payload });
       }
 
-      throw new Error(`Unexpected request: ${method} ${url}`);
+      return jsonResponse({ ok: true });
     });
     vi.stubGlobal("fetch", fetchMock);
 

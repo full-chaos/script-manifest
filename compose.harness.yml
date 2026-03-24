@@ -1,15 +1,18 @@
 #
-# Harness-only host bindings.
-# Keep the main dev compose aligned with Traefik/public-vs-internal routing,
-# and let the integration harness opt back into loopback ports for tests.
+# Harness-only overrides for CI integration tests.
 #
-# The harness does NOT start signoz-collection-agent, so we blank out
-# OTEL_EXPORTER_OTLP_ENDPOINT to prevent OTel auto-instrumentation from
-# patching core modules and retrying against a dead endpoint — which adds
-# latency to every DB/HTTP call and causes health-check timeouts in CI.
+# 1. Bind loopback ports so the test runner can reach services.
+# 2. Blank OTEL to prevent retry-latency against a missing collector.
+# 3. Disable Docker health checks on Node services — the harness script
+#    does its own wait_for_service_health loop with proper log dumps.
+#    Docker health checks cause cascading "dependency failed to start"
+#    errors when any single service is slow to boot on ARM CI runners.
 #
 x-no-telemetry: &no-telemetry
   OTEL_EXPORTER_OTLP_ENDPOINT: ""
+
+x-no-healthcheck: &no-healthcheck
+  test: ["NONE"]
 
 services:
   postgres:
@@ -30,35 +33,64 @@ services:
       - "127.0.0.1:${MINIO_PORT:-9900}:9000"
       - "127.0.0.1:${MINIO_CONSOLE_PORT:-9901}:9001"
 
+  notification-service:
+    ports:
+      - "127.0.0.1:4010:4010"
+    environment:
+      <<: *no-telemetry
+    healthcheck:
+      <<: *no-healthcheck
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redpanda:
+        condition: service_started
+
   profile-project-service:
     ports:
       - "127.0.0.1:4001:4001"
     environment:
       <<: *no-telemetry
+    healthcheck:
+      <<: *no-healthcheck
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   identity-service:
     ports:
       - "127.0.0.1:4005:4005"
     environment:
       <<: *no-telemetry
-
-  notification-service:
-    ports:
-      - "127.0.0.1:4010:4010"
-    environment:
-      <<: *no-telemetry
+    healthcheck:
+      <<: *no-healthcheck
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
   search-indexer-service:
     ports:
       - "127.0.0.1:4003:4003"
     environment:
       <<: *no-telemetry
+    healthcheck:
+      <<: *no-healthcheck
+    depends_on:
+      opensearch:
+        condition: service_healthy
 
   competition-directory-service:
     ports:
       - "127.0.0.1:4002:4002"
     environment:
       <<: *no-telemetry
+    healthcheck:
+      <<: *no-healthcheck
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   script-storage-service:
     ports:
@@ -67,79 +99,98 @@ services:
       <<: *no-telemetry
       STORAGE_UPLOAD_BASE_URL: "http://localhost:${MINIO_PORT:-9900}"
       STORAGE_PUBLIC_BASE_URL: "http://localhost:${MINIO_PORT:-9900}"
+    healthcheck:
+      <<: *no-healthcheck
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
 
   submission-tracking-service:
     ports:
       - "127.0.0.1:4004:4004"
     environment:
       <<: *no-telemetry
+    healthcheck:
+      <<: *no-healthcheck
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   feedback-exchange-service:
     ports:
       - "127.0.0.1:4006:4006"
     environment:
       <<: *no-telemetry
-      LOG_LEVEL: "debug"
+    healthcheck:
+      <<: *no-healthcheck
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   ranking-service:
     ports:
       - "127.0.0.1:4007:4007"
     environment:
       <<: *no-telemetry
+    healthcheck:
+      <<: *no-healthcheck
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   coverage-marketplace-service:
     ports:
       - "127.0.0.1:4008:4008"
     environment:
       <<: *no-telemetry
+    healthcheck:
+      <<: *no-healthcheck
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   industry-portal-service:
     ports:
       - "127.0.0.1:4009:4009"
     environment:
       <<: *no-telemetry
+    healthcheck:
+      <<: *no-healthcheck
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   programs-service:
     ports:
       - "127.0.0.1:4012:4012"
     environment:
       <<: *no-telemetry
+    healthcheck:
+      <<: *no-healthcheck
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   partner-dashboard-service:
     ports:
       - "127.0.0.1:4013:4013"
     environment:
       <<: *no-telemetry
+    healthcheck:
+      <<: *no-healthcheck
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   api-gateway:
     ports:
       - "127.0.0.1:4000:4000"
     environment:
       <<: *no-telemetry
+    healthcheck:
+      <<: *no-healthcheck
     depends_on:
       traefik:
-        condition: service_healthy
-      identity-service:
-        condition: service_started
-      profile-project-service:
-        condition: service_started
-      competition-directory-service:
-        condition: service_started
-      submission-tracking-service:
-        condition: service_started
-      feedback-exchange-service:
-        condition: service_started
-      ranking-service:
-        condition: service_started
-      coverage-marketplace-service:
-        condition: service_started
-      industry-portal-service:
-        condition: service_started
-      programs-service:
-        condition: service_started
-      partner-dashboard-service:
-        condition: service_started
-      notification-service:
-        condition: service_started
-      search-indexer-service:
         condition: service_started

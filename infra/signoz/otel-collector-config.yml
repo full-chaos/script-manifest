@@ -34,13 +34,6 @@ receivers:
                 - programs-service:4012
                 - partner-dashboard-service:4013
 
-  filelog:
-    include:
-      - /workspace/.logs/*.log
-    include_file_name: true
-    include_file_path: true
-    start_at: end
-
 processors:
   memory_limiter:
     check_interval: 1s
@@ -66,6 +59,6 @@ service:
       processors: [memory_limiter, batch]
       exporters: [otlphttp]
     logs:
-      receivers: [otlp, filelog]
+      receivers: [otlp]
       processors: [memory_limiter, batch]
       exporters: [otlphttp]

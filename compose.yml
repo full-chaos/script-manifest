@@ -287,7 +287,7 @@ services:
       NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
       KAFKA_BROKERS: "redpanda:9092"
     command: >
-      /workspace/scripts/run-with-log.sh profile-project-service sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/profile-project-service dev"
+      sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/profile-project-service dev"
     networks:
       - internal
     depends_on:
@@ -325,7 +325,7 @@ services:
       FRONTEND_URL: "http://writer.localhost:9100"
       SERVICE_TOKEN_SECRET: "local-dev-token-secret"
     command: >
-      /workspace/scripts/run-with-log.sh identity-service sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/identity-service dev"
+      sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/identity-service dev"
     networks:
       - internal
     depends_on:
@@ -356,7 +356,7 @@ services:
       KAFKA_BROKERS: "redpanda:9092"
       SERVICE_TOKEN_SECRET: "local-dev-token-secret"
     command: >
-      /workspace/scripts/run-with-log.sh notification-service sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/notification-service dev"
+      sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/notification-service dev"
     depends_on:
       postgres:
         condition: service_healthy
@@ -386,7 +386,7 @@ services:
       OPENSEARCH_URL: "http://opensearch:9200"
       OPENSEARCH_INDEX: "competitions_v1"
     command: >
-      /workspace/scripts/run-with-log.sh search-indexer-service sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/search-indexer-service dev"
+      sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/search-indexer-service dev"
     depends_on:
       opensearch:
         condition: service_healthy
@@ -417,7 +417,7 @@ services:
       COMPETITION_ADMIN_ALLOWLIST: "admin_01,user_admin_01"
       KAFKA_BROKERS: "redpanda:9092"
     command: >
-      /workspace/scripts/run-with-log.sh competition-directory-service sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/competition-directory-service dev"
+      sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/competition-directory-service dev"
     depends_on:
       postgres:
         condition: service_healthy
@@ -458,7 +458,7 @@ services:
       STORAGE_S3_SECRET_KEY: "manifest123"
       STORAGE_S3_FORCE_PATH_STYLE: "true"
     command: >
-      /workspace/scripts/run-with-log.sh script-storage-service sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/script-storage-service dev"
+      sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/script-storage-service dev"
     depends_on:
       postgres:
         condition: service_healthy
@@ -487,7 +487,7 @@ services:
       PORT: "4004"
       DATABASE_URL: "postgresql://manifest:manifest@postgres:5432/manifest"
     command: >
-      /workspace/scripts/run-with-log.sh submission-tracking-service sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/submission-tracking-service dev"
+      sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/submission-tracking-service dev"
     depends_on:
       postgres:
         condition: service_healthy
@@ -516,7 +516,7 @@ services:
       NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
       KAFKA_BROKERS: "redpanda:9092"
     command: >
-      /workspace/scripts/run-with-log.sh feedback-exchange-service sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/feedback-exchange-service dev"
+      sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/feedback-exchange-service dev"
     depends_on:
       postgres:
         condition: service_healthy
@@ -550,7 +550,7 @@ services:
       PROFILE_SERVICE_URL: "http://profile-project-service:4001"
       KAFKA_BROKERS: "redpanda:9092"
     command: >
-      /workspace/scripts/run-with-log.sh ranking-service sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/ranking-service dev"
+      sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/ranking-service dev"
     depends_on:
       postgres:
         condition: service_healthy
@@ -594,7 +594,7 @@ services:
       STORAGE_BUCKET: "coverage-reports"
       KAFKA_BROKERS: "redpanda:9092"
     command: >
-      /workspace/scripts/run-with-log.sh coverage-marketplace-service sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/coverage-marketplace-service dev"
+      sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/coverage-marketplace-service dev"
     depends_on:
       postgres:
         condition: service_healthy
@@ -628,7 +628,7 @@ services:
       NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
       KAFKA_BROKERS: "redpanda:9092"
     command: >
-      /workspace/scripts/run-with-log.sh industry-portal-service sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/industry-portal-service dev"
+      sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/industry-portal-service dev"
     depends_on:
       postgres:
         condition: service_healthy
@@ -661,7 +661,7 @@ services:
       NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
       KAFKA_BROKERS: "redpanda:9092"
     command: >
-      /workspace/scripts/run-with-log.sh programs-service sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/programs-service dev"
+      sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/programs-service dev"
     depends_on:
       postgres:
         condition: service_healthy
@@ -693,7 +693,7 @@ services:
       NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
       KAFKA_BROKERS: "redpanda:9092"
     command: >
-      /workspace/scripts/run-with-log.sh partner-dashboard-service sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/partner-dashboard-service dev"
+      sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/partner-dashboard-service dev"
     depends_on:
       postgres:
         condition: service_healthy
@@ -739,7 +739,7 @@ services:
       RATE_LIMIT_MAX: "1000"
       SERVICE_TOKEN_SECRET: "local-dev-token-secret"
     command: >
-      /workspace/scripts/run-with-log.sh api-gateway sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/api-gateway dev"
+      sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/api-gateway dev"
     labels:
       traefik.enable: "true"
       traefik.http.routers.api.rule: "Host(`api.localhost`)"
@@ -798,7 +798,7 @@ services:
       SCRIPT_UPLOAD_INTERNAL_BASE_URL: "http://minio:9000"
       WRITER_DEMO_USER_ID: "writer_01"
     command: >
-      /workspace/scripts/run-with-log.sh writer-web sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/writer-web dev"
+      sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/writer-web dev"
     labels:
       traefik.enable: "true"
       traefik.http.routers.writer.rule: "Host(`localhost`)"

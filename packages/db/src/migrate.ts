@@ -96,18 +96,15 @@ export async function runMigrations(pool: Pool): Promise<void> {
       }
 
       const migrationSql = await readFile(join(migrationsDir, migrationFile), "utf8");
-      const client = await pool.connect();
 
       try {
-        await client.query("BEGIN");
-        await client.query(migrationSql);
-        await client.query("INSERT INTO schema_migrations (version) VALUES ($1)", [migrationFile]);
-        await client.query("COMMIT");
+        await lockClient.query("BEGIN");
+        await lockClient.query(migrationSql);
+        await lockClient.query("INSERT INTO schema_migrations (version) VALUES ($1)", [migrationFile]);
+        await lockClient.query("COMMIT");
       } catch (error) {
-        await client.query("ROLLBACK");
+        await lockClient.query("ROLLBACK");
         throw error;
-      } finally {
-        client.release();
       }
     }
   } finally {

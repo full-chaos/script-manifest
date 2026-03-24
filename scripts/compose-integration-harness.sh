@@ -130,16 +130,14 @@ wait_for_http() {
 }
 
 write_install_markers() {
-  # CI already ran `pnpm install --frozen-lockfile` and `pnpm build --filter='./packages/*'`
-  # on the host. Containers share the workspace volume, so node_modules is present.
-  # Write the marker files that pnpm-install-once.sh checks so containers skip
-  # the redundant (and slow) `pnpm install --force` behind a serialized flock.
   echo "Writing pnpm-install-once markers (skip redundant container install)..."
   mkdir -p "$REPO_ROOT/node_modules"
   touch "$REPO_ROOT/node_modules/.pnpm-install.complete"
   node -p '`${process.platform}-${process.arch}`' > "$REPO_ROOT/node_modules/.pnpm-install.platform"
   md5sum "$REPO_ROOT/pnpm-lock.yaml" 2>/dev/null | cut -d' ' -f1 > "$REPO_ROOT/node_modules/.pnpm-lock.hash"
-  touch "$REPO_ROOT/node_modules/.workspace-packages-built"
+  local pkg_src_hash
+  pkg_src_hash="$(find "$REPO_ROOT/packages/contracts/src" "$REPO_ROOT/packages/db/src" "$REPO_ROOT/packages/service-utils/src" -name '*.ts' -exec md5sum {} + 2>/dev/null | sort | md5sum | cut -d' ' -f1)"
+  printf "%s" "$pkg_src_hash" > "$REPO_ROOT/node_modules/.workspace-packages-built"
 }
 
 up() {

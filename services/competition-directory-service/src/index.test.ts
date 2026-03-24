@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { Competition, CompetitionFilters } from "@script-manifest/contracts";
+import type { Competition, CompetitionAccessType, CompetitionFilters, CompetitionVisibility } from "@script-manifest/contracts";
 import { buildServer } from "./index.js";
 import type { CompetitionDirectoryRepository } from "./repository.js";
 import { request } from "undici";
@@ -29,6 +29,9 @@ class MemoryCompetitionDirectoryRepository implements CompetitionDirectoryReposi
       genre: "drama",
       feeUsd: 25,
       deadline: "2026-05-01T23:59:59Z",
+      status: "active",
+      visibility: "listed",
+      accessType: "open"
     });
   }
 
@@ -82,6 +85,30 @@ class MemoryCompetitionDirectoryRepository implements CompetitionDirectoryReposi
 
   async getAllCompetitions(): Promise<Competition[]> {
     return Array.from(this.competitions.values());
+  }
+
+  async cancelCompetition(id: string): Promise<Competition | null> {
+    const comp = this.competitions.get(id);
+    if (!comp || comp.status === "cancelled") return null;
+    const updated = { ...comp, status: "cancelled" as const };
+    this.competitions.set(id, updated);
+    return updated;
+  }
+
+  async updateVisibility(id: string, visibility: CompetitionVisibility): Promise<Competition | null> {
+    const comp = this.competitions.get(id);
+    if (!comp) return null;
+    const updated = { ...comp, visibility };
+    this.competitions.set(id, updated);
+    return updated;
+  }
+
+  async updateAccessType(id: string, accessType: CompetitionAccessType): Promise<Competition | null> {
+    const comp = this.competitions.get(id);
+    if (!comp) return null;
+    const updated = { ...comp, accessType };
+    this.competitions.set(id, updated);
+    return updated;
   }
 }
 

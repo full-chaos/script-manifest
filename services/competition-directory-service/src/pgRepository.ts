@@ -1,5 +1,5 @@
 import { getPool, runMigrations } from "@script-manifest/db";
-import type { Competition, CompetitionFilters } from "@script-manifest/contracts";
+import type { Competition, CompetitionAccessType, CompetitionFilters, CompetitionVisibility } from "@script-manifest/contracts";
 import type { CompetitionDirectoryRepository } from "./repository.js";
 
 type CompetitionRow = {
@@ -10,6 +10,9 @@ type CompetitionRow = {
   genre: string;
   fee_usd: string | number;
   deadline: Date;
+  status: string;
+  visibility: string;
+  access_type: string;
   created_at: Date;
   updated_at: Date;
 };
@@ -23,6 +26,9 @@ function mapCompetition(row: CompetitionRow): Competition {
     genre: row.genre,
     feeUsd: Number(row.fee_usd),
     deadline: row.deadline.toISOString(),
+    status: row.status as Competition["status"],
+    visibility: row.visibility as Competition["visibility"],
+    accessType: row.access_type as Competition["accessType"]
   };
 }
 
@@ -87,6 +93,14 @@ export class PgCompetitionDirectoryRepository implements CompetitionDirectoryRep
     const conditions: string[] = [];
     const values: unknown[] = [];
 
+    if (!filters.includeCancelled) {
+      conditions.push(`status = 'active'`);
+    }
+
+    if (!filters.includeHidden) {
+      conditions.push(`visibility = 'listed'`);
+    }
+
     if (filters.query) {
       values.push(`%${filters.query}%`);
       conditions.push(`(title ILIKE $${values.length} OR description ILIKE $${values.length})`);
@@ -126,5 +140,38 @@ export class PgCompetitionDirectoryRepository implements CompetitionDirectoryRep
     const db = getPool();
     const result = await db.query<CompetitionRow>("SELECT * FROM competitions ORDER BY created_at");
     return result.rows.map(mapCompetition);
+  }
+
+  async cancelCompetition(id: string): Promise<Competition | null> {
+    const db = getPool();
+    const result = await db.query<CompetitionRow>(
+      `UPDATE competitions SET status = 'cancelled', updated_at = NOW()
+       WHERE id = $1 AND status = 'active'
+       RETURNING *`,
+      [id]
+    );
+    return result.rows[0] ? mapCompetition(result.rows[0]) : null;
+  }
+
+  async updateVisibility(id: string, visibility: CompetitionVisibility): Promise<Competition | null> {
+    const db = getPool();
+    const result = await db.query<CompetitionRow>(
+      `UPDATE competitions SET visibility = $2, updated_at = NOW()
+       WHERE id = $1
+       RETURNING *`,
+      [id, visibility]
+    );
+    return result.rows[0] ? mapCompetition(result.rows[0]) : null;
+  }
+
+  async updateAccessType(id: string, accessType: CompetitionAccessType): Promise<Competition | null> {
+    const db = getPool();
+    const result = await db.query<CompetitionRow>(
+      `UPDATE competitions SET access_type = $2, updated_at = NOW()
+       WHERE id = $1
+       RETURNING *`,
+      [id, accessType]
+    );
+    return result.rows[0] ? mapCompetition(result.rows[0]) : null;
   }
 }

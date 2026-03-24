@@ -42,7 +42,10 @@ test("PgCompetitionDirectoryRepository upsertCompetition returns existed when xm
     format: "feature",
     genre: "drama",
     feeUsd: 25,
-    deadline: "2026-06-01T00:00:00.000Z"
+    deadline: "2026-06-01T00:00:00.000Z",
+    status: "active",
+    visibility: "listed",
+    accessType: "open"
   });
 
   assert.deepEqual(result, { existed: true });
@@ -68,6 +71,8 @@ test("PgCompetitionDirectoryRepository listCompetitions applies all filters", as
   });
 
   assert.deepEqual(competitions, []);
+  assert.match(capturedSql, /status = 'active'/);
+  assert.match(capturedSql, /visibility = 'listed'/);
   assert.match(capturedSql, /title ILIKE \$1/);
   assert.match(capturedSql, /LOWER\(format\) = LOWER\(\$2\)/);
   assert.match(capturedSql, /LOWER\(genre\) = LOWER\(\$3\)/);

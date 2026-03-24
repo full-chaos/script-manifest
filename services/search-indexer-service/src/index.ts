@@ -233,6 +233,26 @@ export function buildServer(options: SearchIndexerOptions = {}): FastifyInstance
     }
   });
 
+  server.delete<{ Params: { competitionId: string } }>("/internal/index/competition/:competitionId", async (req, reply) => {
+    const { competitionId } = req.params;
+
+    try {
+      const upstream = await requestFn(
+        `${openSearchBase}/${encodeURIComponent(openSearchIndex)}/_doc/${encodeURIComponent(competitionId)}?refresh=true`,
+        { method: "DELETE" }
+      );
+
+      const body = await readBody(upstream);
+      if (upstream.statusCode === 404) {
+        return reply.status(404).send({ error: "not_found", competitionId });
+      }
+      return reply.status(upstream.statusCode).send(body);
+    } catch (error) {
+      server.log.error(error);
+      return reply.status(502).send({ error: "opensearch_unavailable" });
+    }
+  });
+
   return server;
 }
 
@@ -283,7 +303,10 @@ async function ensureIndex(
           format: { type: "keyword" },
           genre: { type: "keyword" },
           feeUsd: { type: "float" },
-          deadline: { type: "date" }
+          deadline: { type: "date" },
+          status: { type: "keyword" },
+          visibility: { type: "keyword" },
+          accessType: { type: "keyword" }
         }
       }
     })

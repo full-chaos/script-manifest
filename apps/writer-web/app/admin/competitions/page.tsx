@@ -51,7 +51,7 @@ export default function AdminCompetitionsPage() {
     setStatus("");
 
     try {
-      const response = await fetch("/api/v1/competitions", { cache: "no-store" });
+      const response = await fetch("/api/v1/competitions?includeHidden=true&includeCancelled=true", { cache: "no-store" });
       const body = (await response.json()) as { competitions?: Competition[]; error?: string };
       if (!response.ok) {
         setStatus(body.error ? `Error: ${body.error}` : "Unable to load competitions.");
@@ -124,6 +124,76 @@ export default function AdminCompetitionsPage() {
     }
   }
 
+  async function cancelCompetition(id: string) {
+    if (!window.confirm("Are you sure you want to cancel this competition? This action cannot be undone.")) return;
+    setLoading(true);
+    setStatus("");
+    try {
+      const response = await fetch(`/api/v1/admin/competitions/${encodeURIComponent(id)}/cancel`, {
+        method: "POST",
+      });
+      const body = await response.json();
+      if (!response.ok) {
+        setStatus(body.error ? `Error: ${body.error}` : "Cancel failed.");
+        return;
+      }
+      await loadCompetitions();
+      setStatus("Competition cancelled.");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "unknown_error");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function toggleVisibility(id: string, currentVisibility: string) {
+    setLoading(true);
+    setStatus("");
+    const newVisibility = currentVisibility === "listed" ? "unlisted" : "listed";
+    try {
+      const response = await fetch(`/api/v1/admin/competitions/${encodeURIComponent(id)}/visibility`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ visibility: newVisibility })
+      });
+      const body = await response.json();
+      if (!response.ok) {
+        setStatus(body.error ? `Error: ${body.error}` : "Visibility update failed.");
+        return;
+      }
+      await loadCompetitions();
+      setStatus(`Competition visibility set to ${newVisibility}.`);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "unknown_error");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function toggleAccessType(id: string, currentAccessType: string) {
+    setLoading(true);
+    setStatus("");
+    const newAccessType = currentAccessType === "open" ? "invite_only" : "open";
+    try {
+      const response = await fetch(`/api/v1/admin/competitions/${encodeURIComponent(id)}/access-type`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ accessType: newAccessType })
+      });
+      const body = await response.json();
+      if (!response.ok) {
+        setStatus(body.error ? `Error: ${body.error}` : "Access type update failed.");
+        return;
+      }
+      await loadCompetitions();
+      setStatus(`Competition access type set to ${newAccessType}.`);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "unknown_error");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <section className="space-y-4">
       <article className="hero-card">
@@ -186,10 +256,15 @@ export default function AdminCompetitionsPage() {
         <h2 className="section-title">Current competitions</h2>
         {rows.length === 0 ? <p className="empty-state">No competitions available.</p> : null}
         {rows.map((competition) => (
-          <article key={competition.id} className="subcard">
+          <article key={competition.id} className={`subcard ${competition.status === "cancelled" ? "opacity-50" : ""}`}>
             <div className="subcard-header">
-              <strong>{competition.title}</strong>
-              <span className="badge">{competition.id}</span>
+              <strong className={competition.status === "cancelled" ? "line-through" : ""}>{competition.title}</strong>
+              <div className="flex gap-2 items-center">
+                <span className="badge">{competition.id}</span>
+                <span className="badge">{competition.status}</span>
+                <span className="badge">{competition.visibility}</span>
+                <span className="badge">{competition.accessType}</span>
+              </div>
             </div>
             {competition.description ? (
               <p className="mt-1 text-sm text-foreground-secondary line-clamp-2">{competition.description}</p>
@@ -205,6 +280,31 @@ export default function AdminCompetitionsPage() {
                 disabled={loading || editingId === competition.id}
               >
                 {editingId === competition.id ? "Editing..." : "Edit"}
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => toggleVisibility(competition.id, competition.visibility)}
+                disabled={loading}
+              >
+                {competition.visibility === "listed" ? "Hide" : "Show"}
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => toggleAccessType(competition.id, competition.accessType)}
+                disabled={loading}
+              >
+                {competition.accessType === "open" ? "Make Invite-Only" : "Make Open"}
+              </button>
+              <button
+                type="button"
+                className="btn btn-destructive"
+                style={{ color: "#ef4444", borderColor: "#ef4444" }}
+                onClick={() => cancelCompetition(competition.id)}
+                disabled={loading || competition.status === "cancelled"}
+              >
+                Cancel
               </button>
             </div>
           </article>

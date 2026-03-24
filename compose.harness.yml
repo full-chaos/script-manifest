@@ -79,6 +79,7 @@ services:
       - "127.0.0.1:4006:4006"
     environment:
       <<: *no-telemetry
+      LOG_LEVEL: "debug"
 
   ranking-service:
     ports:
@@ -115,3 +116,30 @@ services:
       - "127.0.0.1:4000:4000"
     environment:
       <<: *no-telemetry
+    depends_on:
+      traefik:
+        condition: service_healthy
+      identity-service:
+        condition: service_started
+      profile-project-service:
+        condition: service_started
+      competition-directory-service:
+        condition: service_started
+      submission-tracking-service:
+        condition: service_started
+      feedback-exchange-service:
+        condition: service_started
+      ranking-service:
+        condition: service_started
+      coverage-marketplace-service:
+        condition: service_started
+      industry-portal-service:
+        condition: service_started
+      programs-service:
+        condition: service_started
+      partner-dashboard-service:
+        condition: service_started
+      notification-service:
+        condition: service_started
+      search-indexer-service:
+        condition: service_started

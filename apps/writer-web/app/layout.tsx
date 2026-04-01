@@ -18,13 +18,51 @@ const bodyFont = Manrope({
   weight: ["400", "500", "600", "700"]
 });
 
+const siteTitle = "Script Manifest | Writer Hub";
+const siteDescription =
+  "A writer-first platform for profiles, scripts, competitions, and submissions.";
+
 export const metadata: Metadata = {
-  title: "Script Manifest | Writer Hub",
-  description: "A writer-first platform for profiles, scripts, competitions, and submissions.",
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_SITE_URL ?? "https://scriptmanifest.com"
+  ),
+  title: {
+    default: siteTitle,
+    template: "%s | Script Manifest"
+  },
+  description: siteDescription,
   manifest: "/manifest.webmanifest",
   icons: {
     icon: [{ url: "/favicon.ico", type: "image/x-icon" }],
     apple: [{ url: "/favicon.ico", type: "image/x-icon" }]
+  },
+  openGraph: {
+    type: "website",
+    siteName: "Script Manifest",
+    title: siteTitle,
+    description: siteDescription,
+    locale: "en_US",
+    images: [
+      {
+        url: "/script-manifest.png",
+        width: 1140,
+        height: 911,
+        alt: "Script Manifest logo"
+      }
+    ]
+  },
+  twitter: {
+    card: "summary",
+    title: siteTitle,
+    description: siteDescription,
+    images: ["/script-manifest.png"]
+  },
+  robots: {
+    index: true,
+    follow: true
+  },
+  alternates: {
+    canonical: "/"
   }
 };
 

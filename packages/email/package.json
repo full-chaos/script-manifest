@@ -12,8 +12,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "nodemailer": "^8.0.2",
-    "resend": "^6.9.4"
+    "nodemailer": "^8.0.4",
+    "resend": "^6.10.0"
   },
   "devDependencies": {
     "@types/node": "^25.5.0",

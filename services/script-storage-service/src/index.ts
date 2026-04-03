@@ -1,13 +1,12 @@
-import Fastify, { type FastifyInstance } from "fastify";
+import { type FastifyInstance } from "fastify";
 import {
   CreateBucketCommand,
   HeadBucketCommand,
   S3Client
 } from "@aws-sdk/client-s3";
 import { createPresignedPost } from "@aws-sdk/s3-presigned-post";
-import { randomUUID } from "node:crypto";
 import { Counter } from "prom-client";
-import { bootstrapService, registerMetrics, registerSentryErrorHandler, setupErrorReporting, validateRequiredEnv, isMainModule } from "@script-manifest/service-utils";
+import { bootstrapService, createFastifyServer, registerMetrics, registerSentryErrorHandler, setupErrorReporting, validateRequiredEnv, isMainModule } from "@script-manifest/service-utils";
 import {
   ScriptFileRegistrationSchema,
   ScriptRegisterRequestSchema,
@@ -45,13 +44,7 @@ export type ScriptStorageServiceOptions = {
 };
 
 export function buildServer(options: ScriptStorageServiceOptions = {}): FastifyInstance {
-  const server = Fastify({
-    logger: options.logger === false ? false : {
-      level: process.env.LOG_LEVEL ?? "info",
-    },
-    genReqId: (req) => (req.headers["x-request-id"] as string) ?? randomUUID(),
-    requestIdHeader: "x-request-id",
-  });
+  const server = createFastifyServer({ logger: options.logger });
   const storageBucket = options.storageBucket ?? "scripts";
   const uploadBaseUrl = options.uploadBaseUrl ?? options.publicBaseUrl ?? "http://localhost:9000";
   const publicBaseUrl = options.publicBaseUrl ?? uploadBaseUrl;

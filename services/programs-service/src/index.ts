@@ -1,8 +1,8 @@
-import Fastify, { type FastifyInstance } from "fastify";
+import { type FastifyInstance } from "fastify";
 import rateLimit from "@fastify/rate-limit";
 import { randomUUID } from "node:crypto";
 import { request as undiciRequest } from "undici";
-import { bootstrapService, registerMetrics, registerSentryErrorHandler, setupErrorReporting, validateRequiredEnv, isMainModule, readHeader } from "@script-manifest/service-utils";
+import { bootstrapService, createFastifyServer, registerMetrics, registerSentryErrorHandler, setupErrorReporting, validateRequiredEnv, isMainModule, readHeader } from "@script-manifest/service-utils";
 import { healthCheck } from "@script-manifest/db";
 import {
   ProgramApplicationCreateRequestSchema,
@@ -30,13 +30,7 @@ export type ProgramsServiceOptions = {
 };
 
 export function buildServer(options: ProgramsServiceOptions = {}): FastifyInstance {
-  const server = Fastify({
-    logger: options.logger === false ? false : {
-      level: process.env.LOG_LEVEL ?? "info"
-    },
-    genReqId: (req) => (req.headers["x-request-id"] as string) ?? randomUUID(),
-    requestIdHeader: "x-request-id"
-  });
+  const server = createFastifyServer({ logger: options.logger });
   const repository = options.repository ?? new PgProgramsRepository();
   const runHealthCheck = options.repository ? () => repository.healthCheck() : healthCheck;
   const repositoryReady = repository.init();

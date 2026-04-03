@@ -1,8 +1,8 @@
-import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
+import { type FastifyInstance, type FastifyRequest } from "fastify";
 import rateLimit from "@fastify/rate-limit";
 import { randomUUID } from "node:crypto";
 import { Counter } from "prom-client";
-import { bootstrapService, registerMetrics, registerSentryErrorHandler, setupErrorReporting, validateRequiredEnv, getAuthUserId, isMainModule, readHeader, requireAdminServiceToken } from "@script-manifest/service-utils";
+import { bootstrapService, createFastifyServer, registerMetrics, registerSentryErrorHandler, setupErrorReporting, validateRequiredEnv, getAuthUserId, isMainModule, readHeader, requireAdminServiceToken } from "@script-manifest/service-utils";
 import { closePool, healthCheck } from "@script-manifest/db";
 import {
   CoverageProviderCreateRequestSchema,
@@ -121,11 +121,7 @@ async function transferToProviderOrQueueRetry(params: {
 }
 
 export function buildServer(options: CoverageMarketplaceServiceOptions = {}): FastifyInstance {
-  const server = Fastify({
-    logger: options.logger === false ? false : { level: process.env.LOG_LEVEL ?? "info" },
-    genReqId: (req) => (req.headers["x-request-id"] as string) ?? randomUUID(),
-    requestIdHeader: "x-request-id",
-  });
+  const server = createFastifyServer({ logger: options.logger });
 
   const repository = options.repository ?? new PgCoverageMarketplaceRepository();
   const userPaymentProfileRepository = options.userPaymentProfileRepository ?? new PgUserPaymentProfileRepository();

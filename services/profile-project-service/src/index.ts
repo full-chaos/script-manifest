@@ -1,6 +1,6 @@
-import Fastify, { type FastifyInstance } from "fastify";
+import { type FastifyInstance } from "fastify";
 import rateLimit from "@fastify/rate-limit";
-import { validateRequiredEnv, bootstrapService, setupErrorReporting, getAuthUserId, isMainModule, publishNotificationEvent } from "@script-manifest/service-utils";
+import { validateRequiredEnv, bootstrapService, setupErrorReporting, getAuthUserId, isMainModule, publishNotificationEvent, createFastifyServer } from "@script-manifest/service-utils";
 import { healthCheck } from "@script-manifest/db";
 import {
   ProjectCoWriterCreateRequestSchema,
@@ -31,13 +31,7 @@ export type ProfileProjectServiceOptions = {
 
 // lgtm [js/missing-rate-limiting]
 export function buildServer(options: ProfileProjectServiceOptions = {}): FastifyInstance {
-  const server = Fastify({
-    logger: options.logger === false ? false : {
-      level: process.env.LOG_LEVEL ?? "info",
-    },
-    genReqId: (req) => (req.headers["x-request-id"] as string) ?? randomUUID(),
-    requestIdHeader: "x-request-id",
-  });
+  const server = createFastifyServer({ logger: options.logger });
   const publisher = options.publisher ?? publishNotificationEvent;
   const repository = options.repository ?? new PgProfileProjectRepository();
   const runHealthCheck = options.repository ? () => repository.healthCheck() : healthCheck;

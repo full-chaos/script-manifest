@@ -1,7 +1,7 @@
-import Fastify, { type FastifyInstance } from "fastify";
+import { type FastifyInstance } from "fastify";
 import { randomUUID } from "node:crypto";
 import { Counter } from "prom-client";
-import { bootstrapService, registerMetrics, registerSentryErrorHandler, setupErrorReporting, validateRequiredEnv, getAuthUserId, isMainModule, publishNotificationEvent } from "@script-manifest/service-utils";
+import { bootstrapService, registerMetrics, registerSentryErrorHandler, setupErrorReporting, validateRequiredEnv, getAuthUserId, isMainModule, publishNotificationEvent, createFastifyServer } from "@script-manifest/service-utils";
 import { healthCheck } from "@script-manifest/db";
 import {
   FeedbackListingCreateRequestSchema,
@@ -32,13 +32,7 @@ export type FeedbackExchangeServiceOptions = {
 const SYSTEM_USER_ID = "SYSTEM";
 
 export function buildServer(options: FeedbackExchangeServiceOptions = {}): FastifyInstance {
-  const server = Fastify({
-    logger: options.logger === false ? false : {
-      level: process.env.LOG_LEVEL ?? "info",
-    },
-    genReqId: (req) => (req.headers["x-request-id"] as string) ?? randomUUID(),
-    requestIdHeader: "x-request-id",
-  });
+  const server = createFastifyServer({ logger: options.logger });
   const publisher = options.publisher ?? publishNotificationEvent;
   const repository = options.repository ?? new PgFeedbackExchangeRepository();
   const runHealthCheck = options.repository ? () => repository.healthCheck() : healthCheck;

@@ -1,6 +1,5 @@
-import Fastify, { type FastifyInstance } from "fastify";
-import { randomUUID } from "node:crypto";
-import { bootstrapService, registerMetrics, registerSentryErrorHandler, setupErrorReporting, validateRequiredEnv, isMainModule, requireServiceToken } from "@script-manifest/service-utils";
+import { type FastifyInstance } from "fastify";
+import { bootstrapService, createFastifyServer, registerMetrics, registerSentryErrorHandler, setupErrorReporting, validateRequiredEnv, isMainModule, requireServiceToken } from "@script-manifest/service-utils";
 import { closePool } from "@script-manifest/db";
 import {
   NotificationEventEnvelopeSchema
@@ -19,13 +18,7 @@ export type NotificationServiceOptions = {
 };
 
 export function buildServer(options: NotificationServiceOptions = {}): FastifyInstance {
-  const server = Fastify({
-    logger: options.logger === false ? false : {
-      level: process.env.LOG_LEVEL ?? "info",
-    },
-    genReqId: (req) => (req.headers["x-request-id"] as string) ?? randomUUID(),
-    requestIdHeader: "x-request-id",
-  });
+  const server = createFastifyServer({ logger: options.logger });
   const repository = options.repository ?? new PgNotificationRepository();
   const adminRepository = options.adminRepository ?? new PgNotificationAdminRepository();
   let stopConsumer: () => Promise<void> = async () => {};

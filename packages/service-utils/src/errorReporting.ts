@@ -25,22 +25,33 @@ export function setupErrorReporting(serviceName: string): void {
 }
 
 /**
- * Register a Fastify error handler that forwards unhandled errors to Sentry
- * before responding with a 500.
+ * Register a Fastify error handler that logs unhandled errors to stdout and,
+ * when Sentry is configured, forwards them to the error-reporting backend.
  *
- * No-op when SENTRY_DSN is not set (i.e. Sentry was never initialized).
+ * Always registers a handler regardless of SENTRY_DSN so that errors are
+ * never silently swallowed.
  *
  * Call this after buildServer() and before server.listen().
  *
  * @param server - The Fastify instance to attach the error handler to
  */
 export function registerSentryErrorHandler(server: FastifyInstance): void {
-  if (!process.env.SENTRY_DSN) return;
+  const sentryEnabled = !!process.env.SENTRY_DSN;
 
-  server.setErrorHandler((error: FastifyError, _request, reply) => {
-    Sentry.captureException(error);
-
+  server.setErrorHandler((error: FastifyError, request, reply) => {
     const statusCode = error.statusCode ?? 500;
+
+    // Always log — this is the primary fix for missing error visibility.
+    if (statusCode >= 500) {
+      request.log.error({ err: error }, "request failed");
+    } else {
+      request.log.warn({ err: error, statusCode }, "request error");
+    }
+
+    if (sentryEnabled) {
+      Sentry.captureException(error);
+    }
+
     // Only override the response for unexpected server errors; let Fastify's
     // own validation / 4xx errors pass through with their original status.
     if (statusCode >= 500) {

@@ -1,7 +1,7 @@
-import Fastify, { type FastifyInstance } from "fastify";
+import { type FastifyInstance } from "fastify";
 import { randomUUID } from "node:crypto";
 import { Counter } from "prom-client";
-import { bootstrapService, registerMetrics, registerSentryErrorHandler, setupErrorReporting, validateRequiredEnv, isMainModule, publishNotificationEvent } from "@script-manifest/service-utils";
+import { bootstrapService, registerMetrics, registerSentryErrorHandler, setupErrorReporting, validateRequiredEnv, isMainModule, publishNotificationEvent, createFastifyServer } from "@script-manifest/service-utils";
 import { healthCheck } from "@script-manifest/db";
 import {
   CompetitionPrestigeUpsertRequestSchema,
@@ -57,11 +57,7 @@ export type RankingServiceOptions = {
 };
 
 export function buildServer(options: RankingServiceOptions = {}): FastifyInstance {
-  const server = Fastify({
-    logger: options.logger === false ? false : { level: process.env.LOG_LEVEL ?? "info" },
-    genReqId: (req) => (req.headers["x-request-id"] as string) ?? randomUUID(),
-    requestIdHeader: "x-request-id"
-  });
+  const server = createFastifyServer({ logger: options.logger });
 
   const repo = options.repository ?? new PgRankingRepository();
   const runHealthCheck = options.repository ? () => repo.healthCheck() : healthCheck;
@@ -404,7 +400,7 @@ export function buildServer(options: RankingServiceOptions = {}): FastifyInstanc
         resourceId: appealId,
         payload: { status: appeal.status }
       });
-    } catch { /* non-fatal */ }
+    } catch (err) { server.log.warn({ err, appealId }, "failed to publish ranking_appeal_resolved event"); }
 
     return { appeal };
   });

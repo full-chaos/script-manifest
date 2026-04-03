@@ -1,7 +1,7 @@
-import Fastify, { type FastifyInstance } from "fastify";
+import { type FastifyInstance } from "fastify";
 import { randomUUID } from "node:crypto";
 import { request } from "undici";
-import { bootstrapService, registerMetrics, registerSentryErrorHandler, setupErrorReporting, validateRequiredEnv, isMainModule } from "@script-manifest/service-utils";
+import { bootstrapService, createFastifyServer, registerMetrics, registerSentryErrorHandler, setupErrorReporting, validateRequiredEnv, isMainModule } from "@script-manifest/service-utils";
 import {
   CompetitionIndexBulkRequestSchema,
   CompetitionIndexDocumentSchema,
@@ -18,13 +18,7 @@ export type SearchIndexerOptions = {
 };
 
 export function buildServer(options: SearchIndexerOptions = {}): FastifyInstance {
-  const server = Fastify({
-    logger: options.logger === false ? false : {
-      level: process.env.LOG_LEVEL ?? "info",
-    },
-    genReqId: (req) => (req.headers["x-request-id"] as string) ?? randomUUID(),
-    requestIdHeader: "x-request-id",
-  });
+  const server = createFastifyServer({ logger: options.logger });
   const requestFn = options.requestFn ?? request;
   const openSearchBase = options.openSearchBase ?? "http://localhost:9200";
   const openSearchIndex = options.openSearchIndex ?? "competitions_v1";

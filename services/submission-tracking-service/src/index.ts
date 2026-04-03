@@ -1,7 +1,6 @@
-import Fastify, { type FastifyInstance } from "fastify";
-import { randomUUID } from "node:crypto";
+import { type FastifyInstance } from "fastify";
 import { Counter } from "prom-client";
-import { bootstrapService, registerMetrics, registerSentryErrorHandler, setupErrorReporting, validateRequiredEnv, getAuthUserId, isMainModule } from "@script-manifest/service-utils";
+import { bootstrapService, registerMetrics, registerSentryErrorHandler, setupErrorReporting, validateRequiredEnv, getAuthUserId, isMainModule, createFastifyServer } from "@script-manifest/service-utils";
 import { closePool } from "@script-manifest/db";
 import {
   PlacementFiltersSchema,
@@ -31,13 +30,7 @@ export type SubmissionTrackingOptions = {
 };
 
 export function buildServer(options: SubmissionTrackingOptions = {}): FastifyInstance {
-  const server = Fastify({
-    logger: options.logger === false ? false : {
-      level: process.env.LOG_LEVEL ?? "info",
-    },
-    genReqId: (req) => (req.headers["x-request-id"] as string) ?? randomUUID(),
-    requestIdHeader: "x-request-id",
-  });
+  const server = createFastifyServer({ logger: options.logger });
   const repository = options.repository ?? new PgSubmissionTrackingRepository();
 
   const startedAt = Date.now();

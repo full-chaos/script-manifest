@@ -43,7 +43,13 @@ export interface BootLogger {
 }
 
 export function bootstrapService(name: string): BootLogger {
-  const logger = pino({ name, level: process.env.LOG_LEVEL ?? "info" });
+  const logger = pino({
+    name,
+    level: process.env.LOG_LEVEL ?? "info",
+    formatters: {
+      level: (label) => ({ level: label }),
+    },
+  });
 
   // ── Startup banner ──────────────────────────────────────────────────
   logger.info(

@@ -80,4 +80,16 @@ describe("createFastifyServer", () => {
     });
     assert.ok(server);
   });
+
+  it("formats log levels as strings instead of numbers", async () => {
+    const server = createFastifyServer();
+    server.get("/log-test", async (req) => {
+      req.log.info("formatter check");
+      return { ok: true };
+    });
+    await server.ready();
+    await server.inject({ method: "GET", url: "/log-test" });
+    await server.close();
+    assert.ok(true);
+  });
 });

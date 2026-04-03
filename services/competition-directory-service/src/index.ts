@@ -1,7 +1,7 @@
-import Fastify, { type FastifyInstance, type FastifyReply } from "fastify";
+import { type FastifyInstance, type FastifyReply } from "fastify";
 import { randomUUID } from "node:crypto";
 import { request } from "undici";
-import { bootstrapService, registerMetrics, registerSentryErrorHandler, setupErrorReporting, validateRequiredEnv, isMainModule, readHeader } from "@script-manifest/service-utils";
+import { bootstrapService, registerMetrics, registerSentryErrorHandler, setupErrorReporting, validateRequiredEnv, isMainModule, readHeader, createFastifyServer } from "@script-manifest/service-utils";
 import { closePool } from "@script-manifest/db";
 import {
   CompetitionFiltersSchema,
@@ -27,13 +27,7 @@ export type CompetitionDirectoryOptions = {
 };
 
 export function buildServer(options: CompetitionDirectoryOptions = {}): FastifyInstance {
-  const server = Fastify({
-    logger: options.logger === false ? false : {
-      level: process.env.LOG_LEVEL ?? "info",
-    },
-    genReqId: (req) => (req.headers["x-request-id"] as string) ?? randomUUID(),
-    requestIdHeader: "x-request-id",
-  });
+  const server = createFastifyServer({ logger: options.logger });
   const requestFn = options.requestFn ?? request;
   const repository = options.repository ?? new PgCompetitionDirectoryRepository();
   const searchIndexerBase = options.searchIndexerBase ?? "http://localhost:4003";

@@ -126,7 +126,7 @@ export function registerSubmissionRoutes(server: FastifyInstance, ctx: GatewayCo
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ writerId: userId })
-      }).catch(() => {});
+      }).catch((err) => { req.log.warn({ err, writerId: userId }, "background ranking recompute failed"); });
     }
 
     return result;
@@ -172,7 +172,7 @@ export function registerSubmissionRoutes(server: FastifyInstance, ctx: GatewayCo
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ writerId: userId })
-      }).catch(() => {});
+      }).catch((err) => { req.log.warn({ err, writerId: userId }, "background ranking recompute failed"); });
     }
 
     return result;

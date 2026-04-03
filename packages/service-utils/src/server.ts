@@ -13,6 +13,9 @@ export function createFastifyServer(options: CreateServerOptions = {}): FastifyI
         (typeof options.logger === "object" ? options.logger.level : undefined) ??
         process.env.LOG_LEVEL ??
         "info",
+      formatters: {
+        level: (label) => ({ level: label }),
+      },
     },
     genReqId: (req) => (req.headers["x-request-id"] as string) ?? randomUUID(),
     requestIdHeader: "x-request-id",

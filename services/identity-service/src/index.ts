@@ -1,10 +1,10 @@
-import Fastify, { type FastifyInstance } from "fastify";
+import { type FastifyInstance } from "fastify";
 import cookie from "@fastify/cookie";
 import rateLimit from "@fastify/rate-limit";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { request } from "undici";
 import { Counter } from "prom-client";
-import { validateRequiredEnv, bootstrapService, setupErrorReporting, isMainModule, readBearerToken } from "@script-manifest/service-utils";
+import { createFastifyServer, validateRequiredEnv, bootstrapService, setupErrorReporting, isMainModule, readBearerToken } from "@script-manifest/service-utils";
 import { healthCheck } from "@script-manifest/db";
 import {
   AuthLoginRequestSchema,
@@ -77,13 +77,7 @@ export function buildServer(options: IdentityServiceOptions = {}): FastifyInstan
   const onboardingRepo = options.onboardingRepository ?? (options.repository ? new MemoryOnboardingRepository() : new PgOnboardingRepository());
   const emailService = options.emailService;
   const runHealthCheck = options.repository ? () => repository.healthCheck() : healthCheck;
-  const server = Fastify({
-    logger: options.logger === false ? false : {
-      level: process.env.LOG_LEVEL ?? "info",
-    },
-    genReqId: (req) => (req.headers["x-request-id"] as string) ?? randomUUID(),
-    requestIdHeader: "x-request-id",
-  });
+  const server = createFastifyServer({ logger: options.logger });
   const oauthIssuerBase =
     process.env.IDENTITY_SERVICE_PUBLIC_URL ?? `http://localhost:${process.env.PORT ?? "4005"}`;
   const googleRedirectUriDefault = process.env.GOOGLE_REDIRECT_URI ?? "";

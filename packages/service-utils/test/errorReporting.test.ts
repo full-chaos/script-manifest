@@ -32,7 +32,7 @@ describe("registerSentryErrorHandler", () => {
     else process.env.SENTRY_DSN = originalDsn;
   });
 
-  it("is a no-op when SENTRY_DSN is not set", async () => {
+  it("registers error handler and returns 500 even when SENTRY_DSN is not set", async () => {
     delete process.env.SENTRY_DSN;
     const server = Fastify({ logger: false });
     registerSentryErrorHandler(server);
@@ -41,6 +41,8 @@ describe("registerSentryErrorHandler", () => {
 
     const res = await server.inject({ method: "GET", url: "/error" });
     assert.equal(res.statusCode, 500);
+    const body = JSON.parse(res.body);
+    assert.equal(body.error, "Internal Server Error");
     await server.close();
   });
 

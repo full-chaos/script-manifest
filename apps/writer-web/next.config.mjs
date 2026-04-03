@@ -5,7 +5,8 @@ const nextConfig = {
   output: 'standalone',
   reactStrictMode: true,
   typedRoutes: true,
-  allowedDevOrigins: ['127.0.0.1']
+  allowedDevOrigins: ['127.0.0.1'],
+  devIndicators: false
 };
 
 const sentryOptions = {

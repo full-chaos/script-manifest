@@ -6,14 +6,14 @@ test("authenticated profile and projects journey is interactive and accessible",
   await seedSession(page);
   await mockProfileAndProjectEndpoints(page);
 
-  await page.goto("/profile");
+  await page.goto("/profile", { waitUntil: "networkidle" });
   await expect(
     page.getByRole("heading", { name: /Your public writer resume/i })
   ).toBeVisible();
   await expect(page.getByLabel("Display name")).toHaveValue("E2E Writer", { timeout: 10000 });
   await expect(page).toHaveScreenshot("profile-authenticated.png");
 
-  await page.goto("/projects");
+  await page.goto("/projects", { waitUntil: "networkidle" });
   await expect(page.getByRole("heading", { name: /Your script workspace/i })).toBeVisible();
 
   const openCreateProject = page.getByRole("button", { name: "Create project" }).first();

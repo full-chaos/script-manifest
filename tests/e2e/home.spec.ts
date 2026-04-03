@@ -5,7 +5,7 @@ import { clearSession } from "./support/session";
 test("logged-out home page renders with stable hero UX", async ({ page }) => {
   await clearSession(page);
 
-  await page.goto("/");
+  await page.goto("/", { waitUntil: "networkidle" });
   await expect(
     page.getByRole("heading", {
       name: /Build your screenwriting portfolio without losing your history again/i

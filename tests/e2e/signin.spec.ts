@@ -5,7 +5,7 @@ import { expectNoSeriousA11yViolations } from "./support/a11y";
 test("sign-in page supports register and sign-out journey", async ({ page }) => {
   await mockAuthEndpoints(page);
 
-  await page.goto("/signin", { waitUntil: "networkidle" });
+  await page.goto("/signin");
   await page.getByRole("button", { name: "Create account" }).first().click();
 
   await page.getByLabel("Display name").fill("E2E Writer");
@@ -16,7 +16,7 @@ test("sign-in page supports register and sign-out journey", async ({ page }) => 
 
   await page.waitForURL("/verify-email");
 
-  await page.goto("/signin", { waitUntil: "networkidle" });
+  await page.goto("/signin");
   await expect(page.getByText(/Signed in as/i)).toBeVisible();
   await expectNoSeriousA11yViolations(page);
   await expect(page).toHaveScreenshot("signin-authenticated.png");

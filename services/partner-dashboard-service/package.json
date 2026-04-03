@@ -15,7 +15,7 @@
     "@script-manifest/contracts": "workspace:*",
     "@script-manifest/service-utils": "workspace:*",
     "@script-manifest/db": "workspace:*",
-    "fastify": "^5.8.2",
+    "fastify": "^5.8.4",
     "undici": "^7.24.5",
     "zod": "^3.24.1"
   },

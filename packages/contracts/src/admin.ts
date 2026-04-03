@@ -49,7 +49,7 @@ export const AuditLogEntrySchema = z.object({
   action: z.string().min(1),
   targetType: z.string().min(1),
   targetId: z.string().min(1),
-  details: z.record(z.unknown()).nullable(),
+  details: z.record(z.string(), z.unknown()).nullable(),
   ipAddress: z.string().nullable(),
   createdAt: z.string().datetime({ offset: true })
 });

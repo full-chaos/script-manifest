@@ -4,7 +4,9 @@ import { withSentryConfig } from '@sentry/nextjs';
 const nextConfig = {
   output: 'standalone',
   reactStrictMode: true,
-  typedRoutes: true
+  typedRoutes: true,
+  allowedDevOrigins: ['127.0.0.1'],
+  devIndicators: false
 };
 
 const sentryOptions = {

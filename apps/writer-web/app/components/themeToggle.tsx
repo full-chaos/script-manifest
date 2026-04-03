@@ -38,7 +38,7 @@ export function ThemeToggle() {
 
   if (!mounted) {
     return (
-      <button type="button" className="btn btn-secondary p-2!" aria-hidden>
+      <button type="button" className="btn btn-secondary p-2!" aria-hidden tabIndex={-1}>
         <Sun className="h-4 w-4 opacity-0" />
       </button>
     );

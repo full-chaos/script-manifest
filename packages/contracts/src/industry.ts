@@ -340,7 +340,7 @@ export const IndustryActivitySchema = z.object({
   entityType: z.string().min(1),
   entityId: z.string().min(1),
   action: z.string().min(1),
-  metadata: z.record(z.unknown()).default({}),
+  metadata: z.record(z.string(), z.unknown()).default({}),
   createdAt: z.string().datetime({ offset: true })
 });
 

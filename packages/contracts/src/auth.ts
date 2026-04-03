@@ -27,7 +27,7 @@ export const AuthRegisterRequestSchema = z.object({
   password: StrongPasswordSchema,
   displayName: z.string().min(1).max(120),
   acceptTerms: z.literal(true, {
-    errorMap: () => ({ message: "You must accept the terms of service" })
+    error: "You must accept the terms of service"
   })
 });
 

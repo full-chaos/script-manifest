@@ -1,5 +1,4 @@
 import { z, type ZodTypeAny } from "zod";
-import { zodToJsonSchema } from "zod-to-json-schema";
 
 export const ApiErrorSchema = z.object({
   error: z.string(),
@@ -13,9 +12,7 @@ export const UnauthorizedErrorSchema = z.object({
 });
 
 export function toOpenApiSchema(schema: ZodTypeAny): Record<string, unknown> {
-  const converted = zodToJsonSchema(schema, {
-    $refStrategy: "none"
-  }) as Record<string, unknown>;
+  const converted = z.toJSONSchema(schema) as Record<string, unknown>;
   // Remove $schema property — Fastify/AJV doesn't expect it in route schemas
   delete converted.$schema;
   return converted;

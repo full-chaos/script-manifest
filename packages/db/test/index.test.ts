@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { closePool, getPool } from "../src/index.js";
+import { closePool, getPool, toFtsPrefixQuery } from "../src/index.js";
 
 test("getPool caches pool instances per connection string", async () => {
   const urlA = "postgresql://manifest:manifest@localhost:5432/manifest_a";
@@ -18,6 +18,16 @@ test("getPool caches pool instances per connection string", async () => {
   assert.notEqual(firstA, recreatedA);
 
   await closePool();
+});
+
+test("toFtsPrefixQuery converts words to prefix tsquery format", () => {
+  assert.equal(toFtsPrefixQuery("screen"), "screen:*");
+  assert.equal(toFtsPrefixQuery("drama fellowship"), "drama:* & fellowship:*");
+  assert.equal(toFtsPrefixQuery("  screenplay  sprint  "), "screenplay:* & sprint:*");
+  assert.equal(toFtsPrefixQuery(""), "");
+  assert.equal(toFtsPrefixQuery("   "), "");
+  assert.equal(toFtsPrefixQuery("sci-fi"), "sci-fi:*");
+  assert.equal(toFtsPrefixQuery("@#$"), "");
 });
 
 test("closePool is safe for unknown connection strings and closes all pools", async () => {

@@ -1,4 +1,4 @@
-import { getPool, runMigrations } from "@script-manifest/db";
+import { getPool, runMigrations, toFtsPrefixQuery } from "@script-manifest/db";
 import type { Competition, CompetitionAccessType, CompetitionFilters, CompetitionVisibility } from "@script-manifest/contracts";
 import type { CompetitionDirectoryRepository } from "./repository.js";
 
@@ -104,10 +104,13 @@ export class PgCompetitionDirectoryRepository implements CompetitionDirectoryRep
     let orderBy = "ORDER BY created_at DESC";
 
     if (filters.query) {
-      values.push(filters.query.trim());
-      const idx = values.length;
-      conditions.push(`search_vector @@ websearch_to_tsquery('english', $${idx})`);
-      orderBy = `ORDER BY ts_rank_cd(search_vector, websearch_to_tsquery('english', $${idx})) DESC, created_at DESC`;
+      const prefixQuery = toFtsPrefixQuery(filters.query);
+      if (prefixQuery) {
+        values.push(prefixQuery);
+        const idx = values.length;
+        conditions.push(`search_vector @@ to_tsquery('english', $${idx})`);
+        orderBy = `ORDER BY ts_rank_cd(search_vector, to_tsquery('english', $${idx})) DESC, created_at DESC`;
+      }
     }
 
     if (filters.format) {

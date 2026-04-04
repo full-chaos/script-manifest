@@ -51,7 +51,7 @@ test("PgCompetitionDirectoryRepository upsertCompetition returns existed when xm
   assert.deepEqual(result, { existed: true });
 });
 
-test("PgCompetitionDirectoryRepository listCompetitions applies all filters", async () => {
+test("PgCompetitionDirectoryRepository listCompetitions applies all filters with FTS", async () => {
   let capturedSql = "";
   let capturedValues: unknown[] = [];
 
@@ -63,7 +63,7 @@ test("PgCompetitionDirectoryRepository listCompetitions applies all filters", as
 
   const repo = new PgCompetitionDirectoryRepository();
   const competitions = await repo.listCompetitions({
-    query: "drama",
+    query: "drama fellowship",
     format: "feature",
     genre: "drama",
     maxFeeUsd: 30,
@@ -73,10 +73,26 @@ test("PgCompetitionDirectoryRepository listCompetitions applies all filters", as
   assert.deepEqual(competitions, []);
   assert.match(capturedSql, /status = 'active'/);
   assert.match(capturedSql, /visibility = 'listed'/);
-  assert.match(capturedSql, /title ILIKE \$1/);
+  assert.match(capturedSql, /search_vector @@ websearch_to_tsquery\('english', \$1\)/);
+  assert.match(capturedSql, /ORDER BY ts_rank_cd\(search_vector, websearch_to_tsquery\('english', \$1\)\) DESC, created_at DESC/);
   assert.match(capturedSql, /LOWER\(format\) = LOWER\(\$2\)/);
   assert.match(capturedSql, /LOWER\(genre\) = LOWER\(\$3\)/);
   assert.match(capturedSql, /fee_usd <= \$4/);
   assert.match(capturedSql, /deadline < \$5/);
-  assert.deepEqual(capturedValues, ["%drama%", "feature", "drama", 30, "2026-08-01T00:00:00.000Z"]);
+  assert.deepEqual(capturedValues, ["drama fellowship", "feature", "drama", 30, "2026-08-01T00:00:00.000Z"]);
+});
+
+test("PgCompetitionDirectoryRepository listCompetitions falls back to recency order without query", async () => {
+  let capturedSql = "";
+
+  queryImpl = async (sql) => {
+    capturedSql = sql;
+    return { rows: [] };
+  };
+
+  const repo = new PgCompetitionDirectoryRepository();
+  await repo.listCompetitions({});
+
+  assert.match(capturedSql, /ORDER BY created_at DESC/);
+  assert.doesNotMatch(capturedSql, /ts_rank_cd/);
 });

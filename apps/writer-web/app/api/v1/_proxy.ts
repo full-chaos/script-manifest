@@ -77,13 +77,18 @@ export async function proxyRequest(request: Request, path: string): Promise<Next
 
   const method = request.method;
   const canHaveBody = !["GET", "HEAD"].includes(method.toUpperCase());
-  const bodyText = canHaveBody ? await request.text() : undefined;
+  const rawBody = canHaveBody ? await request.text() : undefined;
+  const bodyText = rawBody || undefined;
+
+  if (!bodyText) {
+    headers.delete("content-type");
+  }
 
   try {
     const upstream = await fetch(upstreamUrl, {
       method,
       headers,
-      body: canHaveBody ? bodyText : undefined,
+      body: bodyText,
       cache: "no-store"
     });
 

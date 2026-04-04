@@ -2,6 +2,26 @@ import { Pool } from "pg";
 
 export { runMigrations } from "./migrate.js";
 
+/**
+ * Convert user search input to a prefix-matching tsquery string.
+ * Each word gets a `:*` suffix for prefix matching, joined with `&` (AND).
+ *
+ * Example: "screenplay sprint" → "screenplay:* & sprint:*"
+ *
+ * Use with `to_tsquery('english', ...)` — NOT `websearch_to_tsquery`.
+ * This allows partial/prefix matches: "screen" matches "screenplay".
+ */
+export function toFtsPrefixQuery(input: string): string {
+  return input
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((term) => term.replace(/[^a-zA-Z0-9'-]/g, ""))
+    .filter((t) => t.length > 0)
+    .map((term) => `${term}:*`)
+    .join(" & ");
+}
+
 const DEFAULT_DATABASE_URL = "postgresql://manifest:manifest@localhost:5432/manifest";
 
 export type PoolConfig = {

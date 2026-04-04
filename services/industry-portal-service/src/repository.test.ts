@@ -7,11 +7,14 @@ type QueryFn = (sql: string, values?: unknown[]) => Promise<QueryResult>;
 let queryImpl: QueryFn = async () => ({ rows: [], rowCount: 0 });
 const query: QueryFn = async (sql, values = []) => queryImpl(sql, values);
 
+const { toFtsPrefixQuery } = await import("@script-manifest/db");
+
 await mock.module("@script-manifest/db", {
   namedExports: {
     getPool: () => ({ query }),
     ensureCoreTables: async () => undefined,
-    ensureIndustryPortalTables: async () => undefined
+    ensureIndustryPortalTables: async () => undefined,
+    toFtsPrefixQuery
   }
 });
 

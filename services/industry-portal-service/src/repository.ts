@@ -47,7 +47,8 @@ import {
 import {
   ensureCoreTables,
   ensureIndustryPortalTables,
-  getPool
+  getPool,
+  toFtsPrefixQuery
 } from "@script-manifest/db";
 
 export type IndustryAccountCreateResult =
@@ -784,9 +785,12 @@ export class PgIndustryPortalRepository implements IndustryPortalRepository {
       where.push(`genres && $${params.length}::text[]`);
     }
     if (filters.q && filters.q.trim().length > 0) {
-      params.push(filters.q.trim());
-      searchParamIdx = params.length;
-      where.push(`search_text @@ websearch_to_tsquery('english', $${params.length})`);
+      const prefixQuery = toFtsPrefixQuery(filters.q);
+      if (prefixQuery) {
+        params.push(prefixQuery);
+        searchParamIdx = params.length;
+        where.push(`search_text @@ to_tsquery('english', $${params.length})`);
+      }
     }
 
     const whereSql = where.length > 0 ? `WHERE ${where.join(" AND ")}` : "";
@@ -798,7 +802,7 @@ export class PgIndustryPortalRepository implements IndustryPortalRepository {
     );
 
     const orderBy = searchParamIdx !== null && (filters.sort ?? "recent") === "relevance"
-      ? `ORDER BY ts_rank_cd(search_text, websearch_to_tsquery('english', $${searchParamIdx})) DESC, project_updated_at DESC`
+      ? `ORDER BY ts_rank_cd(search_text, to_tsquery('english', $${searchParamIdx})) DESC, project_updated_at DESC`
       : "ORDER BY project_updated_at DESC";
 
     const dataParams = [...params, limit, offset];

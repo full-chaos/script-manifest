@@ -7,10 +7,13 @@ type QueryFn = (sql: string, values?: unknown[]) => Promise<QueryResult>;
 let queryImpl: QueryFn = async () => ({ rows: [], rowCount: 0 });
 const query: QueryFn = async (sql, values = []) => queryImpl(sql, values);
 
+const { toFtsPrefixQuery } = await import("@script-manifest/db");
+
 await mock.module("@script-manifest/db", {
   namedExports: {
     getPool: () => ({ query }),
-    runMigrations: async () => undefined
+    runMigrations: async () => undefined,
+    toFtsPrefixQuery
   }
 });
 
@@ -51,7 +54,7 @@ test("PgCompetitionDirectoryRepository upsertCompetition returns existed when xm
   assert.deepEqual(result, { existed: true });
 });
 
-test("PgCompetitionDirectoryRepository listCompetitions applies all filters with FTS", async () => {
+test("PgCompetitionDirectoryRepository listCompetitions applies all filters with FTS prefix matching", async () => {
   let capturedSql = "";
   let capturedValues: unknown[] = [];
 
@@ -73,13 +76,13 @@ test("PgCompetitionDirectoryRepository listCompetitions applies all filters with
   assert.deepEqual(competitions, []);
   assert.match(capturedSql, /status = 'active'/);
   assert.match(capturedSql, /visibility = 'listed'/);
-  assert.match(capturedSql, /search_vector @@ websearch_to_tsquery\('english', \$1\)/);
-  assert.match(capturedSql, /ORDER BY ts_rank_cd\(search_vector, websearch_to_tsquery\('english', \$1\)\) DESC, created_at DESC/);
+  assert.match(capturedSql, /search_vector @@ to_tsquery\('english', \$1\)/);
+  assert.match(capturedSql, /ORDER BY ts_rank_cd\(search_vector, to_tsquery\('english', \$1\)\) DESC, created_at DESC/);
   assert.match(capturedSql, /LOWER\(format\) = LOWER\(\$2\)/);
   assert.match(capturedSql, /LOWER\(genre\) = LOWER\(\$3\)/);
   assert.match(capturedSql, /fee_usd <= \$4/);
   assert.match(capturedSql, /deadline < \$5/);
-  assert.deepEqual(capturedValues, ["drama fellowship", "feature", "drama", 30, "2026-08-01T00:00:00.000Z"]);
+  assert.deepEqual(capturedValues, ["drama:* & fellowship:*", "feature", "drama", 30, "2026-08-01T00:00:00.000Z"]);
 });
 
 test("PgCompetitionDirectoryRepository listCompetitions falls back to recency order without query", async () => {

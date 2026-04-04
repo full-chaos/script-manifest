@@ -138,6 +138,7 @@ export function registerAuthRoutes(server: FastifyInstance, ctx: GatewayContext)
   });
 
   server.get("/api/v1/auth/me", {
+    config: { rateLimit: false },
     schema: {
       tags: ["auth"],
       summary: "Get current user session",

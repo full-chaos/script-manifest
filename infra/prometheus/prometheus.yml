@@ -35,11 +35,6 @@ scrape_configs:
       - targets: ["competition-directory-service:4002"]
     metrics_path: /metrics
 
-  - job_name: "search-indexer-service"
-    static_configs:
-      - targets: ["search-indexer-service:4003"]
-    metrics_path: /metrics
-
   - job_name: "submission-tracking-service"
     static_configs:
       - targets: ["submission-tracking-service:4004"]

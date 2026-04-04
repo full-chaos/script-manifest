@@ -21,7 +21,6 @@ type RequestFn = typeof request;
 export type CompetitionDirectoryOptions = {
   logger?: boolean;
   requestFn?: RequestFn;
-  searchIndexerBase?: string;
   notificationServiceBase?: string;
   repository?: CompetitionDirectoryRepository;
 };
@@ -30,7 +29,6 @@ export function buildServer(options: CompetitionDirectoryOptions = {}): FastifyI
   const server = createFastifyServer({ logger: options.logger });
   const requestFn = options.requestFn ?? request;
   const repository = options.repository ?? new PgCompetitionDirectoryRepository();
-  const searchIndexerBase = options.searchIndexerBase ?? "http://localhost:4003";
   const notificationServiceBase = options.notificationServiceBase ?? "http://localhost:4010";
   const adminAllowlist = parseAllowlist(
     process.env.COMPETITION_ADMIN_ALLOWLIST ?? ""
@@ -46,7 +44,6 @@ export function buildServer(options: CompetitionDirectoryOptions = {}): FastifyI
     await closePool();
   });
 
-  // Deep health check: verify connectivity to database and external dependencies
   server.get("/health", async () => {
     const checkUrl = async (url: string): Promise<boolean> => {
       try {
@@ -58,15 +55,13 @@ export function buildServer(options: CompetitionDirectoryOptions = {}): FastifyI
     };
 
     const database = (await repository.healthCheck()).database;
-    const indexerHealthy = await checkUrl(`${searchIndexerBase}/health/ready`);
     const notifierHealthy = await checkUrl(`${notificationServiceBase}/health/ready`);
-    const ok = database && indexerHealthy && notifierHealthy;
+    const ok = database && notifierHealthy;
     return {
       service: "competition-directory-service",
       ok,
       uptime: Math.floor((Date.now() - startedAt) / 1000),
       database,
-      indexer: indexerHealthy,
       notifier: notifierHealthy
     };
   });
@@ -84,15 +79,13 @@ export function buildServer(options: CompetitionDirectoryOptions = {}): FastifyI
     };
 
     const database = (await repository.healthCheck()).database;
-    const indexerHealthy = await checkUrl(`${searchIndexerBase}/health/ready`);
     const notifierHealthy = await checkUrl(`${notificationServiceBase}/health/ready`);
-    const ok = database && indexerHealthy && notifierHealthy;
+    const ok = database && notifierHealthy;
     return {
       service: "competition-directory-service",
       ok,
       uptime: Math.floor((Date.now() - startedAt) / 1000),
       database,
-      indexer: indexerHealthy,
       notifier: notifierHealthy
     };
   });
@@ -120,7 +113,7 @@ export function buildServer(options: CompetitionDirectoryOptions = {}): FastifyI
       });
     }
 
-    return upsertCompetition(parsedBody.data, repository, requestFn, searchIndexerBase, server, reply);
+    return upsertCompetition(parsedBody.data, repository, reply);
   });
 
   server.post("/internal/admin/competitions", async (req, reply) => {
@@ -137,7 +130,7 @@ export function buildServer(options: CompetitionDirectoryOptions = {}): FastifyI
       });
     }
 
-    return upsertCompetition(parsedBody.data, repository, requestFn, searchIndexerBase, server, reply);
+    return upsertCompetition(parsedBody.data, repository, reply);
   });
 
   server.put<{ Params: { competitionId: string } }>("/internal/admin/competitions/:competitionId", async (req, reply) => {
@@ -158,7 +151,7 @@ export function buildServer(options: CompetitionDirectoryOptions = {}): FastifyI
       });
     }
 
-    return upsertCompetition(parsedBody.data, repository, requestFn, searchIndexerBase, server, reply);
+    return upsertCompetition(parsedBody.data, repository, reply);
   });
 
   server.post<{ Params: { competitionId: string } }>("/internal/admin/competitions/:competitionId/cancel", async (req, reply) => {
@@ -173,12 +166,7 @@ export function buildServer(options: CompetitionDirectoryOptions = {}): FastifyI
       return reply.status(404).send({ error: "not_found_or_already_cancelled" });
     }
 
-    const deindex = await removeCompetitionFromIndexer(requestFn, searchIndexerBase, competitionId);
-    if (!deindex.ok) {
-      server.log.warn({ competitionId }, "competition cancelled but de-indexing failed");
-    }
-
-    return reply.send({ competition, cancelled: true, deindexed: deindex.ok });
+    return reply.send({ competition, cancelled: true });
   });
 
   server.patch<{ Params: { competitionId: string } }>("/internal/admin/competitions/:competitionId/visibility", async (req, reply) => {
@@ -198,19 +186,7 @@ export function buildServer(options: CompetitionDirectoryOptions = {}): FastifyI
       return reply.status(404).send({ error: "not_found" });
     }
 
-    if (parsed.data.visibility === "unlisted") {
-      const deindex = await removeCompetitionFromIndexer(requestFn, searchIndexerBase, competitionId);
-      if (!deindex.ok) {
-        server.log.warn({ competitionId }, "competition hidden but de-indexing failed");
-      }
-      return reply.send({ competition, deindexed: deindex.ok });
-    }
-
-    const indexing = await pushCompetitionToIndexer(requestFn, searchIndexerBase, competition);
-    if (!indexing.ok) {
-      server.log.warn({ competitionId }, "competition unhidden but re-indexing failed");
-    }
-    return reply.send({ competition, indexed: indexing.ok });
+    return reply.send({ competition });
   });
 
   server.patch<{ Params: { competitionId: string } }>("/internal/admin/competitions/:competitionId/access-type", async (req, reply) => {
@@ -230,32 +206,7 @@ export function buildServer(options: CompetitionDirectoryOptions = {}): FastifyI
       return reply.status(404).send({ error: "not_found" });
     }
 
-    const indexing = await pushCompetitionToIndexer(requestFn, searchIndexerBase, competition);
-    if (!indexing.ok) {
-      server.log.warn({ competitionId }, "access type updated but re-indexing failed");
-    }
-    return reply.send({ competition, indexed: indexing.ok });
-  });
-
-  server.post("/internal/competitions/reindex", async (_req, reply) => {
-    const allCompetitions = await repository.getAllCompetitions();
-
-    try {
-      const upstream = await requestFn(`${searchIndexerBase}/internal/index/competition/bulk`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(allCompetitions)
-      });
-
-      const upstreamBody = await readBody(upstream);
-      return reply.status(upstream.statusCode).send({
-        pushed: allCompetitions.length,
-        indexer: upstreamBody
-      });
-    } catch (error) {
-      server.log.error(error);
-      return reply.status(502).send({ error: "reindex_failed" });
-    }
+    return reply.send({ competition });
   });
 
   const DeadlineReminderRequestSchema = z.object({
@@ -314,11 +265,10 @@ export async function startServer(): Promise<void> {
   const boot = bootstrapService("competition-directory-service");
   setupErrorReporting("competition-directory-service");
   
-  validateRequiredEnv(["PORT", "SEARCH_INDEXER_URL", "DATABASE_URL"]);
+  validateRequiredEnv(["PORT", "DATABASE_URL"]);
   boot.phase("env validated");
   const port = Number(process.env.PORT ?? 4002);
   const server = buildServer({
-    searchIndexerBase: process.env.SEARCH_INDEXER_URL,
     notificationServiceBase: process.env.NOTIFICATION_SERVICE_URL
   });
   boot.phase("server built");
@@ -331,41 +281,6 @@ export async function startServer(): Promise<void> {
 
 if (isMainModule(import.meta.url)) {
   startServer().catch((error) => { process.stderr.write(String(error) + "\n"); process.exit(1); });
-}
-
-async function pushCompetitionToIndexer(
-  requestFn: RequestFn,
-  searchIndexerBase: string,
-  competition: Competition
-): Promise<{ ok: boolean; body?: unknown }> {
-  try {
-    const upstream = await requestFn(`${searchIndexerBase}/internal/index/competition`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(competition)
-    });
-    const body = await readBody(upstream);
-    return { ok: upstream.statusCode >= 200 && upstream.statusCode < 300, body };
-  } catch {
-    return { ok: false };
-  }
-}
-
-async function removeCompetitionFromIndexer(
-  requestFn: RequestFn,
-  searchIndexerBase: string,
-  competitionId: string
-): Promise<{ ok: boolean; body?: unknown }> {
-  try {
-    const upstream = await requestFn(
-      `${searchIndexerBase}/internal/index/competition/${encodeURIComponent(competitionId)}`,
-      { method: "DELETE" }
-    );
-    const body = await readBody(upstream);
-    return { ok: upstream.statusCode >= 200 && upstream.statusCode < 300 || upstream.statusCode === 404, body };
-  } catch {
-    return { ok: false };
-  }
 }
 
 async function readBody(upstream: Awaited<ReturnType<typeof request>>): Promise<unknown> {
@@ -384,9 +299,6 @@ async function readBody(upstream: Awaited<ReturnType<typeof request>>): Promise<
 async function upsertCompetition(
   input: CompetitionUpsertRequest,
   repository: CompetitionDirectoryRepository,
-  requestFn: RequestFn,
-  searchIndexerBase: string,
-  server: FastifyInstance,
   reply: FastifyReply
 ) {
   const competition: Competition = {
@@ -398,18 +310,11 @@ async function upsertCompetition(
   const { existed } = await repository.upsertCompetition(competition);
 
   const current = existed ? await repository.getCompetition(input.id) : competition;
-  const toIndex = current ?? competition;
-
-  const indexing = await pushCompetitionToIndexer(requestFn, searchIndexerBase, toIndex);
-  if (!indexing.ok) {
-    server.log.warn({ competitionId: input.id }, "competition saved but indexing failed");
-  }
 
   return reply.status(existed ? 200 : 201).send({
-    competition: toIndex,
+    competition: current ?? competition,
     upserted: true,
-    created: !existed,
-    indexed: indexing.ok
+    created: !existed
   });
 }
 

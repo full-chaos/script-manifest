@@ -7,8 +7,6 @@ import {
 } from "../helpers.js";
 
 export function registerSearchAdminRoutes(server: FastifyInstance, ctx: GatewayContext): void {
-  // ── Search Index Status ────────────────────────────────────────
-
   server.get("/api/v1/admin/search/status", async (req, reply) => {
     const adminId = await resolveAdminByRole(
       ctx.requestFn, ctx.identityServiceBase,
@@ -19,13 +17,11 @@ export function registerSearchAdminRoutes(server: FastifyInstance, ctx: GatewayC
 
     return proxyJsonRequest(
       reply, ctx.requestFn,
-      `${ctx.searchIndexerBase}/internal/admin/search/status`,
+      `${ctx.competitionDirectoryBase}/internal/admin/search/status`,
       { method: "GET", headers: addAuthUserIdHeader({}, adminId, "admin") },
       req.id
     );
   });
-
-  // ── Reindex All ────────────────────────────────────────────────
 
   server.post("/api/v1/admin/search/reindex", async (req, reply) => {
     const adminId = await resolveAdminByRole(
@@ -35,15 +31,12 @@ export function registerSearchAdminRoutes(server: FastifyInstance, ctx: GatewayC
     );
     if (!adminId) return reply.status(403).send({ error: "forbidden" });
 
-    return proxyJsonRequest(
-      reply, ctx.requestFn,
-      `${ctx.searchIndexerBase}/internal/admin/search/reindex`,
-      { method: "POST", headers: addAuthUserIdHeader({}, adminId, "admin") },
-      req.id
-    );
+    return reply.status(200).send({
+      message: "Reindex is not required — search uses PostgreSQL FTS with auto-maintained generated columns.",
+      type: "all",
+      status: "not_applicable"
+    });
   });
-
-  // ── Reindex by Type ────────────────────────────────────────────
 
   server.post<{ Params: { type: string } }>("/api/v1/admin/search/reindex/:type", async (req, reply) => {
     const adminId = await resolveAdminByRole(
@@ -53,11 +46,10 @@ export function registerSearchAdminRoutes(server: FastifyInstance, ctx: GatewayC
     );
     if (!adminId) return reply.status(403).send({ error: "forbidden" });
 
-    return proxyJsonRequest(
-      reply, ctx.requestFn,
-      `${ctx.searchIndexerBase}/internal/admin/search/reindex/${encodeURIComponent(req.params.type)}`,
-      { method: "POST", headers: addAuthUserIdHeader({}, adminId, "admin") },
-      req.id
-    );
+    return reply.status(200).send({
+      message: "Reindex is not required — search uses PostgreSQL FTS with auto-maintained generated columns.",
+      type: req.params.type,
+      status: "not_applicable"
+    });
   });
 }

@@ -101,9 +101,13 @@ export class PgCompetitionDirectoryRepository implements CompetitionDirectoryRep
       conditions.push(`visibility = 'listed'`);
     }
 
+    let orderBy = "ORDER BY created_at DESC";
+
     if (filters.query) {
-      values.push(`%${filters.query}%`);
-      conditions.push(`(title ILIKE $${values.length} OR description ILIKE $${values.length})`);
+      values.push(filters.query.trim());
+      const idx = values.length;
+      conditions.push(`search_vector @@ websearch_to_tsquery('english', $${idx})`);
+      orderBy = `ORDER BY ts_rank_cd(search_vector, websearch_to_tsquery('english', $${idx})) DESC, created_at DESC`;
     }
 
     if (filters.format) {
@@ -130,7 +134,7 @@ export class PgCompetitionDirectoryRepository implements CompetitionDirectoryRep
     if (conditions.length > 0) {
       query += ` WHERE ${conditions.join(" AND ")}`;
     }
-    query += " ORDER BY created_at DESC";
+    query += ` ${orderBy}`;
 
     const result = await db.query<CompetitionRow>(query, values);
     return result.rows.map(mapCompetition);

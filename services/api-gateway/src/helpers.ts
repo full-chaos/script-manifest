@@ -20,7 +20,6 @@ export type GatewayContext = {
   industryPortalBase: string;
   programsServiceBase: string;
   partnerDashboardServiceBase: string;
-  searchIndexerBase: string;
 };
 
 // ── Auth token TTL cache (CHAOS-581) ─────────────────────────────────

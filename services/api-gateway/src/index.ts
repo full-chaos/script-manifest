@@ -50,7 +50,6 @@ export type ApiGatewayOptions = {
   industryPortalBase?: string;
   programsServiceBase?: string;
   partnerDashboardServiceBase?: string;
-  searchIndexerBase?: string;
   enableIpBlocklist?: boolean;
   redisUrl?: string;
 };
@@ -120,8 +119,7 @@ export async function buildServer(options: ApiGatewayOptions = {}): Promise<Fast
     notificationServiceBase: options.notificationServiceBase ?? "http://localhost:4010",
     industryPortalBase: options.industryPortalBase ?? "http://localhost:4009",
     programsServiceBase: options.programsServiceBase ?? "http://localhost:4012",
-    partnerDashboardServiceBase: options.partnerDashboardServiceBase ?? "http://localhost:4013",
-    searchIndexerBase: options.searchIndexerBase ?? "http://localhost:4003"
+    partnerDashboardServiceBase: options.partnerDashboardServiceBase ?? "http://localhost:4013"
   };
 
   registerHealthRoutes(server, ctx);
@@ -193,7 +191,6 @@ export async function startServer(): Promise<void> {
     industryPortalBase: process.env.INDUSTRY_PORTAL_SERVICE_URL,
     programsServiceBase: process.env.PROGRAMS_SERVICE_URL,
     partnerDashboardServiceBase: process.env.PARTNER_DASHBOARD_SERVICE_URL,
-    searchIndexerBase: process.env.SEARCH_INDEXER_URL,
     enableIpBlocklist: true,
     redisUrl: process.env.REDIS_URL,
   });

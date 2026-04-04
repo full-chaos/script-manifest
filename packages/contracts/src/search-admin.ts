@@ -1,17 +1,27 @@
 import { z } from "zod";
 
-// ── Search Index Status ─────────────────────────────────────────────
+// ── Search Status (Postgres FTS) ────────────────────────────────────
 
-export const SearchIndexStatusSchema = z.object({
-  clusterHealth: z.string(),
-  indexName: z.string(),
+export const SearchStatusSchema = z.object({
+  backend: z.literal("postgres_fts"),
+  searchHealth: z.enum(["ready", "degraded"]),
   documentCount: z.number().int().nonnegative(),
-  indexSizeBytes: z.number().int().nonnegative(),
-  lastSyncAt: z.string().datetime({ offset: true }).nullable()
+  indexSizeBytes: z.number().int().nonnegative().nullable(),
+  lastSyncAt: z.string().datetime({ offset: true }).nullable(),
+  notes: z.array(z.string())
 });
-export type SearchIndexStatus = z.infer<typeof SearchIndexStatusSchema>;
+export type SearchStatus = z.infer<typeof SearchStatusSchema>;
 
-// ── Reindex Request ─────────────────────────────────────────────────
+// ── Legacy re-exports for backward compatibility during migration ───
+// TODO: Remove after all consumers migrate to SearchStatus
+
+/** @deprecated Use SearchStatusSchema */
+export const SearchIndexStatusSchema = SearchStatusSchema;
+/** @deprecated Use SearchStatus */
+export type SearchIndexStatus = SearchStatus;
+
+// ── Reindex — no longer applicable with Postgres FTS generated columns
+// Kept as type stubs for contract consumers; gateway returns static responses.
 
 export const ReindexTypeSchema = z.enum(["competitions", "all"]);
 export type ReindexType = z.infer<typeof ReindexTypeSchema>;
@@ -22,9 +32,8 @@ export const ReindexRequestSchema = z.object({
 export type ReindexRequest = z.infer<typeof ReindexRequestSchema>;
 
 export const ReindexResponseSchema = z.object({
-  jobId: z.string().min(1),
+  message: z.string(),
   type: ReindexTypeSchema,
-  status: z.string(),
-  startedAt: z.string().datetime({ offset: true })
+  status: z.string()
 });
 export type ReindexResponse = z.infer<typeof ReindexResponseSchema>;

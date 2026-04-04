@@ -27,12 +27,10 @@ function createMockRequestFn(
   const requestFn = (async (url: string, options?: { method?: string; headers?: Record<string, string>; body?: string }) => {
     calls.push({ url: String(url), method: options?.method ?? "GET" });
 
-    // Auth endpoint — return admin user
     if (String(url).includes("/internal/auth/me")) {
       return jsonResponse({ user: { id: ADMIN_USER_ID, email: "admin@test.com", displayName: "Admin", role: authRole } });
     }
 
-    // Match response by URL pattern
     for (const [pattern, response] of Object.entries(responses)) {
       if (String(url).includes(pattern)) {
         return jsonResponse(response.payload, response.statusCode ?? 200);
@@ -45,10 +43,17 @@ function createMockRequestFn(
   return { requestFn, calls };
 }
 
-test("GET /api/v1/admin/search/status proxies to search indexer", async (t) => {
+test("GET /api/v1/admin/search/status proxies to competition-directory-service", async (t) => {
   const { requestFn, calls } = createMockRequestFn({
     "/internal/admin/search/status": {
-      payload: { clusterHealth: "green", indexName: "competitions_v1", documentCount: 100, indexSizeBytes: 5000, lastSyncAt: null }
+      payload: {
+        backend: "postgres_fts",
+        searchHealth: "ready",
+        documentCount: 100,
+        indexSizeBytes: 5000,
+        lastSyncAt: null,
+        notes: []
+      }
     }
   });
 
@@ -65,8 +70,9 @@ test("GET /api/v1/admin/search/status proxies to search indexer", async (t) => {
   });
 
   assert.equal(res.statusCode, 200);
-  const body = JSON.parse(res.payload) as { clusterHealth: string; documentCount: number };
-  assert.equal(body.clusterHealth, "green");
+  const body = JSON.parse(res.payload) as { backend: string; searchHealth: string; documentCount: number };
+  assert.equal(body.backend, "postgres_fts");
+  assert.equal(body.searchHealth, "ready");
   assert.equal(body.documentCount, 100);
   assert.ok(calls.some(c => c.url.includes("/internal/admin/search/status")));
 });
@@ -89,13 +95,8 @@ test("GET /api/v1/admin/search/status returns 403 without admin", async (t) => {
   assert.equal(res.statusCode, 403);
 });
 
-test("POST /api/v1/admin/search/reindex proxies to search indexer", async (t) => {
-  const { requestFn, calls } = createMockRequestFn({
-    "/internal/admin/search/reindex": {
-      payload: { jobId: "reindex_123", type: "all", status: "started", startedAt: "2026-03-08T00:00:00.000Z" },
-      statusCode: 202
-    }
-  });
+test("POST /api/v1/admin/search/reindex returns static not-applicable response", async (t) => {
+  const { requestFn } = createMockRequestFn({});
 
   const server = await buildServer({
     logger: false,
@@ -109,17 +110,15 @@ test("POST /api/v1/admin/search/reindex proxies to search indexer", async (t) =>
     headers: { authorization: "Bearer test-token" }
   });
 
-  assert.equal(res.statusCode, 202);
-  assert.ok(calls.some(c => c.url.includes("/internal/admin/search/reindex") && c.method === "POST"));
+  assert.equal(res.statusCode, 200);
+  const body = JSON.parse(res.payload) as { message: string; type: string; status: string };
+  assert.equal(body.status, "not_applicable");
+  assert.equal(body.type, "all");
+  assert.ok(body.message.includes("PostgreSQL FTS"));
 });
 
-test("POST /api/v1/admin/search/reindex/:type proxies to search indexer", async (t) => {
-  const { requestFn, calls } = createMockRequestFn({
-    "/internal/admin/search/reindex/competitions": {
-      payload: { jobId: "reindex_456", type: "competitions", status: "started", startedAt: "2026-03-08T00:00:00.000Z" },
-      statusCode: 202
-    }
-  });
+test("POST /api/v1/admin/search/reindex/:type returns static not-applicable response", async (t) => {
+  const { requestFn } = createMockRequestFn({});
 
   const server = await buildServer({
     logger: false,
@@ -133,6 +132,8 @@ test("POST /api/v1/admin/search/reindex/:type proxies to search indexer", async 
     headers: { authorization: "Bearer test-token" }
   });
 
-  assert.equal(res.statusCode, 202);
-  assert.ok(calls.some(c => c.url.includes("/internal/admin/search/reindex/competitions")));
+  assert.equal(res.statusCode, 200);
+  const body = JSON.parse(res.payload) as { message: string; type: string; status: string };
+  assert.equal(body.status, "not_applicable");
+  assert.equal(body.type, "competitions");
 });

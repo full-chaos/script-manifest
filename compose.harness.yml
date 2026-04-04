@@ -20,11 +20,6 @@ services:
     ports:
       - "127.0.0.1:${REDIS_PORT:-6379}:6379"
 
-  opensearch:
-    ports:
-      - "127.0.0.1:${OPENSEARCH_HTTP_PORT:-9200}:9200"
-      - "127.0.0.1:${OPENSEARCH_PERF_PORT:-9600}:9600"
-
   minio:
     ports:
       - "127.0.0.1:${MINIO_PORT:-9900}:9000"
@@ -45,12 +40,6 @@ services:
   notification-service:
     ports:
       - "127.0.0.1:4010:4010"
-    environment:
-      <<: *no-telemetry
-
-  search-indexer-service:
-    ports:
-      - "127.0.0.1:4003:4003"
     environment:
       <<: *no-telemetry
 

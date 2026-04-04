@@ -690,31 +690,6 @@ importers:
         specifier: ^5.9.3
         version: 5.9.3
 
-  services/search-indexer-service:
-    dependencies:
-      '@script-manifest/contracts':
-        specifier: workspace:*
-        version: link:../../packages/contracts
-      '@script-manifest/service-utils':
-        specifier: workspace:*
-        version: link:../../packages/service-utils
-      fastify:
-        specifier: ^5.8.4
-        version: 5.8.4
-      undici:
-        specifier: ^8.0.0
-        version: 8.0.1
-    devDependencies:
-      '@types/node':
-        specifier: ^25.5.0
-        version: 25.5.0
-      tsx:
-        specifier: ^4.19.2
-        version: 4.21.0
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
-
   services/submission-tracking-service:
     dependencies:
       '@script-manifest/contracts':

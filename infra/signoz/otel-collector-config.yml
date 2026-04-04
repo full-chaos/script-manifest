@@ -22,7 +22,6 @@ receivers:
                 - api-gateway:4000
                 - profile-project-service:4001
                 - competition-directory-service:4002
-                - search-indexer-service:4003
                 - submission-tracking-service:4004
                 - identity-service:4005
                 - feedback-exchange-service:4006

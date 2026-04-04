@@ -4,9 +4,8 @@ This phase bootstraps the first deployable codebase for:
 
 - Writer profile shell
 - Project and draft management service contracts
-- Competition directory plumbing
+- Competition directory plumbing (search powered by PostgreSQL FTS)
 - Baseline API gateway
-- OpenSearch-ready local stack
 
 ## Active Branch
 
@@ -37,7 +36,6 @@ pnpm --filter @script-manifest/writer-web dev
 pnpm --filter @script-manifest/api-gateway dev
 pnpm --filter @script-manifest/profile-project-service dev
 pnpm --filter @script-manifest/competition-directory-service dev
-pnpm --filter @script-manifest/search-indexer-service dev
 pnpm --filter @script-manifest/script-storage-service dev
 pnpm --filter @script-manifest/submission-tracking-service dev
 ```
@@ -230,19 +228,15 @@ curl -X POST http://localhost:4002/internal/competitions/comp_01/deadline-remind
   -d '{"targetUserId":"writer_01","deadlineAt":"2026-03-01T00:00:00.000Z","message":"Submission closes in 48 hours"}'
 ```
 
-## Competition Directory + Search Indexer (Issue #18)
+## Competition Directory + Search (Issue #18)
+
+Competition search is powered by PostgreSQL full-text search (FTS) via a `tsvector` generated column. No separate search service or cluster is required.
 
 Directory service endpoints (`:4002`):
 - `GET /health`
 - `GET /internal/competitions?query=&format=&genre=&maxFeeUsd=&deadlineBefore=`
 - `POST /internal/competitions` (upsert/create by `id`)
-- `POST /internal/competitions/reindex` (bulk pushes all known records to search-indexer-service)
 - `POST /internal/competitions/:competitionId/deadline-reminders` (publishes `deadline_reminder` event to notification-service)
-
-Search indexer service endpoints (`:4003`):
-- `GET /health`
-- `POST /internal/index/competition` (indexes one document into `competitions_v1`)
-- `POST /internal/index/competition/bulk` (array payload bulk indexing into `competitions_v1`)
 
 Gateway endpoint (`:4000`):
 - `GET /api/v1/competitions` proxies to directory service and supports the same filters.
@@ -254,7 +248,6 @@ User guide:
 Quick run:
 
 ```bash
-pnpm --filter @script-manifest/search-indexer-service dev
 pnpm --filter @script-manifest/competition-directory-service dev
 pnpm --filter @script-manifest/api-gateway dev
 ```

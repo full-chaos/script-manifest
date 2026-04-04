@@ -80,42 +80,6 @@ services:
       timeout: 3s
       retries: 5
 
-  opensearch:
-    image: opensearchproject/opensearch:2.17.1
-    container_name: manifest-opensearch
-    environment:
-      discovery.type: single-node
-      plugins.security.disabled: "true"
-      OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
-      OPENSEARCH_INITIAL_ADMIN_PASSWORD: Manifest123!
-    networks:
-      - internal
-      - public
-    labels:
-      traefik.enable: "true"
-      traefik.http.routers.opensearch.rule: "Host(`opensearch.localhost`)"
-      traefik.http.routers.opensearch.entrypoints: "web"
-      traefik.http.services.opensearch.loadbalancer.server.port: "9200"
-    ulimits:
-      memlock:
-        soft: -1
-        hard: -1
-      nofile:
-        soft: 65536
-        hard: 65536
-    volumes:
-      - opensearch_data:/usr/share/opensearch/data
-    healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "curl -sf http://localhost:9200/_cluster/health || exit 1",
-        ]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 30s
-
   minio:
     # Pinned: MinIO RELEASE.2025-09-07T16-13-09Z (stable, Sep 2025)
     image: minio/minio:RELEASE.2025-09-07T16-13-09Z
@@ -372,34 +336,6 @@ services:
     networks:
       - internal
 
-  search-indexer-service:
-    <<: *node-dev
-    container_name: manifest-search-indexer-service
-    working_dir: /workspace
-    volumes:
-      - .:/workspace
-    environment:
-      <<: *telemetry-env
-      OTEL_SERVICE_NAME: "search-indexer-service"
-      SENTRY_DSN: "${SENTRY_DSN:-}"
-      PORT: "4003"
-      OPENSEARCH_URL: "http://opensearch:9200"
-      OPENSEARCH_INDEX: "competitions_v1"
-    command: >
-      sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/search-indexer-service dev"
-    depends_on:
-      opensearch:
-        condition: service_healthy
-    healthcheck:
-      test:
-        ["CMD-SHELL", "curl -sf http://localhost:4003/health/live || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 180s
-    networks:
-      - internal
-
   competition-directory-service:
     <<: *node-dev
     container_name: manifest-competition-directory-service
@@ -412,7 +348,6 @@ services:
       SENTRY_DSN: "${SENTRY_DSN:-}"
       PORT: "4002"
       DATABASE_URL: "postgresql://manifest:manifest@postgres:5432/manifest"
-      SEARCH_INDEXER_URL: "http://search-indexer-service:4003"
       NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
       COMPETITION_ADMIN_ALLOWLIST: "admin_01,user_admin_01"
       KAFKA_BROKERS: "redpanda:9092"
@@ -421,8 +356,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      search-indexer-service:
-        condition: service_started
       notification-service:
         condition: service_started
     healthcheck:
@@ -735,7 +668,6 @@ services:
       PARTNER_DASHBOARD_SERVICE_URL: "http://partner-dashboard-service:4013"
       REDIS_URL: "redis://:${REDIS_PASSWORD:-manifest}@redis:6379"
       NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
-      SEARCH_INDEXER_URL: "http://search-indexer-service:4003"
       RATE_LIMIT_MAX: "1000"
       SERVICE_TOKEN_SECRET: "local-dev-token-secret"
     command: >
@@ -769,8 +701,6 @@ services:
       partner-dashboard-service:
         condition: service_healthy
       notification-service:
-        condition: service_healthy
-      search-indexer-service:
         condition: service_healthy
     healthcheck:
       test:
@@ -824,6 +754,5 @@ services:
 
 volumes:
   postgres_data:
-  opensearch_data:
   minio_data:
   signoz_data:

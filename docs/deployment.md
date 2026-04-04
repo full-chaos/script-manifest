@@ -18,9 +18,8 @@ docker compose -f compose.yml up -d
 
 This stack includes:
 
-- PostgreSQL
+- PostgreSQL (includes FTS for competition search)
 - Redis
-- OpenSearch
 - MinIO
 - Redpanda
 - Mailpit
@@ -32,7 +31,6 @@ Common local URLs:
 - Writer web: `http://localhost:3000`
 - API gateway: `http://localhost:4000`
 - Identity service: `http://localhost:4005`
-- OpenSearch: `http://localhost:9200`
 - MinIO console: `http://localhost:9001`
 - Mailpit UI: `http://localhost:8025`
 - Redpanda console: `http://localhost:8080`
@@ -97,7 +95,7 @@ What it provides:
 - Staging overlay for the same stack
 - Manager and worker placement constraints
 - Traefik ingress
-- PostgreSQL, Redis, OpenSearch, MinIO, Redpanda, Prometheus, and Alertmanager
+- PostgreSQL, Redis, MinIO, Redpanda, Prometheus, and Alertmanager
 
 Usage:
 

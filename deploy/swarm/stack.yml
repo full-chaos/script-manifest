@@ -472,7 +472,6 @@ services:
       PARTNER_DASHBOARD_SERVICE_URL: "http://partner-dashboard-service:4013"
       COVERAGE_MARKETPLACE_SERVICE_URL: "http://coverage-marketplace-service:4008"
       INDUSTRY_PORTAL_SERVICE_URL: "http://industry-portal-service:4009"
-      COMPETITION_ADMIN_ALLOWLIST: ${COMPETITION_ADMIN_ALLOWLIST:-}
       COVERAGE_ADMIN_ALLOWLIST: ${COVERAGE_ADMIN_ALLOWLIST:-}
       INDUSTRY_ADMIN_ALLOWLIST: ${INDUSTRY_ADMIN_ALLOWLIST:-}
       NOTIFICATION_SERVICE_URL: "http://notification-service:4010"

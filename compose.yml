@@ -349,7 +349,6 @@ services:
       PORT: "4002"
       DATABASE_URL: "postgresql://manifest:manifest@postgres:5432/manifest"
       NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
-      COMPETITION_ADMIN_ALLOWLIST: "admin_01,user_admin_01"
       KAFKA_BROKERS: "redpanda:9092"
     command: >
       sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/competition-directory-service dev"

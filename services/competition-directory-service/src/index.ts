@@ -30,10 +30,6 @@ export function buildServer(options: CompetitionDirectoryOptions = {}): FastifyI
   const requestFn = options.requestFn ?? request;
   const repository = options.repository ?? new PgCompetitionDirectoryRepository();
   const notificationServiceBase = options.notificationServiceBase ?? "http://localhost:4010";
-  const adminAllowlist = parseAllowlist(
-    process.env.COMPETITION_ADMIN_ALLOWLIST ?? ""
-  );
-
   const startedAt = Date.now();
 
   server.addHook("onReady", async () => {
@@ -118,7 +114,7 @@ export function buildServer(options: CompetitionDirectoryOptions = {}): FastifyI
 
   server.post("/internal/admin/competitions", async (req, reply) => {
     const adminUserId = readHeader(req, "x-admin-user-id");
-    if (!adminUserId || !adminAllowlist.has(adminUserId)) {
+    if (!adminUserId) {
       return reply.status(403).send({ error: "forbidden" });
     }
 
@@ -135,7 +131,7 @@ export function buildServer(options: CompetitionDirectoryOptions = {}): FastifyI
 
   server.put<{ Params: { competitionId: string } }>("/internal/admin/competitions/:competitionId", async (req, reply) => {
     const adminUserId = readHeader(req, "x-admin-user-id");
-    if (!adminUserId || !adminAllowlist.has(adminUserId)) {
+    if (!adminUserId) {
       return reply.status(403).send({ error: "forbidden" });
     }
 
@@ -156,7 +152,7 @@ export function buildServer(options: CompetitionDirectoryOptions = {}): FastifyI
 
   server.post<{ Params: { competitionId: string } }>("/internal/admin/competitions/:competitionId/cancel", async (req, reply) => {
     const adminUserId = readHeader(req, "x-admin-user-id");
-    if (!adminUserId || !adminAllowlist.has(adminUserId)) {
+    if (!adminUserId) {
       return reply.status(403).send({ error: "forbidden" });
     }
 
@@ -171,7 +167,7 @@ export function buildServer(options: CompetitionDirectoryOptions = {}): FastifyI
 
   server.patch<{ Params: { competitionId: string } }>("/internal/admin/competitions/:competitionId/visibility", async (req, reply) => {
     const adminUserId = readHeader(req, "x-admin-user-id");
-    if (!adminUserId || !adminAllowlist.has(adminUserId)) {
+    if (!adminUserId) {
       return reply.status(403).send({ error: "forbidden" });
     }
 
@@ -191,7 +187,7 @@ export function buildServer(options: CompetitionDirectoryOptions = {}): FastifyI
 
   server.patch<{ Params: { competitionId: string } }>("/internal/admin/competitions/:competitionId/access-type", async (req, reply) => {
     const adminUserId = readHeader(req, "x-admin-user-id");
-    if (!adminUserId || !adminAllowlist.has(adminUserId)) {
+    if (!adminUserId) {
       return reply.status(403).send({ error: "forbidden" });
     }
 
@@ -318,11 +314,3 @@ async function upsertCompetition(
   });
 }
 
-function parseAllowlist(value: string): Set<string> {
-  return new Set(
-    value
-      .split(",")
-      .map((entry) => entry.trim())
-      .filter(Boolean)
-  );
-}

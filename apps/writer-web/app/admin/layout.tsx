@@ -34,7 +34,7 @@ const navItems: NavItem[] = [
   { href: "/admin/disputes" as Route, label: "Disputes", icon: <AlertTriangle className="h-4 w-4" aria-hidden="true" /> },
   { href: "/admin/audit-log" as Route, label: "Audit Log", icon: <ScrollText className="h-4 w-4" aria-hidden="true" /> },
   { href: "/admin/notifications" as Route, label: "Notifications", icon: <Bell className="h-4 w-4" aria-hidden="true" /> },
-  { href: "/admin/search" as Route, label: "Search Index", icon: <Search className="h-4 w-4" aria-hidden="true" /> },
+  { href: "/admin/search" as Route, label: "Search", icon: <Search className="h-4 w-4" aria-hidden="true" /> },
   { href: "/admin/feature-flags" as Route, label: "Feature Flags", icon: <ToggleRight className="h-4 w-4" aria-hidden="true" /> },
   { href: "/admin/security" as Route, label: "Security", icon: <ShieldBan className="h-4 w-4" aria-hidden="true" /> }
 ];

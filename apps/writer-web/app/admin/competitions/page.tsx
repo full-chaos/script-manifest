@@ -132,12 +132,14 @@ export default function AdminCompetitionsPage() {
       const response = await fetch(`/api/v1/admin/competitions/${encodeURIComponent(id)}/cancel`, {
         method: "POST",
       });
-      const body = await response.json();
+      const body = await response.json() as { competition?: Competition; error?: string };
       if (!response.ok) {
         setStatus(body.error ? `Error: ${body.error}` : "Cancel failed.");
         return;
       }
-      await loadCompetitions();
+      if (body.competition) {
+        setRows(prev => prev.map(c => c.id === id ? body.competition! : c));
+      }
       setStatus("Competition cancelled.");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "unknown_error");
@@ -156,12 +158,14 @@ export default function AdminCompetitionsPage() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ visibility: newVisibility })
       });
-      const body = await response.json();
+      const body = await response.json() as { competition?: Competition; error?: string };
       if (!response.ok) {
         setStatus(body.error ? `Error: ${body.error}` : "Visibility update failed.");
         return;
       }
-      await loadCompetitions();
+      if (body.competition) {
+        setRows(prev => prev.map(c => c.id === id ? body.competition! : c));
+      }
       setStatus(`Competition visibility set to ${newVisibility}.`);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "unknown_error");
@@ -180,12 +184,14 @@ export default function AdminCompetitionsPage() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ accessType: newAccessType })
       });
-      const body = await response.json();
+      const body = await response.json() as { competition?: Competition; error?: string };
       if (!response.ok) {
         setStatus(body.error ? `Error: ${body.error}` : "Access type update failed.");
         return;
       }
-      await loadCompetitions();
+      if (body.competition) {
+        setRows(prev => prev.map(c => c.id === id ? body.competition! : c));
+      }
       setStatus(`Competition access type set to ${newAccessType}.`);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "unknown_error");

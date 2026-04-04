@@ -211,16 +211,13 @@ test("competition deadline reminder publishes notification event", async (t) => 
   assert.match(urls[0] ?? "", /notification-service\/internal\/events$/);
 });
 
-test("competition admin curation route enforces allowlist header", async (t) => {
-  process.env.COMPETITION_ADMIN_ALLOWLIST = "admin_writer";
-
+test("competition admin curation route requires x-admin-user-id header", async (t) => {
   const server = buildServer({
     logger: false,
     repository: new MemoryCompetitionDirectoryRepository(),
     requestFn: (async () => textResponse({ ok: true }, 201)) as typeof request
   });
   t.after(async () => {
-    delete process.env.COMPETITION_ADMIN_ALLOWLIST;
     await server.close();
   });
 

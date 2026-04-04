@@ -128,7 +128,7 @@ test("competition directory filters seeded competitions", async (t) => {
   assert.equal(payload.competitions.length, 1);
 });
 
-test("competition directory upsert indexes competition", async (t) => {
+test("competition directory upsert succeeds without indexer dependency", async (t) => {
   const calls: string[] = [];
   const server = buildServer({
     logger: false,
@@ -158,8 +158,29 @@ test("competition directory upsert indexes competition", async (t) => {
 
   assert.equal(response.statusCode, 201);
   const payload = response.json();
-  assert.equal(payload.indexed, true);
-  assert.match(calls[0] ?? "", /\/internal\/index\/competition$/);
+  assert.equal(payload.upserted, true);
+  assert.equal(payload.created, true);
+  assert.equal(payload.indexed, undefined);
+  const indexerCalls = calls.filter(u => u.includes("/internal/index/"));
+  assert.equal(indexerCalls.length, 0);
+});
+
+test("health endpoint does not require indexer connectivity", async (t) => {
+  const server = buildServer({
+    logger: false,
+    repository: new MemoryCompetitionDirectoryRepository(),
+    requestFn: (async () => textResponse({}, 200)) as typeof request,
+  });
+  t.after(async () => {
+    await server.close();
+  });
+
+  const response = await server.inject({ method: "GET", url: "/health" });
+  assert.equal(response.statusCode, 200);
+  const payload = response.json();
+  assert.equal(payload.ok, true);
+  assert.equal(payload.database, true);
+  assert.equal(payload.indexer, undefined);
 });
 
 test("competition deadline reminder publishes notification event", async (t) => {

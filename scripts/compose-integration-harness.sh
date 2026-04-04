@@ -15,12 +15,10 @@ fi
 SERVICES=(
   postgres
   redis
-  opensearch
   minio
   notification-service
   identity-service
   profile-project-service
-  search-indexer-service
   competition-directory-service
   submission-tracking-service
   feedback-exchange-service
@@ -37,7 +35,6 @@ HEALTH_ENDPOINTS=(
   "http://localhost:4000/health/live"
   "http://localhost:4001/health"
   "http://localhost:4002/health"
-  "http://localhost:4003/health"
   "http://localhost:4004/health"
   "http://localhost:4005/health"
   "http://localhost:4006/health"
@@ -154,19 +151,13 @@ up() {
   if [[ -z "${MINIO_CONSOLE_PORT:-}" ]]; then
     MINIO_CONSOLE_PORT="$(pick_available_port 59001)"
   fi
-  if [[ -z "${OPENSEARCH_HTTP_PORT:-}" ]]; then
-    OPENSEARCH_HTTP_PORT="$(pick_available_port 59200)"
-  fi
-  if [[ -z "${OPENSEARCH_PERF_PORT:-}" ]]; then
-    OPENSEARCH_PERF_PORT="$(pick_available_port 59600)"
-  fi
   if [[ -z "${TRAEFIK_PORT:-}" ]]; then
     TRAEFIK_PORT="$(pick_available_port 9100)"
   fi
   if [[ -z "${MAILPIT_SMTP_PORT:-}" ]]; then
     MAILPIT_SMTP_PORT="$(pick_available_port 1025)"
   fi
-  export POSTGRES_PORT REDIS_PORT MINIO_PORT MINIO_CONSOLE_PORT OPENSEARCH_HTTP_PORT OPENSEARCH_PERF_PORT TRAEFIK_PORT MAILPIT_SMTP_PORT
+  export POSTGRES_PORT REDIS_PORT MINIO_PORT MINIO_CONSOLE_PORT TRAEFIK_PORT MAILPIT_SMTP_PORT
   build_node_dev_image
   write_install_markers
   run_compose up -d --no-build "${SERVICES[@]}"

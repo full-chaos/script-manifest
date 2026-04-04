@@ -11,7 +11,7 @@ Always reference AGENTS.md for the latest info and instructions
 - **Monorepo**: pnpm 9.12, Turborepo 2.x, TypeScript 5.9 strict
 - **Backend**: 11 Fastify microservices behind an API gateway
 - **Frontend**: Next.js 16 (App Router), React 19.2, Tailwind CSS 3.4
-- **Storage**: PostgreSQL 16, OpenSearch 2.17, MinIO, Redpanda (Kafka)
+- **Storage**: PostgreSQL 16 (includes FTS for search), MinIO, Redpanda (Kafka)
 - **Payments**: Stripe Connect (coverage-marketplace-service)
 
 ## Commands
@@ -30,8 +30,7 @@ pnpm --filter @script-manifest/<name> typecheck # Single package typecheck
 | --------------------- | ---- | ---------------------------------------------- | ----------------- |
 | api-gateway           | 4000 | @script-manifest/api-gateway                   | —                 |
 | profile-project       | 4001 | @script-manifest/profile-project-service       | PostgreSQL        |
-| competition-directory | 4002 | @script-manifest/competition-directory-service | In-memory         |
-| search-indexer        | 4003 | @script-manifest/search-indexer-service        | OpenSearch        |
+| competition-directory | 4002 | @script-manifest/competition-directory-service | PostgreSQL (FTS)  |
 | submission-tracking   | 4004 | @script-manifest/submission-tracking-service   | In-memory         |
 | identity              | 4005 | @script-manifest/identity-service              | PostgreSQL        |
 | feedback-exchange     | 4006 | @script-manifest/feedback-exchange-service     | PostgreSQL        |

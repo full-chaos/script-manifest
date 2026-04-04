@@ -47,30 +47,6 @@ services:
         limits:
           cpus: '0.5'
           memory: 512M
-  opensearch:
-    <<: *service-defaults
-    image: opensearchproject/opensearch:2.17.1
-    environment:
-      discovery.type: single-node
-      OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
-      OPENSEARCH_INITIAL_ADMIN_PASSWORD: ${OPENSEARCH_INITIAL_ADMIN_PASSWORD:?OPENSEARCH_INITIAL_ADMIN_PASSWORD is required}
-    ulimits:
-      memlock: { soft: -1, hard: -1 }
-      nofile: { soft: 65536, hard: 65536 }
-    volumes:
-      - opensearch_data:/usr/share/opensearch/data
-    healthcheck:
-      test: [ "CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health || exit 1" ]
-      interval: 15s
-      timeout: 5s
-      retries: 10
-      start_period: 30s
-    networks: [ internal ]
-    deploy:
-      resources:
-        limits:
-          cpus: '2.0'
-          memory: 2G
   minio:
     <<: *service-defaults
     image: minio/minio:RELEASE.2025-09-07T16-13-09Z
@@ -211,38 +187,14 @@ services:
           cpus: '0.5'
           memory: 512M
 
-  search-indexer-service:
-    <<: *service-defaults
-    image: ghcr.io/full-chaos/script-manifest/search-indexer-service:${IMAGE_TAG:-latest}
-    environment:
-      PORT: "4003"
-      NODE_ENV: production
-      OPENSEARCH_URL: "http://opensearch:9200"
-      OPENSEARCH_INDEX: "competitions_v1"
-    depends_on:
-      opensearch:
-        condition: service_healthy
-    healthcheck:
-      test: [ "CMD-SHELL", "curl -sf http://localhost:4003/health || exit 1" ]
-      <<: *healthcheck
-    networks: [ internal ]
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 512M
-
   competition-directory-service:
     <<: *service-defaults
     image: ghcr.io/full-chaos/script-manifest/competition-directory-service:${IMAGE_TAG:-latest}
     environment:
       PORT: "4002"
       NODE_ENV: production
-      SEARCH_INDEXER_URL: "http://search-indexer-service:4003"
       NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
     depends_on:
-      search-indexer-service:
-        condition: service_healthy
       notification-service:
         condition: service_healthy
     healthcheck:
@@ -432,7 +384,6 @@ services:
       COVERAGE_ADMIN_ALLOWLIST: ${COVERAGE_ADMIN_ALLOWLIST:-}
       INDUSTRY_ADMIN_ALLOWLIST: ${INDUSTRY_ADMIN_ALLOWLIST:-}
       NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
-      SEARCH_INDEXER_URL: "http://search-indexer-service:4003"
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
     depends_on:
       traefik:
@@ -460,8 +411,6 @@ services:
       script-storage-service:
         condition: service_healthy
       notification-service:
-        condition: service_healthy
-      search-indexer-service:
         condition: service_healthy
     healthcheck:
       test: [ "CMD-SHELL", "curl -sf http://localhost:4000/health/live || exit 1" ]
@@ -569,7 +518,6 @@ services:
 
 volumes:
   postgres_data:
-  opensearch_data:
   minio_data:
   traefik_certs:
 

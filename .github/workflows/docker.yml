@@ -40,7 +40,6 @@ jobs:
           - profile-project-service
           - ranking-service
           - script-storage-service
-          - search-indexer-service
           - submission-tracking-service
           - writer-web
 
@@ -123,7 +122,6 @@ jobs:
           - name: profile-project-service
           - name: ranking-service
           - name: script-storage-service
-          - name: search-indexer-service
           - name: submission-tracking-service
           - name: writer-web
 

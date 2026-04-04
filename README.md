@@ -8,7 +8,8 @@ Revisiting the writer ecosystem: portfolio hosting, competition tracking, rankin
 - Phases 1, 3, 4, 5, 6, and 7 implemented and documented.
 - Phase 2 is in review for closeout (`script-manifest-612`, `CHAOS-323/324/326/327/328/329/330/331`).
 - Design and infrastructure modernization backlog remains open (`CHAOS-382/384/390/393/394/395/396/397`).
-- Local development stack: Docker Compose with PostgreSQL, Redis, OpenSearch, MinIO, Redpanda, and Mailpit.
+- Local development stack: Docker Compose with PostgreSQL, Redis, MinIO, Redpanda, and Mailpit.
+- Competition search powered by PostgreSQL full-text search (no separate search cluster required).
 
 Planning and phase documentation index:
 - `docs/README.md`
@@ -30,7 +31,6 @@ See:
 docker compose -f compose.yml up -d
 ```
 
-OpenSearch: `http://localhost:9200`
 Mailpit UI: `http://localhost:8025`
 MinIO Console: `http://localhost:9001`
 Redpanda Console: `http://localhost:8080`

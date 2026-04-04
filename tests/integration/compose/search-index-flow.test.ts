@@ -34,14 +34,10 @@ async function ensureAdminUser(): Promise<string> {
   return session.token;
 }
 
-function wait(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-test("compose flow: create competition then query competitions search for indexed result", async () => {
+test("compose flow: create competition then find it via Postgres FTS search", async () => {
   const adminToken = await ensureAdminUser();
-  const uniqueTitle = makeUnique("search_index_competition");
-  const competitionId = makeUnique("competition_search_flow");
+  const uniqueTitle = makeUnique("search_fts_competition");
+  const competitionId = makeUnique("competition_fts_flow");
 
   await expectOkJson<{ competition: { id: string; title: string } }>(`${API_BASE_URL}/api/v1/admin/competitions`, {
     method: "POST",
@@ -52,7 +48,7 @@ test("compose flow: create competition then query competitions search for indexe
     body: JSON.stringify({
       id: competitionId,
       title: uniqueTitle,
-      description: "Competition used for compose search integration flow.",
+      description: "Competition used for compose Postgres FTS integration flow.",
       format: "feature",
       genre: "drama",
       feeUsd: 25,
@@ -61,7 +57,7 @@ test("compose flow: create competition then query competitions search for indexe
   }, 201);
 
   let found = false;
-  for (let attempt = 0; attempt < 30; attempt += 1) {
+  for (let attempt = 0; attempt < 10; attempt += 1) {
     const search = await jsonRequest<{ competitions: CompetitionEntry[] }>(
       `${API_BASE_URL}/api/v1/competitions?q=${encodeURIComponent(uniqueTitle)}`,
       { method: "GET" }
@@ -76,8 +72,8 @@ test("compose flow: create competition then query competitions search for indexe
       }
     }
 
-    await wait(500);
+    await new Promise((resolve) => setTimeout(resolve, 200));
   }
 
-  assert.equal(found, true, "expected competitions results to include newly created competition");
+  assert.equal(found, true, "expected Postgres FTS search results to include newly created competition");
 });

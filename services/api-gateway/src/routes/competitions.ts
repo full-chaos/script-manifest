@@ -105,7 +105,6 @@ export function registerCompetitionRoutes(server: FastifyInstance, ctx: GatewayC
       {
         method: "POST",
         headers: {
-          "content-type": "application/json",
           "x-admin-user-id": adminUserId
         }
       }

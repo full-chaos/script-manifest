@@ -11,7 +11,6 @@ import {
   type IndustryDigestRecommendation,
   type IndustryDigestRun,
   IndustryDigestRunSchema,
-  type IndustryEntitlementAccessLevel,
   type IndustryEntitlement,
   type IndustryEntitlementUpsertRequest,
   IndustryEntitlementSchema,
@@ -50,6 +49,10 @@ import {
   getPool,
   toFtsPrefixQuery
 } from "@script-manifest/db";
+import { searchTalent as typesenseSearchTalent, type TalentDocument } from "@script-manifest/search";
+import { publishSearchSyncEvent } from "@script-manifest/service-utils";
+
+const typesenseEnabled = process.env.TYPESENSE_ENABLED === "true";
 
 export type IndustryAccountCreateResult =
   | { status: "created"; account: IndustryAccount }
@@ -745,15 +748,87 @@ export class PgIndustryPortalRepository implements IndustryPortalRepository {
          p.logline,
          p.synopsis,
          p.updated_at
-       FROM writer_profiles wp
-       JOIN projects p ON p.owner_user_id = wp.writer_id
-      WHERE wp.is_searchable = TRUE
-        AND p.is_discoverable = TRUE`
+        FROM writer_profiles wp
+        JOIN projects p ON p.owner_user_id = wp.writer_id
+       WHERE wp.is_searchable = TRUE
+         AND p.is_discoverable = TRUE`
     );
+
+    const allRows = await db.query<{
+      writer_id: string;
+      project_id: string;
+      display_name: string;
+      representation_status: "represented" | "unrepresented" | "seeking_rep";
+      genres: unknown;
+      demographics: unknown;
+      project_title: string;
+      project_format: string;
+      project_genre: string;
+      logline: string | null;
+      synopsis: string | null;
+      project_updated_at: Date | null;
+    }>(
+      `SELECT writer_id, project_id, display_name, representation_status,
+              genres, demographics, project_title, project_format, project_genre,
+              logline, synopsis, project_updated_at
+         FROM industry_talent_index`
+    );
+    for (const row of allRows.rows) {
+      try {
+        await publishSearchSyncEvent({
+          collection: "talent",
+          documentId: `${row.writer_id}_${row.project_id}`,
+          operation: "upsert",
+          payload: {
+            writerId: row.writer_id,
+            projectId: row.project_id,
+            displayName: row.display_name,
+            representationStatus: row.representation_status,
+            genres: Array.isArray(row.genres) ? row.genres : [],
+            demographics: Array.isArray(row.demographics) ? row.demographics : [],
+            projectTitle: row.project_title,
+            projectFormat: row.project_format,
+            projectGenre: row.project_genre,
+            logline: row.logline ?? "",
+            synopsis: row.synopsis ?? "",
+            isSearchable: true,
+            updatedAt: row.project_updated_at?.toISOString?.() ?? new Date().toISOString()
+          }
+        });
+      } catch {}
+    }
+
     return { indexed: inserted.rowCount ?? 0 };
   }
 
   async searchTalent(filters: IndustryTalentSearchFilters): Promise<IndustryTalentSearchPage> {
+    if (typesenseEnabled) {
+      try {
+        const tsResult = await typesenseSearchTalent(filters);
+        if (tsResult) {
+          const results = tsResult.hits.map((doc: TalentDocument) => ({
+            writerId: doc.writerId,
+            displayName: doc.displayName,
+            representationStatus: doc.representationStatus as "represented" | "unrepresented" | "seeking_rep",
+            genres: doc.genres,
+            demographics: doc.demographics,
+            projectId: doc.projectId,
+            projectTitle: doc.projectTitle,
+            projectFormat: doc.projectFormat,
+            projectGenre: doc.projectGenre,
+            logline: doc.logline,
+            synopsis: doc.synopsis
+          }));
+          return {
+            results,
+            total: tsResult.found,
+            limit: filters.limit ?? 20,
+            offset: filters.offset ?? 0
+          };
+        }
+      } catch {}
+    }
+
     const db = getPool();
     const limit = filters.limit ?? 20;
     const offset = filters.offset ?? 0;

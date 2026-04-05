@@ -3,6 +3,7 @@ import {
   ensureCoreTables,
   getPool
 } from "@script-manifest/db";
+import { publishSearchSyncEvent } from "@script-manifest/service-utils";
 import type {
   Project,
   ProjectCoWriter,
@@ -260,7 +261,7 @@ export class PgProfileProjectRepository implements ProfileProjectRepository {
     if (!row) {
       return null;
     }
-    return {
+    const profile = {
       id: row.writer_id,
       displayName: row.display_name,
       bio: row.bio,
@@ -271,6 +272,25 @@ export class PgProfileProjectRepository implements ProfileProjectRepository {
       customProfileUrl: row.custom_profile_url,
       isSearchable: row.is_searchable
     };
+
+    try {
+      await publishSearchSyncEvent({
+        collection: "talent",
+        documentId: `profile_${profile.id}`,
+        operation: "upsert",
+        payload: {
+          type: "profile_update",
+          writerId: profile.id,
+          displayName: profile.displayName,
+          representationStatus: profile.representationStatus,
+          genres: profile.genres,
+          demographics: profile.demographics,
+          isSearchable: profile.isSearchable
+        }
+      });
+    } catch {}
+
+    return profile;
   }
 
   async createProject(input: ProjectCreateInternal): Promise<Project | null> {
@@ -316,7 +336,31 @@ export class PgProfileProjectRepository implements ProfileProjectRepository {
     );
 
     const row = created.rows[0];
-    return row ? mapProject(row) : null;
+    if (row) {
+      const project = mapProject(row);
+      try {
+        await publishSearchSyncEvent({
+          collection: "projects",
+          documentId: project.id,
+          operation: "upsert",
+          payload: {
+            id: project.id,
+            ownerUserId: project.ownerUserId,
+            title: project.title,
+            logline: project.logline,
+            synopsis: project.synopsis,
+            format: project.format,
+            genre: project.genre,
+            pageCount: project.pageCount,
+            isDiscoverable: project.isDiscoverable,
+            updatedAt: project.updatedAt
+          }
+        });
+      } catch {}
+      return project;
+    }
+
+    return null;
   }
 
   async listProjects(filters: ProjectFilters): Promise<Project[]> {
@@ -442,13 +486,46 @@ export class PgProfileProjectRepository implements ProfileProjectRepository {
       ]
     );
 
-    return this.getProject(projectId);
+    const updated = await this.getProject(projectId);
+    if (updated) {
+      try {
+        await publishSearchSyncEvent({
+          collection: "projects",
+          documentId: updated.id,
+          operation: "upsert",
+          payload: {
+            id: updated.id,
+            ownerUserId: updated.ownerUserId,
+            title: updated.title,
+            logline: updated.logline,
+            synopsis: updated.synopsis,
+            format: updated.format,
+            genre: updated.genre,
+            pageCount: updated.pageCount,
+            isDiscoverable: updated.isDiscoverable,
+            updatedAt: updated.updatedAt
+          }
+        });
+      } catch {}
+    }
+    return updated;
   }
 
   async deleteProject(projectId: string): Promise<boolean> {
     const db = getPool();
     const result = await db.query(`DELETE FROM projects WHERE id = $1`, [projectId]);
-    return (result.rowCount ?? 0) > 0;
+    const deleted = (result.rowCount ?? 0) > 0;
+    if (deleted) {
+      try {
+        await publishSearchSyncEvent({
+          collection: "projects",
+          documentId: projectId,
+          operation: "delete",
+          payload: null
+        });
+      } catch {}
+    }
+    return deleted;
   }
 
   async listCoWriters(projectId: string): Promise<ProjectCoWriter[]> {

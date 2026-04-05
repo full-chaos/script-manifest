@@ -143,10 +143,14 @@ export class PgCompetitionDirectoryRepository implements CompetitionDirectoryRep
   }
 
   async listCompetitions(filters: CompetitionFilters): Promise<Competition[]> {
-    if (typesenseEnabled && filters.query) {
-      const tsResult = await typesenseSearch(filters);
-      if (tsResult) {
-        return tsResult.hits.map(typesenseDocToCompetition);
+    if (typesenseEnabled) {
+      try {
+        const tsResult = await typesenseSearch(filters);
+        if (tsResult) {
+          return tsResult.hits.map(typesenseDocToCompetition);
+        }
+      } catch {
+        // Typesense unavailable — fall through to Postgres
       }
     }
 

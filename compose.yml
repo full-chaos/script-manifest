@@ -292,6 +292,10 @@ services:
       DATABASE_URL: "postgresql://manifest:manifest@postgres:5432/manifest"
       NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
       KAFKA_BROKERS: "redpanda:9092"
+      TYPESENSE_API_KEY: "manifest-ts-dev-key"
+      TYPESENSE_HOST: "typesense"
+      TYPESENSE_PORT: "8108"
+      TYPESENSE_PROTOCOL: "http"
     command: >
       sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/profile-project-service dev"
     networks:
@@ -303,6 +307,8 @@ services:
         condition: service_healthy
       notification-service:
         condition: service_started
+      typesense:
+        condition: service_healthy
     healthcheck:
       test:
         ["CMD-SHELL", "curl -sf http://localhost:4001/health/live || exit 1"]
@@ -626,6 +632,11 @@ services:
       SCRIPT_STORAGE_SERVICE_URL: "http://script-storage-service:4011"
       NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
       KAFKA_BROKERS: "redpanda:9092"
+      TYPESENSE_API_KEY: "manifest-ts-dev-key"
+      TYPESENSE_HOST: "typesense"
+      TYPESENSE_PORT: "8108"
+      TYPESENSE_PROTOCOL: "http"
+      TYPESENSE_ENABLED: "true"
     command: >
       sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/industry-portal-service dev"
     depends_on:
@@ -637,6 +648,8 @@ services:
         condition: service_healthy
       notification-service:
         condition: service_started
+      typesense:
+        condition: service_healthy
     healthcheck:
       test:
         ["CMD-SHELL", "curl -sf http://localhost:4009/health/live || exit 1"]

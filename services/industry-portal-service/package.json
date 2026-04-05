@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch --watch-path=../../packages/contracts/dist --watch-path=../../packages/db/dist --watch-path=../../packages/service-utils/dist --import @script-manifest/service-utils/instrument src/index.ts",
+    "dev": "tsx watch --watch-path=../../packages/contracts/dist --watch-path=../../packages/db/dist --watch-path=../../packages/service-utils/dist --watch-path=../../packages/search/dist --import @script-manifest/service-utils/instrument src/index.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node --import @script-manifest/service-utils/instrument dist/index.js",
     "test": "node --experimental-test-module-mocks --import tsx --test src/**/*.test.ts",
@@ -13,6 +13,7 @@
   "dependencies": {
     "@fastify/rate-limit": "^10.2.1",
     "@script-manifest/contracts": "workspace:*",
+    "@script-manifest/search": "workspace:*",
     "@script-manifest/service-utils": "workspace:*",
     "@script-manifest/db": "workspace:*",
     "fastify": "^5.8.4",

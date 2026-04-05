@@ -103,6 +103,25 @@ services:
           cpus: '1.0'
           memory: 1G
 
+  typesense:
+    <<: *service-defaults
+    image: typesense/typesense:28.0
+    command:
+      - --data-dir=/data
+      - --api-key=${TYPESENSE_API_KEY:?TYPESENSE_API_KEY is required}
+      - --enable-cors
+    volumes:
+      - typesense_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c ':> /dev/tcp/127.0.0.1/8108' || exit 1"]
+      <<: *healthcheck
+    networks: [internal]
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+
   traefik:
     <<: *service-defaults
     image: traefik:v3.3
@@ -197,6 +216,18 @@ services:
 
   # ── Backend Services ─────────────────────────────────────────────────
 
+  db-migrator:
+    <<: *service-defaults
+    image: ghcr.io/full-chaos/script-manifest/db-migrator:${IMAGE_TAG:?IMAGE_TAG is required}
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-manifest}:${POSTGRES_PASSWORD:?}@postgres:5432/${POSTGRES_DB:-manifest}"
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [internal]
+
   notification-service:
     <<: *service-defaults
     image: ghcr.io/full-chaos/script-manifest/notification-service:${IMAGE_TAG:?IMAGE_TAG is required}
@@ -232,6 +263,8 @@ services:
       EMAIL_FROM: ${EMAIL_FROM:-"Script Manifest <noreply@scriptmanifest.com>"}
       FRONTEND_URL: ${FRONTEND_URL:?FRONTEND_URL is required for email links}
     depends_on:
+      db-migrator:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
     healthcheck:
@@ -253,10 +286,18 @@ services:
       DATABASE_URL: "postgresql://${POSTGRES_USER:-manifest}:${POSTGRES_PASSWORD:?}@postgres:5432/${POSTGRES_DB:-manifest}"
       NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
       KAFKA_BROKERS: "redpanda:9092"
+      TYPESENSE_API_KEY: ${TYPESENSE_API_KEY:?TYPESENSE_API_KEY is required}
+      TYPESENSE_HOST: "typesense"
+      TYPESENSE_PORT: "8108"
+      TYPESENSE_PROTOCOL: "http"
     depends_on:
+      db-migrator:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       notification-service:
+        condition: service_healthy
+      typesense:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:4001/health || exit 1"]
@@ -274,10 +315,22 @@ services:
     environment:
       PORT: "4002"
       NODE_ENV: production
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-manifest}:${POSTGRES_PASSWORD:?}@postgres:5432/${POSTGRES_DB:-manifest}"
       NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
       KAFKA_BROKERS: "redpanda:9092"
+      TYPESENSE_API_KEY: ${TYPESENSE_API_KEY:?TYPESENSE_API_KEY is required}
+      TYPESENSE_HOST: "typesense"
+      TYPESENSE_PORT: "8108"
+      TYPESENSE_PROTOCOL: "http"
+      TYPESENSE_ENABLED: "true"
     depends_on:
+      db-migrator:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
       notification-service:
+        condition: service_healthy
+      typesense:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:4002/health || exit 1"]
@@ -295,6 +348,7 @@ services:
     environment:
       PORT: "4011"
       NODE_ENV: production
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-manifest}:${POSTGRES_PASSWORD:?}@postgres:5432/${POSTGRES_DB:-manifest}"
       STORAGE_BUCKET: "scripts"
       # Browser-reachable URL for upload forms - MUST be externally accessible
       STORAGE_UPLOAD_BASE_URL: ${STORAGE_UPLOAD_BASE_URL:-http://localhost:9000}
@@ -306,6 +360,10 @@ services:
       STORAGE_S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD is required}
       STORAGE_S3_FORCE_PATH_STYLE: ${STORAGE_S3_FORCE_PATH_STYLE:-true}
     depends_on:
+      db-migrator:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
       minio:
         condition: service_healthy
     healthcheck:
@@ -324,6 +382,12 @@ services:
     environment:
       PORT: "4004"
       NODE_ENV: production
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-manifest}:${POSTGRES_PASSWORD:?}@postgres:5432/${POSTGRES_DB:-manifest}"
+    depends_on:
+      db-migrator:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:4004/health || exit 1"]
       <<: *healthcheck
@@ -344,6 +408,8 @@ services:
       NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
       KAFKA_BROKERS: "redpanda:9092"
     depends_on:
+      db-migrator:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       notification-service:
@@ -371,6 +437,8 @@ services:
       COMPETITION_DIRECTORY_SERVICE_URL: "http://competition-directory-service:4002"
       PROFILE_SERVICE_URL: "http://profile-project-service:4001"
     depends_on:
+      db-migrator:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       notification-service:
@@ -399,6 +467,8 @@ services:
       NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
       KAFKA_BROKERS: "redpanda:9092"
     depends_on:
+      db-migrator:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       notification-service:
@@ -424,6 +494,8 @@ services:
       NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
       KAFKA_BROKERS: "redpanda:9092"
     depends_on:
+      db-migrator:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       ranking-service:
@@ -526,6 +598,8 @@ services:
       STORAGE_BUCKET: "coverage-reports"
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
     depends_on:
+      db-migrator:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       notification-service:
@@ -552,15 +626,55 @@ services:
       SCRIPT_STORAGE_SERVICE_URL: "http://script-storage-service:4011"
       NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
       KAFKA_BROKERS: "redpanda:9092"
+      TYPESENSE_API_KEY: ${TYPESENSE_API_KEY:?TYPESENSE_API_KEY is required}
+      TYPESENSE_HOST: "typesense"
+      TYPESENSE_PORT: "8108"
+      TYPESENSE_PROTOCOL: "http"
+      TYPESENSE_ENABLED: "true"
     depends_on:
+      db-migrator:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       script-storage-service:
         condition: service_healthy
       notification-service:
         condition: service_healthy
+      typesense:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:4009/health || exit 1"]
+      <<: *healthcheck
+    networks: [internal]
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  search-sync-worker:
+    <<: *service-defaults
+    image: ghcr.io/full-chaos/script-manifest/search-sync-worker:${IMAGE_TAG:?IMAGE_TAG is required}
+    environment:
+      PORT: "4020"
+      NODE_ENV: production
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-manifest}:${POSTGRES_PASSWORD:?}@postgres:5432/${POSTGRES_DB:-manifest}"
+      KAFKA_BROKERS: "redpanda:9092"
+      TYPESENSE_API_KEY: ${TYPESENSE_API_KEY:?TYPESENSE_API_KEY is required}
+      TYPESENSE_HOST: "typesense"
+      TYPESENSE_PORT: "8108"
+      TYPESENSE_PROTOCOL: "http"
+    depends_on:
+      db-migrator:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      typesense:
+        condition: service_healthy
+      redpanda:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:4020/health || exit 1"]
       <<: *healthcheck
     networks: [internal]
     deploy:
@@ -611,6 +725,7 @@ volumes:
   postgres_data:
   minio_data:
   traefik_certs:
+  typesense_data:
 
 networks:
   public:

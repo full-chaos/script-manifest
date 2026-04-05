@@ -16,3 +16,6 @@ redis:
 
 notification-service:
   enabled: true
+
+search-sync-worker:
+  enabled: true

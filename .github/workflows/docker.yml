@@ -31,6 +31,7 @@ jobs:
           - api-gateway
           - competition-directory-service
           - coverage-marketplace-service
+          - db-migrator
           - feedback-exchange-service
           - industry-portal-service
           - identity-service
@@ -40,6 +41,7 @@ jobs:
           - profile-project-service
           - ranking-service
           - script-storage-service
+          - search-sync-worker
           - submission-tracking-service
           - writer-web
 
@@ -113,6 +115,7 @@ jobs:
           - name: api-gateway
           - name: competition-directory-service
           - name: coverage-marketplace-service
+          - name: db-migrator
           - name: feedback-exchange-service
           - name: industry-portal-service
           - name: identity-service
@@ -122,6 +125,7 @@ jobs:
           - name: profile-project-service
           - name: ranking-service
           - name: script-storage-service
+          - name: search-sync-worker
           - name: submission-tracking-service
           - name: writer-web
 

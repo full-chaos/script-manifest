@@ -100,6 +100,17 @@ services:
           cpus: '0.25'
           memory: 256M
 
+  db-migrator:
+    image: ghcr.io/full-chaos/script-manifest/db-migrator:latest
+
+  search-sync-worker:
+    image: ghcr.io/full-chaos/script-manifest/search-sync-worker:latest
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+
   # ── Gateway & Frontend — staging domains ───────────────────────────
 
   api-gateway:

@@ -28,6 +28,7 @@ SERVICES=(
   partner-dashboard-service
   industry-portal-service
   script-storage-service
+  search-sync-worker
   api-gateway
 )
 
@@ -45,6 +46,7 @@ HEALTH_ENDPOINTS=(
   "http://localhost:4011/health"
   "http://localhost:4012/health"
   "http://localhost:4013/health"
+  "http://localhost:4020/health/live"
 )
 
 run_compose() {

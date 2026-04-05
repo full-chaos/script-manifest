@@ -117,6 +117,9 @@ export class MemoryMfaRepository extends BaseMemoryRepository implements MfaRepo
 
 export class PgMfaRepository implements MfaRepository {
   async init(): Promise<void> {
+    if (process.env.SKIP_SCHEMA_INIT === "1") {
+      return;
+    }
     const db = getPool();
     await db.query(`
       ALTER TABLE app_users

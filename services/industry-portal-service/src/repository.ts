@@ -397,6 +397,9 @@ function mapDigestRun(row: Record<string, unknown>): IndustryDigestRun {
 
 export class PgIndustryPortalRepository implements IndustryPortalRepository {
   async init(): Promise<void> {
+    if (process.env.SKIP_SCHEMA_INIT === "1") {
+      return;
+    }
     await ensureCoreTables();
     await ensureIndustryPortalTables();
   }

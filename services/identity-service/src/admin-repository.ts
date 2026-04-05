@@ -194,6 +194,9 @@ export class MemoryAdminRepository implements AdminRepository {
 
 export class PgAdminRepository implements AdminRepository {
   async init(): Promise<void> {
+    if (process.env.SKIP_SCHEMA_INIT === "1") {
+      return;
+    }
     const db = getPool();
     // Ensure admin tables exist (migration 013)
     await db.query(`

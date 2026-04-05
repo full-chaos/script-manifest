@@ -282,6 +282,9 @@ async function ensureCompetitionExists(competitionId: string): Promise<boolean> 
 
 export class PgPartnerDashboardRepository implements PartnerDashboardRepository {
   async init(): Promise<void> {
+    if (process.env.SKIP_SCHEMA_INIT === "1") {
+      return;
+    }
     await ensureCoreTables();
     await ensurePartnerTables();
   }

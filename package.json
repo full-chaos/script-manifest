@@ -22,6 +22,7 @@
     "test:coverage:services": "rm -rf .coverage/services && mkdir -p .coverage/services/tmp && c8 --all --temp-directory .coverage/services/tmp --report-dir .coverage/services --reporter=text-summary --reporter=json-summary --reporter=lcovonly pnpm -r --filter './services/*' test",
     "test:coverage:web": "pnpm -r --filter './apps/writer-web' test:coverage",
     "test:inventory": "bash ./scripts/check-test-inventory.sh",
+    "migrate": "node --import tsx scripts/run-migrations.ts",
     "lint": "turbo run lint",
     "format": "turbo run format"
   },

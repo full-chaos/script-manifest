@@ -10,6 +10,9 @@ import type { SubmissionTrackingRepository } from "./repository.js";
 
 export class PgSubmissionTrackingRepository implements SubmissionTrackingRepository {
   async init(): Promise<void> {
+    if (process.env.SKIP_SCHEMA_INIT === "1") {
+      return;
+    }
     await runMigrations(getPool());
   }
 

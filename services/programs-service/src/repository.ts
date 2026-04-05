@@ -403,6 +403,9 @@ async function ensureProgramExists(programId: string): Promise<boolean> {
 
 export class PgProgramsRepository implements ProgramsRepository {
   async init(): Promise<void> {
+    if (process.env.SKIP_SCHEMA_INIT === "1") {
+      return;
+    }
     await ensureCoreTables();
     await ensureProgramsTables();
   }

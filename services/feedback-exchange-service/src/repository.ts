@@ -84,6 +84,9 @@ export interface FeedbackExchangeRepository {
 
 export class PgFeedbackExchangeRepository implements FeedbackExchangeRepository {
   async init(): Promise<void> {
+    if (process.env.SKIP_SCHEMA_INIT === "1") {
+      return;
+    }
     await ensureFeedbackExchangeTables();
   }
 

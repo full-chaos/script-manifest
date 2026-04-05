@@ -41,6 +41,9 @@ function mapRow(row: OnboardingProgressRow): OnboardingProgress {
 
 export class PgOnboardingRepository implements OnboardingRepository {
   async init(): Promise<void> {
+    if (process.env.SKIP_SCHEMA_INIT === "1") {
+      return;
+    }
     await runMigrations(getPool());
   }
 

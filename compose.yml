@@ -13,9 +13,11 @@ x-node-dev: &node-dev
 
 x-telemetry-env: &telemetry-env
   OTEL_EXPORTER_OTLP_ENDPOINT: "http://signoz-collection-agent:4317"
+  LOG_LEVEL: "debug"
 
 x-external-schema-init: &external-schema-init
   SKIP_SCHEMA_INIT: "1"
+  TYPESENSE_ENABLED: true
 
 networks:
   public:

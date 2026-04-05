@@ -65,7 +65,7 @@ if [[ "$needs_install" == "1" ]]; then
   done
 fi
 
-pkg_src_hash="$(find "$WORKSPACE/packages/contracts/src" "$WORKSPACE/packages/db/src" "$WORKSPACE/packages/service-utils/src" -name "*.ts" -exec md5sum {} + 2>/dev/null | sort | md5sum | cut -d" " -f1)"
+pkg_src_hash="$(find "$WORKSPACE/packages/contracts/src" "$WORKSPACE/packages/db/src" "$WORKSPACE/packages/service-utils/src" "$WORKSPACE/packages/search/src" -name "*.ts" -exec md5sum {} + 2>/dev/null | sort | md5sum | cut -d" " -f1)"
 prev_pkg_hash=""
 if [[ -f "$BUILD_MARKER_FILE" ]]; then
   prev_pkg_hash="$(cat "$BUILD_MARKER_FILE" 2>/dev/null || true)"
@@ -75,6 +75,7 @@ if [[ "${FORCE_PNPM_INSTALL:-0}" == "1" || "$pkg_src_hash" != "$prev_pkg_hash" ]
   pnpm --filter @script-manifest/contracts build
   pnpm --filter @script-manifest/db build
   pnpm --filter @script-manifest/service-utils build
+  pnpm --filter @script-manifest/search build
   printf "%s" "$pkg_src_hash" > "$BUILD_MARKER_FILE"
 fi
 '

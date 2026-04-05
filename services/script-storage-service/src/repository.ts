@@ -20,6 +20,9 @@ export interface ScriptStorageRepository {
 
 export class PgScriptStorageRepository implements ScriptStorageRepository {
   async init(): Promise<void> {
+    if (process.env.SKIP_SCHEMA_INIT === "1") {
+      return;
+    }
     await getPool().query(`
       CREATE TABLE IF NOT EXISTS scripts (
         id TEXT PRIMARY KEY,

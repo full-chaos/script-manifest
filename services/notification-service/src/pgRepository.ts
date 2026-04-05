@@ -33,6 +33,9 @@ function mapEvent(row: NotificationEventRow): NotificationEventEnvelope {
 
 export class PgNotificationRepository implements NotificationRepository {
   async init(): Promise<void> {
+    if (process.env.SKIP_SCHEMA_INIT === "1") {
+      return;
+    }
     await runMigrations(getPool());
   }
 

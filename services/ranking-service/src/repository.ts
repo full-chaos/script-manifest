@@ -92,6 +92,9 @@ export interface RankingRepository {
 
 export class PgRankingRepository implements RankingRepository {
   async init(): Promise<void> {
+    if (process.env.SKIP_SCHEMA_INIT === "1") {
+      return;
+    }
     await ensureRankingTables();
   }
 

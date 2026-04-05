@@ -14,6 +14,9 @@ x-node-dev: &node-dev
 x-telemetry-env: &telemetry-env
   OTEL_EXPORTER_OTLP_ENDPOINT: "http://signoz-collection-agent:4317"
 
+x-external-schema-init: &external-schema-init
+  SKIP_SCHEMA_INIT: "1"
+
 networks:
   public:
     driver: bridge
@@ -236,6 +239,27 @@ services:
       traefik.http.routers.bugsink.rule: "Host(`bugsink.localhost`)"
       traefik.http.routers.bugsink.entrypoints: "web"
       traefik.http.services.bugsink.loadbalancer.server.port: "8000"
+
+  db-migrator:
+    <<: *node-dev
+    container_name: manifest-db-migrator
+    working_dir: /workspace
+    volumes:
+      - .:/workspace
+    environment:
+      <<: *telemetry-env
+      OTEL_SERVICE_NAME: "db-migrator"
+      DATABASE_URL: "postgresql://manifest:manifest@postgres:5432/manifest"
+      SKIP_SCHEMA_INIT: "0"
+    command: >
+      sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm run migrate"
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - internal
+
   profile-project-service:
     <<: *node-dev
     container_name: manifest-profile-project-service
@@ -243,7 +267,7 @@ services:
     volumes:
       - .:/workspace
     environment:
-      <<: *telemetry-env
+      <<: [*telemetry-env, *external-schema-init]
       OTEL_SERVICE_NAME: "profile-project-service"
       SENTRY_DSN: "${SENTRY_DSN:-}"
       PORT: "4001"
@@ -255,6 +279,8 @@ services:
     networks:
       - internal
     depends_on:
+      db-migrator:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       notification-service:
@@ -274,7 +300,7 @@ services:
     volumes:
       - .:/workspace
     environment:
-      <<: *telemetry-env
+      <<: [*telemetry-env, *external-schema-init]
       OTEL_SERVICE_NAME: "identity-service"
       SENTRY_DSN: "${SENTRY_DSN:-}"
       PORT: "4005"
@@ -293,6 +319,8 @@ services:
     networks:
       - internal
     depends_on:
+      db-migrator:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       mailpit:
@@ -312,7 +340,7 @@ services:
     volumes:
       - .:/workspace
     environment:
-      <<: *telemetry-env
+      <<: [*telemetry-env, *external-schema-init]
       OTEL_SERVICE_NAME: "notification-service"
       SENTRY_DSN: "${SENTRY_DSN:-}"
       PORT: "4010"
@@ -322,6 +350,8 @@ services:
     command: >
       sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/notification-service dev"
     depends_on:
+      db-migrator:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       redpanda:
@@ -343,7 +373,7 @@ services:
     volumes:
       - .:/workspace
     environment:
-      <<: *telemetry-env
+      <<: [*telemetry-env, *external-schema-init]
       OTEL_SERVICE_NAME: "competition-directory-service"
       SENTRY_DSN: "${SENTRY_DSN:-}"
       PORT: "4002"
@@ -353,6 +383,8 @@ services:
     command: >
       sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/competition-directory-service dev"
     depends_on:
+      db-migrator:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       notification-service:
@@ -374,7 +406,7 @@ services:
     volumes:
       - .:/workspace
     environment:
-      <<: *telemetry-env
+      <<: [*telemetry-env, *external-schema-init]
       OTEL_SERVICE_NAME: "script-storage-service"
       SENTRY_DSN: "${SENTRY_DSN:-}"
       PORT: "4011"
@@ -392,6 +424,8 @@ services:
     command: >
       sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/script-storage-service dev"
     depends_on:
+      db-migrator:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       minio:
@@ -413,7 +447,7 @@ services:
     volumes:
       - .:/workspace
     environment:
-      <<: *telemetry-env
+      <<: [*telemetry-env, *external-schema-init]
       OTEL_SERVICE_NAME: "submission-tracking-service"
       SENTRY_DSN: "${SENTRY_DSN:-}"
       PORT: "4004"
@@ -421,6 +455,8 @@ services:
     command: >
       sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/submission-tracking-service dev"
     depends_on:
+      db-migrator:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
     healthcheck:
@@ -440,7 +476,7 @@ services:
     volumes:
       - .:/workspace
     environment:
-      <<: *telemetry-env
+      <<: [*telemetry-env, *external-schema-init]
       OTEL_SERVICE_NAME: "feedback-exchange-service"
       SENTRY_DSN: "${SENTRY_DSN:-}"
       PORT: "4006"
@@ -450,6 +486,8 @@ services:
     command: >
       sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/feedback-exchange-service dev"
     depends_on:
+      db-migrator:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       notification-service:
@@ -471,7 +509,7 @@ services:
     volumes:
       - .:/workspace
     environment:
-      <<: *telemetry-env
+      <<: [*telemetry-env, *external-schema-init]
       OTEL_SERVICE_NAME: "ranking-service"
       SENTRY_DSN: "${SENTRY_DSN:-}"
       PORT: "4007"
@@ -484,6 +522,8 @@ services:
     command: >
       sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/ranking-service dev"
     depends_on:
+      db-migrator:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       notification-service:
@@ -509,7 +549,7 @@ services:
     volumes:
       - .:/workspace
     environment:
-      <<: *telemetry-env
+      <<: [*telemetry-env, *external-schema-init]
       OTEL_SERVICE_NAME: "coverage-marketplace-service"
       SENTRY_DSN: "${SENTRY_DSN:-}"
       PORT: "4008"
@@ -528,6 +568,8 @@ services:
     command: >
       sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/coverage-marketplace-service dev"
     depends_on:
+      db-migrator:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       notification-service:
@@ -551,7 +593,7 @@ services:
     volumes:
       - .:/workspace
     environment:
-      <<: *telemetry-env
+      <<: [*telemetry-env, *external-schema-init]
       OTEL_SERVICE_NAME: "industry-portal-service"
       SENTRY_DSN: "${SENTRY_DSN:-}"
       PORT: "4009"
@@ -562,6 +604,8 @@ services:
     command: >
       sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/industry-portal-service dev"
     depends_on:
+      db-migrator:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       script-storage-service:
@@ -585,7 +629,7 @@ services:
     volumes:
       - .:/workspace
     environment:
-      <<: *telemetry-env
+      <<: [*telemetry-env, *external-schema-init]
       OTEL_SERVICE_NAME: "programs-service"
       SENTRY_DSN: "${SENTRY_DSN:-}"
       PORT: "4012"
@@ -595,6 +639,8 @@ services:
     command: >
       sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/programs-service dev"
     depends_on:
+      db-migrator:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       notification-service:
@@ -616,7 +662,7 @@ services:
     volumes:
       - .:/workspace
     environment:
-      <<: *telemetry-env
+      <<: [*telemetry-env, *external-schema-init]
       OTEL_SERVICE_NAME: "partner-dashboard-service"
       SENTRY_DSN: "${SENTRY_DSN:-}"
       PORT: "4013"
@@ -627,6 +673,8 @@ services:
     command: >
       sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/partner-dashboard-service dev"
     depends_on:
+      db-migrator:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       ranking-service:

@@ -127,6 +127,9 @@ export class PgIdentityRepository implements IdentityRepository {
   }
 
   async init(): Promise<void> {
+    if (process.env.SKIP_SCHEMA_INIT === "1") {
+      return;
+    }
     await ensureCoreTables();
     const db = getPool();
     await db.query(`

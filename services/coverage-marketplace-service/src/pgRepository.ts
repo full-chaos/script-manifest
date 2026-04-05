@@ -30,6 +30,9 @@ import type { CoverageMarketplaceRepository } from "./repository.js";
 
 export class PgCoverageMarketplaceRepository implements CoverageMarketplaceRepository {
   async init(): Promise<void> {
+    if (process.env.SKIP_SCHEMA_INIT === "1") {
+      return;
+    }
     await ensureCoverageMarketplaceTables();
   }
 

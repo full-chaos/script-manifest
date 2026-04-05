@@ -1,6 +1,10 @@
 import { getPool, runMigrations, toFtsPrefixQuery } from "@script-manifest/db";
 import type { Competition, CompetitionAccessType, CompetitionFilters, CompetitionVisibility } from "@script-manifest/contracts";
+import { publishSearchSyncEvent } from "@script-manifest/service-utils";
+import { searchCompetitions as typesenseSearch, type CompetitionDocument } from "@script-manifest/search";
 import type { CompetitionDirectoryRepository } from "./repository.js";
+
+const typesenseEnabled = process.env.TYPESENSE_ENABLED === "true";
 
 type CompetitionRow = {
   id: string;
@@ -30,6 +34,51 @@ function mapCompetition(row: CompetitionRow): Competition {
     visibility: row.visibility as Competition["visibility"],
     accessType: row.access_type as Competition["accessType"]
   };
+}
+
+function competitionRowToSyncPayload(row: CompetitionRow): Record<string, unknown> {
+  return {
+    id: row.id,
+    title: row.title,
+    description: row.description,
+    format: row.format,
+    genre: row.genre,
+    feeUsd: Number(row.fee_usd),
+    deadline: row.deadline.toISOString(),
+    status: row.status,
+    visibility: row.visibility,
+    accessType: row.access_type,
+    createdAt: row.created_at.toISOString(),
+    updatedAt: row.updated_at.toISOString(),
+  };
+}
+
+function typesenseDocToCompetition(doc: CompetitionDocument): Competition {
+  return {
+    id: doc.id,
+    title: doc.title,
+    description: doc.description,
+    format: doc.format,
+    genre: doc.genre,
+    feeUsd: doc.feeUsd,
+    deadline: new Date(doc.deadline * 1000).toISOString(),
+    status: doc.status as Competition["status"],
+    visibility: doc.visibility as Competition["visibility"],
+    accessType: doc.accessType as Competition["accessType"],
+  };
+}
+
+async function publishSync(operation: "upsert" | "delete", row: CompetitionRow | null, id: string): Promise<void> {
+  try {
+    await publishSearchSyncEvent({
+      collection: "competitions",
+      documentId: id,
+      operation,
+      payload: operation === "upsert" && row ? competitionRowToSyncPayload(row) : null,
+    });
+  } catch {
+    // Search sync is best-effort — never block the write path
+  }
 }
 
 export class PgCompetitionDirectoryRepository implements CompetitionDirectoryRepository {
@@ -79,6 +128,8 @@ export class PgCompetitionDirectoryRepository implements CompetitionDirectoryRep
       return { existed: false };
     }
 
+    await publishSync("upsert", row, competition.id);
+
     return { existed: row.xmax !== "0" };
   }
 
@@ -92,6 +143,17 @@ export class PgCompetitionDirectoryRepository implements CompetitionDirectoryRep
   }
 
   async listCompetitions(filters: CompetitionFilters): Promise<Competition[]> {
+    if (typesenseEnabled && filters.query) {
+      const tsResult = await typesenseSearch(filters);
+      if (tsResult) {
+        return tsResult.hits.map(typesenseDocToCompetition);
+      }
+    }
+
+    return this.listCompetitionsFromPostgres(filters);
+  }
+
+  private async listCompetitionsFromPostgres(filters: CompetitionFilters): Promise<Competition[]> {
     const db = getPool();
     const conditions: string[] = [];
     const values: unknown[] = [];
@@ -160,7 +222,11 @@ export class PgCompetitionDirectoryRepository implements CompetitionDirectoryRep
        RETURNING *`,
       [id]
     );
-    return result.rows[0] ? mapCompetition(result.rows[0]) : null;
+    const row = result.rows[0];
+    if (!row) return null;
+
+    await publishSync("upsert", row, id);
+    return mapCompetition(row);
   }
 
   async updateVisibility(id: string, visibility: CompetitionVisibility): Promise<Competition | null> {
@@ -171,7 +237,11 @@ export class PgCompetitionDirectoryRepository implements CompetitionDirectoryRep
        RETURNING *`,
       [id, visibility]
     );
-    return result.rows[0] ? mapCompetition(result.rows[0]) : null;
+    const row = result.rows[0];
+    if (!row) return null;
+
+    await publishSync("upsert", row, id);
+    return mapCompetition(row);
   }
 
   async updateAccessType(id: string, accessType: CompetitionAccessType): Promise<Competition | null> {
@@ -182,6 +252,10 @@ export class PgCompetitionDirectoryRepository implements CompetitionDirectoryRep
        RETURNING *`,
       [id, accessType]
     );
-    return result.rows[0] ? mapCompetition(result.rows[0]) : null;
+    const row = result.rows[0];
+    if (!row) return null;
+
+    await publishSync("upsert", row, id);
+    return mapCompetition(row);
   }
 }

@@ -117,6 +117,24 @@ services:
       timeout: 3s
       retries: 5
 
+  typesense:
+    image: typesense/typesense:28.0
+    container_name: manifest-typesense
+    command:
+      - --data-dir=/data
+      - --api-key=manifest-ts-dev-key
+      - --enable-cors
+    volumes:
+      - typesense_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c ':> /dev/tcp/127.0.0.1/8108' || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    networks:
+      - internal
+
   redpanda:
     # Pinned: Redpanda v24.3.1 (stable, Jan 2025)
     image: redpandadata/redpanda:v24.3.1
@@ -380,6 +398,11 @@ services:
       DATABASE_URL: "postgresql://manifest:manifest@postgres:5432/manifest"
       NOTIFICATION_SERVICE_URL: "http://notification-service:4010"
       KAFKA_BROKERS: "redpanda:9092"
+      TYPESENSE_API_KEY: "manifest-ts-dev-key"
+      TYPESENSE_HOST: "typesense"
+      TYPESENSE_PORT: "8108"
+      TYPESENSE_PROTOCOL: "http"
+      TYPESENSE_ENABLED: "true"
     command: >
       sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/competition-directory-service dev"
     depends_on:
@@ -389,6 +412,8 @@ services:
         condition: service_healthy
       notification-service:
         condition: service_started
+      typesense:
+        condition: service_healthy
     healthcheck:
       test:
         ["CMD-SHELL", "curl -sf http://localhost:4002/health/live || exit 1"]
@@ -691,6 +716,44 @@ services:
     networks:
       - internal
 
+  search-sync-worker:
+    <<: *node-dev
+    container_name: manifest-search-sync-worker
+    working_dir: /workspace
+    volumes:
+      - .:/workspace
+    environment:
+      <<: [*telemetry-env, *external-schema-init]
+      OTEL_SERVICE_NAME: "search-sync-worker"
+      SENTRY_DSN: "${SENTRY_DSN:-}"
+      PORT: "4020"
+      DATABASE_URL: "postgresql://manifest:manifest@postgres:5432/manifest"
+      KAFKA_BROKERS: "redpanda:9092"
+      TYPESENSE_API_KEY: "manifest-ts-dev-key"
+      TYPESENSE_HOST: "typesense"
+      TYPESENSE_PORT: "8108"
+      TYPESENSE_PROTOCOL: "http"
+    command: >
+      sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/search-sync-worker dev"
+    depends_on:
+      db-migrator:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      typesense:
+        condition: service_healthy
+      redpanda:
+        condition: service_healthy
+    healthcheck:
+      test:
+        ["CMD-SHELL", "curl -sf http://localhost:4020/health/live || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 180s
+    networks:
+      - internal
+
   api-gateway:
     <<: *node-dev
     container_name: manifest-api-gateway
@@ -803,3 +866,4 @@ volumes:
   postgres_data:
   minio_data:
   signoz_data:
+  typesense_data:

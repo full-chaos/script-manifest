@@ -7,6 +7,7 @@ export { signServiceToken, verifyServiceToken, type ServiceTokenPayload } from "
 export { registerAuthVerification } from "./authMiddleware.js";
 // setupTracing isolated to ./tracing subpath to prevent OTel auto-instrumentation from loading on every import
 export { publishNotificationEvent, disconnectProducer } from "./notificationPublisher.js";
+export { publishSearchSyncEvent, disconnectSearchSyncProducer } from "./searchSyncPublisher.js";
 export { isMainModule } from "./isMainModule.js";
 export { getAuthUserId, readHeader, readBearerToken } from "./headerHelpers.js";
 export { createFastifyServer, type CreateServerOptions } from "./server.js";

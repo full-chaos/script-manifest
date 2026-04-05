@@ -1,12 +1,12 @@
 {
-  "name": "@script-manifest/competition-directory-service",
+  "name": "@script-manifest/search-sync-worker",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "tsx watch --watch-path=../../packages/contracts/dist --watch-path=../../packages/db/dist --watch-path=../../packages/service-utils/dist --watch-path=../../packages/search/dist --import @script-manifest/service-utils/instrument src/index.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node --import @script-manifest/service-utils/instrument dist/index.js",
-    "test": "node --experimental-test-module-mocks --import tsx --test src/**/*.test.ts",
+    "test": "node --import tsx --test src/**/*.test.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src/"
   },
@@ -15,9 +15,7 @@
     "@script-manifest/db": "workspace:*",
     "@script-manifest/search": "workspace:*",
     "@script-manifest/service-utils": "workspace:*",
-    "fastify": "^5.8.4",
-    "undici": "^8.0.0",
-    "zod": "^4.3.6"
+    "fastify": "^5.8.4"
   },
   "devDependencies": {
     "@types/node": "^25.5.0",

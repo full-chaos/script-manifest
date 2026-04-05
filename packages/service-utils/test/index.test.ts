@@ -34,6 +34,8 @@ describe("service-utils index re-exports", () => {
     "requireServiceToken",
     "requireAdminServiceToken",
     "resolveServiceSecret",
+    "publishSearchSyncEvent",
+    "disconnectSearchSyncProducer",
   ];
 
   for (const name of expectedExports) {

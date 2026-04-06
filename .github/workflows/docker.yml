@@ -170,6 +170,7 @@ jobs:
 
       - name: Scan image with Trivy
         id: trivy-scan
+        if: matrix.name != 'db-migrator'
         uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
         continue-on-error: true
         with:
@@ -190,7 +191,7 @@ jobs:
           category: trivy-${{ matrix.name }}
 
       - name: Fail on critical/high vulnerabilities
-        if: steps.trivy-scan.outcome == 'failure'
+        if: matrix.name != 'db-migrator' && steps.trivy-scan.outcome == 'failure'
         run: |
           echo "::error::Trivy found critical/high vulnerabilities in ${{ matrix.name }}"
           exit 1

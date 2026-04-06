@@ -68,11 +68,11 @@ jobs:
       - name: Resolve Dockerfile
         id: dockerfile
         run: |
-          if [ "${{ matrix.name }}" = "writer-web" ]; then
-            echo "path=infra/docker/frontend.Dockerfile" >> "$GITHUB_OUTPUT"
-          else
-            echo "path=infra/docker/service.Dockerfile" >> "$GITHUB_OUTPUT"
-          fi
+          case "${{ matrix.name }}" in
+            writer-web)    echo "path=infra/docker/frontend.Dockerfile" >> "$GITHUB_OUTPUT" ;;
+            db-migrator)   echo "path=infra/docker/db-migrator.Dockerfile" >> "$GITHUB_OUTPUT" ;;
+            *)             echo "path=infra/docker/service.Dockerfile" >> "$GITHUB_OUTPUT" ;;
+          esac
 
       - name: Build and push
         id: build

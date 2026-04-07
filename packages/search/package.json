@@ -17,7 +17,7 @@
     "typesense": "^2.0.0"
   },
   "devDependencies": {
-    "@types/node": "^25.5.0",
+    "@types/node": "^25.5.2",
     "tsx": "^4.19.2",
     "typescript": "^5.9.3"
   }

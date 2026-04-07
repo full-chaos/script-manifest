@@ -17,7 +17,7 @@
     "@script-manifest/search": "workspace:*",
     "@script-manifest/service-utils": "workspace:*",
     "fastify": "^5.8.4",
-    "undici": "^8.0.0",
+    "undici": "^8.0.2",
     "zod": "^4.3.6"
   },
   "devDependencies": {

@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@script-manifest/contracts": "workspace:*",
-    "typesense": "^3.0.5"
+    "typesense": "^3.0.6"
   },
   "devDependencies": {
     "@types/node": "^25.5.0",

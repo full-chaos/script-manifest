@@ -27,7 +27,7 @@ export default function OrderFlowPage() {
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
 
   useEffect(() => {
-    setSignedInUserId(user?.id ?? "");
+    queueMicrotask(() => { setSignedInUserId(user?.id ?? ""); });
   }, [user]);
 
   const loadService = useCallback(async () => {
@@ -47,7 +47,7 @@ export default function OrderFlowPage() {
   }, [serviceId, toast]);
 
   useEffect(() => {
-    void loadService();
+    queueMicrotask(() => { void loadService(); });
   }, [loadService]);
 
   async function handlePlaceOrder(event: FormEvent<HTMLFormElement>) {

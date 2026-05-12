@@ -68,7 +68,7 @@ export default function AdminCompetitionsPage() {
   }
 
   useEffect(() => {
-    void loadCompetitions();
+    queueMicrotask(() => { void loadCompetitions(); });
   }, []);
 
   function startEdit(competition: Competition) {

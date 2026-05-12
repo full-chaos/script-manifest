@@ -139,7 +139,7 @@ export default function FeedbackPage() {
   const signupTokensGrantedRef = useRef(false);
 
   useEffect(() => {
-    setSignedInUserId(user?.id ?? "");
+    queueMicrotask(() => { setSignedInUserId(user?.id ?? ""); });
   }, [user]);
 
   const loadBalance = useCallback(async () => {
@@ -239,15 +239,17 @@ export default function FeedbackPage() {
 
   useEffect(() => {
     if (signedInUserId) {
-      void loadBalance();
-      if (!signupTokensGrantedRef.current) {
-        signupTokensGrantedRef.current = true;
-        void grantSignupTokens();
-      }
-      void loadProjects();
-      void loadMyReviews();
+      queueMicrotask(() => {
+        void loadBalance();
+        if (!signupTokensGrantedRef.current) {
+          signupTokensGrantedRef.current = true;
+          void grantSignupTokens();
+        }
+        void loadProjects();
+        void loadMyReviews();
+      });
     }
-    void loadListings();
+    queueMicrotask(() => { void loadListings(); });
   }, [grantSignupTokens, loadBalance, loadListings, loadMyReviews, loadProjects, signedInUserId]);
 
   function handleProjectSelect(projectId: string) {

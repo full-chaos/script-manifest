@@ -48,7 +48,7 @@ export default function ProviderProfilePage() {
   }, [providerId, toast]);
 
   useEffect(() => {
-    void loadData();
+    queueMicrotask(() => { void loadData(); });
   }, [loadData]);
 
   function formatPrice(cents: number): string {

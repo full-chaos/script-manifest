@@ -101,18 +101,19 @@ export default function SubmissionsPage() {
   useEffect(() => {
     if (authLoading) return;
 
-    if (!user) {
-      setMessage("Sign in to load submissions.");
-      setInitialLoading(false);
-      return;
-    }
-
-    setWriterId(user.id);
+    queueMicrotask(() => {
+      if (!user) {
+        setMessage("Sign in to load submissions.");
+        setInitialLoading(false);
+        return;
+      }
+      setWriterId(user.id);
+    });
   }, [user, authLoading]);
 
   useEffect(() => {
     if (writerId) {
-      void loadData(writerId);
+      queueMicrotask(() => { void loadData(writerId); });
     }
   }, [loadData, writerId]);
 

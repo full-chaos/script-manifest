@@ -32,7 +32,7 @@ export default function OrderDetailPage() {
   const [delivering, setDelivering] = useState(false);
 
   useEffect(() => {
-    setSignedInUserId(user?.id ?? "");
+    queueMicrotask(() => { setSignedInUserId(user?.id ?? ""); });
   }, [user]);
 
   const loadData = useCallback(async () => {
@@ -95,7 +95,7 @@ export default function OrderDetailPage() {
   }, [orderId, toast]);
 
   useEffect(() => {
-    void loadData();
+    queueMicrotask(() => { void loadData(); });
   }, [loadData]);
 
   const [retrying, setRetrying] = useState(false);

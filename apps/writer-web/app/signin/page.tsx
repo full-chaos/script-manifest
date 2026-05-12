@@ -56,7 +56,7 @@ export default function SignInPage() {
     const state = params.get("state");
     if (code && state) {
       window.history.replaceState({}, "", window.location.pathname);
-      void completeOAuthFromRedirect(state, code);
+      queueMicrotask(() => { void completeOAuthFromRedirect(state, code); });
     }
   }, [completeOAuthFromRedirect]);
 

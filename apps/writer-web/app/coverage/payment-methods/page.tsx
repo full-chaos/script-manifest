@@ -39,7 +39,7 @@ export default function PaymentMethodsPage() {
   }, [toast]);
 
   useEffect(() => {
-    void loadMethods();
+    queueMicrotask(() => { void loadMethods(); });
   }, [loadMethods]);
 
   async function handleRemove(id: string) {

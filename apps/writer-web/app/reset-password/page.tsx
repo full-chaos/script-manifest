@@ -13,9 +13,11 @@ export default function ResetPasswordPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const t = params.get("token");
-    if (t) setToken(t);
+    queueMicrotask(() => {
+      const params = new URLSearchParams(window.location.search);
+      const t = params.get("token");
+      if (t) setToken(t);
+    });
   }, []);
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {

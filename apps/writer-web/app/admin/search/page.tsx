@@ -59,7 +59,7 @@ export default function SearchAdminPage() {
   }, []);
 
   useEffect(() => {
-    void loadStatus();
+    queueMicrotask(() => { void loadStatus(); });
   }, [loadStatus]);
 
   const handleRefresh = useCallback(async () => {

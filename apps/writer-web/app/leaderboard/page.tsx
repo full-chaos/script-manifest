@@ -124,7 +124,7 @@ export default function LeaderboardPage() {
   }, [filters, runLeaderboardQuery]);
 
   useEffect(() => {
-    void runLeaderboardQuery(initialFilters);
+    queueMicrotask(() => { void runLeaderboardQuery(initialFilters); });
   }, [runLeaderboardQuery]);
 
   return (

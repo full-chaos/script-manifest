@@ -55,7 +55,7 @@ export function NotificationBell() {
   }, []);
 
   useEffect(() => {
-    void fetchUnreadCount();
+    queueMicrotask(() => { void fetchUnreadCount(); });
     const interval = setInterval(() => void fetchUnreadCount(), POLL_INTERVAL_MS);
     return () => clearInterval(interval);
   }, [fetchUnreadCount]);

@@ -102,7 +102,7 @@ export default function AdminUserDetailPage() {
   }, [userId, toast]);
 
   useEffect(() => {
-    void loadUser();
+    queueMicrotask(() => { void loadUser(); });
   }, [loadUser]);
 
   async function handleSuspend(event: React.FormEvent<HTMLFormElement>) {

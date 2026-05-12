@@ -107,7 +107,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     mountedRef.current = true;
-    void loadAuth();
+    queueMicrotask(() => { void loadAuth(); });
 
     const handleAuthChanged = () => {
       void loadAuth();

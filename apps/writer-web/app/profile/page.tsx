@@ -94,18 +94,19 @@ export default function ProfilePage() {
   useEffect(() => {
     if (authLoading) return;
 
-    if (!user) {
-      setStatus("Sign in to load your profile.");
-      setInitialLoading(false);
-      return;
-    }
-
-    setWriterId(user.id);
+    queueMicrotask(() => {
+      if (!user) {
+        setStatus("Sign in to load your profile.");
+        setInitialLoading(false);
+        return;
+      }
+      setWriterId(user.id);
+    });
   }, [user, authLoading]);
 
   useEffect(() => {
     if (writerId) {
-      void loadProfile(writerId);
+      queueMicrotask(() => { void loadProfile(writerId); });
     }
   }, [loadProfile, writerId]);
 

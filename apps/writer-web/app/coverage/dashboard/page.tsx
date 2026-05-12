@@ -56,7 +56,7 @@ export default function ProviderDashboardPage() {
 
   useEffect(() => {
     if (signedInUserId) {
-      void loadData();
+      queueMicrotask(() => { void loadData(); });
     }
   }, [signedInUserId, loadData]);
 

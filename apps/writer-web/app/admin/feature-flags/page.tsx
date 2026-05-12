@@ -59,7 +59,7 @@ export default function FeatureFlagsPage() {
   }, []);
 
   useEffect(() => {
-    void loadFlags();
+    queueMicrotask(() => { void loadFlags(); });
   }, [loadFlags]);
 
   const handleCreate = useCallback(async () => {

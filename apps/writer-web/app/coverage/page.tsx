@@ -47,7 +47,7 @@ export default function CoverageMarketplacePage() {
 
   const onboardingMarked = useRef(false);
   useEffect(() => {
-    void loadData();
+    queueMicrotask(() => { void loadData(); });
     if (!onboardingMarked.current) {
       onboardingMarked.current = true;
       void fetch("/api/v1/onboarding-progress", {

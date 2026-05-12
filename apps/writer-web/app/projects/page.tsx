@@ -294,18 +294,19 @@ export default function ProjectsPage() {
   useEffect(() => {
     if (authLoading) return;
 
-    if (!user) {
-      setStatus("Sign in to load your projects.");
-      setInitialLoading(false);
-      return;
-    }
-
-    setOwnerUserId(user.id);
+    queueMicrotask(() => {
+      if (!user) {
+        setStatus("Sign in to load your projects.");
+        setInitialLoading(false);
+        return;
+      }
+      setOwnerUserId(user.id);
+    });
   }, [user, authLoading]);
 
   useEffect(() => {
     if (ownerUserId) {
-      void loadProjects(ownerUserId);
+      queueMicrotask(() => { void loadProjects(ownerUserId); });
     }
   }, [loadProjects, ownerUserId]);
 

@@ -110,8 +110,10 @@ export default function AdminModerationPage() {
   }, [statusFilter, contentTypeFilter, toast]);
 
   useEffect(() => {
-    setPage(1);
-    void loadReports(1);
+    queueMicrotask(() => {
+      setPage(1);
+      void loadReports(1);
+    });
   }, [loadReports]);
 
   function handlePageChange(newPage: number) {

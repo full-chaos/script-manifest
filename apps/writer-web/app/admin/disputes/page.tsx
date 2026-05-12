@@ -38,7 +38,7 @@ export default function AdminDisputesPage() {
   }, [toast]);
 
   useEffect(() => {
-    void loadDisputes();
+    queueMicrotask(() => { void loadDisputes(); });
   }, [loadDisputes]);
 
   async function handleResolve(event: FormEvent<HTMLFormElement>) {

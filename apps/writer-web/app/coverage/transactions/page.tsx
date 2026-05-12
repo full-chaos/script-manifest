@@ -65,7 +65,7 @@ export default function TransactionsPage() {
   }, [toast]);
 
   useEffect(() => {
-    void loadTransactions(0, true);
+    queueMicrotask(() => { void loadTransactions(0, true); });
   }, [loadTransactions]);
 
   function formatDate(iso: string): string {

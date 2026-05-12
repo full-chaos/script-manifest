@@ -19,7 +19,7 @@ export default function BecomeProviderPage() {
   const [gettingOnboardingLink, setGettingOnboardingLink] = useState(false);
 
   useEffect(() => {
-    setSignedInUserId(user?.id ?? "");
+    queueMicrotask(() => { setSignedInUserId(user?.id ?? ""); });
   }, [user]);
 
   const loadProvider = useCallback(async () => {
@@ -44,7 +44,7 @@ export default function BecomeProviderPage() {
 
   useEffect(() => {
     if (signedInUserId) {
-      void loadProvider();
+      queueMicrotask(() => { void loadProvider(); });
     }
   }, [signedInUserId, loadProvider]);
 

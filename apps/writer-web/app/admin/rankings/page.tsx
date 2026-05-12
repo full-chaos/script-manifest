@@ -166,13 +166,15 @@ export default function AdminRankingsPage() {
   }, [toast]);
 
   useEffect(() => {
-    if (activeTab === "appeals") {
-      void loadAppeals();
-    } else if (activeTab === "flags") {
-      void loadFlags();
-    } else {
-      void loadPrestige();
-    }
+    queueMicrotask(() => {
+      if (activeTab === "appeals") {
+        void loadAppeals();
+      } else if (activeTab === "flags") {
+        void loadFlags();
+      } else {
+        void loadPrestige();
+      }
+    });
   }, [activeTab, loadAppeals, loadFlags, loadPrestige]);
 
   // --- Appeal actions ---

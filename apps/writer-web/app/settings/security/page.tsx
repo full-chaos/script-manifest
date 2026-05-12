@@ -45,7 +45,7 @@ export default function SecuritySettingsPage() {
 
   useEffect(() => {
     if (!loaded && user) {
-      void loadStatus();
+      queueMicrotask(() => { void loadStatus(); });
     }
   }, [loadStatus, loaded, user]);
 

@@ -132,8 +132,10 @@ export default function AdminNotificationsPage() {
   }, [toast]);
 
   useEffect(() => {
-    void loadTemplates();
-    void loadHistory(1);
+    queueMicrotask(() => {
+      void loadTemplates();
+      void loadHistory(1);
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

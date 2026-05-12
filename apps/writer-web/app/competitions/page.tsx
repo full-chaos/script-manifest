@@ -82,9 +82,13 @@ export default function CompetitionsPage() {
   const [reminderMessage, setReminderMessage] = useState("");
   const [sendingReminder, setSendingReminder] = useState(false);
 
-  const upcomingDeadlines = useMemo(() => {
-    const now = Date.now();
+  const [now, setNow] = useState<number>(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, []);
 
+  const upcomingDeadlines = useMemo(() => {
     return [...results]
       .map((competition) => ({
         competition,
@@ -94,7 +98,7 @@ export default function CompetitionsPage() {
       .sort((left, right) => left.deadlineAt - right.deadlineAt)
       .slice(0, 8)
       .map((entry) => entry.competition);
-  }, [results]);
+  }, [results, now]);
 
   const runSearch = useCallback(async (activeFilters: Filters) => {
     setLoading(true);
@@ -131,23 +135,25 @@ export default function CompetitionsPage() {
   }, [filters, runSearch]);
 
   useEffect(() => {
-    if (user) {
-      setSignedInUserId(user.id);
-      setReminderTargetUserId(user.id);
-      void fetch("/api/v1/onboarding-progress", {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ competitionsVisited: true }),
-      });
-      return;
-    }
+    queueMicrotask(() => {
+      if (user) {
+        setSignedInUserId(user.id);
+        setReminderTargetUserId(user.id);
+        void fetch("/api/v1/onboarding-progress", {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ competitionsVisited: true }),
+        });
+        return;
+      }
 
-    setSignedInUserId("");
-    setReminderTargetUserId("");
+      setSignedInUserId("");
+      setReminderTargetUserId("");
+    });
   }, [user]);
 
   useEffect(() => {
-    void runSearch(initialFilters);
+    queueMicrotask(() => { void runSearch(initialFilters); });
   }, [runSearch]);
 
   function openReminderModal(competition: Competition) {

@@ -89,7 +89,7 @@ export default function AdminSecurityPage() {
   );
 
   useEffect(() => {
-    void loadBlocks(1);
+    queueMicrotask(() => { void loadBlocks(1); });
   }, [loadBlocks]);
 
   async function handleAddBlock() {

@@ -114,7 +114,7 @@ export default function AdminUsersPage() {
   );
 
   useEffect(() => {
-    void loadUsers(1, "", "", "");
+    queueMicrotask(() => { void loadUsers(1, "", "", ""); });
   }, [loadUsers]);
 
   function handleSearch() {

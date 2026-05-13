@@ -10,7 +10,7 @@ CHAOS-1514 documented the cost-of-pain table (duplicate requests, stale re-entry
 
 Use this stack in order:
 
-1. Typed fetcher: `/Users/chris/projects/script-manifest-docs/apps/writer-web/app/lib/fetcher.ts`
+1. Typed fetcher: `apps/writer-web/app/lib/fetcher.ts`
    - `fetcher<T>(input, init)`
    - `ApiError` with `status`, `code`, `body`
 2. SWR in client surfaces: `useSWR` / `useSWRMutation`
@@ -35,7 +35,7 @@ Use this stack in order:
 
 ### A. Admin CRUD page (`admin/competitions`)
 
-Source: `/Users/chris/projects/script-manifest-docs/apps/writer-web/app/admin/competitions/page.tsx` (see around lines 49-72)
+Source: `apps/writer-web/app/admin/competitions/page.tsx` (see around lines 49-72)
 
 **Before (current bespoke pattern)**
 
@@ -71,7 +71,7 @@ useEffect(() => {
 
 ### B. Public read-only list (`leaderboard`)
 
-Source: `/Users/chris/projects/script-manifest-docs/apps/writer-web/app/leaderboard/page.tsx` (see around lines 84-128)
+Source: `apps/writer-web/app/leaderboard/page.tsx` (see around lines 84-128)
 
 **Before (current bespoke pattern)**
 
@@ -111,7 +111,7 @@ Tradeoff summary:
 
 ### C. Owner-bound mutation (`profile`)
 
-Source: `/Users/chris/projects/script-manifest-docs/apps/writer-web/app/profile/page.tsx` (see around lines 52-111)
+Source: `apps/writer-web/app/profile/page.tsx` (see around lines 52-111)
 
 **Before (current bespoke pattern)**
 
@@ -174,9 +174,9 @@ await mutate((key) => typeof key === 'string' && key.startsWith('/api/v1/admin/'
 
 Existing references:
 
-- Skeleton primitives: `/Users/chris/projects/script-manifest-docs/apps/writer-web/app/components/skeleton.tsx`
-- Empty state: `/Users/chris/projects/script-manifest-docs/apps/writer-web/app/components/emptyState.tsx`
-- Toast surface: `/Users/chris/projects/script-manifest-docs/apps/writer-web/app/components/toast.tsx`
+- Skeleton primitives: `apps/writer-web/app/components/skeleton.tsx`
+- Empty state: `apps/writer-web/app/components/emptyState.tsx`
+- Toast surface: `apps/writer-web/app/components/toast.tsx`
 
 Missing standardized inline error surface:
 
@@ -202,7 +202,7 @@ const { data } = useSWR(loading || !user ? null : '/api/v1/me/projects');
 
 ## 10) Error handling
 
-Handle `ApiError` from `/Users/chris/projects/script-manifest-docs/apps/writer-web/app/lib/fetcher.ts`.
+Handle `ApiError` from `apps/writer-web/app/lib/fetcher.ts`.
 
 - `status` for HTTP branch handling (401/403/404/5xx)
 - `code` for API-level classification

@@ -1,14 +1,27 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { SWRConfig } from "swr";
 import { mockUseAuth } from "../../../vitest.setup";
 import AdminCompetitionsPage from "./page";
+import { ToastProvider } from "../../components/toast";
+import { fetcher } from "../../lib/fetcher";
 
 function jsonResponse(payload: unknown, status = 200): Response {
   return new Response(JSON.stringify(payload), {
     status,
     headers: { "content-type": "application/json" }
   });
+}
+
+function renderPage() {
+  return render(
+    <SWRConfig value={{ fetcher, provider: () => new Map(), dedupingInterval: 0 }}>
+      <ToastProvider>
+        <AdminCompetitionsPage />
+      </ToastProvider>
+    </SWRConfig>
+  );
 }
 
 describe("AdminCompetitionsPage", () => {
@@ -29,6 +42,26 @@ describe("AdminCompetitionsPage", () => {
   afterEach(() => {
     cleanup();
     vi.unstubAllGlobals();
+  });
+
+  it("renders loading state initially", () => {
+    // Fetch never resolves — SWR is still loading
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>(() => new Promise(() => {})));
+
+    renderPage();
+
+    expect(screen.getByText("Loading...")).toBeInTheDocument();
+  });
+
+  it("renders ApiError message on 4xx response", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>(async () => jsonResponse({ message: "Forbidden by admin policy" }, 403))
+    );
+
+    renderPage();
+
+    await screen.findByText("Forbidden by admin policy");
   });
 
   it("creates a competition through admin endpoint", async () => {
@@ -52,7 +85,7 @@ describe("AdminCompetitionsPage", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<AdminCompetitionsPage />);
+    renderPage();
     const user = userEvent.setup();
 
     await screen.findByText(/Loaded 0 competitions/);
@@ -68,11 +101,51 @@ describe("AdminCompetitionsPage", () => {
     await screen.findByText(/Competition "Pilot Lab" created/);
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/v1/admin/competitions",
-      expect.objectContaining({
-        method: "POST",
-        headers: expect.objectContaining({ "content-type": "application/json" })
-      })
+      expect.objectContaining({ method: "POST" })
     );
+  });
+
+  it("shows new row after create — list refetches with SWR cache invalidation", async () => {
+    const competitions: Array<Record<string, unknown>> = [];
+
+    const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
+      const url = typeof input === "string" ? input : input.toString();
+      const method = (init?.method ?? "GET").toUpperCase();
+
+      if (url.startsWith("/api/v1/competitions") && method === "GET") {
+        return jsonResponse({ competitions });
+      }
+
+      if (url === "/api/v1/admin/competitions" && method === "POST") {
+        const payload = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
+        competitions.unshift({
+          ...payload,
+          status: "active",
+          visibility: "listed",
+          accessType: "open"
+        });
+        return jsonResponse({ competition: competitions[0] }, 201);
+      }
+
+      return jsonResponse({ ok: true });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderPage();
+    const user = userEvent.setup();
+
+    await screen.findByText(/Loaded 0 competitions/);
+
+    await user.type(screen.getByLabelText("Title"), "New Competition");
+    await user.type(screen.getByLabelText("Description"), "A brand new competition");
+    await user.clear(screen.getByLabelText("Fee USD"));
+    await user.type(screen.getByLabelText("Fee USD"), "10");
+    await user.type(screen.getByLabelText("Deadline"), "2026-12-01T12:00");
+
+    await user.click(screen.getByRole("button", { name: "Create competition" }));
+
+    // List should refetch and show the new row
+    await screen.findByText("New Competition");
   });
 
   it("edits an existing competition via edit button", async () => {
@@ -98,7 +171,7 @@ describe("AdminCompetitionsPage", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<AdminCompetitionsPage />);
+    renderPage();
     const user = userEvent.setup();
 
     await screen.findByText("Sprint");

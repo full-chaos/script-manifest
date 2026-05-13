@@ -1,5 +1,8 @@
-import { render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import React from "react";
+import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { SWRConfig } from "swr";
+import { fetcher } from "../../../lib/fetcher";
 import { mockUseAuth } from "../../../../vitest.setup";
 import { ToastProvider } from "../../../components/toast";
 import OrderFlowPage from "./page";
@@ -7,6 +10,8 @@ import OrderFlowPage from "./page";
 vi.mock("next/navigation", () => ({
   useParams: () => ({ serviceId: "service_01" })
 }));
+
+const SWR_OPTS = { fetcher, provider: () => new Map(), dedupingInterval: 0, shouldRetryOnError: false };
 
 describe("OrderFlowPage", () => {
   beforeEach(() => {
@@ -21,7 +26,7 @@ describe("OrderFlowPage", () => {
       },
       loading: false
     });
-    globalThis.fetch = vi.fn<typeof fetch>().mockResolvedValue(
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>().mockResolvedValue(
       new Response(
         JSON.stringify({
           service: {
@@ -40,17 +45,42 @@ describe("OrderFlowPage", () => {
         }),
         { status: 200, headers: { "content-type": "application/json" } }
       )
-    );
+    ));
+  });
+
+  afterEach(() => {
+    cleanup();
   });
 
   it("renders service order form", async () => {
     render(
-      <ToastProvider>
-        <OrderFlowPage />
-      </ToastProvider>
+      React.createElement(
+        SWRConfig,
+        { value: SWR_OPTS },
+        React.createElement(ToastProvider, null, React.createElement(OrderFlowPage))
+      )
     );
 
     expect(await screen.findByText("Feature Coverage")).toBeInTheDocument();
     expect(screen.getByText("Order Form")).toBeInTheDocument();
+  });
+
+  it("shows service not found when fetch returns 404", async () => {
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify({ error: "Not found" }), {
+        status: 404,
+        headers: { "content-type": "application/json" }
+      })
+    ));
+
+    render(
+      React.createElement(
+        SWRConfig,
+        { value: SWR_OPTS },
+        React.createElement(ToastProvider, null, React.createElement(OrderFlowPage))
+      )
+    );
+
+    expect(await screen.findByText("Service not found")).toBeInTheDocument();
   });
 });

@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { useParams } from "next/navigation";
+import useSWR from "swr";
 import type { CoverageOrder, CoverageDelivery, CoverageOrderStatus, CoverageProvider } from "@script-manifest/contracts";
 import { EmptyState } from "../../../components/emptyState";
 import { EmptyIllustration } from "../../../components/illustrations";
@@ -9,17 +10,14 @@ import { SkeletonCard } from "../../../components/skeleton";
 import { useToast } from "../../../components/toast";
 import { useAuth } from "../../../lib/AuthProvider";
 import { Modal } from "../../../components/modal";
+import { fetcher, ApiError } from "../../../lib/fetcher";
 
 export default function OrderDetailPage() {
   const params = useParams();
   const orderId = params.id as string;
   const toast = useToast();
-  const { user } = useAuth();
-  const [signedInUserId, setSignedInUserId] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [order, setOrder] = useState<CoverageOrder | null>(null);
-  const [delivery, setDelivery] = useState<CoverageDelivery | null>(null);
-  const [provider, setProvider] = useState<CoverageProvider | null>(null);
+  const { user, loading: authLoading } = useAuth();
+  const userId = user?.id ?? "";
 
   // Review form
   const [reviewModalOpen, setReviewModalOpen] = useState(false);
@@ -27,124 +25,75 @@ export default function OrderDetailPage() {
   const [comment, setComment] = useState("");
   const [submittingReview, setSubmittingReview] = useState(false);
 
-  // Provider actions
+  // Action loading states
+  const [retrying, setRetrying] = useState(false);
   const [claiming, setClaiming] = useState(false);
   const [delivering, setDelivering] = useState(false);
 
-  useEffect(() => {
-    queueMicrotask(() => { setSignedInUserId(user?.id ?? ""); });
-  }, [user]);
+  // Auth-paused: do not fetch until auth resolves and user is known
+  const orderKey = authLoading || !userId ? null : `/api/v1/coverage/orders/${encodeURIComponent(orderId)}`;
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    try {
-      const orderResponse = await fetch(`/api/v1/coverage/orders/${encodeURIComponent(orderId)}`, {
-        headers: {},
-        cache: "no-store"
-      });
-
-      if (!orderResponse.ok) {
-        setOrder(null);
-        setProvider(null);
-        setDelivery(null);
-        return;
-      }
-
-      const orderBody = (await orderResponse.json()) as { order?: CoverageOrder };
-      const nextOrder = orderBody.order ?? null;
-      setOrder(nextOrder);
-
-      if (!nextOrder) {
-        setProvider(null);
-        setDelivery(null);
-        return;
-      }
-
-      const [providerResponse, deliveryResponse] = await Promise.all([
-        fetch(`/api/v1/coverage/providers/${encodeURIComponent(nextOrder.providerId)}`, {
-          headers: {},
-          cache: "no-store"
-        }),
-        fetch(`/api/v1/coverage/orders/${encodeURIComponent(orderId)}/delivery`, {
-          headers: {},
-          cache: "no-store"
-        })
-      ]);
-
-      if (providerResponse.ok) {
-        const providerBody = (await providerResponse.json()) as { provider?: CoverageProvider };
-        setProvider(providerBody.provider ?? null);
-      } else {
-        setProvider(null);
-      }
-
-      if (deliveryResponse.ok) {
-        const deliveryBody = (await deliveryResponse.json()) as { delivery?: CoverageDelivery };
-        setDelivery(deliveryBody.delivery ?? null);
-      } else if (deliveryResponse.status === 404) {
-        setDelivery(null);
-      } else {
-        setDelivery(null);
-        toast.error("Failed to load coverage delivery.");
-      }
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to load order details.");
-    } finally {
-      setLoading(false);
+  const { data: orderData, isLoading, mutate: mutateOrder } = useSWR<{ order?: CoverageOrder }>(
+    orderKey,
+    fetcher,
+    {
+      onError(err: unknown) {
+        if (err instanceof ApiError && err.status === 404) return;
+        toast.error(err instanceof ApiError ? err.message : "Failed to load order details.");
+      },
     }
-  }, [orderId, toast]);
+  );
 
-  useEffect(() => {
-    queueMicrotask(() => { void loadData(); });
-  }, [loadData]);
+  const order = orderData?.order ?? null;
 
-  const [retrying, setRetrying] = useState(false);
+  // Dependent reads — only fetch once order is loaded
+  const providerKey = order?.providerId
+    ? `/api/v1/coverage/providers/${encodeURIComponent(order.providerId)}`
+    : null;
 
-  function getDeclineMessage(reason?: string): string {
-    if (!reason) return "Your payment was declined. Please try a different card.";
-    if (reason.toLowerCase().includes("insufficient")) return "Your card was declined due to insufficient funds.";
-    if (reason.toLowerCase().includes("expired")) return "Your card has expired. Please use a different card.";
-    return `Your payment was declined: ${reason}. Please try a different card.`;
-  }
+  const { data: providerData } = useSWR<{ provider?: CoverageProvider }>(providerKey, fetcher);
+
+  const deliveryKey = order
+    ? `/api/v1/coverage/orders/${encodeURIComponent(orderId)}/delivery`
+    : null;
+
+  const { data: deliveryData } = useSWR<{ delivery?: CoverageDelivery }>(deliveryKey, fetcher, {
+    onError(err: unknown) {
+      // 404 means no delivery yet — not an error worth toasting
+      if (err instanceof ApiError && err.status === 404) return;
+      toast.error("Failed to load coverage delivery.");
+    },
+  });
+
+  const provider = providerData?.provider ?? null;
+  const delivery = deliveryData?.delivery ?? null;
 
   async function handleRetryPayment() {
     setRetrying(true);
     try {
-      const response = await fetch(`/api/v1/coverage/orders/${encodeURIComponent(orderId)}/retry-payment`, {
+      await fetcher(`/api/v1/coverage/orders/${encodeURIComponent(orderId)}/retry-payment`, {
         method: "POST",
-        headers: { "content-type": "application/json", ...{} }
+        headers: { "content-type": "application/json" },
       });
-      const body = (await response.json()) as { error?: string };
-      if (!response.ok) {
-        toast.error(body.error ?? "Failed to retry payment.");
-        return;
-      }
       toast.success("Payment retry initiated. Please check your email for confirmation.");
-      await loadData();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to retry payment.");
+      void mutateOrder();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Failed to retry payment.");
     } finally {
       setRetrying(false);
     }
   }
+
   async function handleClaim() {
     setClaiming(true);
     try {
-      const response = await fetch(`/api/v1/coverage/orders/${encodeURIComponent(orderId)}/claim`, {
+      await fetcher(`/api/v1/coverage/orders/${encodeURIComponent(orderId)}/claim`, {
         method: "POST",
-        headers: {}
       });
-
-      const body = (await response.json()) as { error?: string };
-      if (!response.ok) {
-        toast.error(body.error ?? "Failed to claim order.");
-        return;
-      }
-
       toast.success("Order claimed successfully!");
-      await loadData();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to claim order.");
+      void mutateOrder();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Failed to claim order.");
     } finally {
       setClaiming(false);
     }
@@ -153,28 +102,21 @@ export default function OrderDetailPage() {
   async function handleDeliver() {
     setDelivering(true);
     try {
-      const response = await fetch(`/api/v1/coverage/orders/${encodeURIComponent(orderId)}/deliver`, {
+      await fetcher(`/api/v1/coverage/orders/${encodeURIComponent(orderId)}/deliver`, {
         method: "POST",
-        headers: { "content-type": "application/json", ...{} },
+        headers: { "content-type": "application/json" },
         body: JSON.stringify({
           summary: "Sample coverage summary",
           strengths: "Strong character development",
           weaknesses: "Pacing could be improved",
           recommendations: "Tighten act 2",
           score: 75
-        })
+        }),
       });
-
-      const body = (await response.json()) as { error?: string };
-      if (!response.ok) {
-        toast.error(body.error ?? "Failed to deliver order.");
-        return;
-      }
-
       toast.success("Order delivered successfully!");
-      await loadData();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to deliver order.");
+      void mutateOrder();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Failed to deliver order.");
     } finally {
       setDelivering(false);
     }
@@ -182,65 +124,42 @@ export default function OrderDetailPage() {
 
   async function handleComplete() {
     try {
-      const response = await fetch(`/api/v1/coverage/orders/${encodeURIComponent(orderId)}/complete`, {
+      await fetcher(`/api/v1/coverage/orders/${encodeURIComponent(orderId)}/complete`, {
         method: "POST",
-        headers: {}
       });
-
-      const body = (await response.json()) as { error?: string };
-      if (!response.ok) {
-        toast.error(body.error ?? "Failed to complete order.");
-        return;
-      }
-
       toast.success("Order completed!");
-      await loadData();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to complete order.");
+      void mutateOrder();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Failed to complete order.");
     }
   }
 
   async function handleDispute() {
     try {
-      const response = await fetch(`/api/v1/coverage/orders/${encodeURIComponent(orderId)}/dispute`, {
+      await fetcher(`/api/v1/coverage/orders/${encodeURIComponent(orderId)}/dispute`, {
         method: "POST",
-        headers: { "content-type": "application/json", ...{} },
+        headers: { "content-type": "application/json" },
         body: JSON.stringify({
           reason: "quality",
           description: "The coverage did not meet expectations"
-        })
+        }),
       });
-
-      const body = (await response.json()) as { error?: string };
-      if (!response.ok) {
-        toast.error(body.error ?? "Failed to open dispute.");
-        return;
-      }
-
       toast.success("Dispute opened.");
-      await loadData();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to open dispute.");
+      void mutateOrder();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Failed to open dispute.");
     }
   }
 
   async function handleCancel() {
     try {
-      const response = await fetch(`/api/v1/coverage/orders/${encodeURIComponent(orderId)}/cancel`, {
+      await fetcher(`/api/v1/coverage/orders/${encodeURIComponent(orderId)}/cancel`, {
         method: "POST",
-        headers: {}
       });
-
-      const body = (await response.json()) as { error?: string };
-      if (!response.ok) {
-        toast.error(body.error ?? "Failed to cancel order.");
-        return;
-      }
-
       toast.success("Order cancelled.");
-      await loadData();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to cancel order.");
+      void mutateOrder();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Failed to cancel order.");
     }
   }
 
@@ -248,24 +167,17 @@ export default function OrderDetailPage() {
     event.preventDefault();
     setSubmittingReview(true);
     try {
-      const response = await fetch(`/api/v1/coverage/orders/${encodeURIComponent(orderId)}/review`, {
+      await fetcher(`/api/v1/coverage/orders/${encodeURIComponent(orderId)}/review`, {
         method: "POST",
-        headers: { "content-type": "application/json", ...{} },
-        body: JSON.stringify({ rating: Number(rating), comment })
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ rating: Number(rating), comment }),
       });
-
-      const body = (await response.json()) as { error?: string };
-      if (!response.ok) {
-        toast.error(body.error ?? "Failed to submit review.");
-        return;
-      }
-
       toast.success("Review submitted!");
       setReviewModalOpen(false);
       setRating("");
       setComment("");
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to submit review.");
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Failed to submit review.");
     } finally {
       setSubmittingReview(false);
     }
@@ -275,13 +187,20 @@ export default function OrderDetailPage() {
     return `$${(cents / 100).toFixed(2)}`;
   }
 
-  function getStatusColor(status: CoverageOrderStatus): string {
-    const colors: Record<CoverageOrderStatus, string> = {
+  function getDeclineMessage(reason?: string): string {
+    if (!reason) return "Your payment was declined. Please try a different card.";
+    if (reason.toLowerCase().includes("insufficient")) return "Your card was declined due to insufficient funds.";
+    if (reason.toLowerCase().includes("expired")) return "Your card has expired. Please use a different card.";
+    return `Your payment was declined: ${reason}. Please try a different card.`;
+  }
+
+  function getStatusColor(status: CoverageOrderStatus | string): string {
+    const colors: Record<string, string> = {
       placed: "border-border/65 bg-ink-500/10 text-foreground-secondary",
       payment_held: "border-amber-400/60 dark:border-amber-300/45 bg-amber-500/10 dark:bg-amber-500/15 text-amber-700 dark:text-amber-500",
       claimed: "border-tide-500/30 dark:border-tide-500/40 bg-tide-500/10 dark:bg-tide-500/20 text-tide-700 dark:text-tide-500",
       in_progress: "border-blue-300 bg-blue-50 text-blue-700",
-  delivered: "border-violet-400/60 dark:border-violet-300/45 bg-violet-500/10 dark:bg-violet-500/15 text-violet-700 dark:text-violet-400",
+      delivered: "border-violet-400/60 dark:border-violet-300/45 bg-violet-500/10 dark:bg-violet-500/15 text-violet-700 dark:text-violet-400",
       completed: "border-green-300 bg-green-500/10 dark:bg-green-500/15 text-green-700 dark:text-green-400",
       disputed: "border-red-400/60 dark:border-red-300/45 bg-red-500/10 dark:bg-red-500/15 text-red-700 dark:text-red-300",
       cancelled: "border-border/65 bg-ink-500/10 text-muted",
@@ -289,10 +208,10 @@ export default function OrderDetailPage() {
       refunded: "border-border/65 bg-ink-500/10 text-muted",
       abandoned: "border-border/65 bg-ink-500/10 text-muted"
     };
-    return colors[status] ?? colors.placed;
+    return colors[status] ?? "border-border/65 bg-ink-500/10 text-foreground-secondary";
   }
 
-  if (loading) {
+  if (isLoading) {
     return (
       <section className="space-y-4">
         <SkeletonCard />
@@ -312,8 +231,8 @@ export default function OrderDetailPage() {
     );
   }
 
-  const isWriter = order.writerUserId === signedInUserId;
-  const isProvider = provider?.userId === signedInUserId;
+  const isWriter = order.writerUserId === userId;
+  const isProvider = provider?.userId === userId;
 
   return (
     <section className="space-y-4">
@@ -425,16 +344,16 @@ export default function OrderDetailPage() {
         <h2 className="section-title">Actions</h2>
         <div className="inline-form">
           {isWriter && (order.status === "placed" || order.status === "payment_held") ? (
-            <button type="button" className="btn btn-secondary" onClick={handleCancel}>
+            <button type="button" className="btn btn-secondary" onClick={() => void handleCancel()}>
               Cancel Order
             </button>
           ) : null}
           {isWriter && order.status === "delivered" ? (
             <>
-              <button type="button" className="btn btn-primary" onClick={handleComplete}>
+              <button type="button" className="btn btn-primary" onClick={() => void handleComplete()}>
                 Complete Order
               </button>
-              <button type="button" className="btn btn-secondary" onClick={handleDispute}>
+              <button type="button" className="btn btn-secondary" onClick={() => void handleDispute()}>
                 Open Dispute
               </button>
               <button type="button" className="btn btn-secondary" onClick={() => setReviewModalOpen(true)}>
@@ -443,12 +362,12 @@ export default function OrderDetailPage() {
             </>
           ) : null}
           {isProvider && order.status === "payment_held" ? (
-            <button type="button" className="btn btn-primary" onClick={handleClaim} disabled={claiming}>
+            <button type="button" className="btn btn-primary" onClick={() => void handleClaim()} disabled={claiming}>
               {claiming ? "Claiming..." : "Claim Order"}
             </button>
           ) : null}
           {isProvider && (order.status === "claimed" || order.status === "in_progress") ? (
-            <button type="button" className="btn btn-primary" onClick={handleDeliver} disabled={delivering}>
+            <button type="button" className="btn btn-primary" onClick={() => void handleDeliver()} disabled={delivering}>
               {delivering ? "Delivering..." : "Deliver Order"}
             </button>
           ) : null}
@@ -456,7 +375,7 @@ export default function OrderDetailPage() {
       </article>
 
       <Modal open={reviewModalOpen} onClose={() => setReviewModalOpen(false)} title="Leave a Review">
-        <form className="stack" onSubmit={handleSubmitReview}>
+        <form className="stack" onSubmit={(e) => void handleSubmitReview(e)}>
           <label className="stack-tight">
             <span className="text-sm font-medium text-foreground">Rating (1-5)</span>
             <input

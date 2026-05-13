@@ -1,55 +1,40 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import useSWR from "swr";
 import type { CoverageProvider, CoverageService, CoverageReview } from "@script-manifest/contracts";
 import { EmptyState } from "../../../components/emptyState";
 import { EmptyIllustration } from "../../../components/illustrations";
 import { SkeletonCard } from "../../../components/skeleton";
 import { useToast } from "../../../components/toast";
+import { fetcher, ApiError } from "../../../lib/fetcher";
 
 export default function ProviderProfilePage() {
   const params = useParams();
   const providerId = params.id as string;
   const toast = useToast();
-  const [loading, setLoading] = useState(false);
-  const [provider, setProvider] = useState<CoverageProvider | null>(null);
-  const [services, setServices] = useState<CoverageService[]>([]);
-  const [reviews, setReviews] = useState<CoverageReview[]>([]);
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [providerRes, servicesRes, reviewsRes] = await Promise.all([
-        fetch(`/api/v1/coverage/providers/${encodeURIComponent(providerId)}`, { cache: "no-store" }),
-        fetch(`/api/v1/coverage/services?providerId=${encodeURIComponent(providerId)}`, { cache: "no-store" }),
-        fetch(`/api/v1/coverage/providers/${encodeURIComponent(providerId)}/reviews`, { cache: "no-store" })
-      ]);
+  // All three are public reads — no auth pause needed
+  const providerKey = providerId ? `/api/v1/coverage/providers/${encodeURIComponent(providerId)}` : null;
+  const servicesKey = providerId ? `/api/v1/coverage/services?providerId=${encodeURIComponent(providerId)}` : null;
+  const reviewsKey = providerId ? `/api/v1/coverage/providers/${encodeURIComponent(providerId)}/reviews` : null;
 
-      if (providerRes.ok) {
-        const providerBody = (await providerRes.json()) as { provider?: CoverageProvider };
-        setProvider(providerBody.provider ?? null);
-      }
-
-      if (servicesRes.ok) {
-        const servicesBody = (await servicesRes.json()) as { services?: CoverageService[] };
-        setServices(servicesBody.services ?? []);
-      }
-
-      if (reviewsRes.ok) {
-        const reviewsBody = (await reviewsRes.json()) as { reviews?: CoverageReview[] };
-        setReviews(reviewsBody.reviews ?? []);
-      }
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to load provider data.");
-    } finally {
-      setLoading(false);
+  const { data: providerData, isLoading: providerLoading } = useSWR<{ provider?: CoverageProvider }>(
+    providerKey,
+    fetcher,
+    {
+      onError(err: unknown) {
+        toast.error(err instanceof ApiError ? err.message : "Failed to load provider data.");
+      },
     }
-  }, [providerId, toast]);
+  );
 
-  useEffect(() => {
-    queueMicrotask(() => { void loadData(); });
-  }, [loadData]);
+  const { data: servicesData } = useSWR<{ services: CoverageService[] }>(servicesKey, fetcher);
+  const { data: reviewsData } = useSWR<{ reviews: CoverageReview[] }>(reviewsKey, fetcher);
+
+  const provider = providerData?.provider ?? null;
+  const services = servicesData?.services ?? [];
+  const reviews = reviewsData?.reviews ?? [];
 
   function formatPrice(cents: number): string {
     return `$${(cents / 100).toFixed(2)}`;
@@ -71,7 +56,7 @@ export default function ProviderProfilePage() {
     );
   }
 
-  if (loading) {
+  if (providerLoading) {
     return (
       <section className="space-y-4">
         <SkeletonCard />

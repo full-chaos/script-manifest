@@ -1,13 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { useParams } from "next/navigation";
+import useSWR from "swr";
 import type { CoverageService, CoverageOrder } from "@script-manifest/contracts";
 import { EmptyState } from "../../../components/emptyState";
 import { EmptyIllustration } from "../../../components/illustrations";
 import { SkeletonCard } from "../../../components/skeleton";
 import { useToast } from "../../../components/toast";
 import { useAuth } from "../../../lib/AuthProvider";
+import { fetcher, ApiError } from "../../../lib/fetcher";
 import { StripeProvider } from "../../components/StripeProvider";
 import { PaymentForm } from "../../components/PaymentForm";
 
@@ -16,9 +18,7 @@ export default function OrderFlowPage() {
   const serviceId = params.serviceId as string;
   const toast = useToast();
   const { user } = useAuth();
-  const [signedInUserId, setSignedInUserId] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [service, setService] = useState<CoverageService | null>(null);
+  const userId = user?.id ?? "";
   const [scriptId, setScriptId] = useState("");
   const [projectId, setProjectId] = useState("");
   const [placing, setPlacing] = useState(false);
@@ -26,29 +26,22 @@ export default function OrderFlowPage() {
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
 
-  useEffect(() => {
-    queueMicrotask(() => { setSignedInUserId(user?.id ?? ""); });
-  }, [user]);
+  // Service is public — no auth pause needed
+  const serviceKey = serviceId ? `/api/v1/coverage/services/${encodeURIComponent(serviceId)}` : null;
 
-  const loadService = useCallback(async () => {
-    setLoading(true);
-    try {
-      const response = await fetch(`/api/v1/coverage/services/${encodeURIComponent(serviceId)}`, { cache: "no-store" });
-      if (response.ok) {
-        const body = (await response.json()) as { service?: CoverageService } | CoverageService;
-        const foundService = ("service" in body ? body.service : body) as CoverageService | undefined;
-        setService(foundService ?? null);
-      }
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to load service details.");
-    } finally {
-      setLoading(false);
+  const { data: serviceData, isLoading } = useSWR<{ service?: CoverageService } | CoverageService>(
+    serviceKey,
+    fetcher,
+    {
+      onError(err: unknown) {
+        toast.error(err instanceof ApiError ? err.message : "Failed to load service details.");
+      },
     }
-  }, [serviceId, toast]);
+  );
 
-  useEffect(() => {
-    queueMicrotask(() => { void loadService(); });
-  }, [loadService]);
+  const service = serviceData
+    ? ("service" in serviceData ? serviceData.service : serviceData) as CoverageService | undefined ?? null
+    : null;
 
   async function handlePlaceOrder(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -56,25 +49,21 @@ export default function OrderFlowPage() {
 
     setPlacing(true);
     try {
-      const response = await fetch("/api/v1/coverage/orders", {
-        method: "POST",
-        headers: { "content-type": "application/json", ...{} },
-        body: JSON.stringify({ serviceId, scriptId, projectId })
-      });
-
-      const body = (await response.json()) as { order?: CoverageOrder; clientSecret?: string; error?: string };
-      if (!response.ok) {
-        toast.error(body.error ?? "Failed to place order.");
-        return;
-      }
-
+      const body = await fetcher<{ order?: CoverageOrder; clientSecret?: string }>(
+        "/api/v1/coverage/orders",
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ serviceId, scriptId, projectId }),
+        }
+      );
       setOrder(body.order ?? null);
       if (body.clientSecret) {
         setClientSecret(body.clientSecret);
       }
       toast.success("Order placed! Please complete payment below.");
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to place order.");
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Failed to place order.");
     } finally {
       setPlacing(false);
     }
@@ -88,7 +77,7 @@ export default function OrderFlowPage() {
     return tier.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
   }
 
-  if (loading) {
+  if (isLoading) {
     return (
       <section className="space-y-4">
         <SkeletonCard />
@@ -228,7 +217,7 @@ export default function OrderFlowPage() {
 
       <article className="panel stack animate-in animate-in-delay-2">
         <h2 className="section-title">Order Form</h2>
-        <form className="stack" onSubmit={handlePlaceOrder}>
+        <form className="stack" onSubmit={(e) => void handlePlaceOrder(e)}>
           <label className="stack-tight">
             <span className="text-sm font-medium text-foreground">Script ID</span>
             <input
@@ -239,7 +228,7 @@ export default function OrderFlowPage() {
               placeholder="script_abc123"
             />
             <span className="text-xs text-muted">
-              The ID of the script you want coverage for (optional)
+              The ID of the script you want coverage for
             </span>
           </label>
           <label className="stack-tight">
@@ -249,16 +238,23 @@ export default function OrderFlowPage() {
               type="text"
               value={projectId}
               onChange={(e) => setProjectId(e.target.value)}
-              placeholder="proj_abc123"
+              placeholder="project_abc123"
             />
             <span className="text-xs text-muted">
-              The ID of the project this coverage is for (optional)
+              Optional: associate this order with a project
             </span>
           </label>
           <div className="inline-form">
-            <button type="submit" className="btn btn-primary" disabled={placing || !signedInUserId}>
-              {placing ? "Placing order..." : signedInUserId ? "Place Order" : "Sign in to place order"}
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={placing || !userId}
+            >
+              {placing ? "Placing Order..." : "Place Order"}
             </button>
+            {!userId ? (
+              <p className="text-sm text-foreground-secondary">Sign in to place an order.</p>
+            ) : null}
           </div>
         </form>
       </article>

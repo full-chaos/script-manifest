@@ -1,83 +1,72 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import type { Route } from "next";
+import useSWR from "swr";
+import useSWRMutation from "swr/mutation";
 import type { CoverageProvider, CoverageOrder } from "@script-manifest/contracts";
 import { EmptyState } from "../../components/emptyState";
 import { EmptyIllustration } from "../../components/illustrations";
 import { SkeletonCard } from "../../components/skeleton";
 import { useToast } from "../../components/toast";
 import { useAuth } from "../../lib/AuthProvider";
+import { fetcher, ApiError } from "../../lib/fetcher";
 
 type Tab = "incoming" | "active" | "completed";
 
+async function claimOrder(
+  _key: string,
+  { arg }: { arg: string }
+): Promise<{ order: CoverageOrder }> {
+  return fetcher<{ order: CoverageOrder }>(
+    `/api/v1/coverage/orders/${encodeURIComponent(arg)}/claim`,
+    { method: "POST" }
+  );
+}
+
 export default function ProviderDashboardPage() {
   const toast = useToast();
-  const { user } = useAuth();
-  const signedInUserId = user?.id ?? "";
-  const [loading, setLoading] = useState(false);
-  const [provider, setProvider] = useState<CoverageProvider | null>(null);
-  const [orders, setOrders] = useState<CoverageOrder[]>([]);
+  const { user, loading: authLoading } = useAuth();
+  const userId = user?.id ?? "";
   const [activeTab, setActiveTab] = useState<Tab>("incoming");
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    try {
-      // Check if user has a provider profile
-      const providerRes = await fetch("/api/v1/coverage/providers", {
-        headers: {},
-        cache: "no-store"
-      });
+  // Auth-paused: do not fetch until auth resolves and user is known
+  const providersKey = authLoading || !userId ? null : "/api/v1/coverage/providers";
 
-      if (providerRes.ok) {
-        const providerBody = (await providerRes.json()) as { providers?: CoverageProvider[] };
-        const userProvider = providerBody.providers?.find((p) => p.userId === signedInUserId);
-        setProvider(userProvider ?? null);
-
-        if (userProvider) {
-          // Load orders for this provider
-          const ordersRes = await fetch(`/api/v1/coverage/orders?providerId=${encodeURIComponent(userProvider.id)}`, {
-            headers: {},
-            cache: "no-store"
-          });
-
-          if (ordersRes.ok) {
-            const ordersBody = (await ordersRes.json()) as { orders?: CoverageOrder[] };
-            setOrders(ordersBody.orders ?? []);
-          }
-        }
-      }
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to load dashboard data.");
-    } finally {
-      setLoading(false);
+  const { data: providersData, isLoading: providersLoading } = useSWR<{ providers: CoverageProvider[] }>(
+    providersKey,
+    fetcher,
+    {
+      onError(err: unknown) {
+        toast.error(err instanceof ApiError ? err.message : "Failed to load dashboard data.");
+      },
     }
-  }, [signedInUserId, toast]);
+  );
 
-  useEffect(() => {
-    if (signedInUserId) {
-      queueMicrotask(() => { void loadData(); });
-    }
-  }, [signedInUserId, loadData]);
+  const userProvider = providersData?.providers?.find((p) => p.userId === userId) ?? null;
+
+  const ordersKey = userProvider
+    ? `/api/v1/coverage/orders?providerId=${encodeURIComponent(userProvider.id)}`
+    : null;
+
+  const { data: ordersData, isLoading: ordersLoading, mutate: mutateOrders } = useSWR<{ orders: CoverageOrder[] }>(
+    ordersKey,
+    fetcher
+  );
+
+  const { trigger: triggerClaim } = useSWRMutation(ordersKey, claimOrder, {
+    throwOnError: false,
+    onSuccess() {
+      toast.success("Order claimed!");
+    },
+    onError(err: unknown) {
+      toast.error(err instanceof ApiError ? err.message : "Failed to claim order.");
+    },
+  });
 
   async function handleClaim(orderId: string) {
-    try {
-      const response = await fetch(`/api/v1/coverage/orders/${encodeURIComponent(orderId)}/claim`, {
-        method: "POST",
-        headers: {}
-      });
-
-      const body = (await response.json()) as { error?: string };
-      if (!response.ok) {
-        toast.error(body.error ?? "Failed to claim order.");
-        return;
-      }
-
-      toast.success("Order claimed!");
-      await loadData();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to claim order.");
-    }
+    await triggerClaim(orderId);
+    void mutateOrders();
   }
 
   function formatPrice(cents: number): string {
@@ -89,12 +78,13 @@ export default function ProviderDashboardPage() {
       payment_held: "border-amber-400/60 dark:border-amber-300/45 bg-amber-500/10 dark:bg-amber-500/15 text-amber-700 dark:text-amber-500",
       claimed: "border-tide-500/30 dark:border-tide-500/40 bg-tide-500/10 dark:bg-tide-500/20 text-tide-700 dark:text-tide-500",
       in_progress: "border-blue-300 bg-blue-50 text-blue-700",
-  delivered: "border-violet-400/60 dark:border-violet-300/45 bg-violet-500/10 dark:bg-violet-500/15 text-violet-700 dark:text-violet-400",
+      delivered: "border-violet-400/60 dark:border-violet-300/45 bg-violet-500/10 dark:bg-violet-500/15 text-violet-700 dark:text-violet-400",
       completed: "border-green-300 bg-green-500/10 dark:bg-green-500/15 text-green-700 dark:text-green-400"
     };
     return colors[status] ?? "border-border/65 bg-ink-500/10 text-foreground-secondary";
   }
 
+  const orders = ordersData?.orders ?? [];
   const incomingOrders = orders.filter((o) => o.status === "payment_held");
   const activeOrders = orders.filter((o) => o.status === "claimed" || o.status === "in_progress");
   const completedOrders = orders.filter((o) => o.status === "completed");
@@ -105,7 +95,9 @@ export default function ProviderDashboardPage() {
     { key: "completed", label: "Completed", count: completedOrders.length }
   ];
 
-  if (loading) {
+  const isLoading = authLoading || providersLoading || (!!userProvider && ordersLoading);
+
+  if (isLoading) {
     return (
       <section className="space-y-4">
         <SkeletonCard />
@@ -114,7 +106,7 @@ export default function ProviderDashboardPage() {
     );
   }
 
-  if (!provider) {
+  if (!userProvider) {
     return (
       <section className="space-y-4">
         <article className="hero-card hero-card--violet animate-in">
@@ -142,17 +134,17 @@ export default function ProviderDashboardPage() {
     <section className="space-y-4">
       <article className="hero-card hero-card--violet animate-in">
         <p className="eyebrow">Coverage Provider Dashboard</p>
-        <h1 className="text-4xl text-foreground">{provider.displayName}</h1>
+        <h1 className="text-4xl text-foreground">{userProvider.displayName}</h1>
         <p className="max-w-3xl text-foreground-secondary">Manage your orders and track your performance.</p>
         <div className="mt-4 flex flex-wrap items-center gap-4">
           <div className="rounded-lg border border-border/55 bg-surface px-4 py-2">
             <span className="text-xs text-muted">Total Orders</span>
-            <p className="text-2xl font-semibold text-foreground">{provider.totalOrdersCompleted}</p>
+            <p className="text-2xl font-semibold text-foreground">{userProvider.totalOrdersCompleted}</p>
           </div>
           <div className="rounded-lg border border-border/55 bg-surface px-4 py-2">
             <span className="text-xs text-muted">Avg Rating</span>
             <p className="text-2xl font-semibold text-foreground">
-              {provider.avgRating !== null ? provider.avgRating.toFixed(1) : "N/A"}
+              {userProvider.avgRating !== null ? userProvider.avgRating.toFixed(1) : "N/A"}
             </p>
           </div>
           <div className="rounded-lg border border-border/55 bg-surface px-4 py-2">
@@ -180,120 +172,88 @@ export default function ProviderDashboardPage() {
           ))}
         </nav>
 
-        {activeTab === "incoming" ? (
+        {activeTab === "incoming" && (
           incomingOrders.length === 0 ? (
             <EmptyState
               illustration={<EmptyIllustration variant="search" className="h-14 w-14 text-foreground" />}
               title="No incoming orders"
-              description="New orders awaiting claim will appear here."
+              description="New orders awaiting your acceptance will appear here."
             />
           ) : (
             <div className="stack">
               {incomingOrders.map((order) => (
-                <article key={order.id} className="subcard">
+                <div key={order.id} className="subcard">
                   <div className="flex items-start justify-between gap-3">
                     <div className="stack-tight flex-1">
-                      <div className="flex items-center gap-2">
-                        <strong className="text-foreground">Order {order.id}</strong>
-                        <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.1em] ${getStatusColor(order.status)}`}>
-                          {order.status.replace(/_/g, " ")}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="badge">{formatPrice(order.providerPayoutCents)}</span>
-                        {order.slaDeadline ? (
-                          <span className="text-xs text-muted">
-                            Due: {new Date(order.slaDeadline).toLocaleDateString()}
-                          </span>
-                        ) : null}
-                      </div>
-                      <div className="mt-2">
-                        <button
-                          type="button"
-                          className="btn btn-primary"
-                          onClick={() => handleClaim(order.id)}
-                        >
-                          Claim Order
-                        </button>
-                      </div>
+                      <p className="text-sm font-medium text-foreground">Order {order.id}</p>
+                      <p className="text-xs text-foreground-secondary">{formatPrice(order.priceCents)}</p>
+                      <span className={`inline-flex w-fit items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.1em] ${getStatusColor(order.status)}`}>
+                        {order.status.replace(/_/g, " ")}
+                      </span>
                     </div>
+                    <button
+                      type="button"
+                      className="btn btn-primary shrink-0"
+                      onClick={() => void handleClaim(order.id)}
+                    >
+                      Claim
+                    </button>
                   </div>
-                </article>
+                </div>
               ))}
             </div>
           )
-        ) : activeTab === "active" ? (
+        )}
+
+        {activeTab === "active" && (
           activeOrders.length === 0 ? (
             <EmptyState
               illustration={<EmptyIllustration variant="search" className="h-14 w-14 text-foreground" />}
               title="No active orders"
-              description="Orders you've claimed will appear here."
+              description="Orders you have claimed and are working on will appear here."
             />
           ) : (
             <div className="stack">
               {activeOrders.map((order) => (
-                <article key={order.id} className="subcard">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="stack-tight flex-1">
-                      <div className="flex items-center gap-2">
-                        <strong className="text-foreground">Order {order.id}</strong>
-                        <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.1em] ${getStatusColor(order.status)}`}>
-                          {order.status.replace(/_/g, " ")}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="badge">{formatPrice(order.providerPayoutCents)}</span>
-                        {order.slaDeadline ? (
-                          <span className="text-xs text-muted">
-                            Due: {new Date(order.slaDeadline).toLocaleDateString()}
-                          </span>
-                        ) : null}
-                      </div>
-                      <div className="mt-2">
-                        <a
-                          href={`/coverage/orders/${encodeURIComponent(order.id)}`}
-                          className="btn btn-secondary no-underline"
-                        >
-                          View Order
-                        </a>
-                      </div>
-                    </div>
+                <div key={order.id} className="subcard">
+                  <div className="stack-tight">
+                    <p className="text-sm font-medium text-foreground">Order {order.id}</p>
+                    <p className="text-xs text-foreground-secondary">{formatPrice(order.priceCents)}</p>
+                    <span className={`inline-flex w-fit items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.1em] ${getStatusColor(order.status)}`}>
+                      {order.status.replace(/_/g, " ")}
+                    </span>
+                    <a href={`/coverage/orders/${encodeURIComponent(order.id)}`} className="text-sm text-primary hover:underline">
+                      View Order
+                    </a>
                   </div>
-                </article>
+                </div>
               ))}
             </div>
           )
-        ) : completedOrders.length === 0 ? (
-          <EmptyState
-            illustration={<EmptyIllustration variant="search" className="h-14 w-14 text-foreground" />}
-            title="No completed orders"
-            description="Your completed orders will appear here."
-          />
-        ) : (
-          <div className="stack">
-            {completedOrders.map((order) => (
-              <article key={order.id} className="subcard">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="stack-tight flex-1">
-                    <div className="flex items-center gap-2">
-                      <strong className="text-foreground">Order {order.id}</strong>
-                      <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.1em] ${getStatusColor(order.status)}`}>
-                        {order.status.replace(/_/g, " ")}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="badge">{formatPrice(order.providerPayoutCents)}</span>
-                      {order.deliveredAt ? (
-                        <span className="text-xs text-muted">
-                          Delivered: {new Date(order.deliveredAt).toLocaleDateString()}
-                        </span>
-                      ) : null}
-                    </div>
+        )}
+
+        {activeTab === "completed" && (
+          completedOrders.length === 0 ? (
+            <EmptyState
+              illustration={<EmptyIllustration variant="search" className="h-14 w-14 text-foreground" />}
+              title="No completed orders"
+              description="Orders you have delivered and been reviewed will appear here."
+            />
+          ) : (
+            <div className="stack">
+              {completedOrders.map((order) => (
+                <div key={order.id} className="subcard">
+                  <div className="stack-tight">
+                    <p className="text-sm font-medium text-foreground">Order {order.id}</p>
+                    <p className="text-xs text-foreground-secondary">{formatPrice(order.priceCents)}</p>
+                    <span className={`inline-flex w-fit items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.1em] ${getStatusColor(order.status)}`}>
+                      {order.status.replace(/_/g, " ")}
+                    </span>
                   </div>
                 </div>
-              </article>
-            ))}
-          </div>
+              ))}
+            </div>
+          )
         )}
       </article>
     </section>

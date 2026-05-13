@@ -1,10 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
+import useSWR from "swr";
 import { EmptyState } from "../../components/emptyState";
 import { EmptyIllustration } from "../../components/illustrations";
 import { SkeletonCard } from "../../components/skeleton";
 import { useToast } from "../../components/toast";
+import { useAuth } from "../../lib/AuthProvider";
+import { fetcher, ApiError } from "../../lib/fetcher";
 
 interface PaymentMethod {
   id: string;
@@ -16,53 +19,41 @@ interface PaymentMethod {
 
 export default function PaymentMethodsPage() {
   const toast = useToast();
-  const [loading, setLoading] = useState(true);
-  const [methods, setMethods] = useState<PaymentMethod[]>([]);
+  const { user, loading: authLoading } = useAuth();
+  const userId = user?.id ?? "";
   const [removing, setRemoving] = useState<string | null>(null);
 
-  const loadMethods = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await fetch("/api/v1/coverage/payment-methods", {
-        headers: {},
-        cache: "no-store"
-      });
-      if (res.ok) {
-        const body = await res.json() as { paymentMethods?: PaymentMethod[] };
-        setMethods(body.paymentMethods ?? []);
-      }
-    } catch {
-      toast.error("Failed to load payment methods.");
-    } finally {
-      setLoading(false);
-    }
-  }, [toast]);
+  // Auth-paused: do not fetch until auth resolves and user is known
+  const paymentMethodsKey = authLoading || !userId ? null : "/api/v1/coverage/payment-methods";
 
-  useEffect(() => {
-    queueMicrotask(() => { void loadMethods(); });
-  }, [loadMethods]);
+  const {
+    data,
+    isLoading,
+    mutate,
+  } = useSWR<{ paymentMethods?: PaymentMethod[] }>(paymentMethodsKey, fetcher, {
+    onError(err: unknown) {
+      toast.error(err instanceof ApiError ? err.message : "Failed to load payment methods.");
+    },
+  });
+
+  const methods = data?.paymentMethods ?? [];
 
   async function handleRemove(id: string) {
     setRemoving(id);
     try {
-      const res = await fetch(`/api/v1/coverage/payment-methods/${encodeURIComponent(id)}`, {
+      await fetcher(`/api/v1/coverage/payment-methods/${encodeURIComponent(id)}`, {
         method: "DELETE",
-        headers: {}
       });
-      if (res.ok) {
-        setMethods(prev => prev.filter(m => m.id !== id));
-        toast.success("Card removed.");
-      } else {
-        toast.error("Failed to remove card.");
-      }
-    } catch {
-      toast.error("Failed to remove card.");
+      toast.success("Card removed.");
+      void mutate();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Failed to remove card.");
     } finally {
       setRemoving(null);
     }
   }
 
-  if (loading) {
+  if (authLoading || isLoading) {
     return <section className="space-y-4"><SkeletonCard /></section>;
   }
 
@@ -88,7 +79,7 @@ export default function PaymentMethodsPage() {
         <article className="panel stack animate-in">
           <h2 className="section-title">Saved Cards</h2>
           <div className="stack">
-            {methods.map(method => (
+            {methods.map((method) => (
               <div key={method.id} className="subcard flex items-center justify-between">
                 <div className="stack-tight">
                   <p className="text-sm font-medium text-foreground capitalize">

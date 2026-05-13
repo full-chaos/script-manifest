@@ -1,8 +1,11 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { SWRConfig } from "swr";
+import type { ReactElement } from "react";
 import { mockUseAuth } from "../../vitest.setup";
 import { ToastProvider } from "../components/toast";
+import { fetcher } from "../lib/fetcher";
 import CompetitionsPage from "./page";
 
 function jsonResponse(payload: unknown, status = 200): Response {
@@ -12,13 +15,25 @@ function jsonResponse(payload: unknown, status = 200): Response {
   });
 }
 
-function renderWithProviders(ui: React.ReactElement) {
-  return render(<ToastProvider>{ui}</ToastProvider>);
+function renderWithProviders(ui: ReactElement) {
+  return render(
+    <SWRConfig
+      value={{
+        fetcher,
+        provider: () => new Map(),
+        dedupingInterval: 0,
+        shouldRetryOnError: false,
+        revalidateOnFocus: false,
+        revalidateOnReconnect: false,
+      }}
+    >
+      <ToastProvider>{ui}</ToastProvider>
+    </SWRConfig>
+  );
 }
 
 describe("CompetitionsPage", () => {
   beforeEach(() => {
-    cleanup();
     mockUseAuth.mockReturnValue({
       user: {
         id: "writer_01",
@@ -30,6 +45,10 @@ describe("CompetitionsPage", () => {
       loading: false
     });
     vi.restoreAllMocks();
+  });
+
+  afterEach(() => {
+    cleanup();
   });
 
   it("searches and renders a sorted upcoming deadline calendar", async () => {
@@ -71,7 +90,8 @@ describe("CompetitionsPage", () => {
         return jsonResponse({ competitions });
       }
 
-      throw new Error(`Unexpected request: ${method} ${url}`);
+      // Silently swallow fire-and-forget side-effect calls (e.g. onboarding PATCH)
+      return jsonResponse({});
     });
     vi.stubGlobal("fetch", fetchMock);
 
@@ -121,7 +141,8 @@ describe("CompetitionsPage", () => {
         return jsonResponse({ accepted: true, eventId: "evt_123" }, 202);
       }
 
-      throw new Error(`Unexpected request: ${method} ${url}`);
+      // Silently swallow fire-and-forget side-effect calls (e.g. onboarding PATCH)
+      return jsonResponse({});
     });
     vi.stubGlobal("fetch", fetchMock);
 

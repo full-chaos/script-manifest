@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
+import useSWR from "swr";
 import type { Competition } from "@script-manifest/contracts";
 import { Modal } from "../components/modal";
 import { EmptyState } from "../components/emptyState";
@@ -8,6 +9,7 @@ import { EmptyIllustration } from "../components/illustrations";
 import { SkeletonCard } from "../components/skeleton";
 import { useToast } from "../components/toast";
 import { useAuth } from "../lib/AuthProvider";
+import { fetcher, ApiError } from "../lib/fetcher";
 
 type Filters = {
   query: string;
@@ -67,15 +69,27 @@ function competitionInitial(title: string): string {
   return title.charAt(0).toUpperCase();
 }
 
+type CompetitionsResponse = {
+  competitions: Competition[];
+};
+
+function buildKey(filters: Filters): string {
+  const params = new URLSearchParams();
+  if (filters.query.trim()) params.set("query", filters.query.trim());
+  if (filters.format.trim()) params.set("format", filters.format.trim());
+  if (filters.genre.trim()) params.set("genre", filters.genre.trim());
+  if (filters.maxFeeUsd.trim()) params.set("maxFeeUsd", filters.maxFeeUsd.trim());
+  return `/api/v1/competitions?${params.toString()}`;
+}
+
 export default function CompetitionsPage() {
   const toast = useToast();
   const { user } = useAuth();
-  const [filters, setFilters] = useState<Filters>(initialFilters);
-  const [results, setResults] = useState<Competition[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [hasSearched, setHasSearched] = useState(false);
+  const signedInUserId = user?.id ?? "";
+
+  const [pendingFilters, setPendingFilters] = useState<Filters>(initialFilters);
+  const [committedFilters, setCommittedFilters] = useState<Filters>(initialFilters);
   const [status, setStatus] = useState("");
-  const [signedInUserId, setSignedInUserId] = useState("");
   const [reminderModalOpen, setReminderModalOpen] = useState(false);
   const [selectedCompetition, setSelectedCompetition] = useState<Competition | null>(null);
   const [reminderTargetUserId, setReminderTargetUserId] = useState("");
@@ -87,6 +101,32 @@ export default function CompetitionsPage() {
     const id = setInterval(() => setNow(Date.now()), 60_000);
     return () => clearInterval(id);
   }, []);
+
+  // Fire-and-forget onboarding progress when logged-in user visits
+  useEffect(() => {
+    if (!user) return;
+    void fetch("/api/v1/onboarding-progress", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ competitionsVisited: true }),
+    });
+  }, [user]);
+
+  const { data, isLoading: loading } = useSWR<CompetitionsResponse>(
+    buildKey(committedFilters),
+    fetcher,
+    {
+      onSuccess(d) {
+        setStatus(`Found ${d.competitions.length} competitions.`);
+      },
+      onError(err: unknown) {
+        toast.error(err instanceof ApiError ? err.message : "Competition search failed.");
+      },
+    }
+  );
+
+  const results = useMemo(() => data?.competitions ?? [], [data]);
+  const hasSearched = data !== undefined;
 
   const upcomingDeadlines = useMemo(() => {
     return [...results]
@@ -100,61 +140,10 @@ export default function CompetitionsPage() {
       .map((entry) => entry.competition);
   }, [results, now]);
 
-  const runSearch = useCallback(async (activeFilters: Filters) => {
-    setLoading(true);
-    setStatus("");
-
-    const params = new URLSearchParams();
-    if (activeFilters.query.trim()) params.set("query", activeFilters.query.trim());
-    if (activeFilters.format.trim()) params.set("format", activeFilters.format.trim());
-    if (activeFilters.genre.trim()) params.set("genre", activeFilters.genre.trim());
-    if (activeFilters.maxFeeUsd.trim()) params.set("maxFeeUsd", activeFilters.maxFeeUsd.trim());
-
-    try {
-      const response = await fetch(`/api/v1/competitions?${params.toString()}`, { cache: "no-store" });
-      const body = (await response.json()) as { competitions?: Competition[]; error?: string };
-      if (!response.ok) {
-        setStatus(body.error ? `Error: ${body.error}` : "Competition search failed.");
-        return;
-      }
-
-      const competitions = body.competitions ?? [];
-      setResults(competitions);
-      setHasSearched(true);
-      setStatus(`Found ${competitions.length as number} competitions.`);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Competition search failed.");
-    } finally {
-      setLoading(false);
-    }
-  }, [toast]);
-
-  const search = useCallback((event?: FormEvent<HTMLFormElement>) => {
+  function search(event?: FormEvent<HTMLFormElement>) {
     event?.preventDefault();
-    void runSearch(filters);
-  }, [filters, runSearch]);
-
-  useEffect(() => {
-    queueMicrotask(() => {
-      if (user) {
-        setSignedInUserId(user.id);
-        setReminderTargetUserId(user.id);
-        void fetch("/api/v1/onboarding-progress", {
-          method: "PATCH",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ competitionsVisited: true }),
-        });
-        return;
-      }
-
-      setSignedInUserId("");
-      setReminderTargetUserId("");
-    });
-  }, [user]);
-
-  useEffect(() => {
-    queueMicrotask(() => { void runSearch(initialFilters); });
-  }, [runSearch]);
+    setCommittedFilters(pendingFilters);
+  }
 
   function openReminderModal(competition: Competition) {
     setSelectedCompetition(competition);
@@ -238,8 +227,8 @@ export default function CompetitionsPage() {
             <span>Keyword</span>
             <input
               className="input"
-              value={filters.query}
-              onChange={(event) => setFilters((current) => ({ ...current, query: event.target.value }))}
+              value={pendingFilters.query}
+              onChange={(event) => setPendingFilters((current) => ({ ...current, query: event.target.value }))}
               placeholder="Title or description"
             />
           </label>
@@ -249,8 +238,8 @@ export default function CompetitionsPage() {
               <span>Format</span>
               <input
                 className="input"
-                value={filters.format}
-                onChange={(event) => setFilters((current) => ({ ...current, format: event.target.value }))}
+                value={pendingFilters.format}
+                onChange={(event) => setPendingFilters((current) => ({ ...current, format: event.target.value }))}
                 placeholder="feature / tv / short"
               />
             </label>
@@ -258,8 +247,8 @@ export default function CompetitionsPage() {
               <span>Genre</span>
               <input
                 className="input"
-                value={filters.genre}
-                onChange={(event) => setFilters((current) => ({ ...current, genre: event.target.value }))}
+                value={pendingFilters.genre}
+                onChange={(event) => setPendingFilters((current) => ({ ...current, genre: event.target.value }))}
                 placeholder="drama / comedy"
               />
             </label>
@@ -269,8 +258,8 @@ export default function CompetitionsPage() {
                 className="input"
                 type="number"
                 min={0}
-                value={filters.maxFeeUsd}
-                onChange={(event) => setFilters((current) => ({ ...current, maxFeeUsd: event.target.value }))}
+                value={pendingFilters.maxFeeUsd}
+                onChange={(event) => setPendingFilters((current) => ({ ...current, maxFeeUsd: event.target.value }))}
               />
             </label>
           </div>
@@ -283,8 +272,8 @@ export default function CompetitionsPage() {
               type="button"
               className="btn btn-secondary"
               onClick={() => {
-                setFilters(initialFilters);
-                setResults([]);
+                setPendingFilters(initialFilters);
+                setCommittedFilters(initialFilters);
                 setStatus("");
               }}
             >
@@ -375,24 +364,23 @@ export default function CompetitionsPage() {
                     <span className="badge">{competition.format}</span>
                     <span className="badge">{competition.genre}</span>
                     {competition.feeUsd === 0 ? (
-                      <span className="inline-flex items-center rounded-full border border-tide-500/30 dark:border-tide-500/40 bg-tide-500/10 dark:bg-tide-500/20 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-tide-700 dark:text-tide-500">
+                      <span className="inline-flex items-center rounded-full border border-tide-500/30 dark:border-tide-500/40 bg-tide-500/10 dark:bg-tide-500/20 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-tide-700 dark:text-tide-500">
                         Free
                       </span>
                     ) : (
-                      <span className="badge">${competition.feeUsd}</span>
+                      <span className="badge">${competition.feeUsd} entry fee</span>
                     )}
-                    <span className="text-xs text-muted">
-                      Deadline {new Date(competition.deadline).toLocaleDateString()}
-                    </span>
                   </div>
                   <div className="mt-3 inline-form">
-                    <button
-                      type="button"
-                      className="btn btn-secondary"
-                      onClick={() => openReminderModal(competition)}
-                    >
-                      Set reminder
-                    </button>
+                    {signedInUserId ? (
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => openReminderModal(competition)}
+                      >
+                        Set reminder
+                      </button>
+                    ) : null}
                   </div>
                 </div>
               </div>

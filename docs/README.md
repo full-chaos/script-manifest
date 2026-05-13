@@ -23,3 +23,7 @@
 
 - Coverage marketplace implementation plan: `docs/plans/2026-02-16-coverage-marketplace.md`
 - Coverage marketplace design: `docs/plans/2026-02-16-coverage-marketplace-design.md`
+
+## Frontend
+
+- Data fetching migration guide: `docs/frontend/data-fetching.md`

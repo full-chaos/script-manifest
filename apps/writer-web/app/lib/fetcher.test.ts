@@ -125,7 +125,9 @@ describe("fetcher", () => {
       await fetcher("/api/test");
 
       expect(mockFetch).toHaveBeenCalledOnce();
-      const [, init] = mockFetch.mock.calls[0];
+      const firstCall = mockFetch.mock.calls[0];
+      expect(firstCall).toBeDefined();
+      const [, init] = firstCall as [string | URL | Request, RequestInit | undefined];
       expect(init).toMatchObject({
         credentials: "include",
         cache: "no-store",
@@ -149,7 +151,7 @@ describe("fetcher", () => {
         },
       });
 
-      const [, init] = mockFetch.mock.calls[0];
+      const [, init] = mockFetch.mock.calls[0] as [string | URL | Request, RequestInit | undefined];
       const sentHeaders = new Headers(init?.headers as HeadersInit);
       expect(sentHeaders.get("accept")).toBe("text/plain");
       expect(sentHeaders.get("x-custom")).toBe("yes");
@@ -163,7 +165,7 @@ describe("fetcher", () => {
       const callerHeaders = new Headers({ "Authorization": "Bearer token123" });
       await fetcher("/api/secure", { headers: callerHeaders });
 
-      const [, init] = mockFetch.mock.calls[0];
+      const [, init] = mockFetch.mock.calls[0] as [string | URL | Request, RequestInit | undefined];
       const sentHeaders = new Headers(init?.headers as HeadersInit);
       expect(sentHeaders.get("authorization")).toBe("Bearer token123");
       expect(sentHeaders.get("accept")).toBe("application/json");
@@ -179,7 +181,7 @@ describe("fetcher", () => {
 
       await fetcher("/api/data", { signal: controller.signal });
 
-      const [, init] = mockFetch.mock.calls[0];
+      const [, init] = mockFetch.mock.calls[0] as [string | URL | Request, RequestInit | undefined];
       expect(init).toMatchObject({ signal: controller.signal });
     });
 

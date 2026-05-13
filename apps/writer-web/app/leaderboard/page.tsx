@@ -1,10 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useMemo, useState, type FormEvent } from "react";
+import useSWR from "swr";
 import type { Route } from "next";
 import type { RankedWriterEntry, TierDesignation } from "@script-manifest/contracts";
 import { EmptyState } from "../components/emptyState";
 import { EmptyIllustration } from "../components/illustrations";
+import { fetcher, ApiError } from "../lib/fetcher";
 
 type LeaderboardResponse = {
   leaderboard: RankedWriterEntry[];
@@ -69,63 +71,44 @@ function scorePercent(score: number, maxScore: number): number {
   return Math.min(100, Math.round((score / maxScore) * 100));
 }
 
+function buildKey(filters: Filters): string {
+  const search = new URLSearchParams();
+  if (filters.format.trim()) {
+    search.set("format", filters.format.trim());
+  }
+  if (filters.genre.trim()) {
+    search.set("genre", filters.genre.trim());
+  }
+  if (filters.tier) {
+    search.set("tier", filters.tier);
+  }
+  if (filters.trending) {
+    search.set("trending", "true");
+  }
+  const qs = search.toString();
+  return qs ? `/api/v1/leaderboard?${qs}` : "/api/v1/leaderboard";
+}
+
 export default function LeaderboardPage() {
   const [filters, setFilters] = useState<Filters>(initialFilters);
-  const [rows, setRows] = useState<RankedWriterEntry[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [status, setStatus] = useState("");
+
+  const { data, error, isLoading, mutate } = useSWR<LeaderboardResponse>(
+    buildKey(filters),
+    fetcher
+  );
+
+  const rows = useMemo(() => data?.leaderboard ?? [], [data]);
+  const total = data?.total ?? 0;
 
   const maxScore = useMemo(() => {
     if (rows.length === 0) return 1;
     return Math.max(...rows.map((r) => r.totalScore), 1);
   }, [rows]);
 
-  const runLeaderboardQuery = useCallback(async (activeFilters: Filters) => {
-    setLoading(true);
-    setStatus("");
-
-    const search = new URLSearchParams();
-    if (activeFilters.format.trim()) {
-      search.set("format", activeFilters.format.trim());
-    }
-    if (activeFilters.genre.trim()) {
-      search.set("genre", activeFilters.genre.trim());
-    }
-    if (activeFilters.tier) {
-      search.set("tier", activeFilters.tier);
-    }
-    if (activeFilters.trending) {
-      search.set("trending", "true");
-    }
-
-    try {
-      const response = await fetch(`/api/v1/leaderboard?${search.toString()}`, { cache: "no-store" });
-      const body = (await response.json()) as Partial<LeaderboardResponse> & { error?: string };
-      if (!response.ok) {
-        setStatus(body.error ? `Error: ${body.error}` : "Leaderboard load failed.");
-        return;
-      }
-
-      const nextRows = body.leaderboard ?? [];
-      setRows(nextRows);
-      setTotal(body.total ?? nextRows.length);
-      setStatus(`Loaded ${nextRows.length} leaderboard rows.`);
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : "unknown_error");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  const loadLeaderboard = useCallback((event?: FormEvent<HTMLFormElement>) => {
-    event?.preventDefault();
-    void runLeaderboardQuery(filters);
-  }, [filters, runLeaderboardQuery]);
-
-  useEffect(() => {
-    queueMicrotask(() => { void runLeaderboardQuery(initialFilters); });
-  }, [runLeaderboardQuery]);
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    void mutate();
+  }
 
   return (
     <section className="space-y-4">
@@ -139,7 +122,7 @@ export default function LeaderboardPage() {
       </article>
 
       <article className="panel stack animate-in animate-in-delay-1">
-        <form className="stack" onSubmit={loadLeaderboard}>
+        <form className="stack" onSubmit={handleSubmit}>
           <div className="grid-two">
             <label className="stack-tight">
               <span>Format filter</span>
@@ -187,17 +170,16 @@ export default function LeaderboardPage() {
             </label>
           </div>
           <div className="inline-form">
-            <button type="submit" className="btn btn-primary" disabled={loading}>
-              {loading ? "Refreshing..." : "Refresh leaderboard"}
+            <button type="submit" className="btn btn-primary" disabled={isLoading}>
+              {isLoading ? "Refreshing..." : "Refresh leaderboard"}
             </button>
             <button
               type="button"
               className="btn btn-secondary"
               onClick={() => {
                 setFilters(initialFilters);
-                void runLeaderboardQuery(initialFilters);
               }}
-              disabled={loading}
+              disabled={isLoading}
             >
               Reset
             </button>
@@ -284,7 +266,11 @@ export default function LeaderboardPage() {
         ) : null}
       </article>
 
-      {status ? <p className={status.startsWith("Error:") ? "status-error" : "status-note"}>{status}</p> : null}
+      {error ? (
+        <p className="status-error">
+          {error instanceof ApiError ? error.message : "Leaderboard load failed."}
+        </p>
+      ) : null}
     </section>
   );
 }

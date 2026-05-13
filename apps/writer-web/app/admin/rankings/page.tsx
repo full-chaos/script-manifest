@@ -1,6 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
+import useSWR from "swr";
+import useSWRMutation from "swr/mutation";
+import { fetcher, ApiError } from "../../lib/fetcher";
 import { Modal } from "../../components/modal";
 import { SkeletonCard } from "../../components/skeleton";
 import { EmptyState } from "../../components/emptyState";
@@ -67,117 +70,154 @@ const tierLabels: Record<PrestigeEntry["tier"], string> = {
   premier: "Premier"
 };
 
+// ── Cache keys ──────────────────────────────────────────────────
+
+function buildAppealsKey(filter: AppealFilter): string {
+  return filter !== "all"
+    ? `/api/v1/admin/rankings/appeals?status=${filter}`
+    : "/api/v1/admin/rankings/appeals";
+}
+
+function buildFlagsKey(filter: FlagFilter): string {
+  return filter !== "all"
+    ? `/api/v1/admin/rankings/flags?status=${filter}`
+    : "/api/v1/admin/rankings/flags";
+}
+
+const PRESTIGE_KEY = "/api/v1/admin/rankings/prestige";
+const RECOMPUTE_KEY = "/api/v1/admin/rankings/recompute";
+
+// ── Mutation fetchers ───────────────────────────────────────────
+
+type ResolveAppealArg = {
+  id: string;
+  status: "upheld" | "rejected";
+  resolutionNote: string;
+};
+
+async function resolveAppealFetcher(
+  _key: string,
+  { arg }: { arg: ResolveAppealArg }
+): Promise<{ appeal: Appeal }> {
+  return fetcher<{ appeal: Appeal }>(
+    `/api/v1/admin/rankings/appeals/${encodeURIComponent(arg.id)}/resolve`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ status: arg.status, resolutionNote: arg.resolutionNote })
+    }
+  );
+}
+
+type ResolveFlagArg = { id: string; status: "dismissed" | "confirmed" };
+
+async function resolveFlagFetcher(
+  _key: string,
+  { arg }: { arg: ResolveFlagArg }
+): Promise<{ flag: AntiGamingFlag }> {
+  return fetcher<{ flag: AntiGamingFlag }>(
+    `/api/v1/admin/rankings/flags/${encodeURIComponent(arg.id)}/resolve`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ status: arg.status })
+    }
+  );
+}
+
+type SavePrestigeArg = {
+  competitionId: string;
+  tier: PrestigeEntry["tier"];
+  multiplier: number;
+};
+
+async function savePrestigeFetcher(
+  _key: string,
+  { arg }: { arg: SavePrestigeArg }
+): Promise<{ entry: PrestigeEntry }> {
+  return fetcher<{ entry: PrestigeEntry }>(
+    `/api/v1/admin/rankings/prestige/${encodeURIComponent(arg.competitionId)}`,
+    {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ tier: arg.tier, multiplier: arg.multiplier })
+    }
+  );
+}
+
+async function recomputeFetcher(_key: string): Promise<{ message: string }> {
+  return fetcher<{ message: string }>("/api/v1/admin/rankings/recompute", { method: "POST" });
+}
+
+// ── Component ───────────────────────────────────────────────────
+
 export default function AdminRankingsPage() {
   const toast = useToast();
   const [activeTab, setActiveTab] = useState<Tab>("appeals");
 
-  // Appeals state
-  const [appeals, setAppeals] = useState<Appeal[]>([]);
-  const [appealsLoading, setAppealsLoading] = useState(false);
+  // Filter state
   const [appealFilter, setAppealFilter] = useState<AppealFilter>("all");
+  const [flagFilter, setFlagFilter] = useState<FlagFilter>("all");
+
+  // Appeal modal state
   const [resolveAppealOpen, setResolveAppealOpen] = useState(false);
   const [resolveAppealTarget, setResolveAppealTarget] = useState<Appeal | null>(null);
   const [appealDecision, setAppealDecision] = useState<"upheld" | "rejected">("upheld");
   const [appealResolutionNote, setAppealResolutionNote] = useState("");
-  const [resolvingAppeal, setResolvingAppeal] = useState(false);
 
-  // Flags state
-  const [flags, setFlags] = useState<AntiGamingFlag[]>([]);
-  const [flagsLoading, setFlagsLoading] = useState(false);
-  const [flagFilter, setFlagFilter] = useState<FlagFilter>("all");
+  // Flag modal state
   const [resolveFlagOpen, setResolveFlagOpen] = useState(false);
   const [resolveFlagTarget, setResolveFlagTarget] = useState<AntiGamingFlag | null>(null);
   const [flagDecision, setFlagDecision] = useState<"dismissed" | "confirmed">("dismissed");
-  const [resolvingFlag, setResolvingFlag] = useState(false);
 
-  // Prestige state
-  const [prestigeEntries, setPrestigeEntries] = useState<PrestigeEntry[]>([]);
-  const [prestigeLoading, setPrestigeLoading] = useState(false);
+  // Prestige modal state
   const [editPrestigeOpen, setEditPrestigeOpen] = useState(false);
   const [editPrestigeTarget, setEditPrestigeTarget] = useState<PrestigeEntry | null>(null);
   const [editTier, setEditTier] = useState<PrestigeEntry["tier"]>("standard");
   const [editMultiplier, setEditMultiplier] = useState("");
-  const [savingPrestige, setSavingPrestige] = useState(false);
+
+  // Recompute modal state
   const [recomputeOpen, setRecomputeOpen] = useState(false);
-  const [recomputing, setRecomputing] = useState(false);
 
-  // --- Data fetching ---
+  // ── SWR reads ────────────────────────────────────────────────
 
-  const loadAppeals = useCallback(async () => {
-    setAppealsLoading(true);
-    try {
-      const params = appealFilter !== "all" ? `?status=${appealFilter}` : "";
-      const response = await fetch(`/api/v1/admin/rankings/appeals${params}`, {
-        headers: {},
-        cache: "no-store"
-      });
-      const body = (await response.json()) as { appeals?: Appeal[]; error?: string };
-      if (!response.ok) {
-        toast.error(body.error ?? "Failed to load appeals.");
-        return;
-      }
-      setAppeals(body.appeals ?? []);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to load appeals.");
-    } finally {
-      setAppealsLoading(false);
-    }
-  }, [appealFilter, toast]);
+  const appealsKey = buildAppealsKey(appealFilter);
+  const { data: appealsData, error: appealsError, isLoading: appealsLoading } =
+    useSWR<{ appeals: Appeal[] }>(appealsKey);
+  const appeals = appealsData?.appeals ?? [];
 
-  const loadFlags = useCallback(async () => {
-    setFlagsLoading(true);
-    try {
-      const params = flagFilter !== "all" ? `?status=${flagFilter}` : "";
-      const response = await fetch(`/api/v1/admin/rankings/flags${params}`, {
-        headers: {},
-        cache: "no-store"
-      });
-      const body = (await response.json()) as { flags?: AntiGamingFlag[]; error?: string };
-      if (!response.ok) {
-        toast.error(body.error ?? "Failed to load flags.");
-        return;
-      }
-      setFlags(body.flags ?? []);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to load flags.");
-    } finally {
-      setFlagsLoading(false);
-    }
-  }, [flagFilter, toast]);
+  const flagsKey = buildFlagsKey(flagFilter);
+  const { data: flagsData, error: flagsError, isLoading: flagsLoading } =
+    useSWR<{ flags: AntiGamingFlag[] }>(flagsKey);
+  const flags = flagsData?.flags ?? [];
 
-  const loadPrestige = useCallback(async () => {
-    setPrestigeLoading(true);
-    try {
-      const response = await fetch("/api/v1/admin/rankings/prestige", {
-        headers: {},
-        cache: "no-store"
-      });
-      const body = (await response.json()) as { entries?: PrestigeEntry[]; error?: string };
-      if (!response.ok) {
-        toast.error(body.error ?? "Failed to load prestige data.");
-        return;
-      }
-      setPrestigeEntries(body.entries ?? []);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to load prestige data.");
-    } finally {
-      setPrestigeLoading(false);
-    }
-  }, [toast]);
+  const { data: prestigeData, error: prestigeError, isLoading: prestigeLoading } =
+    useSWR<{ entries: PrestigeEntry[] }>(PRESTIGE_KEY);
+  const prestigeEntries = prestigeData?.entries ?? [];
 
-  useEffect(() => {
-    queueMicrotask(() => {
-      if (activeTab === "appeals") {
-        void loadAppeals();
-      } else if (activeTab === "flags") {
-        void loadFlags();
-      } else {
-        void loadPrestige();
-      }
-    });
-  }, [activeTab, loadAppeals, loadFlags, loadPrestige]);
+  // ── Mutations ─────────────────────────────────────────────────
 
-  // --- Appeal actions ---
+  const { trigger: triggerResolveAppeal, isMutating: resolvingAppeal } = useSWRMutation(
+    appealsKey,
+    resolveAppealFetcher
+  );
+
+  const { trigger: triggerResolveFlag, isMutating: resolvingFlag } = useSWRMutation(
+    flagsKey,
+    resolveFlagFetcher
+  );
+
+  const { trigger: triggerSavePrestige, isMutating: savingPrestige } = useSWRMutation(
+    PRESTIGE_KEY,
+    savePrestigeFetcher
+  );
+
+  const { trigger: triggerRecompute, isMutating: recomputing } = useSWRMutation(
+    RECOMPUTE_KEY,
+    recomputeFetcher
+  );
+
+  // ── Appeal handlers ───────────────────────────────────────────
 
   function openResolveAppeal(appeal: Appeal) {
     setResolveAppealTarget(appeal);
@@ -188,36 +228,21 @@ export default function AdminRankingsPage() {
 
   async function handleResolveAppeal() {
     if (!resolveAppealTarget) return;
-    setResolvingAppeal(true);
     try {
-      const response = await fetch(
-        `/api/v1/admin/rankings/appeals/${encodeURIComponent(resolveAppealTarget.id)}/resolve`,
-        {
-          method: "POST",
-          headers: { "content-type": "application/json", ...{} },
-          body: JSON.stringify({
-            status: appealDecision,
-            resolutionNote: appealResolutionNote
-          })
-        }
-      );
-      const body = (await response.json()) as { error?: string };
-      if (!response.ok) {
-        toast.error(body.error ?? "Failed to resolve appeal.");
-        return;
-      }
+      await triggerResolveAppeal({
+        id: resolveAppealTarget.id,
+        status: appealDecision,
+        resolutionNote: appealResolutionNote
+      });
       toast.success(`Appeal ${appealDecision}.`);
       setResolveAppealOpen(false);
       setResolveAppealTarget(null);
-      await loadAppeals();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to resolve appeal.");
-    } finally {
-      setResolvingAppeal(false);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Failed to resolve appeal.");
     }
   }
 
-  // --- Flag actions ---
+  // ── Flag handlers ─────────────────────────────────────────────
 
   function openResolveFlag(flag: AntiGamingFlag) {
     setResolveFlagTarget(flag);
@@ -227,33 +252,17 @@ export default function AdminRankingsPage() {
 
   async function handleResolveFlag() {
     if (!resolveFlagTarget) return;
-    setResolvingFlag(true);
     try {
-      const response = await fetch(
-        `/api/v1/admin/rankings/flags/${encodeURIComponent(resolveFlagTarget.id)}/resolve`,
-        {
-          method: "POST",
-          headers: { "content-type": "application/json", ...{} },
-          body: JSON.stringify({ status: flagDecision })
-        }
-      );
-      const body = (await response.json()) as { error?: string };
-      if (!response.ok) {
-        toast.error(body.error ?? "Failed to resolve flag.");
-        return;
-      }
+      await triggerResolveFlag({ id: resolveFlagTarget.id, status: flagDecision });
       toast.success(`Flag ${flagDecision}.`);
       setResolveFlagOpen(false);
       setResolveFlagTarget(null);
-      await loadFlags();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to resolve flag.");
-    } finally {
-      setResolvingFlag(false);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Failed to resolve flag.");
     }
   }
 
-  // --- Prestige actions ---
+  // ── Prestige handlers ─────────────────────────────────────────
 
   function openEditPrestige(entry: PrestigeEntry) {
     setEditPrestigeTarget(entry);
@@ -264,57 +273,31 @@ export default function AdminRankingsPage() {
 
   async function handleSavePrestige() {
     if (!editPrestigeTarget) return;
-    setSavingPrestige(true);
     try {
-      const response = await fetch(
-        `/api/v1/admin/rankings/prestige/${encodeURIComponent(editPrestigeTarget.competitionId)}`,
-        {
-          method: "PUT",
-          headers: { "content-type": "application/json", ...{} },
-          body: JSON.stringify({
-            tier: editTier,
-            multiplier: Number(editMultiplier)
-          })
-        }
-      );
-      const body = (await response.json()) as { error?: string };
-      if (!response.ok) {
-        toast.error(body.error ?? "Failed to update prestige.");
-        return;
-      }
+      await triggerSavePrestige({
+        competitionId: editPrestigeTarget.competitionId,
+        tier: editTier,
+        multiplier: Number(editMultiplier)
+      });
       toast.success("Prestige updated.");
       setEditPrestigeOpen(false);
       setEditPrestigeTarget(null);
-      await loadPrestige();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to update prestige.");
-    } finally {
-      setSavingPrestige(false);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Failed to update prestige.");
     }
   }
 
   async function handleRecompute() {
-    setRecomputing(true);
     try {
-      const response = await fetch("/api/v1/admin/rankings/recompute", {
-        method: "POST",
-        headers: {}
-      });
-      const body = (await response.json()) as { error?: string };
-      if (!response.ok) {
-        toast.error(body.error ?? "Failed to recompute rankings.");
-        return;
-      }
+      await triggerRecompute();
       toast.success("Rankings recomputed successfully.");
       setRecomputeOpen(false);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to recompute rankings.");
-    } finally {
-      setRecomputing(false);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Failed to recompute rankings.");
     }
   }
 
-  // --- Tab config ---
+  // ── Tab config ────────────────────────────────────────────────
 
   const tabs: { key: Tab; label: string }[] = [
     { key: "appeals", label: "Appeals" },
@@ -379,6 +362,10 @@ export default function AdminRankingsPage() {
                 <SkeletonCard />
                 <SkeletonCard />
               </div>
+            ) : appealsError ? (
+              <p className="text-sm text-red-600 dark:text-red-400">
+                {appealsError instanceof ApiError ? appealsError.message : "Failed to load appeals."}
+              </p>
             ) : appeals.length === 0 ? (
               <EmptyState
                 illustration={<EmptyIllustration variant="inbox" className="h-14 w-14 text-foreground" />}
@@ -455,6 +442,10 @@ export default function AdminRankingsPage() {
                 <SkeletonCard />
                 <SkeletonCard />
               </div>
+            ) : flagsError ? (
+              <p className="text-sm text-red-600 dark:text-red-400">
+                {flagsError instanceof ApiError ? flagsError.message : "Failed to load flags."}
+              </p>
             ) : flags.length === 0 ? (
               <EmptyState
                 illustration={<EmptyIllustration variant="search" className="h-14 w-14 text-foreground" />}
@@ -479,9 +470,6 @@ export default function AdminRankingsPage() {
                         </span>
                       </div>
                     </div>
-                    <p className="mt-2 text-xs text-muted">
-                      Created {new Date(flag.createdAt).toLocaleDateString()}
-                    </p>
                     {flag.status === "open" ? (
                       <div className="mt-3 inline-form">
                         <button
@@ -520,6 +508,10 @@ export default function AdminRankingsPage() {
                 <SkeletonCard />
                 <SkeletonCard />
               </div>
+            ) : prestigeError ? (
+              <p className="text-sm text-red-600 dark:text-red-400">
+                {prestigeError instanceof ApiError ? prestigeError.message : "Failed to load prestige data."}
+              </p>
             ) : prestigeEntries.length === 0 ? (
               <EmptyState
                 illustration={<EmptyIllustration variant="chart" className="h-14 w-14 text-foreground" />}

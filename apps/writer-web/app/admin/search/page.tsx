@@ -1,6 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import useSWR from "swr";
+import useSWRMutation from "swr/mutation";
+import { fetcher, ApiError } from "../../lib/fetcher";
 import { useToast } from "../../components/toast";
 import { SkeletonCard } from "../../components/skeleton";
 
@@ -32,62 +34,33 @@ function formatBytes(bytes: number): string {
   return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${units[i]}`;
 }
 
+const STATUS_KEY = "/api/v1/admin/search/status";
+
+async function reindexFetcher(_key: string): Promise<RefreshResponse> {
+  return fetcher<RefreshResponse>("/api/v1/admin/search/reindex", { method: "POST" });
+}
+
 export default function SearchAdminPage() {
   const toast = useToast();
-  const [status, setStatus] = useState<SearchStatus | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
 
-  const loadStatus = useCallback(async () => {
+  const { data: status, error, isLoading } = useSWR<SearchStatus>(STATUS_KEY);
+  const { trigger: triggerReindex, isMutating: refreshing } = useSWRMutation(
+    STATUS_KEY,
+    reindexFetcher
+  );
+
+  async function handleRefresh() {
     try {
-      const response = await fetch("/api/v1/admin/search/status", {
-        headers: {}
-      });
-      if (!response.ok) {
-        const body = (await response.json().catch(() => ({}))) as { error?: string };
-        toast.error(body.error ?? "Failed to load search status.");
-        return;
-      }
-      const body = (await response.json()) as SearchStatus;
-      setStatus(body);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to load search status.");
-    } finally {
-      setLoading(false);
+      const result = await triggerReindex();
+      toast.success(result.message);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Failed to refresh search metadata.");
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    queueMicrotask(() => { void loadStatus(); });
-  }, [loadStatus]);
-
-  const handleRefresh = useCallback(async () => {
-    setRefreshing(true);
-    try {
-      const response = await fetch("/api/v1/admin/search/reindex", {
-        method: "POST",
-        headers: {}
-      });
-      if (!response.ok) {
-        const body = (await response.json().catch(() => ({}))) as { error?: string };
-        toast.error(body.error ?? "Failed to refresh search metadata.");
-        return;
-      }
-      const body = (await response.json()) as RefreshResponse;
-      toast.success(body.message);
-      setTimeout(() => { void loadStatus(); }, 500);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to refresh search metadata.");
-    } finally {
-      setRefreshing(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loadStatus]);
+  }
 
   const healthColor = status
-    ? healthColors[status.searchHealth] ?? healthColors.unknown
-    : healthColors.unknown;
+    ? healthColors[status.searchHealth] ?? healthColors.unknown!
+    : healthColors.unknown!;
 
   return (
     <section className="space-y-4">
@@ -101,13 +74,17 @@ export default function SearchAdminPage() {
 
       <article className="panel stack animate-in animate-in-delay-1">
         <h2 className="section-title">Search Status</h2>
-        {loading ? (
+        {isLoading ? (
           <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
             <SkeletonCard />
             <SkeletonCard />
             <SkeletonCard />
             <SkeletonCard />
           </div>
+        ) : error ? (
+          <p className="text-sm text-red-600 dark:text-red-400">
+            {error instanceof ApiError ? error.message : "Unable to load search status. Check your connection and permissions."}
+          </p>
         ) : status ? (
           <div className="grid gap-3 grid-cols-2 lg:grid-cols-4 animate-stagger">
             <div className="subcard flex flex-col items-center gap-1 py-5 text-center">

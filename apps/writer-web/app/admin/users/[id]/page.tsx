@@ -1,9 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
+import useSWR from "swr";
+import useSWRMutation from "swr/mutation";
 import { useParams } from "next/navigation";
 import type { Route } from "next";
 import Link from "next/link";
+import { fetcher, ApiError } from "../../../lib/fetcher";
 import { SkeletonCard } from "../../../components/skeleton";
 import { EmptyState } from "../../../components/emptyState";
 import { EmptyIllustration } from "../../../components/illustrations";
@@ -21,6 +24,12 @@ type AdminUserDetail = {
   sessionCount: number;
   reportCount: number;
 };
+
+type PatchAction =
+  | { action: "suspend"; reason: string; durationDays: number }
+  | { action: "ban"; reason: string }
+  | { action: "reactivate" }
+  | { action: "changeRole"; role: string };
 
 const statusColors: Record<string, string> = {
   active:
@@ -52,14 +61,21 @@ function formatRole(role: string): string {
   return role.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+async function patchFetcher(
+  key: string,
+  { arg }: { arg: PatchAction }
+): Promise<{ user: AdminUserDetail }> {
+  return fetcher<{ user: AdminUserDetail }>(key, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(arg)
+  });
+}
+
 export default function AdminUserDetailPage() {
   const params = useParams();
   const userId = params.id as string;
   const toast = useToast();
-
-  const [loading, setLoading] = useState(false);
-  const [user, setUser] = useState<AdminUserDetail | null>(null);
-  const [submitting, setSubmitting] = useState(false);
 
   // Suspend modal
   const [suspendModalOpen, setSuspendModalOpen] = useState(false);
@@ -73,157 +89,71 @@ export default function AdminUserDetailPage() {
   // Role change
   const [roleSelectValue, setRoleSelectValue] = useState("");
 
-  const loadUser = useCallback(async () => {
-    setLoading(true);
-    try {
-      const response = await fetch(`/api/v1/admin/users/${encodeURIComponent(userId)}`, {
-        headers: {},
-        cache: "no-store"
-      });
+  const userKey = `/api/v1/admin/users/${encodeURIComponent(userId)}`;
 
-      const body = (await response.json()) as { error?: string; user?: AdminUserDetail };
-      if (!response.ok) {
-        toast.error(body.error ?? "Failed to load user.");
-        setUser(null);
-        return;
+  const { data, error, isLoading } = useSWR<{ user: AdminUserDetail }>(userKey, {
+    onSuccess(responseData) {
+      if (responseData.user && !roleSelectValue) {
+        setRoleSelectValue(responseData.user.role);
       }
-
-      const nextUser = body.user ?? null;
-      setUser(nextUser);
-      if (nextUser) {
-        setRoleSelectValue(nextUser.role);
-      }
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to load user.");
-      setUser(null);
-    } finally {
-      setLoading(false);
     }
-  }, [userId, toast]);
+  });
+  const user = data?.user ?? null;
 
-  useEffect(() => {
-    queueMicrotask(() => { void loadUser(); });
-  }, [loadUser]);
+  const { trigger: triggerPatch, isMutating: submitting } = useSWRMutation(userKey, patchFetcher);
 
   async function handleSuspend(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!suspendReason.trim()) return;
-
-    setSubmitting(true);
     try {
-      const response = await fetch(`/api/v1/admin/users/${encodeURIComponent(userId)}`, {
-        method: "PATCH",
-        headers: { "content-type": "application/json", ...{} },
-        body: JSON.stringify({
-          action: "suspend",
-          reason: suspendReason.trim(),
-          durationDays: Number(suspendDuration)
-        })
+      await triggerPatch({
+        action: "suspend",
+        reason: suspendReason.trim(),
+        durationDays: Number(suspendDuration)
       });
-
-      const body = (await response.json()) as { error?: string };
-      if (!response.ok) {
-        toast.error(body.error ?? "Failed to suspend user.");
-        return;
-      }
-
       toast.success("User suspended.");
       setSuspendModalOpen(false);
       setSuspendReason("");
       setSuspendDuration("30");
-      await loadUser();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to suspend user.");
-    } finally {
-      setSubmitting(false);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Failed to suspend user.");
     }
   }
 
   async function handleBan(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!banReason.trim()) return;
-
-    setSubmitting(true);
     try {
-      const response = await fetch(`/api/v1/admin/users/${encodeURIComponent(userId)}`, {
-        method: "PATCH",
-        headers: { "content-type": "application/json", ...{} },
-        body: JSON.stringify({
-          action: "ban",
-          reason: banReason.trim()
-        })
-      });
-
-      const body = (await response.json()) as { error?: string };
-      if (!response.ok) {
-        toast.error(body.error ?? "Failed to ban user.");
-        return;
-      }
-
+      await triggerPatch({ action: "ban", reason: banReason.trim() });
       toast.success("User banned.");
       setBanModalOpen(false);
       setBanReason("");
-      await loadUser();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to ban user.");
-    } finally {
-      setSubmitting(false);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Failed to ban user.");
     }
   }
 
   async function handleReactivate() {
-    setSubmitting(true);
     try {
-      const response = await fetch(`/api/v1/admin/users/${encodeURIComponent(userId)}`, {
-        method: "PATCH",
-        headers: { "content-type": "application/json", ...{} },
-        body: JSON.stringify({ action: "reactivate" })
-      });
-
-      const body = (await response.json()) as { error?: string };
-      if (!response.ok) {
-        toast.error(body.error ?? "Failed to reactivate user.");
-        return;
-      }
-
+      await triggerPatch({ action: "reactivate" });
       toast.success("User reactivated.");
-      await loadUser();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to reactivate user.");
-    } finally {
-      setSubmitting(false);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Failed to reactivate user.");
     }
   }
 
   async function handleRoleChange(newRole: string) {
     if (!user || newRole === user.role) return;
-
-    setSubmitting(true);
     try {
-      const response = await fetch(`/api/v1/admin/users/${encodeURIComponent(userId)}`, {
-        method: "PATCH",
-        headers: { "content-type": "application/json", ...{} },
-        body: JSON.stringify({ action: "changeRole", role: newRole })
-      });
-
-      const body = (await response.json()) as { error?: string };
-      if (!response.ok) {
-        toast.error(body.error ?? "Failed to change role.");
-        setRoleSelectValue(user.role);
-        return;
-      }
-
+      await triggerPatch({ action: "changeRole", role: newRole });
       toast.success(`Role changed to ${formatRole(newRole)}.`);
-      await loadUser();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to change role.");
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Failed to change role.");
       if (user) setRoleSelectValue(user.role);
-    } finally {
-      setSubmitting(false);
     }
   }
 
-  if (loading) {
+  if (isLoading) {
     return (
       <section className="space-y-4">
         <SkeletonCard />
@@ -232,7 +162,7 @@ export default function AdminUserDetailPage() {
     );
   }
 
-  if (!user) {
+  if (error || !user) {
     return (
       <section className="space-y-4">
         <div className="mb-4">
@@ -243,7 +173,11 @@ export default function AdminUserDetailPage() {
         <EmptyState
           illustration={<EmptyIllustration variant="search" className="h-14 w-14 text-foreground" />}
           title="User not found"
-          description="The user you are looking for does not exist or could not be loaded."
+          description={
+            error instanceof ApiError
+              ? error.message
+              : "The user you are looking for does not exist or could not be loaded."
+          }
         />
       </section>
     );

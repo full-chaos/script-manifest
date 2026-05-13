@@ -1,6 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
+import useSWR from "swr";
+import useSWRMutation from "swr/mutation";
+import { fetcher, ApiError } from "../../lib/fetcher";
 import { useToast } from "../../components/toast";
 import { EmptyState } from "../../components/emptyState";
 import { EmptyIllustration } from "../../components/illustrations";
@@ -59,6 +62,44 @@ const categoryLabels: Record<string, string> = {
 
 const HISTORY_LIMIT = 20;
 
+// ── Cache keys ──────────────────────────────────────────────────
+
+const TEMPLATES_KEY = "/api/v1/admin/notifications/templates";
+
+function buildHistoryKey(page: number): string {
+  const params = new URLSearchParams({
+    page: String(page),
+    limit: String(HISTORY_LIMIT)
+  });
+  return `/api/v1/admin/notifications/history?${params.toString()}`;
+}
+
+// ── Mutation fetchers ───────────────────────────────────────────
+
+type SendArg =
+  | { type: "direct"; userId: string; subject: string; body: string }
+  | { type: "broadcast"; subject: string; body: string; audience: string };
+
+async function sendFetcher(
+  _key: string,
+  { arg }: { arg: SendArg }
+): Promise<{ message: string }> {
+  if (arg.type === "direct") {
+    return fetcher<{ message: string }>("/api/v1/admin/notifications/direct", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ userId: arg.userId, subject: arg.subject, body: arg.body })
+    });
+  }
+  return fetcher<{ message: string }>("/api/v1/admin/notifications/broadcast", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ subject: arg.subject, body: arg.body, audience: arg.audience })
+  });
+}
+
+// ── Component ───────────────────────────────────────────────────
+
 export default function AdminNotificationsPage() {
   const toast = useToast();
 
@@ -68,134 +109,59 @@ export default function AdminNotificationsPage() {
   const [audienceType, setAudienceType] = useState<AudienceType>("all");
   const [roleValue, setRoleValue] = useState("admin");
   const [userIdValue, setUserIdValue] = useState("");
-  const [sending, setSending] = useState(false);
 
-  // ── Templates state ─────────────────────────────────────────
-  const [templates, setTemplates] = useState<NotificationTemplate[]>([]);
-  const [templatesLoading, setTemplatesLoading] = useState(true);
-
-  // ── History state ───────────────────────────────────────────
-  const [broadcasts, setBroadcasts] = useState<NotificationBroadcast[]>([]);
-  const [historyLoading, setHistoryLoading] = useState(true);
+  // ── History pagination state ─────────────────────────────────
   const [historyPage, setHistoryPage] = useState(1);
-  const [historyTotal, setHistoryTotal] = useState(0);
 
-  // ── Load templates ──────────────────────────────────────────
+  // ── SWR reads ────────────────────────────────────────────────
 
-  const loadTemplates = useCallback(async () => {
-    setTemplatesLoading(true);
-    try {
-      const response = await fetch("/api/v1/admin/notifications/templates", {
-        headers: {},
-        cache: "no-store"
-      });
-      if (response.ok) {
-        const data = (await response.json()) as { templates: NotificationTemplate[] };
-        setTemplates(data.templates ?? []);
-      } else {
-        const err = (await response.json().catch(() => ({}))) as { error?: string };
-        toast.error(err.error ?? "Failed to load templates.");
-      }
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to load templates.");
-    } finally {
-      setTemplatesLoading(false);
-    }
-  }, [toast]);
+  const { data: templatesData, error: templatesError, isLoading: templatesLoading } =
+    useSWR<{ templates: NotificationTemplate[] }>(TEMPLATES_KEY);
+  const templates = templatesData?.templates ?? [];
 
-  // ── Load history ────────────────────────────────────────────
+  const historyKey = buildHistoryKey(historyPage);
+  const { data: historyData, error: historyError, isLoading: historyLoading } =
+    useSWR<{ broadcasts: NotificationBroadcast[]; total: number }>(historyKey);
+  const broadcasts = historyData?.broadcasts ?? [];
+  const historyTotal = historyData?.total ?? 0;
 
-  const loadHistory = useCallback(async (page: number) => {
-    setHistoryLoading(true);
-    try {
-      const params = new URLSearchParams({
-        page: String(page),
-        limit: String(HISTORY_LIMIT)
-      });
-      const response = await fetch(`/api/v1/admin/notifications/history?${params.toString()}`, {
-        headers: {},
-        cache: "no-store"
-      });
-      if (response.ok) {
-        const data = (await response.json()) as { broadcasts: NotificationBroadcast[]; total: number };
-        setBroadcasts(data.broadcasts ?? []);
-        setHistoryTotal(data.total ?? 0);
-      } else {
-        const err = (await response.json().catch(() => ({}))) as { error?: string };
-        toast.error(err.error ?? "Failed to load broadcast history.");
-      }
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to load broadcast history.");
-    } finally {
-      setHistoryLoading(false);
-    }
-  }, [toast]);
+  // ── Mutations ─────────────────────────────────────────────────
 
-  useEffect(() => {
-    queueMicrotask(() => {
-      void loadTemplates();
-      void loadHistory(1);
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const { trigger: triggerSend, isMutating: sending } = useSWRMutation(
+    buildHistoryKey(1),
+    sendFetcher
+  );
 
-  // ── Send notification ───────────────────────────────────────
+  // ── Handlers ─────────────────────────────────────────────────
 
   async function handleSend(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setSending(true);
 
     try {
+      let arg: SendArg;
       if (audienceType === "user") {
-        // Direct notification
-        const response = await fetch("/api/v1/admin/notifications/direct", {
-          method: "POST",
-          headers: { "content-type": "application/json", ...{} },
-          body: JSON.stringify({
-            userId: userIdValue,
-            subject,
-            body
-          })
-        });
+        arg = { type: "direct", userId: userIdValue, subject, body };
+      } else {
+        const audience = audienceType === "role" ? `role:${roleValue}` : "all";
+        arg = { type: "broadcast", subject, body, audience };
+      }
 
-        const data = (await response.json()) as { error?: string };
-        if (!response.ok) {
-          toast.error(data.error ?? "Failed to send notification.");
-          return;
-        }
+      await triggerSend(arg);
+
+      if (audienceType === "user") {
         toast.success("Direct notification sent successfully.");
       } else {
-        // Broadcast
-        const audience = audienceType === "role" ? `role:${roleValue}` : "all";
-        const response = await fetch("/api/v1/admin/notifications/broadcast", {
-          method: "POST",
-          headers: { "content-type": "application/json", ...{} },
-          body: JSON.stringify({
-            subject,
-            body,
-            audience
-          })
-        });
-
-        const data = (await response.json()) as { error?: string };
-        if (!response.ok) {
-          toast.error(data.error ?? "Failed to send broadcast.");
-          return;
-        }
         toast.success("Broadcast sent successfully.");
       }
 
-      // Reset form and refresh history
+      // Reset form and navigate to page 1 of history
       setSubject("");
       setBody("");
       setAudienceType("all");
       setUserIdValue("");
       setHistoryPage(1);
-      await loadHistory(1);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to send notification.");
-    } finally {
-      setSending(false);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Failed to send notification.");
     }
   }
 
@@ -203,7 +169,6 @@ export default function AdminNotificationsPage() {
 
   function handleHistoryPageChange(newPage: number) {
     setHistoryPage(newPage);
-    void loadHistory(newPage);
   }
 
   const hasMoreHistory = historyPage * HISTORY_LIMIT < historyTotal;
@@ -274,9 +239,7 @@ export default function AdminNotificationsPage() {
                 <option value="industry_professional">Industry Professional</option>
               </select>
             </label>
-          ) : null}
-
-          {audienceType === "user" ? (
+          ) : audienceType === "user" ? (
             <label className="stack-tight">
               <span className="text-sm font-medium text-foreground">User ID</span>
               <input
@@ -284,7 +247,7 @@ export default function AdminNotificationsPage() {
                 className="input"
                 value={userIdValue}
                 onChange={(e) => setUserIdValue(e.target.value)}
-                placeholder="Enter user ID..."
+                placeholder="user_abc123..."
                 required
               />
             </label>
@@ -306,6 +269,10 @@ export default function AdminNotificationsPage() {
             <SkeletonCard />
             <SkeletonCard />
           </div>
+        ) : templatesError ? (
+          <p className="text-sm text-red-600 dark:text-red-400">
+            {templatesError instanceof ApiError ? templatesError.message : "Failed to load templates."}
+          </p>
         ) : templates.length === 0 ? (
           <EmptyState
             illustration={<EmptyIllustration variant="inbox" className="h-14 w-14 text-foreground" />}
@@ -356,6 +323,10 @@ export default function AdminNotificationsPage() {
             <SkeletonCard />
             <SkeletonCard />
           </div>
+        ) : historyError ? (
+          <p className="text-sm text-red-600 dark:text-red-400">
+            {historyError instanceof ApiError ? historyError.message : "Failed to load broadcast history."}
+          </p>
         ) : broadcasts.length === 0 ? (
           <EmptyState
             illustration={<EmptyIllustration variant="inbox" className="h-14 w-14 text-foreground" />}

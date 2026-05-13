@@ -1,8 +1,11 @@
 "use client";
 
 import Image from "next/image";
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
+import useSWR from "swr";
+import useSWRMutation from "swr/mutation";
 import type { WriterProfile, WriterProfileUpdateRequest } from "@script-manifest/contracts";
+import { fetcher, ApiError } from "../lib/fetcher";
 import { SkeletonText } from "../components/skeleton";
 import { useToast } from "../components/toast";
 import { useAuth } from "../lib/AuthProvider";
@@ -26,7 +29,7 @@ const initialDraft: EditableProfile = {
   representationStatus: "unrepresented",
   headshotUrl: "",
   customProfileUrl: "",
-  isSearchable: true
+  isSearchable: true,
 };
 
 function isPreviewableImageUrl(value: string): boolean {
@@ -38,87 +41,87 @@ function isPreviewableImageUrl(value: string): boolean {
   }
 }
 
+function profileToDraft(p: WriterProfile): EditableProfile {
+  return {
+    displayName: p.displayName,
+    bio: p.bio,
+    genres: p.genres.join(", "),
+    demographics: p.demographics.join(", "),
+    representationStatus: p.representationStatus,
+    headshotUrl: p.headshotUrl,
+    customProfileUrl: p.customProfileUrl,
+    isSearchable: p.isSearchable,
+  };
+}
+
+async function putProfile(
+  url: string,
+  { arg }: { arg: WriterProfileUpdateRequest }
+): Promise<{ profile: WriterProfile }> {
+  return fetcher<{ profile: WriterProfile }>(url, {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(arg),
+  });
+}
+
 export default function ProfilePage() {
   const toast = useToast();
   const { user, loading: authLoading } = useAuth();
-  const [writerId, setWriterId] = useState("");
-  const [profile, setProfile] = useState<WriterProfile | null>(null);
   const [draft, setDraft] = useState<EditableProfile>(initialDraft);
-  const [loading, setLoading] = useState(false);
-  const [initialLoading, setInitialLoading] = useState(true);
   const [exporting, setExporting] = useState<"csv" | "zip" | null>(null);
-  const [status, setStatus] = useState("");
 
-  const loadProfile = useCallback(async (explicitWriterId?: string) => {
-    const targetWriterId = explicitWriterId ?? writerId;
-    if (!targetWriterId.trim()) {
-      setStatus("Sign in to load your profile.");
-      return;
+  // Auth-paused key: null while auth is resolving or no user — SWR will not fetch.
+  const writerId = user?.id ?? "";
+  const profileKey =
+    authLoading || !writerId
+      ? null
+      : `/api/v1/profiles/${encodeURIComponent(writerId)}`;
+
+  const {
+    data: profileData,
+    isLoading,
+    mutate,
+  } = useSWR<{ profile: WriterProfile }>(profileKey, {
+    onSuccess(data) {
+      setDraft(profileToDraft(data.profile));
+    },
+    onError(err: unknown) {
+      toast.error(err instanceof ApiError ? err.message : "Failed to load profile.");
+    },
+  });
+
+  const { trigger: triggerSave, isMutating } = useSWRMutation(
+    profileKey,
+    putProfile,
+    {
+      populateCache: true,
+      revalidate: false,
+      throwOnError: false,
+      onSuccess(data) {
+        setDraft(profileToDraft(data.profile));
+        toast.success("Profile saved.");
+        void fetch("/api/v1/onboarding-progress", {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ profileCompleted: true }),
+        });
+      },
+      onError(err: unknown) {
+        toast.error(err instanceof ApiError ? err.message : "Failed to save profile.");
+      },
     }
+  );
 
-    setLoading(true);
-    setStatus("");
+  const profile = profileData?.profile ?? null;
+  const isBusy = isLoading || isMutating;
 
-    try {
-      const response = await fetch(`/api/v1/profiles/${encodeURIComponent(targetWriterId)}`, {
-        cache: "no-store",
-        headers: {}
-      });
-      const body = await response.json();
-      if (!response.ok) {
-        toast.error(body.error ? `${body.error as string}` : "Profile load failed.");
-        return;
-      }
-
-      const nextProfile = body.profile as WriterProfile;
-      setProfile(nextProfile);
-      setDraft({
-        displayName: nextProfile.displayName,
-        bio: nextProfile.bio,
-        genres: nextProfile.genres.join(", "),
-        demographics: nextProfile.demographics.join(", "),
-        representationStatus: nextProfile.representationStatus,
-        headshotUrl: nextProfile.headshotUrl,
-        customProfileUrl: nextProfile.customProfileUrl,
-        isSearchable: nextProfile.isSearchable
-      });
-      setStatus("Profile loaded.");
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to load profile.");
-    } finally {
-      setLoading(false);
-      setInitialLoading(false);
-    }
-  }, [toast, writerId]);
-
-  useEffect(() => {
-    if (authLoading) return;
-
-    queueMicrotask(() => {
-      if (!user) {
-        setStatus("Sign in to load your profile.");
-        setInitialLoading(false);
-        return;
-      }
-      setWriterId(user.id);
-    });
-  }, [user, authLoading]);
-
-  useEffect(() => {
-    if (writerId) {
-      queueMicrotask(() => { void loadProfile(writerId); });
-    }
-  }, [loadProfile, writerId]);
-
-  async function saveProfile(event: FormEvent<HTMLFormElement>) {
+  async function handleSave(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!writerId.trim()) {
       toast.error("Sign in to update your profile.");
       return;
     }
-
-    setLoading(true);
-    setStatus("");
 
     const payload: WriterProfileUpdateRequest = {
       displayName: draft.displayName,
@@ -134,52 +137,17 @@ export default function ProfilePage() {
       representationStatus: draft.representationStatus,
       headshotUrl: draft.headshotUrl.trim(),
       customProfileUrl: draft.customProfileUrl.trim(),
-      isSearchable: draft.isSearchable
+      isSearchable: draft.isSearchable,
     };
 
-    try {
-      const response = await fetch(`/api/v1/profiles/${encodeURIComponent(writerId)}`, {
-        method: "PUT",
-        headers: { "content-type": "application/json", ...{} },
-        body: JSON.stringify(payload)
-      });
-      const body = await response.json();
-      if (!response.ok) {
-        toast.error(body.error ? `${body.error as string}` : "Profile save failed.");
-        return;
-      }
-
-      const updated = body.profile as WriterProfile;
-      setProfile(updated);
-      setDraft({
-        displayName: updated.displayName,
-        bio: updated.bio,
-        genres: updated.genres.join(", "),
-        demographics: updated.demographics.join(", "),
-        representationStatus: updated.representationStatus,
-        headshotUrl: updated.headshotUrl,
-        customProfileUrl: updated.customProfileUrl,
-        isSearchable: updated.isSearchable
-      });
-      toast.success("Profile saved.");
-      void fetch("/api/v1/onboarding-progress", {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ profileCompleted: true }),
-      });
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to save profile.");
-    } finally {
-      setLoading(false);
-    }
+    await triggerSave(payload);
   }
 
   async function downloadExport(format: "csv" | "zip") {
     setExporting(format);
-    setStatus("");
     try {
       const response = await fetch(`/api/v1/export/${format}`, {
-        headers: {}
+        headers: {},
       });
       if (!response.ok) {
         const body = await response.json().catch(() => null);
@@ -194,9 +162,10 @@ export default function ProfilePage() {
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
       anchor.href = url;
-      anchor.download = format === "csv"
-        ? "script-manifest-export.csv"
-        : "script-manifest-export.zip";
+      anchor.download =
+        format === "csv"
+          ? "script-manifest-export.csv"
+          : "script-manifest-export.zip";
       document.body.appendChild(anchor);
       anchor.click();
       anchor.remove();
@@ -220,8 +189,13 @@ export default function ProfilePage() {
         </p>
         <div className="inline-form">
           <span className="badge">{writerId ? `ID: ${writerId}` : "Not signed in"}</span>
-          <button type="button" className="btn btn-secondary" onClick={() => void loadProfile()} disabled={loading || !writerId}>
-            {loading ? "Refreshing..." : "Refresh profile"}
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => void mutate()}
+            disabled={isBusy || !writerId}
+          >
+            {isLoading ? "Refreshing..." : "Refresh profile"}
           </button>
         </div>
       </article>
@@ -232,7 +206,7 @@ export default function ProfilePage() {
         </article>
       ) : null}
 
-      {initialLoading && writerId ? (
+      {writerId && isLoading ? (
         <article className="panel">
           <div className="stack">
             <SkeletonText />
@@ -243,14 +217,16 @@ export default function ProfilePage() {
 
       {profile ? (
         <article className="panel">
-          <form className="stack" onSubmit={saveProfile}>
+          <form className="stack" onSubmit={handleSave}>
             <div className="grid-two">
               <label className="stack-tight">
                 <span>Display name</span>
                 <input
                   className="input"
                   value={draft.displayName}
-                  onChange={(event) => setDraft((current) => ({ ...current, displayName: event.target.value }))}
+                  onChange={(event) =>
+                    setDraft((current) => ({ ...current, displayName: event.target.value }))
+                  }
                   required
                 />
               </label>
@@ -263,7 +239,8 @@ export default function ProfilePage() {
                   onChange={(event) =>
                     setDraft((current) => ({
                       ...current,
-                      representationStatus: event.target.value as WriterProfile["representationStatus"]
+                      representationStatus: event.target
+                        .value as WriterProfile["representationStatus"],
                     }))
                   }
                 >
@@ -279,7 +256,9 @@ export default function ProfilePage() {
               <textarea
                 className="input textarea"
                 value={draft.bio}
-                onChange={(event) => setDraft((current) => ({ ...current, bio: event.target.value }))}
+                onChange={(event) =>
+                  setDraft((current) => ({ ...current, bio: event.target.value }))
+                }
                 rows={6}
                 placeholder="Add a short professional bio."
               />
@@ -290,7 +269,9 @@ export default function ProfilePage() {
               <input
                 className="input"
                 value={draft.genres}
-                onChange={(event) => setDraft((current) => ({ ...current, genres: event.target.value }))}
+                onChange={(event) =>
+                  setDraft((current) => ({ ...current, genres: event.target.value }))
+                }
                 placeholder="Drama, Thriller"
               />
             </label>
@@ -314,7 +295,9 @@ export default function ProfilePage() {
                   className="input"
                   type="url"
                   value={draft.headshotUrl}
-                  onChange={(event) => setDraft((current) => ({ ...current, headshotUrl: event.target.value }))}
+                  onChange={(event) =>
+                    setDraft((current) => ({ ...current, headshotUrl: event.target.value }))
+                  }
                   placeholder="https://cdn.example.com/headshot.jpg"
                 />
               </label>
@@ -337,7 +320,9 @@ export default function ProfilePage() {
               <input
                 type="checkbox"
                 checked={draft.isSearchable}
-                onChange={(event) => setDraft((current) => ({ ...current, isSearchable: event.target.checked }))}
+                onChange={(event) =>
+                  setDraft((current) => ({ ...current, isSearchable: event.target.checked }))
+                }
               />
               <span>Allow profile in search results</span>
             </label>
@@ -357,8 +342,8 @@ export default function ProfilePage() {
             ) : null}
 
             <div className="inline-form">
-              <button type="submit" className="btn btn-primary" disabled={loading}>
-                {loading ? "Saving..." : "Save profile"}
+              <button type="submit" className="btn btn-primary" disabled={isBusy}>
+                {isMutating ? "Saving..." : "Save profile"}
               </button>
             </div>
           </form>
@@ -389,8 +374,6 @@ export default function ProfilePage() {
           </div>
         </article>
       ) : null}
-
-      {status ? <p className={status.startsWith("Error:") ? "status-error" : "status-note"}>{status}</p> : null}
     </section>
   );
 }

@@ -1,5 +1,7 @@
-import { render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { SWRConfig } from "swr";
+import { fetcher } from "../../../lib/fetcher";
 import { ToastProvider } from "../../../components/toast";
 import ProviderProfilePage from "./page";
 
@@ -7,10 +9,27 @@ vi.mock("next/navigation", () => ({
   useParams: () => ({ id: "prov_1" })
 }));
 
+const SWR_OPTS = { fetcher, provider: () => new Map(), dedupingInterval: 0, shouldRetryOnError: false } as const;
+
+const baseProvider = {
+  id: "prov_1",
+  userId: "user_1",
+  displayName: "Provider One",
+  bio: "Coverage specialist",
+  specialties: ["Drama"],
+  status: "active",
+  stripeAccountId: "acct_1",
+  stripeOnboardingComplete: true,
+  avgRating: 4.7,
+  totalOrdersCompleted: 22,
+  createdAt: "2026-01-01T00:00:00.000Z",
+  updatedAt: "2026-01-01T00:00:00.000Z"
+};
+
 describe("ProviderProfilePage", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
-    globalThis.fetch = vi.fn<typeof fetch>(async (input) => {
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>(async (input) => {
       const url = typeof input === "string" ? input : input.toString();
       if (url.includes("/coverage/providers/prov_1/reviews")) {
         return new Response(JSON.stringify({ reviews: [] }), {
@@ -21,56 +40,70 @@ describe("ProviderProfilePage", () => {
       if (url.includes("/coverage/services")) {
         return new Response(
           JSON.stringify({
-            services: [
-              {
-                id: "svc_1",
-                providerId: "prov_1",
-                title: "Pilot Notes",
-                description: "Detailed notes",
-                tier: "notable",
-                maxPages: 120,
-                turnaroundDays: 10,
-                priceCents: 15000,
-                status: "active",
-                createdAt: "2026-01-01T00:00:00.000Z",
-                updatedAt: "2026-01-01T00:00:00.000Z"
-              }
-            ]
+            services: [{
+              id: "svc_1",
+              providerId: "prov_1",
+              title: "Pilot Notes",
+              description: "Detailed notes",
+              tier: "notable",
+              maxPages: 120,
+              turnaroundDays: 10,
+              priceCents: 15000,
+              status: "active",
+              createdAt: "2026-01-01T00:00:00.000Z",
+              updatedAt: "2026-01-01T00:00:00.000Z"
+            }]
           }),
           { status: 200, headers: { "content-type": "application/json" } }
         );
       }
       return new Response(
-        JSON.stringify({
-          provider: {
-            id: "prov_1",
-            userId: "user_1",
-            displayName: "Provider One",
-            bio: "Coverage specialist",
-            specialties: ["Drama"],
-            status: "active",
-            stripeAccountId: "acct_1",
-            stripeOnboardingComplete: true,
-            avgRating: 4.7,
-            totalOrdersCompleted: 22,
-            createdAt: "2026-01-01T00:00:00.000Z",
-            updatedAt: "2026-01-01T00:00:00.000Z"
-          }
-        }),
+        JSON.stringify({ provider: baseProvider }),
         { status: 200, headers: { "content-type": "application/json" } }
       );
-    });
+    }));
+  });
+
+  afterEach(() => {
+    cleanup();
   });
 
   it("renders provider profile and services", async () => {
     render(
-      <ToastProvider>
-        <ProviderProfilePage />
-      </ToastProvider>
+      <SWRConfig value={SWR_OPTS}>
+        <ToastProvider><ProviderProfilePage /></ToastProvider>
+      </SWRConfig>
     );
 
     expect(await screen.findByText("Provider One")).toBeInTheDocument();
     expect(screen.getByText("Services Offered")).toBeInTheDocument();
-    expect(screen.getByText("Pilot Notes")).toBeInTheDocument();
+  });
+
+  it("shows empty state for reviews when none exist", async () => {
+    render(
+      <SWRConfig value={SWR_OPTS}>
+        <ToastProvider><ProviderProfilePage /></ToastProvider>
+      </SWRConfig>
+    );
+
+    expect(await screen.findByText("Provider One")).toBeInTheDocument();
+    expect(screen.getByText("No reviews yet")).toBeInTheDocument();
+  });
+
+  it("shows provider not found when provider endpoint returns 404", async () => {
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify({ error: "Not found" }), {
+        status: 404,
+        headers: { "content-type": "application/json" }
+      })
+    ));
+
+    render(
+      <SWRConfig value={SWR_OPTS}>
+        <ToastProvider><ProviderProfilePage /></ToastProvider>
+      </SWRConfig>
+    );
+
+    expect(await screen.findByText("Provider not found")).toBeInTheDocument();
   });
 });

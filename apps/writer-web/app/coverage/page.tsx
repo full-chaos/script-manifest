@@ -1,53 +1,52 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import useSWR from "swr";
 import type { CoverageService, CoverageProvider, CoverageTier } from "@script-manifest/contracts";
 import { EmptyState } from "../components/emptyState";
 import { EmptyIllustration } from "../components/illustrations";
 import { SkeletonCard } from "../components/skeleton";
 import { useToast } from "../components/toast";
+import { fetcher, ApiError } from "../lib/fetcher";
+
+function buildServicesKey(
+  tierFilter: CoverageTier | "",
+  minPrice: string,
+  maxPrice: string
+): string {
+  const params = new URLSearchParams();
+  if (tierFilter) params.set("tier", tierFilter);
+  if (minPrice) params.set("minPrice", String(Number(minPrice) * 100));
+  if (maxPrice) params.set("maxPrice", String(Number(maxPrice) * 100));
+  const qs = params.toString();
+  return qs ? `/api/v1/coverage/services?${qs}` : "/api/v1/coverage/services";
+}
+
+const PROVIDERS_KEY = "/api/v1/coverage/providers";
 
 export default function CoverageMarketplacePage() {
   const toast = useToast();
-  const [loading, setLoading] = useState(false);
-  const [services, setServices] = useState<CoverageService[]>([]);
-  const [providers, setProviders] = useState<CoverageProvider[]>([]);
   const [tierFilter, setTierFilter] = useState<CoverageTier | "">("");
   const [minPrice, setMinPrice] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams();
-      if (tierFilter) params.set("tier", tierFilter);
-      if (minPrice) params.set("minPrice", String(Number(minPrice) * 100));
-      if (maxPrice) params.set("maxPrice", String(Number(maxPrice) * 100));
-
-      const [servicesRes, providersRes] = await Promise.all([
-        fetch(`/api/v1/coverage/services?${params.toString()}`, { cache: "no-store" }),
-        fetch("/api/v1/coverage/providers", { cache: "no-store" })
-      ]);
-
-      if (servicesRes.ok) {
-        const servicesBody = (await servicesRes.json()) as { services?: CoverageService[] };
-        setServices(servicesBody.services ?? []);
-      }
-
-      if (providersRes.ok) {
-        const providersBody = (await providersRes.json()) as { providers?: CoverageProvider[] };
-        setProviders(providersBody.providers ?? []);
-      }
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to load marketplace data.");
-    } finally {
-      setLoading(false);
+  const { data: servicesData, isLoading } = useSWR<{ services: CoverageService[] }>(
+    buildServicesKey(tierFilter, minPrice, maxPrice),
+    fetcher,
+    {
+      onError(err: unknown) {
+        toast.error(err instanceof ApiError ? err.message : "Failed to load marketplace data.");
+      },
     }
-  }, [maxPrice, minPrice, tierFilter, toast]);
+  );
+
+  const { data: providersData } = useSWR<{ providers: CoverageProvider[] }>(
+    PROVIDERS_KEY,
+    fetcher
+  );
 
   const onboardingMarked = useRef(false);
   useEffect(() => {
-    queueMicrotask(() => { void loadData(); });
     if (!onboardingMarked.current) {
       onboardingMarked.current = true;
       void fetch("/api/v1/onboarding-progress", {
@@ -56,7 +55,10 @@ export default function CoverageMarketplacePage() {
         body: JSON.stringify({ coverageVisited: true }),
       });
     }
-  }, [loadData]);
+  }, []);
+
+  const services = servicesData?.services ?? [];
+  const providers = providersData?.providers ?? [];
 
   function getProviderName(providerId: string): string {
     const provider = providers.find((p) => p.id === providerId);
@@ -128,7 +130,7 @@ export default function CoverageMarketplacePage() {
 
       <article className="panel stack animate-in animate-in-delay-2">
         <h2 className="section-title">Available Services</h2>
-        {loading ? (
+        {isLoading ? (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <SkeletonCard />
             <SkeletonCard />

@@ -1,10 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
+import useSWR from "swr";
 import { EmptyState } from "../../components/emptyState";
 import { EmptyIllustration } from "../../components/illustrations";
 import { SkeletonCard } from "../../components/skeleton";
 import { useToast } from "../../components/toast";
+import { useAuth } from "../../lib/AuthProvider";
+import { fetcher, ApiError } from "../../lib/fetcher";
 
 interface TransactionItem {
   id: string;
@@ -32,41 +35,46 @@ const PAGE_SIZE = 10;
 
 export default function TransactionsPage() {
   const toast = useToast();
-  const [loading, setLoading] = useState(true);
-  const [transactions, setTransactions] = useState<TransactionItem[]>([]);
+  const { user, loading: authLoading } = useAuth();
+  const userId = user?.id ?? "";
+  const [allTransactions, setAllTransactions] = useState<TransactionItem[]>([]);
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
 
-  const loadTransactions = useCallback(async (nextOffset: number, replace: boolean) => {
-    if (replace) setLoading(true); else setLoadingMore(true);
-    try {
-      const qs = `?limit=${PAGE_SIZE}&offset=${nextOffset}`;
-      const res = await fetch(`/api/v1/coverage/my-orders${qs}`, {
-        headers: {},
-        cache: "no-store"
-      });
-      if (res.ok) {
-        const body = await res.json() as { orders?: TransactionItem[] };
-        const items = body.orders ?? [];
-        if (replace) {
-          setTransactions(items);
-        } else {
-          setTransactions(prev => [...prev, ...items]);
-        }
-        setOffset(nextOffset + items.length);
-        setHasMore(items.length === PAGE_SIZE);
-      }
-    } catch {
-      toast.error("Failed to load transactions.");
-    } finally {
-      if (replace) setLoading(false); else setLoadingMore(false);
-    }
-  }, [toast]);
+  // Auth-paused: do not fetch until auth resolves and user is known
+  const txKey = authLoading || !userId
+    ? null
+    : `/api/v1/coverage/my-orders?limit=${PAGE_SIZE}&offset=0`;
 
-  useEffect(() => {
-    queueMicrotask(() => { void loadTransactions(0, true); });
-  }, [loadTransactions]);
+  const { isLoading } = useSWR<{ orders?: TransactionItem[] }>(txKey, fetcher, {
+    onSuccess(data) {
+      const items = data.orders ?? [];
+      setAllTransactions(items);
+      setOffset(items.length);
+      setHasMore(items.length === PAGE_SIZE);
+    },
+    onError(err: unknown) {
+      toast.error(err instanceof ApiError ? err.message : "Failed to load transactions.");
+    },
+  });
+
+  async function loadMore() {
+    setLoadingMore(true);
+    try {
+      const data = await fetcher<{ orders?: TransactionItem[] }>(
+        `/api/v1/coverage/my-orders?limit=${PAGE_SIZE}&offset=${offset}`
+      );
+      const items = data.orders ?? [];
+      setAllTransactions((prev) => [...prev, ...items]);
+      setOffset((prev) => prev + items.length);
+      setHasMore(items.length === PAGE_SIZE);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Failed to load transactions.");
+    } finally {
+      setLoadingMore(false);
+    }
+  }
 
   function formatDate(iso: string): string {
     return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
@@ -76,7 +84,7 @@ export default function TransactionsPage() {
     return `$${(cents / 100).toFixed(2)}`;
   }
 
-  if (loading) {
+  if (authLoading || isLoading) {
     return <section className="space-y-4"><SkeletonCard /></section>;
   }
 
@@ -90,7 +98,7 @@ export default function TransactionsPage() {
         </p>
       </article>
 
-      {transactions.length === 0 ? (
+      {allTransactions.length === 0 ? (
         <EmptyState
           illustration={<EmptyIllustration variant="search" className="h-14 w-14 text-foreground" />}
           title="No transactions yet"
@@ -102,7 +110,7 @@ export default function TransactionsPage() {
         <article className="panel stack animate-in">
           <h2 className="section-title">Orders</h2>
           <div className="stack">
-            {transactions.map(tx => (
+            {allTransactions.map((tx) => (
               <div key={tx.id} className="subcard flex items-center justify-between gap-4">
                 <div className="stack-tight flex-1 min-w-0">
                   <p className="text-sm font-medium text-foreground truncate">{tx.serviceName}</p>
@@ -134,7 +142,7 @@ export default function TransactionsPage() {
               <button
                 type="button"
                 className="btn btn-secondary"
-                onClick={() => void loadTransactions(offset, false)}
+                onClick={() => void loadMore()}
                 disabled={loadingMore}
               >
                 {loadingMore ? "Loading..." : "Load more"}

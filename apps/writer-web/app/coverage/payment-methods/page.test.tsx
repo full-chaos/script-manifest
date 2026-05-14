@@ -1,13 +1,25 @@
 import { cleanup, render, screen, waitFor, fireEvent } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { SWRConfig } from "swr";
+import { fetcher } from "../../lib/fetcher";
+import { mockUseAuth } from "../../../vitest.setup";
 import { ToastProvider } from "../../components/toast";
 import PaymentMethodsPage from "./page";
 
 function renderPage() {
   return render(
-    <ToastProvider>
-      <PaymentMethodsPage />
-    </ToastProvider>
+    <SWRConfig
+      value={{
+        fetcher,
+        provider: () => new Map(),
+        dedupingInterval: 0,
+        shouldRetryOnError: false,
+      }}
+    >
+      <ToastProvider>
+        <PaymentMethodsPage />
+      </ToastProvider>
+    </SWRConfig>
   );
 }
 
@@ -27,8 +39,15 @@ function makeEmptyResponse(status = 204) {
 
 describe("PaymentMethodsPage", () => {
   beforeEach(() => {
-    cleanup();
     vi.restoreAllMocks();
+    mockUseAuth.mockReturnValue({
+      user: { id: "user_01", email: "user@example.com", displayName: "User", role: "writer", emailVerified: true },
+      loading: false
+    });
+  });
+
+  afterEach(() => {
+    cleanup();
   });
 
   it("renders empty state when no payment methods are found", async () => {
@@ -89,7 +108,7 @@ describe("PaymentMethodsPage", () => {
           fetchCount++;
           return makePaymentMethodsResponse([method]);
         }
-        
+
         return makePaymentMethodsResponse([]);
       })
     );

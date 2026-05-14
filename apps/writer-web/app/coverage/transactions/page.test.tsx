@@ -1,20 +1,35 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { SWRConfig } from "swr";
+import { fetcher } from "../../lib/fetcher";
+import { mockUseAuth } from "../../../vitest.setup";
+import { ToastProvider } from "../../components/toast";
 import TransactionsPage from "./page";
 
-vi.mock("../../components/toast", () => ({
-  useToast: () => ({
-    error: vi.fn(),
-    success: vi.fn()
-  })
-}));
-
-const mockFetch = vi.fn();
-global.fetch = mockFetch;
+function renderPage() {
+  return render(
+    <SWRConfig
+      value={{
+        fetcher,
+        provider: () => new Map(),
+        dedupingInterval: 0,
+        shouldRetryOnError: false,
+      }}
+    >
+      <ToastProvider>
+        <TransactionsPage />
+      </ToastProvider>
+    </SWRConfig>
+  );
+}
 
 describe("TransactionsPage", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.restoreAllMocks();
+    mockUseAuth.mockReturnValue({
+      user: { id: "user_01", email: "user@example.com", displayName: "User", role: "writer", emailVerified: true },
+      loading: false
+    });
   });
 
   afterEach(() => {
@@ -22,21 +37,23 @@ describe("TransactionsPage", () => {
   });
 
   it("renders transactions correctly", async () => {
-    mockFetch.mockImplementation(() => Promise.resolve({
-      ok: true,
-      json: () => Promise.resolve({
-        orders: [{
-          id: "ord_1",
-          createdAt: "2026-03-08T10:00:00Z",
-          status: "completed",
-          priceCents: 2500,
-          serviceName: "Script Coverage",
-          receiptUrl: "https://receipt.stripe.com/abc"
-        }]
-      })
-    }));
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          orders: [{
+            id: "ord_1",
+            createdAt: "2026-03-08T10:00:00Z",
+            status: "completed",
+            priceCents: 2500,
+            serviceName: "Script Coverage",
+            receiptUrl: "https://receipt.stripe.com/abc"
+          }]
+        }),
+        { status: 200, headers: { "content-type": "application/json" } }
+      )
+    ));
 
-    render(<TransactionsPage />);
+    renderPage();
 
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: "Transaction History" })).toBeInTheDocument();
@@ -52,12 +69,14 @@ describe("TransactionsPage", () => {
   });
 
   it("renders empty state when no transactions exist", async () => {
-    mockFetch.mockImplementation(() => Promise.resolve({
-      ok: true,
-      json: () => Promise.resolve({ orders: [] })
-    }));
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(
+        JSON.stringify({ orders: [] }),
+        { status: 200, headers: { "content-type": "application/json" } }
+      )
+    ));
 
-    render(<TransactionsPage />);
+    renderPage();
 
     await waitFor(() => {
       expect(screen.getByText("No transactions yet")).toBeInTheDocument();

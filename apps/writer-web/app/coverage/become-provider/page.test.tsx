@@ -1,15 +1,26 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { SWRConfig } from "swr";
 import type { CoverageProvider } from "@script-manifest/contracts";
+import { fetcher } from "../../lib/fetcher";
 import { mockUseAuth } from "../../../vitest.setup";
 import { ToastProvider } from "../../components/toast";
 import BecomeProviderPage from "./page";
 
 function renderPage() {
   return render(
-    <ToastProvider>
-      <BecomeProviderPage />
-    </ToastProvider>
+    <SWRConfig
+      value={{
+        fetcher,
+        provider: () => new Map(),
+        dedupingInterval: 0,
+        shouldRetryOnError: false,
+      }}
+    >
+      <ToastProvider>
+        <BecomeProviderPage />
+      </ToastProvider>
+    </SWRConfig>
   );
 }
 
@@ -53,10 +64,13 @@ function jsonResponse(body: unknown, status = 200): Response {
 
 describe("BecomeProviderPage", () => {
   beforeEach(() => {
-    cleanup();
     vi.restoreAllMocks();
     mockUseAuth.mockReturnValue({ user: null, loading: false });
     window.location.hash = "";
+  });
+
+  afterEach(() => {
+    cleanup();
   });
 
   it("requests Stripe onboarding via GET and uses the { url } response", async () => {

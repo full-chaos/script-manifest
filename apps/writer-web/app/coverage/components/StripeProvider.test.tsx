@@ -1,3 +1,4 @@
+import React from "react";
 import { describe, expect, it, vi, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 
@@ -16,17 +17,20 @@ describe("StripeProvider", () => {
     }));
 
     vi.doMock("@stripe/react-stripe-js", () => ({
-      Elements: ({ children }: { children: React.ReactNode }) => (
-        <div data-testid="stripe-elements">{children}</div>
-      ),
+      Elements: ({ children }: { children: React.ReactNode }) =>
+        React.createElement("div", { "data-testid": "stripe-elements" }, children),
     }));
 
     const { StripeProvider } = await import("./StripeProvider");
+    // Widen children to optional so React.createElement accepts it as a child arg
+    const StripeProviderComp = StripeProvider as React.ComponentType<{ clientSecret: string; children?: React.ReactNode }>;
 
     render(
-      <StripeProvider clientSecret="pi_test_secret_abc123">
-        <div data-testid="child-content">Payment Form</div>
-      </StripeProvider>
+      React.createElement(
+        StripeProviderComp,
+        { clientSecret: "pi_test_secret_abc123" },
+        React.createElement("div", { "data-testid": "child-content" }, "Payment Form")
+      )
     );
 
     expect(screen.getByTestId("stripe-elements")).toBeInTheDocument();
@@ -43,17 +47,19 @@ describe("StripeProvider", () => {
     }));
 
     vi.doMock("@stripe/react-stripe-js", () => ({
-      Elements: ({ children }: { children: React.ReactNode }) => (
-        <div data-testid="stripe-elements">{children}</div>
-      ),
+      Elements: ({ children }: { children: React.ReactNode }) =>
+        React.createElement("div", { "data-testid": "stripe-elements" }, children),
     }));
 
     const { StripeProvider } = await import("./StripeProvider");
+    const StripeProviderComp = StripeProvider as React.ComponentType<{ clientSecret: string; children?: React.ReactNode }>;
 
     render(
-      <StripeProvider clientSecret="pi_test_secret_abc123">
-        <div data-testid="child-content">Payment Form</div>
-      </StripeProvider>
+      React.createElement(
+        StripeProviderComp,
+        { clientSecret: "pi_test_secret_abc123" },
+        React.createElement("div", { "data-testid": "child-content" }, "Payment Form")
+      )
     );
 
     expect(screen.getByRole("alert")).toBeInTheDocument();

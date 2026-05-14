@@ -1,108 +1,93 @@
 "use client";
 
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
+import useSWR from "swr";
+import useSWRMutation from "swr/mutation";
 import type { CoverageProvider, CoverageProviderStatus } from "@script-manifest/contracts";
 import { SkeletonCard } from "../../components/skeleton";
 import { useToast } from "../../components/toast";
 import { useAuth } from "../../lib/AuthProvider";
+import { fetcher, ApiError } from "../../lib/fetcher";
+
+const PROVIDERS_KEY = "/api/v1/coverage/providers";
+
+async function registerProvider(
+  _key: string,
+  { arg }: { arg: { displayName: string; bio: string; specialties: string[] } }
+): Promise<{ provider?: CoverageProvider; onboardingUrl?: string }> {
+  return fetcher<{ provider?: CoverageProvider; onboardingUrl?: string }>(PROVIDERS_KEY, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(arg),
+  });
+}
 
 export default function BecomeProviderPage() {
   const toast = useToast();
-  const { user } = useAuth();
-  const [signedInUserId, setSignedInUserId] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [provider, setProvider] = useState<CoverageProvider | null>(null);
+  const { user, loading: authLoading } = useAuth();
+  const userId = user?.id ?? "";
   const [displayName, setDisplayName] = useState("");
   const [bio, setBio] = useState("");
   const [specialties, setSpecialties] = useState("");
-  const [registering, setRegistering] = useState(false);
   const [gettingOnboardingLink, setGettingOnboardingLink] = useState(false);
 
-  useEffect(() => {
-    queueMicrotask(() => { setSignedInUserId(user?.id ?? ""); });
-  }, [user]);
+  // Auth-paused: do not fetch until auth resolves and user is known
+  const providersKey = authLoading || !userId ? null : PROVIDERS_KEY;
 
-  const loadProvider = useCallback(async () => {
-    setLoading(true);
-    try {
-      const response = await fetch("/api/v1/coverage/providers", {
-        headers: {},
-        cache: "no-store"
-      });
-
-      if (response.ok) {
-        const body = (await response.json()) as { providers?: CoverageProvider[] };
-        const userProvider = body.providers?.find((p) => p.userId === signedInUserId);
-        setProvider(userProvider ?? null);
-      }
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to load provider data.");
-    } finally {
-      setLoading(false);
+  const { data: providersData, isLoading: providersLoading, mutate: mutateProviders } = useSWR<{ providers: CoverageProvider[] }>(
+    providersKey,
+    fetcher,
+    {
+      onError(err: unknown) {
+        toast.error(err instanceof ApiError ? err.message : "Failed to load provider data.");
+      },
     }
-  }, [signedInUserId, toast]);
+  );
 
-  useEffect(() => {
-    if (signedInUserId) {
-      queueMicrotask(() => { void loadProvider(); });
+  const userProvider = userId
+    ? (providersData?.providers?.find((p) => p.userId === userId) ?? null)
+    : null;
+
+  const { trigger: triggerRegister, isMutating: registering } = useSWRMutation(
+    providersKey,
+    registerProvider,
+    {
+      throwOnError: false,
+      onSuccess(data) {
+        toast.success("Provider profile created!");
+        void mutateProviders();
+        if (data.onboardingUrl) {
+          toast.info("Redirecting to Stripe onboarding...");
+          window.location.href = data.onboardingUrl;
+        }
+      },
+      onError(err: unknown) {
+        toast.error(err instanceof ApiError ? err.message : "Failed to register as provider.");
+      },
     }
-  }, [signedInUserId, loadProvider]);
+  );
 
   async function handleRegister(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setRegistering(true);
-    try {
-      const specialtiesArray = specialties.split(",").map((s) => s.trim()).filter(Boolean);
-      const response = await fetch("/api/v1/coverage/providers", {
-        method: "POST",
-        headers: { "content-type": "application/json", ...{} },
-        body: JSON.stringify({ displayName, bio, specialties: specialtiesArray })
-      });
-
-      const body = (await response.json()) as { provider?: CoverageProvider; onboardingUrl?: string; error?: string };
-      if (!response.ok) {
-        toast.error(body.error ?? "Failed to register as provider.");
-        return;
-      }
-
-      setProvider(body.provider ?? null);
-      toast.success("Provider profile created!");
-
-      if (body.onboardingUrl) {
-        toast.info("Redirecting to Stripe onboarding...");
-        window.location.href = body.onboardingUrl;
-      }
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to register as provider.");
-    } finally {
-      setRegistering(false);
-    }
+    const specialtiesArray = specialties.split(",").map((s) => s.trim()).filter(Boolean);
+    await triggerRegister({ displayName, bio, specialties: specialtiesArray });
   }
 
   async function handleGetOnboardingLink() {
-    if (!provider) return;
-
+    if (!userProvider) return;
     setGettingOnboardingLink(true);
     try {
-      const response = await fetch(`/api/v1/coverage/providers/${encodeURIComponent(provider.id)}/stripe-onboarding`, {
-        method: "GET",
-        headers: {}
-      });
-
-      const body = (await response.json()) as { url?: string; error?: string };
-      if (!response.ok) {
-        toast.error(body.error ?? "Failed to get onboarding link.");
-        return;
-      }
-
-      if (!body.url) {
+      const data = await fetcher<{ url?: string }>(
+        `/api/v1/coverage/providers/${encodeURIComponent(userProvider.id)}/stripe-onboarding`,
+        { method: "GET" }
+      );
+      if (!data.url) {
         toast.error("Onboarding link is unavailable right now. Please try again.");
         return;
       }
-
-      window.location.href = body.url;
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to get onboarding link.");
+      window.location.href = data.url;
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Failed to get onboarding link.");
     } finally {
       setGettingOnboardingLink(false);
     }
@@ -154,7 +139,9 @@ export default function BecomeProviderPage() {
     return null;
   }
 
-  if (loading) {
+  const isLoading = authLoading || providersLoading;
+
+  if (isLoading) {
     return (
       <section className="space-y-4">
         <SkeletonCard />
@@ -162,7 +149,7 @@ export default function BecomeProviderPage() {
     );
   }
 
-  if (!signedInUserId) {
+  if (!userId) {
     return (
       <section className="space-y-4">
         <article className="hero-card hero-card--violet animate-in">
@@ -176,28 +163,28 @@ export default function BecomeProviderPage() {
     );
   }
 
-  if (provider) {
-    const statusNotice = getStatusNotice(provider);
+  if (userProvider) {
+    const statusNotice = getStatusNotice(userProvider);
 
     return (
       <section className="space-y-4">
         <article className="hero-card hero-card--violet animate-in">
           <p className="eyebrow">Provider Status</p>
-          <h1 className="text-4xl text-foreground">{provider.displayName}</h1>
-          <p className="max-w-3xl text-foreground-secondary">{provider.bio}</p>
+          <h1 className="text-4xl text-foreground">{userProvider.displayName}</h1>
+          <p className="max-w-3xl text-foreground-secondary">{userProvider.bio}</p>
           <div className="mt-4 flex flex-wrap items-center gap-2">
             <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${
-              provider.status === "active"
+              userProvider.status === "active"
                 ? "border-green-300 bg-green-500/10 dark:bg-green-500/15 text-green-700 dark:text-green-400"
-                : provider.status === "pending_verification"
+                : userProvider.status === "pending_verification"
                 ? "border-amber-400/60 dark:border-amber-300/45 bg-amber-500/10 dark:bg-amber-500/15 text-amber-700 dark:text-amber-500"
-                : provider.status === "suspended"
+                : userProvider.status === "suspended"
                 ? "border-red-400/60 dark:border-red-300/45 bg-red-500/10 dark:bg-red-500/15 text-red-700 dark:text-red-300"
-                : "border-border/65 bg-ink-500/10 text-foreground-secondary"
+                : "border-border/65 bg-ink-500/10 text-muted"
             }`}>
-              {formatProviderStatus(provider.status)}
+              {formatProviderStatus(userProvider.status)}
             </span>
-            {provider.stripeOnboardingComplete ? (
+            {userProvider.stripeOnboardingComplete ? (
               <span className="inline-flex items-center rounded-full border border-green-300 bg-green-500/10 dark:bg-green-500/15 px-2.5 py-0.5 text-xs font-semibold text-green-700 dark:text-green-400">
                 Stripe connected
               </span>
@@ -215,11 +202,11 @@ export default function BecomeProviderPage() {
             <a href="/coverage/dashboard" className="btn btn-primary no-underline">
               Go to Dashboard
             </a>
-            {provider.status === "pending_verification" && !provider.stripeOnboardingComplete ? (
+            {userProvider.status === "pending_verification" && !userProvider.stripeOnboardingComplete ? (
               <button
                 type="button"
                 className="btn btn-secondary"
-                onClick={handleGetOnboardingLink}
+                onClick={() => void handleGetOnboardingLink()}
                 disabled={gettingOnboardingLink}
               >
                 {gettingOnboardingLink ? "Loading..." : "Complete Stripe Setup"}
@@ -250,7 +237,7 @@ export default function BecomeProviderPage() {
                 statusNotice.tone === "amber"
                   ? "text-amber-700 dark:text-amber-500"
                   : statusNotice.tone === "red"
-                  ? "text-red-700 dark:text-red-300"
+                  ? "text-red-700 dark:text-red-400"
                   : "text-foreground-secondary"
               }`}>
                 {statusNotice.message}
@@ -275,7 +262,7 @@ export default function BecomeProviderPage() {
 
       <article className="panel stack animate-in animate-in-delay-1">
         <h2 className="section-title">Provider Registration</h2>
-        <form className="stack" onSubmit={handleRegister}>
+        <form className="stack" onSubmit={(e) => void handleRegister(e)}>
           <label className="stack-tight">
             <span className="text-sm font-medium text-foreground">Display Name</span>
             <input
@@ -314,7 +301,7 @@ export default function BecomeProviderPage() {
               placeholder="Drama, Sci-Fi, Character-driven stories"
             />
             <span className="text-xs text-muted">
-              Comma-separated list of genres or types of scripts you specialize in
+              Comma-separated list of genres and formats you specialise in
             </span>
           </label>
           <div className="inline-form">
@@ -323,54 +310,6 @@ export default function BecomeProviderPage() {
             </button>
           </div>
         </form>
-      </article>
-
-      <article className="panel stack animate-in animate-in-delay-2">
-        <h2 className="section-title">What happens next?</h2>
-        <div className="stack-tight">
-          <div className="flex gap-3">
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-tide-500/10 dark:bg-tide-500/20 text-sm font-semibold text-tide-700 dark:text-tide-500">
-              1
-            </span>
-            <div className="flex-1">
-              <strong className="text-sm text-foreground">Complete registration</strong>
-              <p className="text-sm text-foreground-secondary">Fill out the form above to create your provider profile.</p>
-            </div>
-          </div>
-          <div className="flex gap-3">
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-tide-500/10 dark:bg-tide-500/20 text-sm font-semibold text-tide-700 dark:text-tide-500">
-              2
-            </span>
-            <div className="flex-1">
-              <strong className="text-sm text-foreground">Stripe onboarding</strong>
-              <p className="text-sm text-foreground-secondary">
-                Connect your Stripe account to receive payments for your services.
-              </p>
-            </div>
-          </div>
-          <div className="flex gap-3">
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-tide-500/10 dark:bg-tide-500/20 text-sm font-semibold text-tide-700 dark:text-tide-500">
-              3
-            </span>
-            <div className="flex-1">
-              <strong className="text-sm text-foreground">Create services</strong>
-              <p className="text-sm text-foreground-secondary">
-                Set up coverage service offerings with pricing and turnaround times.
-              </p>
-            </div>
-          </div>
-          <div className="flex gap-3">
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-tide-500/10 dark:bg-tide-500/20 text-sm font-semibold text-tide-700 dark:text-tide-500">
-              4
-            </span>
-            <div className="flex-1">
-              <strong className="text-sm text-foreground">Start accepting orders</strong>
-              <p className="text-sm text-foreground-secondary">
-                Writers can now discover your services and place orders through the marketplace.
-              </p>
-            </div>
-          </div>
-        </div>
       </article>
     </section>
   );

@@ -1,34 +1,48 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { SWRConfig } from "swr";
+import type { ReactElement } from "react";
+import { fetcher } from "../lib/fetcher";
 import { ToastProvider } from "../components/toast";
 import CoverageMarketplacePage from "./page";
 
-function renderPage() {
+function jsonResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "content-type": "application/json" },
+  });
+}
+
+function renderPage(ui: ReactElement = <CoverageMarketplacePage />) {
   return render(
-    <ToastProvider>
-      <CoverageMarketplacePage />
-    </ToastProvider>
+    <SWRConfig
+      value={{
+        fetcher,
+        provider: () => new Map(),
+        dedupingInterval: 0,
+        shouldRetryOnError: false,
+      }}
+    >
+      <ToastProvider>{ui}</ToastProvider>
+    </SWRConfig>
   );
 }
 
 function makeServicesResponse(services: unknown[] = []) {
-  return new Response(JSON.stringify({ services }), {
-    status: 200,
-    headers: { "content-type": "application/json" }
-  });
+  return jsonResponse({ services });
 }
 
 function makeProvidersResponse(providers: unknown[] = []) {
-  return new Response(JSON.stringify({ providers }), {
-    status: 200,
-    headers: { "content-type": "application/json" }
-  });
+  return jsonResponse({ providers });
 }
 
 describe("CoverageMarketplacePage", () => {
   beforeEach(() => {
-    cleanup();
     vi.restoreAllMocks();
+  });
+
+  afterEach(() => {
+    cleanup();
   });
 
   it("renders hero section with heading and description", async () => {

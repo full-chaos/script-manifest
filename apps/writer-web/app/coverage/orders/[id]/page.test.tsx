@@ -1,6 +1,9 @@
+import React from "react";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { SWRConfig } from "swr";
 import type { CoverageDelivery, CoverageOrder, CoverageProvider } from "@script-manifest/contracts";
+import { fetcher } from "../../../lib/fetcher";
 import { mockUseAuth } from "../../../../vitest.setup";
 import { ToastProvider } from "../../../components/toast";
 import OrderDetailPage from "./page";
@@ -9,13 +12,7 @@ vi.mock("next/navigation", () => ({
   useParams: () => ({ id: "order_01" })
 }));
 
-function renderPage() {
-  return render(
-    <ToastProvider>
-      <OrderDetailPage />
-    </ToastProvider>
-  );
-}
+const SWR_OPTS = { fetcher, provider: () => new Map(), dedupingInterval: 0, shouldRetryOnError: false };
 
 function setSession(userId: string) {
   mockUseAuth.mockReturnValue({
@@ -97,9 +94,12 @@ function jsonResponse(body: unknown, status = 200): Response {
 
 describe("OrderDetailPage", () => {
   beforeEach(() => {
-    cleanup();
     vi.restoreAllMocks();
     mockUseAuth.mockReturnValue({ user: null, loading: false });
+  });
+
+  afterEach(() => {
+    cleanup();
   });
 
   it("fetches delivery from the dedicated delivery endpoint", async () => {
@@ -110,20 +110,20 @@ describe("OrderDetailPage", () => {
 
     const fetchMock = vi.fn<typeof fetch>(async (input) => {
       const url = typeof input === "string" ? input : (input as Request).url;
-      if (url === "/api/v1/coverage/orders/order_01") {
-        return jsonResponse({ order });
-      }
-      if (url === "/api/v1/coverage/orders/order_01/delivery") {
-        return jsonResponse({ delivery });
-      }
-      if (url === "/api/v1/coverage/providers/prov_01") {
-        return jsonResponse({ provider });
-      }
+      if (url === "/api/v1/coverage/orders/order_01") return jsonResponse({ order });
+      if (url === "/api/v1/coverage/orders/order_01/delivery") return jsonResponse({ delivery });
+      if (url === "/api/v1/coverage/providers/prov_01") return jsonResponse({ provider });
       return jsonResponse({}, 404);
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    renderPage();
+    render(
+      React.createElement(
+        SWRConfig,
+        { value: SWR_OPTS },
+        React.createElement(ToastProvider, null, React.createElement(OrderDetailPage))
+      )
+    );
 
     expect(await screen.findByText("Coverage Delivery")).toBeInTheDocument();
     expect(screen.getByText("Strong concept and clean pacing.")).toBeInTheDocument();
@@ -136,50 +136,52 @@ describe("OrderDetailPage", () => {
 
   it("shows provider actions when signed-in user matches provider user id", async () => {
     setSession("user_provider_01");
-    const order = makeOrder({
-      status: "payment_held",
-      writerUserId: "different_writer",
-      providerId: "prov_01"
-    });
+    const order = makeOrder({ status: "payment_held", writerUserId: "different_writer", providerId: "prov_01" });
     const provider = makeProvider({ id: "prov_01", userId: "user_provider_01" });
 
     vi.stubGlobal(
       "fetch",
       vi.fn<typeof fetch>(async (input) => {
         const url = typeof input === "string" ? input : (input as Request).url;
-        if (url === "/api/v1/coverage/orders/order_01") {
-          return jsonResponse({ order });
-        }
-        if (url === "/api/v1/coverage/orders/order_01/delivery") {
-          return jsonResponse({ error: "delivery_not_found" }, 404);
-        }
-        if (url === "/api/v1/coverage/providers/prov_01") {
-          return jsonResponse({ provider });
-        }
+        if (url === "/api/v1/coverage/orders/order_01") return jsonResponse({ order });
+        if (url === "/api/v1/coverage/orders/order_01/delivery") return jsonResponse({ error: "not_found" }, 404);
+        if (url === "/api/v1/coverage/providers/prov_01") return jsonResponse({ provider });
         return jsonResponse({}, 404);
       })
     );
 
-    renderPage();
+    render(
+      React.createElement(
+        SWRConfig,
+        { value: SWR_OPTS },
+        React.createElement(ToastProvider, null, React.createElement(OrderDetailPage))
+      )
+    );
 
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "Claim Order" })).toBeInTheDocument();
     });
   });
+
   it("shows payment failure recovery UI for writer on failed order", async () => {
     const failedOrder = makeOrder({ status: "payment_failed", paymentFailureReason: "Insufficient funds" });
     const provider = makeProvider();
 
-    const fetchMock = vi.fn<typeof fetch>(async (input) => {
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>(async (input) => {
       const url = typeof input === "string" ? input : (input as Request).url;
       if (url === "/api/v1/coverage/orders/order_01") return jsonResponse({ order: failedOrder });
       if (url === "/api/v1/coverage/providers/prov_01") return jsonResponse({ provider });
       return jsonResponse({}, 404);
-    });
-    vi.stubGlobal("fetch", fetchMock);
+    }));
 
     setSession("user_writer_01");
-    renderPage();
+    render(
+      React.createElement(
+        SWRConfig,
+        { value: SWR_OPTS },
+        React.createElement(ToastProvider, null, React.createElement(OrderDetailPage))
+      )
+    );
 
     await screen.findByRole("heading", { name: /Payment Failed/i });
     expect(screen.getByText(/insufficient funds/i)).toBeInTheDocument();
@@ -190,16 +192,21 @@ describe("OrderDetailPage", () => {
     const failedOrder = makeOrder({ status: "payment_failed", writerUserId: "different_writer" });
     const provider = makeProvider({ userId: "user_provider_01" });
 
-    const fetchMock = vi.fn<typeof fetch>(async (input) => {
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>(async (input) => {
       const url = typeof input === "string" ? input : (input as Request).url;
       if (url === "/api/v1/coverage/orders/order_01") return jsonResponse({ order: failedOrder });
       if (url === "/api/v1/coverage/providers/prov_01") return jsonResponse({ provider });
       return jsonResponse({}, 404);
-    });
-    vi.stubGlobal("fetch", fetchMock);
+    }));
 
     setSession("user_provider_01");
-    renderPage();
+    render(
+      React.createElement(
+        SWRConfig,
+        { value: SWR_OPTS },
+        React.createElement(ToastProvider, null, React.createElement(OrderDetailPage))
+      )
+    );
 
     await screen.findByRole("heading", { name: /Payment Failed/i });
     expect(screen.queryByRole("button", { name: /Retry Payment/i })).not.toBeInTheDocument();

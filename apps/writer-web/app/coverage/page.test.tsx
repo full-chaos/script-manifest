@@ -48,6 +48,7 @@ async function renderPage(params: Record<string, string | string[] | undefined> 
 describe("CoverageMarketplacePage", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    serverFetchMock.mockReset();
     pushMock.mockClear();
     vi.stubGlobal("fetch", vi.fn<typeof fetch>(async () => new Response(null, { status: 204 })));
     serverFetchMock
@@ -78,10 +79,13 @@ describe("CoverageMarketplacePage", () => {
   it("sends URL filter values to serverFetch as coverage service cents", async () => {
     await renderPage({ tier: "early_draft", minPrice: "10", maxPrice: "250" });
 
-    expect(serverFetchMock).toHaveBeenNthCalledWith(1, "/api/v1/coverage/services", {
-      searchParams: new URLSearchParams({ tier: "early_draft", minPrice: "1000", maxPrice: "25000" }),
-    });
-    expect(serverFetchMock).toHaveBeenNthCalledWith(2, "/api/v1/coverage/providers");
+    const [firstCallPath, firstCallInit] = serverFetchMock.mock.calls[0]!;
+    expect(firstCallPath).toBe("/api/v1/coverage/services");
+    const sentParams = firstCallInit?.searchParams as URLSearchParams;
+    expect(sentParams.toString()).toBe(
+      new URLSearchParams({ tier: "early_draft", minPrice: "1000", maxPrice: "25000" }).toString(),
+    );
+    expect(serverFetchMock.mock.calls[1]?.[0]).toBe("/api/v1/coverage/providers");
   });
 
   it("shows empty state when no services are found", async () => {

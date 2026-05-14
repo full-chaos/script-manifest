@@ -69,6 +69,11 @@ RUN --mount=type=cache,id=pnpm-store-db-migrator,target=/pnpm/store,sharing=lock
       --fetch-retry-mintimeout=10000 \
       --fetch-retry-maxtimeout=120000
 
+# Strip pnpm + npm from the final image — runtime uses `node --import tsx`
+# and these CLIs ship bundled tar/picomatch that Trivy flags as HIGH.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/pnpm \
+ && rm -f /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/pnpm /usr/local/bin/pnpx
+
 ENV NODE_ENV=production
 ENV OTEL_SERVICE_NAME=db-migrator
 

@@ -147,7 +147,7 @@ export function buildServer(options: ScriptStorageServiceOptions = {}): FastifyI
     )}`;
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
 
-    let uploadUrl = `${uploadBaseUrl.replace(/\/+$/g, "")}/${storageBucket}`;
+    let uploadUrl = `${stripTrailingSlashes(uploadBaseUrl)}/${storageBucket}`;
     let uploadFields: Record<string, string> = {
       key: objectKey,
       bucket: storageBucket,
@@ -374,6 +374,12 @@ function normalizeFilename(filename: string): string {
       .replace(/[^a-z0-9._-]+/g, "-")
       .replace(/^-+|-+$/g, "") || "script.pdf"
   );
+}
+
+function stripTrailingSlashes(value: string): string {
+  let end = value.length;
+  while (end > 0 && value.charCodeAt(end - 1) === 47 /* '/' */) end--;
+  return value.slice(0, end);
 }
 
 function buildS3Client(options: {

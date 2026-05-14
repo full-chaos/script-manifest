@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import useSWR from "swr";
 import Link from "next/link";
 import type { Route } from "next";
 import { Users, Shield, Trophy } from "lucide-react";
 import { SkeletonCard } from "../components/skeleton";
 import { useToast } from "../components/toast";
+import { fetcher, ApiError } from "../lib/fetcher";
 
 type PlatformMetrics = {
   totalUsers: number;
@@ -70,32 +71,17 @@ const quickActions: QuickAction[] = [
 
 export default function AdminDashboardPage() {
   const toast = useToast();
-  const [metrics, setMetrics] = useState<PlatformMetrics | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    async function loadMetrics() {
-      try {
-        const response = await fetch("/api/v1/admin/metrics", {
-          headers: {}
-        });
-        if (!response.ok) {
-          const body = (await response.json().catch(() => ({}))) as { error?: string };
-          toast.error(body.error ?? "Failed to load admin metrics.");
-          return;
-        }
-        const body = (await response.json()) as { metrics: PlatformMetrics };
-        setMetrics(body.metrics);
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Failed to load admin metrics.");
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    void loadMetrics();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const { data, isLoading: loading } = useSWR<{ metrics: PlatformMetrics }>(
+    "/api/v1/admin/metrics",
+    fetcher,
+    {
+      shouldRetryOnError: false,
+      onError(err: unknown) {
+        toast.error(err instanceof ApiError ? (err.message ?? "Failed to load admin metrics.") : "Failed to load admin metrics.");
+      },
+    },
+  );
+  const metrics = data?.metrics ?? null;
 
   const statCards = metrics ? formatStatCards(metrics) : [];
 

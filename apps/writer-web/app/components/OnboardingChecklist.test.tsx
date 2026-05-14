@@ -1,7 +1,21 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { render, screen, fireEvent, cleanup, waitFor } from "@testing-library/react";
+import { render as rtlRender, screen, fireEvent, cleanup, waitFor } from "@testing-library/react";
+import type { ReactElement, ReactNode } from "react";
+import { SWRConfig } from "swr";
 import { mockUseAuth } from "../../vitest.setup";
 import { OnboardingChecklist } from "./OnboardingChecklist";
+
+function Wrapper({ children }: { children: ReactNode }) {
+  return (
+    <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0, shouldRetryOnError: false }}>
+      {children}
+    </SWRConfig>
+  );
+}
+
+function render(ui: ReactElement) {
+  return rtlRender(ui, { wrapper: Wrapper });
+}
 
 function mockFetchStatus(status: Record<string, boolean>) {
   vi.spyOn(globalThis, "fetch").mockResolvedValue({

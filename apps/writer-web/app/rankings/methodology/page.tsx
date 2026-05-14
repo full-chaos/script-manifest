@@ -1,28 +1,22 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import useSWR from "swr";
 import type { ScoringMethodology } from "@script-manifest/contracts";
+import { fetcher, ApiError } from "../../lib/fetcher";
 
 export default function MethodologyPage() {
-  const [methodology, setMethodology] = useState<ScoringMethodology | null>(null);
-  const [error, setError] = useState("");
+  const { data: methodology, error } = useSWR<ScoringMethodology>(
+    "/api/v1/rankings/methodology",
+    fetcher,
+    { shouldRetryOnError: false },
+  );
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const response = await fetch("/api/v1/rankings/methodology", { cache: "no-store" });
-        if (!response.ok) {
-          setError("Failed to load methodology.");
-          return;
-        }
-        const body = (await response.json()) as ScoringMethodology;
-        setMethodology(body);
-      } catch {
-        setError("Unable to reach the rankings service.");
-      }
-    }
-    void load();
-  }, []);
+  const errorMessage =
+    error instanceof ApiError
+      ? "Failed to load methodology."
+      : error
+        ? "Unable to reach the rankings service."
+        : "";
 
   return (
     <section className="space-y-4">
@@ -34,7 +28,7 @@ export default function MethodologyPage() {
         </p>
       </article>
 
-      {error ? <p className="status-error">{error}</p> : null}
+      {errorMessage ? <p className="status-error">{errorMessage}</p> : null}
 
       {methodology ? (
         <>

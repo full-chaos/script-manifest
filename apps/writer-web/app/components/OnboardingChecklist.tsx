@@ -1,72 +1,46 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import useSWR from "swr";
 import Link from "next/link";
 import type { Route } from "next";
 import { CheckCircle2, Circle, X } from "lucide-react";
 import type { OnboardingStatus } from "@script-manifest/contracts";
+import { fetcher } from "../lib/fetcher";
 
 const ONBOARDING_DISMISSED_KEY = "onboarding-dismissed";
 
-type ChecklistState = {
-  mounted: boolean;
-  dismissed: boolean;
-  status: OnboardingStatus | null;
-};
 
 export function OnboardingChecklist() {
-  const [state, setState] = useState<ChecklistState>({
-    mounted: false,
-    dismissed: true,
-    status: null,
-  });
+  const [dismissed, setDismissed] = useState<boolean>(true);
+  const [mounted, setMounted] = useState<boolean>(false);
 
   useEffect(() => {
     const isDismissed = window.localStorage.getItem(ONBOARDING_DISMISSED_KEY) === "true";
-
-    if (isDismissed) {
-      queueMicrotask(() => setState({ mounted: true, dismissed: true, status: null }));
-      return;
-    }
-
-    let cancelled = false;
-
-    async function fetchStatus() {
-      try {
-        const response = await fetch("/api/v1/onboarding-status", { cache: "no-store" });
-        if (!response.ok || cancelled) return;
-        const body = (await response.json()) as { status?: OnboardingStatus };
-        if (cancelled) return;
-        setState({
-          mounted: true,
-          dismissed: false,
-          status: body.status ?? null,
-        });
-      } catch {
-        if (!cancelled) {
-          setState({ mounted: true, dismissed: false, status: null });
-        }
-      }
-    }
-
-    queueMicrotask(() => setState((prev) => ({ ...prev, mounted: true, dismissed: false })));
-    void fetchStatus();
-
-    return () => {
-      cancelled = true;
-    };
+    // non-data-fetch: defer setState past effect body to satisfy react-hooks/set-state-in-effect
+    queueMicrotask(() => {
+      setDismissed(isDismissed);
+      setMounted(true);
+    });
   }, []);
 
-  if (!state.mounted || state.dismissed) {
+  const { data } = useSWR<{ status?: OnboardingStatus }>(
+    mounted && !dismissed ? "/api/v1/onboarding-status" : null,
+    fetcher,
+    { shouldRetryOnError: false },
+  );
+  const status: OnboardingStatus | null = data?.status ?? null;
+
+  if (!mounted || dismissed) {
     return null;
   }
 
   const handleDismiss = () => {
     window.localStorage.setItem(ONBOARDING_DISMISSED_KEY, "true");
-    setState((prev) => ({ ...prev, dismissed: true }));
+    setDismissed(true);
   };
 
-  const s = state.status;
+  const s = status;
 
   const checklistItems = [
     {

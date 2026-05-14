@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import useSWR from "swr";
+import useSWRMutation from "swr/mutation";
 import type { Competition } from "@script-manifest/contracts";
 import { Modal } from "../components/modal";
 import { EmptyState } from "../components/emptyState";
@@ -99,15 +100,20 @@ export default function CompetitionsPage() {
 
   const now = useClock(60_000);
 
-  // Fire-and-forget onboarding progress when logged-in user visits
+  const { trigger: pingOnboarding } = useSWRMutation(
+    "/api/v1/onboarding-progress",
+    async (url: string) => {
+      await fetch(url, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ competitionsVisited: true }),
+      });
+    },
+  );
   useEffect(() => {
     if (!user) return;
-    void fetch("/api/v1/onboarding-progress", {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ competitionsVisited: true }),
-    });
-  }, [user]);
+    void pingOnboarding();
+  }, [user, pingOnboarding]);
 
   const { data, isLoading: loading } = useSWR<CompetitionsResponse>(
     buildKey(committedFilters),

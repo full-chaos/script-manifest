@@ -41,6 +41,7 @@ export default function ResetPasswordPage() {
   const [success, setSuccess] = useState(false);
 
   useEffect(() => {
+    // non-data-fetch: defer setToken past effect body to satisfy react-hooks/set-state-in-effect
     queueMicrotask(() => {
       const params = new URLSearchParams(window.location.search);
       const t = params.get("token");

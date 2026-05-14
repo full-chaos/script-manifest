@@ -1,5 +1,7 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render as rtlRender, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { ReactElement, ReactNode } from "react";
+import { SWRConfig } from "swr";
 import MethodologyPage from "./page";
 
 const SAMPLE_METHODOLOGY = {
@@ -25,6 +27,18 @@ const SAMPLE_METHODOLOGY = {
     top_50_pct: 0.5
   }
 };
+
+function Wrapper({ children }: { children: ReactNode }) {
+  return (
+    <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0, shouldRetryOnError: false }}>
+      {children}
+    </SWRConfig>
+  );
+}
+
+function render(ui: ReactElement) {
+  return rtlRender(ui, { wrapper: Wrapper });
+}
 
 describe("MethodologyPage", () => {
   beforeEach(() => {

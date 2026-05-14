@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import useSWRMutation from "swr/mutation";
 import { refreshAuth, useAuth } from "../lib/AuthProvider";
@@ -14,10 +14,22 @@ type AuthMode = "register" | "login";
 type LoginArg = { email: string; password: string };
 type RegisterArg = { email: string; password: string; displayName: string; acceptTerms: boolean };
 type AuthArg = LoginArg | RegisterArg;
+type OAuthCompleteArg = { state: string; code: string };
 
 async function postAuth(
   url: string,
   { arg }: { arg: AuthArg }
+): Promise<unknown> {
+  return fetcher(url, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(arg),
+  });
+}
+
+async function postOAuthComplete(
+  url: string,
+  { arg }: { arg: OAuthCompleteArg }
 ): Promise<unknown> {
   return fetcher(url, {
     method: "POST",
@@ -52,33 +64,27 @@ export default function SignInPage() {
   const [oauthSubmitting, setOauthSubmitting] = useState(false);
   const [acceptTerms, setAcceptTerms] = useState(false);
 
-  const completeOAuthFromRedirect = useCallback(async (state: string, code: string) => {
-    setOauthSubmitting(true);
-    setStatus("");
-
-    try {
-      const completeResponse = await fetch("/api/v1/auth/oauth/google/complete", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ state, code })
-      });
-      const completeBody = await completeResponse.json();
-      if (!completeResponse.ok) {
-        setStatus(
-          completeBody.error ? `Error: ${completeBody.error}` : "OAuth callback failed."
-        );
-        return;
-      }
-
+  const {
+    trigger: triggerOAuthComplete,
+    isMutating: oauthRedirectSubmitting,
+  } = useSWRMutation("/api/v1/auth/oauth/google/complete", postOAuthComplete, {
+    throwOnError: false,
+    onSuccess() {
       refreshAuth();
       setPassword("");
       router.replace("/");
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : "unknown_error");
-    } finally {
-      setOauthSubmitting(false);
-    }
-  }, [router]);
+    },
+    onError(err: unknown) {
+      const bodyError = extractBodyError(err);
+      if (bodyError !== null) {
+        setStatus(`Error: ${bodyError}`);
+      } else if (err instanceof Error) {
+        setStatus(err.message);
+      } else {
+        setStatus("unknown_error");
+      }
+    },
+  });
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -86,9 +92,9 @@ export default function SignInPage() {
     const state = params.get("state");
     if (code && state) {
       window.history.replaceState({}, "", window.location.pathname);
-      queueMicrotask(() => { void completeOAuthFromRedirect(state, code); });
+      void triggerOAuthComplete({ state, code });
     }
-  }, [completeOAuthFromRedirect]);
+  }, [triggerOAuthComplete]);
 
   const modeLabel = useMemo(() => (mode === "register" ? "Create account" : "Sign in"), [mode]);
 
@@ -256,9 +262,9 @@ export default function SignInPage() {
               type="button"
               className="btn btn-primary w-full justify-center"
               onClick={() => void signInWithGoogle()}
-              disabled={oauthSubmitting}
+              disabled={oauthSubmitting || oauthRedirectSubmitting}
             >
-              {oauthSubmitting ? "Connecting..." : "Continue with Google"}
+              {oauthSubmitting || oauthRedirectSubmitting ? "Connecting..." : "Continue with Google"}
             </button>
 
             <div className="flex items-center gap-3">

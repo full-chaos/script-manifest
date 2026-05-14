@@ -1,15 +1,13 @@
 "use client";
-import { useEffect, useState } from "react";
+
+import useSWR from "swr";
+import { fetcher } from "./fetcher";
+
+type FeatureFlagsResponse = { flags?: Record<string, boolean> };
 
 export function useFeatureFlag(key: string): boolean {
-  const [enabled, setEnabled] = useState(false);
-  useEffect(() => {
-    fetch("/api/v1/feature-flags", { headers: {} })
-      .then(r => r.json())
-      .then((data: { flags?: Record<string, boolean> }) => {
-        setEnabled(data.flags?.[key] ?? false);
-      })
-      .catch(() => setEnabled(false));
-  }, [key]);
-  return enabled;
+  const { data } = useSWR<FeatureFlagsResponse>("/api/v1/feature-flags", fetcher, {
+    shouldRetryOnError: false,
+  });
+  return data?.flags?.[key] ?? false;
 }

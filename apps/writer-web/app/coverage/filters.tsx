@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import useSWRMutation from "swr/mutation";
 import type { CoverageTier } from "@script-manifest/contracts";
 import { useRouter, useSearchParams } from "next/navigation";
 
@@ -93,19 +94,24 @@ export function CoverageFilters({ tier, minPrice, maxPrice }: CoverageFiltersPro
   );
 }
 
+async function patchOnboarding(url: string, { arg }: { arg: Record<string, boolean> }): Promise<void> {
+  await fetch(url, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(arg),
+  });
+}
+
 export function OnboardingPing() {
   const onboardingMarked = useRef(false);
+  const { trigger } = useSWRMutation("/api/v1/onboarding-progress", patchOnboarding);
 
   useEffect(() => {
     if (!onboardingMarked.current) {
       onboardingMarked.current = true;
-      void fetch("/api/v1/onboarding-progress", {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ coverageVisited: true }),
-      });
+      void trigger({ coverageVisited: true });
     }
-  }, []);
+  }, [trigger]);
 
   return null;
 }

@@ -1,30 +1,18 @@
-"use client";
-
-import { useMemo, useState, type FormEvent } from "react";
-import useSWR from "swr";
 import type { Route } from "next";
 import type { RankedWriterEntry, TierDesignation } from "@script-manifest/contracts";
 import { EmptyState } from "../components/emptyState";
 import { EmptyIllustration } from "../components/illustrations";
-import { fetcher, ApiError } from "../lib/fetcher";
+import { ApiError } from "../lib/fetcher";
+import { serverFetch } from "../lib/serverFetch";
+import { LeaderboardFilters } from "./filters";
 
 type LeaderboardResponse = {
   leaderboard: RankedWriterEntry[];
   total: number;
 };
 
-type Filters = {
-  format: string;
-  genre: string;
-  tier: TierDesignation | "";
-  trending: boolean;
-};
-
-const initialFilters: Filters = {
-  format: "",
-  genre: "",
-  tier: "",
-  trending: false
+type LeaderboardPageProps = {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
 const avatarGradients = [
@@ -71,44 +59,51 @@ function scorePercent(score: number, maxScore: number): number {
   return Math.min(100, Math.round((score / maxScore) * 100));
 }
 
-function buildKey(filters: Filters): string {
-  const search = new URLSearchParams();
-  if (filters.format.trim()) {
-    search.set("format", filters.format.trim());
-  }
-  if (filters.genre.trim()) {
-    search.set("genre", filters.genre.trim());
-  }
-  if (filters.tier) {
-    search.set("tier", filters.tier);
-  }
-  if (filters.trending) {
-    search.set("trending", "true");
-  }
-  const qs = search.toString();
-  return qs ? `/api/v1/leaderboard?${qs}` : "/api/v1/leaderboard";
+function stringParam(value: string | string[] | undefined): string | undefined {
+  return Array.isArray(value) ? value[0] : value;
 }
 
-export default function LeaderboardPage() {
-  const [filters, setFilters] = useState<Filters>(initialFilters);
+function buildLeaderboardSearchParams(input: Record<string, string | string[] | undefined>) {
+  const searchParams: Record<string, string | boolean | undefined> = {};
+  const format = stringParam(input.format)?.trim();
+  const genre = stringParam(input.genre)?.trim();
+  const tier = stringParam(input.tier)?.trim();
+  const trending = stringParam(input.trending)?.trim();
 
-  const { data, error, isLoading, mutate } = useSWR<LeaderboardResponse>(
-    buildKey(filters),
-    fetcher
-  );
-
-  const rows = useMemo(() => data?.leaderboard ?? [], [data]);
-  const total = data?.total ?? 0;
-
-  const maxScore = useMemo(() => {
-    if (rows.length === 0) return 1;
-    return Math.max(...rows.map((r) => r.totalScore), 1);
-  }, [rows]);
-
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    void mutate();
+  if (format) {
+    searchParams.format = format;
   }
+  if (genre) {
+    searchParams.genre = genre;
+  }
+  if (tier) {
+    searchParams.tier = tier;
+  }
+  if (trending === "true") {
+    searchParams.trending = true;
+  }
+  return searchParams;
+}
+
+export default async function LeaderboardPage({ searchParams }: LeaderboardPageProps) {
+  let data: LeaderboardResponse = { leaderboard: [], total: 0 };
+  let error: string | null = null;
+  const filters = await searchParams;
+  const leaderboardSearchParams = buildLeaderboardSearchParams(filters);
+
+  try {
+    data = await serverFetch<LeaderboardResponse>("/api/v1/leaderboard", { searchParams: leaderboardSearchParams });
+  } catch (caught) {
+    if (caught instanceof ApiError) {
+      error = caught.message;
+    } else {
+      error = "Leaderboard load failed.";
+    }
+  }
+
+  const rows = data.leaderboard;
+  const total = data.total;
+  const maxScore = rows.length === 0 ? 1 : Math.max(...rows.map((r) => r.totalScore), 1);
 
   return (
     <section className="space-y-4">
@@ -121,72 +116,7 @@ export default function LeaderboardPage() {
         </p>
       </article>
 
-      <article className="panel stack animate-in animate-in-delay-1">
-        <form className="stack" onSubmit={handleSubmit}>
-          <div className="grid-two">
-            <label className="stack-tight">
-              <span>Format filter</span>
-              <input
-                className="input"
-                value={filters.format}
-                onChange={(event) => setFilters((current) => ({ ...current, format: event.target.value }))}
-                placeholder="feature / tv / short"
-              />
-            </label>
-            <label className="stack-tight">
-              <span>Genre filter</span>
-              <input
-                className="input"
-                value={filters.genre}
-                onChange={(event) => setFilters((current) => ({ ...current, genre: event.target.value }))}
-                placeholder="drama / comedy"
-              />
-            </label>
-          </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <label className="stack-tight">
-              <span>Tier</span>
-              <select
-                className="input"
-                value={filters.tier}
-                onChange={(event) =>
-                  setFilters((current) => ({ ...current, tier: event.target.value as TierDesignation | "" }))
-                }
-              >
-                <option value="">All tiers</option>
-                <option value="top_1">Top 1%</option>
-                <option value="top_2">Top 2%</option>
-                <option value="top_10">Top 10%</option>
-                <option value="top_25">Top 25%</option>
-              </select>
-            </label>
-            <label className="flex items-center gap-2 self-end pb-1 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={filters.trending}
-                onChange={(event) => setFilters((current) => ({ ...current, trending: event.target.checked }))}
-              />
-              <span className="text-sm font-medium">Trending</span>
-            </label>
-          </div>
-          <div className="inline-form">
-            <button type="submit" className="btn btn-primary" disabled={isLoading}>
-              {isLoading ? "Refreshing..." : "Refresh leaderboard"}
-            </button>
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={() => {
-                setFilters(initialFilters);
-              }}
-              disabled={isLoading}
-            >
-              Reset
-            </button>
-            <span className="badge">{total} total</span>
-          </div>
-        </form>
-      </article>
+      <LeaderboardFilters total={total} />
 
       <article className="panel stack">
         <div className="subcard-header">
@@ -268,7 +198,7 @@ export default function LeaderboardPage() {
 
       {error ? (
         <p className="status-error">
-          {error instanceof ApiError ? error.message : "Leaderboard load failed."}
+          {error}
         </p>
       ) : null}
     </section>

@@ -1,7 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
+import useSWR from "swr";
+import useSWRMutation from "swr/mutation";
 import { ShieldBan, Ban, Clock } from "lucide-react";
+import { fetcher, ApiError } from "../../lib/fetcher";
 import { SkeletonCard } from "../../components/skeleton";
 import { EmptyState } from "../../components/emptyState";
 import { EmptyIllustration } from "../../components/illustrations";
@@ -32,65 +35,105 @@ type UserSuspension = {
   createdAt: string;
 };
 
+// ── Cache key builders ────────────────────────────────────────────
+
+const blocksLimit = 20;
+
+function buildBlocksKey(page: number): string {
+  const params = new URLSearchParams();
+  params.set("page", String(page));
+  params.set("limit", String(blocksLimit));
+  return `/api/v1/admin/ip-blocks?${params.toString()}`;
+}
+
+function buildSuspensionsKey(userId: string): string {
+  return `/api/v1/admin/users/${encodeURIComponent(userId)}/suspensions`;
+}
+
+// ── Mutation fetchers ─────────────────────────────────────────────
+
+type AddBlockArg = {
+  ipAddress: string;
+  reason: string;
+  expiresInHours?: number;
+};
+
+async function addBlockFetcher(
+  _key: string,
+  { arg }: { arg: AddBlockArg }
+): Promise<{ block: IpBlockEntry }> {
+  const body: Record<string, unknown> = {
+    ipAddress: arg.ipAddress,
+    reason: arg.reason
+  };
+  if (arg.expiresInHours !== undefined) {
+    body.expiresInHours = arg.expiresInHours;
+  }
+  return fetcher<{ block: IpBlockEntry }>("/api/v1/admin/ip-blocks", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body)
+  });
+}
+
+async function removeBlockFetcher(
+  _key: string,
+  { arg }: { arg: { id: string } }
+): Promise<void> {
+  return fetcher<void>(`/api/v1/admin/ip-blocks/${encodeURIComponent(arg.id)}`, {
+    method: "DELETE"
+  });
+}
+
 // ── Component ────────────────────────────────────────────────────
 
 export default function AdminSecurityPage() {
   const toast = useToast();
 
   // IP Blocklist state
-  const [blocks, setBlocks] = useState<IpBlockEntry[]>([]);
-  const [blocksTotal, setBlocksTotal] = useState(0);
-  const [blocksLoading, setBlocksLoading] = useState(true);
   const [blocksPage, setBlocksPage] = useState(1);
-  const blocksLimit = 20;
 
   // IP Block form state
   const [newIp, setNewIp] = useState("");
   const [newReason, setNewReason] = useState("");
   const [newExpiresHours, setNewExpiresHours] = useState("");
-  const [addingBlock, setAddingBlock] = useState(false);
 
   // Suspension search state
   const [suspensionUserId, setSuspensionUserId] = useState("");
-  const [suspensions, setSuspensions] = useState<UserSuspension[]>([]);
-  const [suspensionsLoading, setSuspensionsLoading] = useState(false);
+  const [searchedUserId, setSearchedUserId] = useState<string | null>(null);
 
-  // ── IP Blocklist ────────────────────────────────────────────────
+  // ── SWR reads ────────────────────────────────────────────────
 
-  const loadBlocks = useCallback(
-    async (currentPage: number) => {
-      setBlocksLoading(true);
-      try {
-        const params = new URLSearchParams();
-        params.set("page", String(currentPage));
-        params.set("limit", String(blocksLimit));
+  const blocksKey = buildBlocksKey(blocksPage);
+  const { data: blocksData, error: blocksError, isLoading: blocksLoading } =
+    useSWR<{ blocks: IpBlockEntry[]; total: number }>(blocksKey);
+  const blocks = blocksData?.blocks ?? [];
+  const blocksTotal = blocksData?.total ?? 0;
 
-        const response = await fetch(`/api/v1/admin/ip-blocks?${params.toString()}`, {
-          headers: {},
-          cache: "no-store"
-        });
-
-        if (!response.ok) {
-          const body = (await response.json().catch(() => ({}))) as { error?: string };
-          toast.error(body.error ?? "Failed to load IP blocks.");
-          return;
-        }
-
-        const body = (await response.json()) as { blocks: IpBlockEntry[]; total: number };
-        setBlocks(body.blocks ?? []);
-        setBlocksTotal(body.total ?? 0);
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Failed to load IP blocks.");
-      } finally {
-        setBlocksLoading(false);
+  const suspensionsKey = searchedUserId ? buildSuspensionsKey(searchedUserId) : null;
+  const { data: suspensionsData, error: suspensionsError, isLoading: suspensionsLoading } =
+    useSWR<{ suspensions: UserSuspension[] }>(suspensionsKey, {
+      shouldRetryOnError: false,
+      onErrorRetry: (err, _key, _config, revalidate, { retryCount }) => {
+        if (err instanceof ApiError && err.status === 404) return;
+        if (retryCount >= 3) return;
+        void revalidate({ retryCount });
       }
-    },
-    [toast]
+    });
+  const suspensions =
+    suspensionsData?.suspensions ??
+    (suspensionsError instanceof ApiError && suspensionsError.status === 404 ? [] : null);
+
+  // ── Mutations ─────────────────────────────────────────────────
+
+  const { trigger: triggerAddBlock, isMutating: addingBlock } = useSWRMutation(
+    blocksKey,
+    addBlockFetcher
   );
 
-  useEffect(() => {
-    queueMicrotask(() => { void loadBlocks(1); });
-  }, [loadBlocks]);
+  const { trigger: triggerRemoveBlock } = useSWRMutation(blocksKey, removeBlockFetcher);
+
+  // ── Handlers ─────────────────────────────────────────────────
 
   async function handleAddBlock() {
     if (!newIp.trim() || !newReason.trim()) {
@@ -98,96 +141,43 @@ export default function AdminSecurityPage() {
       return;
     }
 
-    setAddingBlock(true);
+    const arg: AddBlockArg = {
+      ipAddress: newIp.trim(),
+      reason: newReason.trim()
+    };
+
+    const hours = Number(newExpiresHours.trim());
+    if (newExpiresHours.trim() && hours > 0) {
+      arg.expiresInHours = hours;
+    }
+
     try {
-      const body: Record<string, unknown> = {
-        ipAddress: newIp.trim(),
-        reason: newReason.trim()
-      };
-      if (newExpiresHours.trim()) {
-        const hours = Number(newExpiresHours.trim());
-        if (hours > 0) {
-          body.expiresInHours = hours;
-        }
-      }
-
-      const response = await fetch("/api/v1/admin/ip-blocks", {
-        method: "POST",
-        headers: { ...{}, "content-type": "application/json" },
-        body: JSON.stringify(body)
-      });
-
-      if (!response.ok) {
-        const resBody = (await response.json().catch(() => ({}))) as { error?: string };
-        toast.error(resBody.error ?? "Failed to add IP block.");
-        return;
-      }
-
+      await triggerAddBlock(arg);
       toast.success("IP address blocked successfully.");
       setNewIp("");
       setNewReason("");
       setNewExpiresHours("");
-      void loadBlocks(blocksPage);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to add IP block.");
-    } finally {
-      setAddingBlock(false);
+      setBlocksPage(1);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Failed to add IP block.");
     }
   }
 
   async function handleRemoveBlock(id: string) {
     try {
-      const response = await fetch(`/api/v1/admin/ip-blocks/${encodeURIComponent(id)}`, {
-        method: "DELETE",
-        headers: {}
-      });
-
-      if (!response.ok) {
-        const body = (await response.json().catch(() => ({}))) as { error?: string };
-        toast.error(body.error ?? "Failed to remove IP block.");
-        return;
-      }
-
+      await triggerRemoveBlock({ id });
       toast.success("IP block removed.");
-      void loadBlocks(blocksPage);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to remove IP block.");
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Failed to remove IP block.");
     }
   }
 
-  // ── Suspension Overview ─────────────────────────────────────────
-
-  async function handleSearchSuspensions() {
+  function handleSearchSuspensions() {
     if (!suspensionUserId.trim()) {
       toast.error("Enter a user ID to search suspensions.");
       return;
     }
-
-    setSuspensionsLoading(true);
-    try {
-      const response = await fetch(
-        `/api/v1/admin/users/${encodeURIComponent(suspensionUserId.trim())}/suspensions`,
-        { headers: {}, cache: "no-store" }
-      );
-
-      if (response.status === 404) {
-        setSuspensions([]);
-        return;
-      }
-
-      if (!response.ok) {
-        const body = (await response.json().catch(() => ({}))) as { error?: string };
-        toast.error(body.error ?? "Failed to load suspension history.");
-        return;
-      }
-
-      const body = (await response.json()) as { suspensions: UserSuspension[] };
-      setSuspensions(body.suspensions ?? []);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to load suspensions.");
-    } finally {
-      setSuspensionsLoading(false);
-    }
+    setSearchedUserId(suspensionUserId.trim());
   }
 
   // ── Pagination ──────────────────────────────────────────────────
@@ -265,6 +255,10 @@ export default function AdminSecurityPage() {
             <SkeletonCard />
             <SkeletonCard />
           </div>
+        ) : blocksError ? (
+          <p className="text-sm text-red-600 dark:text-red-400">
+            {blocksError instanceof ApiError ? blocksError.message : "Failed to load IP blocks."}
+          </p>
         ) : blocks.length === 0 ? (
           <EmptyState
             illustration={<EmptyIllustration variant="search" className="h-14 w-14 text-foreground" />}
@@ -311,11 +305,7 @@ export default function AdminSecurityPage() {
                 <button
                   type="button"
                   className="btn btn-secondary"
-                  onClick={() => {
-                    const prev = Math.max(1, blocksPage - 1);
-                    setBlocksPage(prev);
-                    void loadBlocks(prev);
-                  }}
+                  onClick={() => setBlocksPage(Math.max(1, blocksPage - 1))}
                   disabled={blocksPage <= 1}
                 >
                   Previous
@@ -326,11 +316,7 @@ export default function AdminSecurityPage() {
                 <button
                   type="button"
                   className="btn btn-secondary"
-                  onClick={() => {
-                    const next = Math.min(blocksTotalPages, blocksPage + 1);
-                    setBlocksPage(next);
-                    void loadBlocks(next);
-                  }}
+                  onClick={() => setBlocksPage(Math.min(blocksTotalPages, blocksPage + 1))}
                   disabled={blocksPage >= blocksTotalPages}
                 >
                   Next
@@ -362,7 +348,7 @@ export default function AdminSecurityPage() {
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
                     e.preventDefault();
-                    void handleSearchSuspensions();
+                    handleSearchSuspensions();
                   }
                 }}
               />
@@ -370,7 +356,7 @@ export default function AdminSecurityPage() {
             <button
               type="button"
               className="btn btn-primary"
-              onClick={() => void handleSearchSuspensions()}
+              onClick={() => handleSearchSuspensions()}
               disabled={suspensionsLoading}
             >
               {suspensionsLoading ? "Loading..." : "Search"}
@@ -382,15 +368,19 @@ export default function AdminSecurityPage() {
           <div className="stack">
             <SkeletonCard />
           </div>
-        ) : suspensions.length === 0 ? (
-          suspensionUserId.trim() ? (
+        ) : suspensionsError && !(suspensionsError instanceof ApiError && suspensionsError.status === 404) ? (
+          <p className="text-sm text-red-600 dark:text-red-400">
+            {suspensionsError instanceof ApiError ? suspensionsError.message : "Failed to load suspensions."}
+          </p>
+        ) : suspensions !== null && suspensions.length === 0 ? (
+          searchedUserId ? (
             <EmptyState
               illustration={<EmptyIllustration variant="search" className="h-14 w-14 text-foreground" />}
               title="No suspensions found"
               description="This user has no suspension records."
             />
           ) : null
-        ) : (
+        ) : suspensions !== null && suspensions.length > 0 ? (
           <div className="stack">
             {suspensions.map((suspension) => (
               <div key={suspension.id} className="subcard">
@@ -423,7 +413,7 @@ export default function AdminSecurityPage() {
               </div>
             ))}
           </div>
-        )}
+        ) : null}
       </article>
     </section>
   );

@@ -1,83 +1,81 @@
 "use client";
 
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
+import useSWR from "swr";
+import useSWRMutation from "swr/mutation";
 import type { CoverageDispute, CoverageDisputeStatus } from "@script-manifest/contracts";
+import { fetcher, ApiError } from "../../lib/fetcher";
 import { EmptyState } from "../../components/emptyState";
 import { EmptyIllustration } from "../../components/illustrations";
 import { SkeletonCard } from "../../components/skeleton";
 import { useToast } from "../../components/toast";
 import { Modal } from "../../components/modal";
 
+const LIST_KEY = "/api/v1/coverage/disputes";
+
+type ResolveArg = {
+  id: string;
+  status: "resolved_refund" | "resolved_no_refund" | "resolved_partial";
+  adminNotes: string;
+  refundAmountCents?: number;
+};
+
+async function resolveFetcher(
+  _key: string,
+  { arg }: { arg: ResolveArg }
+): Promise<{ dispute: CoverageDispute }> {
+  return fetcher<{ dispute: CoverageDispute }>(
+    `/api/v1/coverage/disputes/${encodeURIComponent(arg.id)}`,
+    {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        status: arg.status,
+        adminNotes: arg.adminNotes,
+        ...(arg.refundAmountCents !== undefined ? { refundAmountCents: arg.refundAmountCents } : {})
+      })
+    }
+  );
+}
+
 export default function AdminDisputesPage() {
   const toast = useToast();
-  const [loading, setLoading] = useState(false);
-  const [disputes, setDisputes] = useState<CoverageDispute[]>([]);
   const [resolvingDispute, setResolvingDispute] = useState<CoverageDispute | null>(null);
   const [resolveStatus, setResolveStatus] = useState<"resolved_refund" | "resolved_no_refund" | "resolved_partial">("resolved_no_refund");
   const [adminNotes, setAdminNotes] = useState("");
   const [refundAmount, setRefundAmount] = useState("");
-  const [submitting, setSubmitting] = useState(false);
 
-  const loadDisputes = useCallback(async () => {
-    setLoading(true);
-    try {
-      const response = await fetch("/api/v1/coverage/disputes", {
-        headers: {},
-        cache: "no-store"
-      });
+  const { data, error, isLoading } = useSWR<{ disputes: CoverageDispute[] }>(LIST_KEY);
+  const disputes = data?.disputes ?? [];
 
-      if (response.ok) {
-        const body = (await response.json()) as { disputes?: CoverageDispute[] };
-        setDisputes(body.disputes ?? []);
-      }
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to load disputes.");
-    } finally {
-      setLoading(false);
-    }
-  }, [toast]);
-
-  useEffect(() => {
-    queueMicrotask(() => { void loadDisputes(); });
-  }, [loadDisputes]);
+  const { trigger: triggerResolve, isMutating: submitting } = useSWRMutation(
+    LIST_KEY,
+    resolveFetcher
+  );
 
   async function handleResolve(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!resolvingDispute) return;
 
-    setSubmitting(true);
+    const body: ResolveArg = {
+      id: resolvingDispute.id,
+      status: resolveStatus,
+      adminNotes
+    };
+
+    if (resolveStatus === "resolved_partial" && refundAmount) {
+      body.refundAmountCents = Math.round(Number(refundAmount) * 100);
+    }
+
     try {
-      const body: { status: typeof resolveStatus; adminNotes: string; refundAmountCents?: number } = {
-        status: resolveStatus,
-        adminNotes
-      };
-
-      if (resolveStatus === "resolved_partial" && refundAmount) {
-        body.refundAmountCents = Math.round(Number(refundAmount) * 100);
-      }
-
-      const response = await fetch(`/api/v1/coverage/disputes/${encodeURIComponent(resolvingDispute.id)}`, {
-        method: "PATCH",
-        headers: { "content-type": "application/json", ...{} },
-        body: JSON.stringify(body)
-      });
-
-      const responseBody = (await response.json()) as { error?: string };
-      if (!response.ok) {
-        toast.error(responseBody.error ?? "Failed to resolve dispute.");
-        return;
-      }
-
+      await triggerResolve(body);
       toast.success("Dispute resolved!");
       setResolvingDispute(null);
       setResolveStatus("resolved_no_refund");
       setAdminNotes("");
       setRefundAmount("");
-      await loadDisputes();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to resolve dispute.");
-    } finally {
-      setSubmitting(false);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Failed to resolve dispute.");
     }
   }
 
@@ -115,12 +113,16 @@ export default function AdminDisputesPage() {
 
       <article className="panel stack animate-in animate-in-delay-1">
         <h2 className="section-title">All Disputes</h2>
-        {loading ? (
+        {isLoading ? (
           <div className="stack">
             <SkeletonCard />
             <SkeletonCard />
             <SkeletonCard />
           </div>
+        ) : error ? (
+          <p className="text-sm text-red-600 dark:text-red-400">
+            {error instanceof ApiError ? error.message : "Failed to load disputes."}
+          </p>
         ) : disputes.length === 0 ? (
           <EmptyState
             illustration={<EmptyIllustration variant="search" className="h-14 w-14 text-foreground" />}

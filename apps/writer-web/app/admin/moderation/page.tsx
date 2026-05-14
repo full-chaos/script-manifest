@@ -1,6 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
+import useSWR from "swr";
+import useSWRMutation from "swr/mutation";
+import { fetcher, ApiError } from "../../lib/fetcher";
 import { EmptyState } from "../../components/emptyState";
 import { EmptyIllustration } from "../../components/illustrations";
 import { SkeletonCard } from "../../components/skeleton";
@@ -46,12 +49,49 @@ function formatReason(reason: string): string {
 
 const LIMIT = 20;
 
+function buildModerationKey(statusFilter: StatusFilter, contentTypeFilter: ContentTypeFilter | "", page: number): string {
+  const params = new URLSearchParams({
+    status: statusFilter,
+    page: String(page),
+    limit: String(LIMIT)
+  });
+  if (contentTypeFilter) {
+    params.set("contentType", contentTypeFilter);
+  }
+  return `/api/v1/admin/moderation/queue?${params.toString()}`;
+}
+
+type ActionArg = {
+  reportId: string;
+  actionType: ActionType;
+  reason: string;
+  suspensionDays?: number;
+};
+
+async function actionFetcher(
+  _key: string,
+  { arg }: { arg: ActionArg }
+): Promise<{ report: ContentReport }> {
+  const payload: { actionType: ActionType; reason: string; suspensionDays?: number } = {
+    actionType: arg.actionType,
+    reason: arg.reason
+  };
+  if (arg.actionType === "suspension" && arg.suspensionDays !== undefined) {
+    payload.suspensionDays = arg.suspensionDays;
+  }
+  return fetcher<{ report: ContentReport }>(
+    `/api/v1/admin/moderation/${encodeURIComponent(arg.reportId)}/action`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload)
+    }
+  );
+}
+
 export default function AdminModerationPage() {
   const toast = useToast();
-  const [loading, setLoading] = useState(false);
-  const [reports, setReports] = useState<ContentReport[]>([]);
   const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(false);
 
   // Filters
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("pending");
@@ -62,63 +102,27 @@ export default function AdminModerationPage() {
   const [actionType, setActionType] = useState<ActionType>("warning");
   const [actionReason, setActionReason] = useState("");
   const [suspensionDays, setSuspensionDays] = useState("30");
-  const [submitting, setSubmitting] = useState(false);
 
-  const abortControllerRef = useRef<AbortController | null>(null);
+  const listKey = buildModerationKey(statusFilter, contentTypeFilter, page);
 
-  const loadReports = useCallback(async (targetPage: number) => {
-    abortControllerRef.current?.abort();
-    const controller = new AbortController();
-    abortControllerRef.current = controller;
+  const { data, error, isLoading } = useSWR<{ reports: ContentReport[]; total?: number }>(listKey);
+  const reports = data?.reports ?? [];
+  const hasMore = reports.length >= LIMIT;
 
-    setLoading(true);
-    try {
-      const params = new URLSearchParams({
-        status: statusFilter,
-        page: String(targetPage),
-        limit: String(LIMIT)
-      });
-      if (contentTypeFilter) {
-        params.set("contentType", contentTypeFilter);
-      }
+  const { trigger: triggerAction, isMutating: submitting } = useSWRMutation(listKey, actionFetcher);
 
-      const response = await fetch(`/api/v1/admin/moderation/queue?${params.toString()}`, {
-        headers: {},
-        cache: "no-store",
-        signal: controller.signal
-      });
+  function handleStatusFilterChange(value: StatusFilter) {
+    setStatusFilter(value);
+    setPage(1);
+  }
 
-      if (controller.signal.aborted) return;
-
-      if (response.ok) {
-        const body = (await response.json()) as { reports?: ContentReport[]; total?: number };
-        const items = body.reports ?? [];
-        setReports(items);
-        setHasMore(items.length >= LIMIT);
-      } else {
-        const body = (await response.json()) as { error?: string };
-        toast.error(body.error ?? "Failed to load moderation queue.");
-      }
-    } catch (error) {
-      if ((error as Error).name === "AbortError") return;
-      toast.error(error instanceof Error ? error.message : "Failed to load moderation queue.");
-    } finally {
-      if (!controller.signal.aborted) {
-        setLoading(false);
-      }
-    }
-  }, [statusFilter, contentTypeFilter, toast]);
-
-  useEffect(() => {
-    queueMicrotask(() => {
-      setPage(1);
-      void loadReports(1);
-    });
-  }, [loadReports]);
+  function handleContentTypeFilterChange(value: ContentTypeFilter | "") {
+    setContentTypeFilter(value);
+    setPage(1);
+  }
 
   function handlePageChange(newPage: number) {
     setPage(newPage);
-    void loadReports(newPage);
   }
 
   function openActionModal(report: ContentReport) {
@@ -132,36 +136,17 @@ export default function AdminModerationPage() {
     event.preventDefault();
     if (!actionReport) return;
 
-    setSubmitting(true);
     try {
-      const payload: { actionType: ActionType; reason: string; suspensionDays?: number } = {
+      await triggerAction({
+        reportId: actionReport.id,
         actionType,
-        reason: actionReason
-      };
-
-      if (actionType === "suspension") {
-        payload.suspensionDays = Number(suspensionDays);
-      }
-
-      const response = await fetch(`/api/v1/admin/moderation/${encodeURIComponent(actionReport.id)}/action`, {
-        method: "POST",
-        headers: { "content-type": "application/json", ...{} },
-        body: JSON.stringify(payload)
+        reason: actionReason,
+        ...(actionType === "suspension" ? { suspensionDays: Number(suspensionDays) } : {})
       });
-
-      const body = (await response.json()) as { error?: string };
-      if (!response.ok) {
-        toast.error(body.error ?? "Failed to submit action.");
-        return;
-      }
-
       toast.success("Action taken successfully.");
       setActionReport(null);
-      await loadReports(page);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to submit action.");
-    } finally {
-      setSubmitting(false);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Failed to submit action.");
     }
   }
 
@@ -183,7 +168,7 @@ export default function AdminModerationPage() {
             <select
               className="input"
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
+              onChange={(e) => handleStatusFilterChange(e.target.value as StatusFilter)}
             >
               <option value="pending">Pending</option>
               <option value="reviewed">Reviewed</option>
@@ -196,7 +181,7 @@ export default function AdminModerationPage() {
             <select
               className="input"
               value={contentTypeFilter}
-              onChange={(e) => setContentTypeFilter(e.target.value as ContentTypeFilter | "")}
+              onChange={(e) => handleContentTypeFilterChange(e.target.value as ContentTypeFilter | "")}
             >
               <option value="">All types</option>
               <option value="script">Script</option>
@@ -214,12 +199,16 @@ export default function AdminModerationPage() {
           <span className="text-xs text-muted">Page {page}</span>
         </div>
 
-        {loading ? (
+        {isLoading ? (
           <div className="stack">
             <SkeletonCard />
             <SkeletonCard />
             <SkeletonCard />
           </div>
+        ) : error ? (
+          <p className="text-sm text-red-600 dark:text-red-400">
+            {error instanceof ApiError ? error.message : "Failed to load moderation queue."}
+          </p>
         ) : reports.length === 0 ? (
           <EmptyState
             illustration={<EmptyIllustration variant="inbox" className="h-14 w-14 text-foreground" />}
@@ -260,8 +249,8 @@ export default function AdminModerationPage() {
                       </p>
                     </div>
                   </div>
-                  {report.status === "pending" ? (
-                    <div className="mt-3 pt-3 border-t border-border/40">
+                  {report.status === "pending" || report.status === "reviewed" ? (
+                    <div className="mt-3 pt-3 border-t border-border/40 inline-form">
                       <button
                         type="button"
                         className="btn btn-primary"
@@ -277,7 +266,7 @@ export default function AdminModerationPage() {
           </div>
         )}
 
-        {!loading && reports.length > 0 ? (
+        {!isLoading && reports.length > 0 ? (
           <div className="flex items-center justify-between pt-2">
             <button
               type="button"

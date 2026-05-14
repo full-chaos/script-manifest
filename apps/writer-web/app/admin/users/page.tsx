@@ -1,8 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
+import useSWR from "swr";
 import { useRouter } from "next/navigation";
 import type { Route } from "next";
+import { ApiError } from "../../lib/fetcher";
 import { EmptyState } from "../../components/emptyState";
 import { EmptyIllustration } from "../../components/illustrations";
 import { SkeletonCard } from "../../components/skeleton";
@@ -59,82 +61,74 @@ function formatRole(role: string): string {
   return role.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+const limit = 20;
+
+function buildUsersKey(page: number, search: string, roleFilter: string, statusFilter: string): string {
+  const params = new URLSearchParams();
+  params.set("page", String(page));
+  params.set("limit", String(limit));
+  if (search.trim()) {
+    params.set("search", search.trim());
+  }
+  if (roleFilter) {
+    params.set("role", roleFilter);
+  }
+  if (statusFilter) {
+    params.set("status", statusFilter);
+  }
+  return `/api/v1/admin/users?${params.toString()}`;
+}
+
 export default function AdminUsersPage() {
   const router = useRouter();
   const toast = useToast();
-  const [loading, setLoading] = useState(false);
-  const [users, setUsers] = useState<AdminUser[]>([]);
-  const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
+
+  // Input state (uncommitted until user clicks Search)
+  const [searchInput, setSearchInput] = useState("");
+  const [roleInput, setRoleInput] = useState("");
+  const [statusInput, setStatusInput] = useState("");
+
+  // Committed filter state (drives SWR key)
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [page, setPage] = useState(1);
 
-  const limit = 20;
-
-  const loadUsers = useCallback(
-    async (currentPage: number, currentSearch: string, currentRole: string, currentStatus: string) => {
-      setLoading(true);
-      try {
-        const params = new URLSearchParams();
-        params.set("page", String(currentPage));
-        params.set("limit", String(limit));
-        if (currentSearch.trim()) {
-          params.set("search", currentSearch.trim());
-        }
-        if (currentRole) {
-          params.set("role", currentRole);
-        }
-        if (currentStatus) {
-          params.set("status", currentStatus);
-        }
-
-        const response = await fetch(`/api/v1/admin/users?${params.toString()}`, {
-          headers: {},
-          cache: "no-store"
-        });
-
-        if (!response.ok) {
-          const body = (await response.json()) as { error?: string };
-          toast.error(body.error ?? "Failed to load users.");
-          return;
-        }
-
-        const body = (await response.json()) as UsersResponse;
-        setUsers(body.users ?? []);
-        setTotal(body.total ?? 0);
-        setPage(body.page ?? currentPage);
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Failed to load users.");
-      } finally {
-        setLoading(false);
-      }
-    },
-    [toast]
-  );
-
-  useEffect(() => {
-    queueMicrotask(() => { void loadUsers(1, "", "", ""); });
-  }, [loadUsers]);
+  const listKey = buildUsersKey(page, search, roleFilter, statusFilter);
+  const { data, error, isLoading } = useSWR<UsersResponse>(listKey);
+  const users = data?.users ?? [];
+  const total = data?.total ?? 0;
 
   function handleSearch() {
+    setSearch(searchInput);
+    setRoleFilter(roleInput);
+    setStatusFilter(statusInput);
     setPage(1);
-    void loadUsers(1, search, roleFilter, statusFilter);
+  }
+
+  function handleReset() {
+    setSearchInput("");
+    setRoleInput("");
+    setStatusInput("");
+    setSearch("");
+    setRoleFilter("");
+    setStatusFilter("");
+    setPage(1);
   }
 
   function handlePrevious() {
     if (page <= 1) return;
-    const nextPage = page - 1;
-    setPage(nextPage);
-    void loadUsers(nextPage, search, roleFilter, statusFilter);
+    setPage(page - 1);
   }
 
   function handleNext() {
     const maxPage = Math.ceil(total / limit);
     if (page >= maxPage) return;
-    const nextPage = page + 1;
-    setPage(nextPage);
-    void loadUsers(nextPage, search, roleFilter, statusFilter);
+    setPage(page + 1);
+  }
+
+  if (error && !(error instanceof ApiError)) {
+    toast.error("Failed to load users.");
   }
 
   const totalPages = Math.max(1, Math.ceil(total / limit));
@@ -156,8 +150,8 @@ export default function AdminUsersPage() {
             <span className="text-sm font-medium text-foreground">Search by name or email</span>
             <input
               className="input"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
                   e.preventDefault();
@@ -172,8 +166,8 @@ export default function AdminUsersPage() {
               <span className="text-sm font-medium text-foreground">Role</span>
               <select
                 className="input"
-                value={roleFilter}
-                onChange={(e) => setRoleFilter(e.target.value)}
+                value={roleInput}
+                onChange={(e) => setRoleInput(e.target.value)}
               >
                 <option value="">All roles</option>
                 <option value="writer">Writer</option>
@@ -186,8 +180,8 @@ export default function AdminUsersPage() {
               <span className="text-sm font-medium text-foreground">Status</span>
               <select
                 className="input"
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
+                value={statusInput}
+                onChange={(e) => setStatusInput(e.target.value)}
               >
                 <option value="">All statuses</option>
                 <option value="active">Active</option>
@@ -198,20 +192,14 @@ export default function AdminUsersPage() {
           </div>
         </div>
         <div className="inline-form">
-          <button type="button" className="btn btn-primary" onClick={handleSearch} disabled={loading}>
-            {loading ? "Searching..." : "Search"}
+          <button type="button" className="btn btn-primary" onClick={handleSearch} disabled={isLoading}>
+            {isLoading ? "Searching..." : "Search"}
           </button>
           <button
             type="button"
             className="btn btn-secondary"
-            onClick={() => {
-              setSearch("");
-              setRoleFilter("");
-              setStatusFilter("");
-              setPage(1);
-              void loadUsers(1, "", "", "");
-            }}
-            disabled={loading}
+            onClick={handleReset}
+            disabled={isLoading}
           >
             Reset
           </button>
@@ -221,12 +209,16 @@ export default function AdminUsersPage() {
 
       <article className="panel stack animate-in animate-in-delay-1">
         <h2 className="section-title">Users</h2>
-        {loading ? (
+        {isLoading ? (
           <div className="stack">
             <SkeletonCard />
             <SkeletonCard />
             <SkeletonCard />
           </div>
+        ) : error ? (
+          <p className="text-sm text-red-600 dark:text-red-400">
+            {error instanceof ApiError ? error.message : "Failed to load users."}
+          </p>
         ) : users.length === 0 ? (
           <EmptyState
             illustration={<EmptyIllustration variant="search" className="h-14 w-14 text-foreground" />}
@@ -279,7 +271,7 @@ export default function AdminUsersPage() {
           </div>
         )}
 
-        {!loading && users.length > 0 ? (
+        {!isLoading && users.length > 0 ? (
           <div className="flex items-center justify-between border-t border-border/40 pt-4">
             <button
               type="button"

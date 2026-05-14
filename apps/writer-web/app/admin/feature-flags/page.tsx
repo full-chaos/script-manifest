@@ -1,6 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
+import useSWR from "swr";
+import useSWRMutation from "swr/mutation";
+import { fetcher, ApiError } from "../../lib/fetcher";
 import { useToast } from "../../components/toast";
 import { EmptyState } from "../../components/emptyState";
 import { EmptyIllustration } from "../../components/illustrations";
@@ -17,156 +20,139 @@ type FeatureFlag = {
   updatedAt: string;
 };
 
+const LIST_KEY = "/api/v1/admin/feature-flags";
+
+type CreateArg = { key: string; description: string };
+type UpdateArg = { key: string; description?: string; rolloutPct?: number; userAllowlist?: string[]; enabled?: boolean };
+type DeleteArg = { key: string };
+
+async function createFetcher(
+  _key: string,
+  { arg }: { arg: CreateArg }
+): Promise<{ flag: FeatureFlag }> {
+  return fetcher<{ flag: FeatureFlag }>(LIST_KEY, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ key: arg.key, description: arg.description })
+  });
+}
+
+async function updateFetcher(
+  _key: string,
+  { arg }: { arg: UpdateArg }
+): Promise<{ flag: FeatureFlag }> {
+  return fetcher<{ flag: FeatureFlag }>(
+    `/api/v1/admin/feature-flags/${encodeURIComponent(arg.key)}`,
+    {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        ...(arg.description !== undefined ? { description: arg.description } : {}),
+        ...(arg.rolloutPct !== undefined ? { rolloutPct: arg.rolloutPct } : {}),
+        ...(arg.userAllowlist !== undefined ? { userAllowlist: arg.userAllowlist } : {}),
+        ...(arg.enabled !== undefined ? { enabled: arg.enabled } : {})
+      })
+    }
+  );
+}
+
+async function deleteFetcher(
+  _key: string,
+  { arg }: { arg: DeleteArg }
+): Promise<void> {
+  return fetcher<void>(
+    `/api/v1/admin/feature-flags/${encodeURIComponent(arg.key)}`,
+    { method: "DELETE" }
+  );
+}
+
 export default function FeatureFlagsPage() {
   const toast = useToast();
-  const [flags, setFlags] = useState<FeatureFlag[]>([]);
-  const [loading, setLoading] = useState(true);
 
   // Create form
   const [showCreate, setShowCreate] = useState(false);
   const [newKey, setNewKey] = useState("");
   const [newDescription, setNewDescription] = useState("");
-  const [creating, setCreating] = useState(false);
 
   // Edit state
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [editDescription, setEditDescription] = useState("");
   const [editRollout, setEditRollout] = useState(0);
   const [editAllowlist, setEditAllowlist] = useState("");
-  const [saving, setSaving] = useState(false);
 
   // Delete confirmation
   const [deletingKey, setDeletingKey] = useState<string | null>(null);
 
-  const loadFlags = useCallback(async () => {
-    try {
-      const response = await fetch("/api/v1/admin/feature-flags", {
-        headers: {}
-      });
-      if (!response.ok) {
-        const body = (await response.json().catch(() => ({}))) as { error?: string };
-        toast.error(body.error ?? "Failed to load feature flags.");
-        return;
-      }
-      const body = (await response.json()) as { flags: FeatureFlag[] };
-      setFlags(body.flags);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to load feature flags.");
-    } finally {
-      setLoading(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const { data, error, isLoading, mutate } = useSWR<{ flags: FeatureFlag[] }>(LIST_KEY);
+  const flags = data?.flags ?? [];
 
-  useEffect(() => {
-    queueMicrotask(() => { void loadFlags(); });
-  }, [loadFlags]);
+  const { trigger: triggerCreate, isMutating: creating } = useSWRMutation(LIST_KEY, createFetcher);
+  const { trigger: triggerUpdate, isMutating: saving } = useSWRMutation(LIST_KEY, updateFetcher);
+  const { trigger: triggerDelete } = useSWRMutation(LIST_KEY, deleteFetcher);
 
-  const handleCreate = useCallback(async () => {
+  async function handleCreate() {
     if (!newKey.trim()) return;
-    setCreating(true);
     try {
-      const response = await fetch("/api/v1/admin/feature-flags", {
-        method: "POST",
-        headers: { "content-type": "application/json", ...{} },
-        body: JSON.stringify({ key: newKey.trim(), description: newDescription.trim() })
-      });
-      if (!response.ok) {
-        const body = (await response.json().catch(() => ({}))) as { error?: string };
-        toast.error(body.error ?? "Failed to create flag.");
-        return;
-      }
+      await triggerCreate({ key: newKey.trim(), description: newDescription.trim() });
       toast.success(`Flag "${newKey}" created.`);
       setNewKey("");
       setNewDescription("");
       setShowCreate(false);
-      void loadFlags();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to create flag.");
-    } finally {
-      setCreating(false);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Failed to create flag.");
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [newKey, newDescription, loadFlags]);
+  }
 
-  const handleToggle = useCallback(async (key: string, currentEnabled: boolean) => {
+  async function handleToggle(key: string, currentEnabled: boolean) {
+    const optimisticFlags = (data?.flags ?? []).map((f) =>
+      f.key === key ? { ...f, enabled: !currentEnabled } : f
+    );
     try {
-      const response = await fetch(`/api/v1/admin/feature-flags/${encodeURIComponent(key)}`, {
-        method: "PUT",
-        headers: { "content-type": "application/json", ...{} },
-        body: JSON.stringify({ enabled: !currentEnabled })
-      });
-      if (!response.ok) {
-        const body = (await response.json().catch(() => ({}))) as { error?: string };
-        toast.error(body.error ?? "Failed to toggle flag.");
-        return;
-      }
-      setFlags(prev => prev.map(f => f.key === key ? { ...f, enabled: !currentEnabled } : f));
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to toggle flag.");
+      await mutate(
+        triggerUpdate({ key, enabled: !currentEnabled }).then(() => ({ flags: optimisticFlags })),
+        { optimisticData: { flags: optimisticFlags }, rollbackOnError: true, revalidate: true }
+      );
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Failed to toggle flag.");
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }
 
-  const startEdit = useCallback((flag: FeatureFlag) => {
+  function startEdit(flag: FeatureFlag) {
     setEditingKey(flag.key);
     setEditDescription(flag.description);
     setEditRollout(flag.rolloutPct);
     setEditAllowlist(flag.userAllowlist.join("\n"));
-  }, []);
+  }
 
-  const handleSaveEdit = useCallback(async () => {
+  async function handleSaveEdit() {
     if (!editingKey) return;
-    setSaving(true);
+    const allowlist = editAllowlist
+      .split("\n")
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
     try {
-      const allowlist = editAllowlist
-        .split("\n")
-        .map(s => s.trim())
-        .filter(s => s.length > 0);
-      const response = await fetch(`/api/v1/admin/feature-flags/${encodeURIComponent(editingKey)}`, {
-        method: "PUT",
-        headers: { "content-type": "application/json", ...{} },
-        body: JSON.stringify({
-          description: editDescription,
-          rolloutPct: editRollout,
-          userAllowlist: allowlist
-        })
+      await triggerUpdate({
+        key: editingKey,
+        description: editDescription,
+        rolloutPct: editRollout,
+        userAllowlist: allowlist
       });
-      if (!response.ok) {
-        const body = (await response.json().catch(() => ({}))) as { error?: string };
-        toast.error(body.error ?? "Failed to update flag.");
-        return;
-      }
       toast.success(`Flag "${editingKey}" updated.`);
       setEditingKey(null);
-      void loadFlags();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to update flag.");
-    } finally {
-      setSaving(false);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Failed to update flag.");
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editingKey, editDescription, editRollout, editAllowlist, loadFlags]);
+  }
 
-  const handleDelete = useCallback(async (key: string) => {
+  async function handleDelete(key: string) {
     try {
-      const response = await fetch(`/api/v1/admin/feature-flags/${encodeURIComponent(key)}`, {
-        method: "DELETE",
-        headers: {}
-      });
-      if (!response.ok && response.status !== 204) {
-        const body = (await response.json().catch(() => ({}))) as { error?: string };
-        toast.error(body.error ?? "Failed to delete flag.");
-        return;
-      }
+      await triggerDelete({ key });
       toast.success(`Flag "${key}" deleted.`);
       setDeletingKey(null);
-      void loadFlags();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to delete flag.");
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Failed to delete flag.");
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loadFlags]);
+  }
 
   return (
     <section className="space-y-4">
@@ -232,7 +218,11 @@ export default function FeatureFlagsPage() {
           </div>
         )}
 
-        {loading ? (
+        {error ? (
+          <p className="text-sm text-red-600 dark:text-red-400">
+            {error instanceof ApiError ? error.message : "Failed to load feature flags."}
+          </p>
+        ) : isLoading ? (
           <div className="space-y-3">
             <SkeletonCard />
             <SkeletonCard />

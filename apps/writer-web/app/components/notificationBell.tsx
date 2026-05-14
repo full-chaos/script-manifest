@@ -1,12 +1,20 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Bell } from "lucide-react";
+import useSWR, { useSWRConfig } from "swr";
+import useSWRMutation from "swr/mutation";
 import type { NotificationEventEnvelope } from "@script-manifest/contracts";
+import { fetcher } from "../lib/fetcher";
 
 const POLL_INTERVAL_MS = 30_000;
+const UNREAD_COUNT_KEY = "/api/v1/notifications/unread-count";
+const NOTIFICATIONS_KEY = "/api/v1/notifications?limit=20";
 
 type NotificationItem = NotificationEventEnvelope & { readAt?: string | null };
+
+type UnreadCountResponse = { count?: number };
+type NotificationsResponse = { events?: NotificationItem[] };
 
 function formatEventLabel(event: NotificationItem): string {
   const labels: Record<string, string> = {
@@ -37,28 +45,37 @@ function timeAgo(isoDate: string): string {
   return `${days}d ago`;
 }
 
+async function patchMarkRead(url: string, { arg }: { arg: string }): Promise<void> {
+  await fetch(`${url}/${encodeURIComponent(arg)}/read`, { method: "PATCH" });
+}
+
 export function NotificationBell() {
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const fetchUnreadCount = useCallback(async () => {
-    try {
-      const res = await fetch("/api/v1/notifications/unread-count", { cache: "no-store" });
-      if (res.ok) {
-        const body = (await res.json()) as { count?: number };
-        setUnreadCount(body.count ?? 0);
-      }
-    } catch { /* non-critical */ }
-  }, []);
+  const { data: unreadData, mutate: mutateUnread } = useSWR<UnreadCountResponse>(
+    UNREAD_COUNT_KEY,
+    fetcher,
+    { refreshInterval: POLL_INTERVAL_MS, shouldRetryOnError: false },
+  );
+  const unreadCount = unreadData?.count ?? 0;
 
-  useEffect(() => {
-    queueMicrotask(() => { void fetchUnreadCount(); });
-    const interval = setInterval(() => void fetchUnreadCount(), POLL_INTERVAL_MS);
-    return () => clearInterval(interval);
-  }, [fetchUnreadCount]);
+  const {
+    data: notificationsData,
+    isLoading: notificationsLoading,
+    mutate: mutateNotifications,
+  } = useSWR<NotificationsResponse>(
+    open ? NOTIFICATIONS_KEY : null,
+    fetcher,
+    { shouldRetryOnError: false },
+  );
+  const notifications = notificationsData?.events ?? [];
+
+  const { trigger: triggerMarkRead } = useSWRMutation(
+    "/api/v1/notifications",
+    patchMarkRead,
+  );
+  const { mutate: globalMutate } = useSWRConfig();
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -72,45 +89,42 @@ export function NotificationBell() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [open]);
 
-  async function fetchNotifications() {
-    setLoading(true);
-    try {
-      const res = await fetch("/api/v1/notifications?limit=20", { cache: "no-store" });
-      if (res.ok) {
-        const body = (await res.json()) as { events?: NotificationItem[] };
-        setNotifications(body.events ?? []);
-      }
-    } catch { /* non-critical */ } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleToggle() {
-    if (!open) {
-      void fetchNotifications();
-    }
+  function handleToggle() {
     setOpen((prev) => !prev);
   }
 
   async function markRead(eventId: string) {
-    setNotifications((prev) =>
-      prev.map((n) => (n.eventId === eventId ? { ...n, readAt: new Date().toISOString() } : n))
+    await mutateNotifications(
+      (prev: NotificationsResponse | undefined) => ({
+        events: (prev?.events ?? []).map((n) =>
+          n.eventId === eventId ? { ...n, readAt: new Date().toISOString() } : n,
+        ),
+      }),
+      { revalidate: false },
     );
-    setUnreadCount((prev) => Math.max(0, prev - 1));
+    await mutateUnread(
+      (prev: UnreadCountResponse | undefined) => ({
+        count: Math.max(0, (prev?.count ?? 0) - 1),
+      }),
+      { revalidate: false },
+    );
 
     try {
-      await fetch(`/api/v1/notifications/${encodeURIComponent(eventId)}/read`, {
-        method: "PATCH",
-      });
-    } catch { /* non-critical */ }
+      await triggerMarkRead(eventId);
+    } catch {
+      void globalMutate(UNREAD_COUNT_KEY);
+      void globalMutate(NOTIFICATIONS_KEY);
+    }
   }
+
+  const loading = notificationsLoading && notifications.length === 0;
 
   return (
     <div className="relative" ref={dropdownRef}>
       <button
         type="button"
         className="btn btn-secondary p-2! relative"
-        onClick={() => void handleToggle()}
+        onClick={handleToggle}
         aria-label={`Notifications${unreadCount > 0 ? `, ${unreadCount} unread` : ""}`}
         data-testid="notification-bell"
       >
@@ -135,7 +149,7 @@ export function NotificationBell() {
           </div>
 
           <div className="max-h-80 overflow-y-auto">
-            {loading && notifications.length === 0 && (
+            {loading && (
               <div className="px-4 py-6 text-center text-sm text-foreground-secondary">Loading…</div>
             )}
 

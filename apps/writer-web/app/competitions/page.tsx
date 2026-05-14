@@ -10,6 +10,7 @@ import { SkeletonCard } from "../components/skeleton";
 import { useToast } from "../components/toast";
 import { useAuth } from "../lib/AuthProvider";
 import { fetcher, ApiError } from "../lib/fetcher";
+import { useClock } from "../lib/useClock";
 
 type Filters = {
   query: string;
@@ -96,11 +97,7 @@ export default function CompetitionsPage() {
   const [reminderMessage, setReminderMessage] = useState("");
   const [sendingReminder, setSendingReminder] = useState(false);
 
-  const [now, setNow] = useState<number>(() => Date.now());
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 60_000);
-    return () => clearInterval(id);
-  }, []);
+  const now = useClock(60_000);
 
   // Fire-and-forget onboarding progress when logged-in user visits
   useEffect(() => {

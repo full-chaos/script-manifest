@@ -1,6 +1,20 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { render, screen, fireEvent, cleanup, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, cleanup, waitFor, act } from "@testing-library/react";
+import type { ReactNode } from "react";
+import { SWRConfig } from "swr";
 import { NotificationBell } from "./notificationBell";
+
+function Wrapper({ children }: { children: ReactNode }) {
+  return (
+    <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0, shouldRetryOnError: false }}>
+      {children}
+    </SWRConfig>
+  );
+}
+
+function renderBell() {
+  return render(<NotificationBell />, { wrapper: Wrapper });
+}
 
 function mockFetch(responses: Record<string, unknown>) {
   const entries = Object.entries(responses).sort(([a], [b]) => b.length - a.length);
@@ -31,13 +45,13 @@ describe("NotificationBell", () => {
 
   it("renders bell button", () => {
     mockFetch({ "unread-count": { count: 0 } });
-    render(<NotificationBell />);
+    renderBell();
     expect(screen.getByTestId("notification-bell")).toBeInTheDocument();
   });
 
   it("shows unread badge when count > 0", async () => {
     mockFetch({ "unread-count": { count: 3 } });
-    render(<NotificationBell />);
+    renderBell();
 
     await waitFor(() => {
       expect(screen.getByTestId("unread-badge")).toBeInTheDocument();
@@ -48,7 +62,7 @@ describe("NotificationBell", () => {
 
   it("shows 99+ when count exceeds 99", async () => {
     mockFetch({ "unread-count": { count: 150 } });
-    render(<NotificationBell />);
+    renderBell();
 
     await waitFor(() => {
       expect(screen.getByTestId("unread-badge")).toHaveTextContent("99+");
@@ -57,7 +71,7 @@ describe("NotificationBell", () => {
 
   it("does not show badge when count is 0", async () => {
     mockFetch({ "unread-count": { count: 0 } });
-    render(<NotificationBell />);
+    renderBell();
 
     await vi.advanceTimersByTimeAsync(100);
     expect(screen.queryByTestId("unread-badge")).not.toBeInTheDocument();
@@ -80,7 +94,7 @@ describe("NotificationBell", () => {
       },
     });
 
-    render(<NotificationBell />);
+    renderBell();
     fireEvent.click(screen.getByTestId("notification-bell"));
 
     await waitFor(() => {
@@ -94,7 +108,7 @@ describe("NotificationBell", () => {
       "notifications?": { events: [] },
     });
 
-    render(<NotificationBell />);
+    renderBell();
     fireEvent.click(screen.getByTestId("notification-bell"));
 
     await waitFor(() => {
@@ -122,7 +136,7 @@ describe("NotificationBell", () => {
       "evt_1/read": { updated: true },
     });
 
-    render(<NotificationBell />);
+    renderBell();
     fireEvent.click(screen.getByTestId("notification-bell"));
 
     await waitFor(() => {
@@ -145,7 +159,7 @@ describe("NotificationBell", () => {
       "notifications?": { events: [] },
     });
 
-    render(<NotificationBell />);
+    renderBell();
     fireEvent.click(screen.getByTestId("notification-bell"));
 
     await waitFor(() => {
@@ -157,5 +171,42 @@ describe("NotificationBell", () => {
     await waitFor(() => {
       expect(screen.queryByTestId("notification-dropdown")).not.toBeInTheDocument();
     });
+  });
+
+  it("polls unread-count every 30 seconds (SWR refreshInterval)", async () => {
+    let currentCount = 0;
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = typeof input === "string" ? input : (input as Request).url;
+      if (url.includes("unread-count")) {
+        return { ok: true, json: async () => ({ count: currentCount }) } as Response;
+      }
+      return { ok: false, status: 404, json: async () => ({}) } as Response;
+    });
+
+    renderBell();
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        expect.stringContaining("unread-count"),
+        expect.any(Object),
+      );
+    });
+    const initialCalls = fetchSpy.mock.calls.filter(([input]) =>
+      String(input).includes("unread-count"),
+    ).length;
+
+    currentCount = 7;
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30_000);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("unread-badge")).toHaveTextContent("7");
+    });
+
+    const laterCalls = fetchSpy.mock.calls.filter(([input]) =>
+      String(input).includes("unread-count"),
+    ).length;
+    expect(laterCalls).toBeGreaterThan(initialCalls);
   });
 });

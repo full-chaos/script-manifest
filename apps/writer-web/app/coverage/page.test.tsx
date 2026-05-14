@@ -1,159 +1,144 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { SWRConfig } from "swr";
-import type { ReactElement } from "react";
-import { fetcher } from "../lib/fetcher";
-import { ToastProvider } from "../components/toast";
+import { ApiError } from "../lib/fetcher";
+import { serverFetch } from "../lib/serverFetch";
+import { CoverageFilters } from "./filters";
 import CoverageMarketplacePage from "./page";
 
-function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { "content-type": "application/json" },
-  });
-}
+const { pushMock } = vi.hoisted(() => ({
+  pushMock: vi.fn(),
+}));
 
-function renderPage(ui: ReactElement = <CoverageMarketplacePage />) {
-  return render(
-    <SWRConfig
-      value={{
-        fetcher,
-        provider: () => new Map(),
-        dedupingInterval: 0,
-        shouldRetryOnError: false,
-      }}
-    >
-      <ToastProvider>{ui}</ToastProvider>
-    </SWRConfig>
-  );
-}
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: pushMock }),
+  useSearchParams: () => new URLSearchParams(),
+}));
 
-function makeServicesResponse(services: unknown[] = []) {
-  return jsonResponse({ services });
-}
+vi.mock("../lib/serverFetch", () => ({
+  serverFetch: vi.fn(),
+}));
 
-function makeProvidersResponse(providers: unknown[] = []) {
-  return jsonResponse({ providers });
+const serverFetchMock = vi.mocked(serverFetch);
+
+const service = {
+  id: "svc_01",
+  title: "Full Feature Coverage",
+  description: "Comprehensive notes on your feature.",
+  tier: "early_draft" as const,
+  priceCents: 14900,
+  turnaroundDays: 5,
+  maxPages: 120,
+  providerId: "prov_01",
+  createdAt: "2026-01-01T00:00:00.000Z",
+  active: true,
+};
+
+const provider = {
+  id: "prov_01",
+  displayName: "Script Experts",
+  bio: "Professional coverage since 2010",
+  createdAt: "2026-01-01T00:00:00.000Z",
+};
+
+async function renderPage(params: Record<string, string | string[] | undefined> = {}) {
+  const element = await CoverageMarketplacePage({ searchParams: Promise.resolve(params) });
+  return render(element);
 }
 
 describe("CoverageMarketplacePage", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    pushMock.mockClear();
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>(async () => new Response(null, { status: 204 })));
+    serverFetchMock
+      .mockResolvedValueOnce({ services: [] })
+      .mockResolvedValueOnce({ providers: [] });
   });
 
   afterEach(() => {
     cleanup();
+    vi.unstubAllGlobals();
   });
 
   it("renders hero section with heading and description", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn<typeof fetch>(async () => makeServicesResponse())
-    );
+    await renderPage();
 
-    renderPage();
-
-    expect(await screen.findByText("Professional script coverage")).toBeInTheDocument();
+    expect(screen.getByText("Professional script coverage")).toBeInTheDocument();
     expect(screen.getByText("Coverage Marketplace")).toBeInTheDocument();
   });
 
   it("renders filter controls for tier and price", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn<typeof fetch>(async () => makeServicesResponse())
-    );
-
-    renderPage();
-
-    await screen.findByText("Professional script coverage");
+    await renderPage();
 
     expect(screen.getByRole("combobox")).toBeInTheDocument();
     expect(screen.getByPlaceholderText("0")).toBeInTheDocument();
     expect(screen.getByPlaceholderText("500")).toBeInTheDocument();
   });
 
-  it("shows empty state when no services are found", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn<typeof fetch>(async (input) => {
-        const url = typeof input === "string" ? input : (input as Request).url;
-        if (url.includes("providers")) return makeProvidersResponse();
-        return makeServicesResponse([]);
-      })
-    );
+  it("sends URL filter values to serverFetch as coverage service cents", async () => {
+    await renderPage({ tier: "early_draft", minPrice: "10", maxPrice: "250" });
 
-    renderPage();
-
-    await waitFor(() => {
-      expect(screen.getByText("No services found")).toBeInTheDocument();
+    expect(serverFetchMock).toHaveBeenNthCalledWith(1, "/api/v1/coverage/services", {
+      searchParams: new URLSearchParams({ tier: "early_draft", minPrice: "1000", maxPrice: "25000" }),
     });
+    expect(serverFetchMock).toHaveBeenNthCalledWith(2, "/api/v1/coverage/providers");
+  });
+
+  it("shows empty state when no services are found", async () => {
+    await renderPage();
+
+    expect(screen.getByText("No services found")).toBeInTheDocument();
+    expect(screen.getByText("Try adjusting your filters or check back later.")).toBeInTheDocument();
   });
 
   it("renders provider service cards with title and pricing", async () => {
-    const service = {
-      id: "svc_01",
-      title: "Full Feature Coverage",
-      description: "Comprehensive notes on your feature.",
-      tier: "early_draft" as const,
-      priceCents: 14900,
-      turnaroundDays: 5,
-      maxPages: 120,
-      providerId: "prov_01",
-      createdAt: new Date().toISOString(),
-      active: true
-    };
+    serverFetchMock.mockReset();
+    serverFetchMock
+      .mockResolvedValueOnce({ services: [service] })
+      .mockResolvedValueOnce({ providers: [provider] });
 
-    const provider = {
-      id: "prov_01",
-      displayName: "Script Experts",
-      bio: "Professional coverage since 2010",
-      createdAt: new Date().toISOString()
-    };
+    await renderPage();
 
-    vi.stubGlobal(
-      "fetch",
-      vi.fn<typeof fetch>(async (input) => {
-        const url = typeof input === "string" ? input : (input as Request).url;
-        if (url.includes("providers")) return makeProvidersResponse([provider]);
-        return makeServicesResponse([service]);
-      })
-    );
-
-    renderPage();
-
-    expect(await screen.findByText("Full Feature Coverage")).toBeInTheDocument();
+    expect(screen.getByText("Full Feature Coverage")).toBeInTheDocument();
     expect(screen.getByText("$149.00")).toBeInTheDocument();
     expect(screen.getByText("5d turnaround")).toBeInTheDocument();
     expect(screen.getByText("Script Experts")).toBeInTheDocument();
   });
 
   it("shows 'Unknown Provider' when provider is not found for a service", async () => {
-    const service = {
-      id: "svc_02",
-      title: "Mystery Coverage",
-      description: null,
-      tier: "concept_notes" as const,
-      priceCents: 4900,
-      turnaroundDays: 3,
-      maxPages: 60,
-      providerId: "prov_unknown",
-      createdAt: new Date().toISOString(),
-      active: true
-    };
+    serverFetchMock.mockReset();
+    serverFetchMock
+      .mockResolvedValueOnce({ services: [{ ...service, id: "svc_02", providerId: "prov_unknown" }] })
+      .mockResolvedValueOnce({ providers: [] });
 
-    vi.stubGlobal(
-      "fetch",
-      vi.fn<typeof fetch>(async (input) => {
-        const url = typeof input === "string" ? input : (input as Request).url;
-        if (url.includes("providers")) return makeProvidersResponse([]);
-        return makeServicesResponse([service]);
-      })
+    await renderPage();
+
+    expect(screen.getByText("Unknown Provider")).toBeInTheDocument();
+  });
+
+  it("renders an inline ApiError state", async () => {
+    serverFetchMock.mockReset();
+    serverFetchMock.mockRejectedValueOnce(
+      new ApiError("Coverage service unavailable", { status: 503 })
     );
 
-    renderPage();
+    await renderPage();
 
-    await waitFor(() => {
-      expect(screen.getByText("Unknown Provider")).toBeInTheDocument();
-    });
+    expect(screen.getByText("Coverage service unavailable")).toBeInTheDocument();
+  });
+
+  it("pushes updated query strings from the filter form", () => {
+    render(<CoverageFilters tier="" minPrice="" maxPrice="" />);
+
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "concept_notes" } });
+    expect(pushMock).toHaveBeenLastCalledWith("/coverage?tier=concept_notes");
+
+    fireEvent.change(screen.getByPlaceholderText("0"), { target: { value: "25" } });
+    expect(pushMock).toHaveBeenLastCalledWith("/coverage?tier=concept_notes&minPrice=25");
+
+    fireEvent.change(screen.getByPlaceholderText("500"), { target: { value: "100" } });
+    expect(pushMock).toHaveBeenLastCalledWith(
+      "/coverage?tier=concept_notes&minPrice=25&maxPrice=100"
+    );
   });
 });

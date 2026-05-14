@@ -1,80 +1,94 @@
-"use client";
-
-import { useEffect, useRef, useState } from "react";
-import useSWR from "swr";
-import type { CoverageService, CoverageProvider, CoverageTier } from "@script-manifest/contracts";
+import type { CoverageProvider, CoverageService, CoverageTier } from "@script-manifest/contracts";
 import { EmptyState } from "../components/emptyState";
 import { EmptyIllustration } from "../components/illustrations";
-import { SkeletonCard } from "../components/skeleton";
-import { useToast } from "../components/toast";
-import { fetcher, ApiError } from "../lib/fetcher";
+import { ApiError } from "../lib/fetcher";
+import { serverFetch } from "../lib/serverFetch";
+import { CoverageFilters, OnboardingPing } from "./filters";
 
-function buildServicesKey(
-  tierFilter: CoverageTier | "",
-  minPrice: string,
-  maxPrice: string
-): string {
-  const params = new URLSearchParams();
-  if (tierFilter) params.set("tier", tierFilter);
-  if (minPrice) params.set("minPrice", String(Number(minPrice) * 100));
-  if (maxPrice) params.set("maxPrice", String(Number(maxPrice) * 100));
-  const qs = params.toString();
-  return qs ? `/api/v1/coverage/services?${qs}` : "/api/v1/coverage/services";
+type CoverageSearchParams = Promise<Record<string, string | string[] | undefined>>;
+
+type CoverageMarketplacePageProps = {
+  searchParams?: CoverageSearchParams;
+};
+
+type CoverageFiltersValue = {
+  tier: CoverageTier | "";
+  minPrice: string;
+  maxPrice: string;
+};
+
+const SERVICES_PATH = "/api/v1/coverage/services";
+const PROVIDERS_PATH = "/api/v1/coverage/providers";
+
+function firstParam(value: string | string[] | undefined): string {
+  if (Array.isArray(value)) {
+    return value[0] ?? "";
+  }
+  return value ?? "";
 }
 
-const PROVIDERS_KEY = "/api/v1/coverage/providers";
+function readFilters(params: Record<string, string | string[] | undefined>): CoverageFiltersValue {
+  return {
+    tier: firstParam(params.tier) as CoverageTier | "",
+    minPrice: firstParam(params.minPrice),
+    maxPrice: firstParam(params.maxPrice),
+  };
+}
 
-export default function CoverageMarketplacePage() {
-  const toast = useToast();
-  const [tierFilter, setTierFilter] = useState<CoverageTier | "">("");
-  const [minPrice, setMinPrice] = useState("");
-  const [maxPrice, setMaxPrice] = useState("");
+function buildServicesSearchParams(filters: CoverageFiltersValue): URLSearchParams {
+  const params = new URLSearchParams();
+  if (filters.tier) params.set("tier", filters.tier);
+  if (filters.minPrice) params.set("minPrice", String(Number(filters.minPrice) * 100));
+  if (filters.maxPrice) params.set("maxPrice", String(Number(filters.maxPrice) * 100));
+  return params;
+}
 
-  const { data: servicesData, isLoading } = useSWR<{ services: CoverageService[] }>(
-    buildServicesKey(tierFilter, minPrice, maxPrice),
-    fetcher,
-    {
-      onError(err: unknown) {
-        toast.error(err instanceof ApiError ? err.message : "Failed to load marketplace data.");
-      },
-    }
+function getProviderName(providers: CoverageProvider[], providerId: string): string {
+  const provider = providers.find((p) => p.id === providerId);
+  return provider?.displayName ?? "Unknown Provider";
+}
+
+function formatPrice(cents: number): string {
+  return `$${(cents / 100).toFixed(2)}`;
+}
+
+function formatTier(tier: CoverageTier): string {
+  return tier.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function ErrorState({ message }: { message: string }) {
+  return (
+    <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-700 dark:text-red-300">
+      {message}
+    </div>
   );
+}
 
-  const { data: providersData } = useSWR<{ providers: CoverageProvider[] }>(
-    PROVIDERS_KEY,
-    fetcher
-  );
+export default async function CoverageMarketplacePage({
+  searchParams,
+}: CoverageMarketplacePageProps = {}) {
+  const params = searchParams ? await searchParams : {};
+  const filters = readFilters(params);
+  let services: CoverageService[] = [];
+  let providers: CoverageProvider[] = [];
+  let errorMessage: string | null = null;
 
-  const onboardingMarked = useRef(false);
-  useEffect(() => {
-    if (!onboardingMarked.current) {
-      onboardingMarked.current = true;
-      void fetch("/api/v1/onboarding-progress", {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ coverageVisited: true }),
-      });
-    }
-  }, []);
-
-  const services = servicesData?.services ?? [];
-  const providers = providersData?.providers ?? [];
-
-  function getProviderName(providerId: string): string {
-    const provider = providers.find((p) => p.id === providerId);
-    return provider?.displayName ?? "Unknown Provider";
-  }
-
-  function formatPrice(cents: number): string {
-    return `$${(cents / 100).toFixed(2)}`;
-  }
-
-  function formatTier(tier: CoverageTier): string {
-    return tier.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  try {
+    const [servicesData, providersData] = await Promise.all([
+      serverFetch<{ services: CoverageService[] }>(SERVICES_PATH, {
+        searchParams: buildServicesSearchParams(filters),
+      }),
+      serverFetch<{ providers: CoverageProvider[] }>(PROVIDERS_PATH),
+    ]);
+    services = servicesData.services;
+    providers = providersData.providers;
+  } catch (err) {
+    errorMessage = err instanceof ApiError ? err.message : "Failed to load marketplace data.";
   }
 
   return (
     <section className="space-y-4">
+      <OnboardingPing />
       <article className="hero-card hero-card--violet animate-in">
         <p className="eyebrow">Coverage Marketplace</p>
         <h1 className="text-4xl text-foreground">Professional script coverage</h1>
@@ -84,58 +98,12 @@ export default function CoverageMarketplacePage() {
         </p>
       </article>
 
-      <article className="panel stack animate-in animate-in-delay-1">
-        <h2 className="section-title">Filter Services</h2>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <label className="stack-tight">
-            <span className="text-sm font-medium text-foreground">Tier</span>
-            <select
-              className="input"
-              value={tierFilter}
-              onChange={(e) => setTierFilter(e.target.value as CoverageTier | "")}
-            >
-              <option value="">All tiers</option>
-              <option value="concept_notes">Concept Notes</option>
-              <option value="early_draft">Early Draft</option>
-              <option value="polish_proofread">Polish Proofread</option>
-              <option value="competition_ready">Competition Ready</option>
-            </select>
-          </label>
-          <label className="stack-tight">
-            <span className="text-sm font-medium text-foreground">Min Price ($)</span>
-            <input
-              type="number"
-              className="input"
-              placeholder="0"
-              min={0}
-              step={1}
-              value={minPrice}
-              onChange={(e) => setMinPrice(e.target.value)}
-            />
-          </label>
-          <label className="stack-tight">
-            <span className="text-sm font-medium text-foreground">Max Price ($)</span>
-            <input
-              type="number"
-              className="input"
-              placeholder="500"
-              min={0}
-              step={1}
-              value={maxPrice}
-              onChange={(e) => setMaxPrice(e.target.value)}
-            />
-          </label>
-        </div>
-      </article>
+      <CoverageFilters tier={filters.tier} minPrice={filters.minPrice} maxPrice={filters.maxPrice} />
 
       <article className="panel stack animate-in animate-in-delay-2">
         <h2 className="section-title">Available Services</h2>
-        {isLoading ? (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <SkeletonCard />
-            <SkeletonCard />
-            <SkeletonCard />
-          </div>
+        {errorMessage ? (
+          <ErrorState message={errorMessage} />
         ) : services.length === 0 ? (
           <EmptyState
             illustration={<EmptyIllustration variant="search" className="h-14 w-14 text-foreground" />}
@@ -166,7 +134,7 @@ export default function CoverageMarketplacePage() {
                       href={`/coverage/providers/${encodeURIComponent(service.providerId)}`}
                       className="text-sm text-tide-700 dark:text-tide-500 hover:underline"
                     >
-                      {getProviderName(service.providerId)}
+                      {getProviderName(providers, service.providerId)}
                     </a>
                   </div>
                 </div>

@@ -12,7 +12,7 @@
     "lint": "eslint ."
   },
   "dependencies": {
-    "@linear/sdk": "^80.1.0",
+    "@linear/sdk": "^84.0.0",
     "@opentelemetry/auto-instrumentations-node": "^0.76.0",
     "@opentelemetry/exporter-metrics-otlp-grpc": "^0.216.0",
     "@opentelemetry/exporter-trace-otlp-grpc": "^0.216.0",

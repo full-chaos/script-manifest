@@ -1,222 +1,168 @@
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { SWRConfig } from "swr";
-import type { ReactElement } from "react";
+import { ApiError } from "../lib/fetcher";
+import { serverFetch } from "../lib/serverFetch";
 import LeaderboardPage from "./page";
 
-function jsonResponse(payload: unknown, status = 200): Response {
-  return new Response(JSON.stringify(payload), {
-    status,
-    headers: { "content-type": "application/json" }
-  });
+vi.mock("../lib/serverFetch", () => ({
+  serverFetch: vi.fn()
+}));
+
+const pushMock = vi.fn();
+const useSearchParamsMock = vi.fn(() => new URLSearchParams());
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: pushMock }),
+  useSearchParams: () => useSearchParamsMock()
+}));
+
+const serverFetchMock = vi.mocked(serverFetch);
+
+function leaderboardEntry(overrides: Record<string, unknown> = {}) {
+  return {
+    writerId: "writer_01",
+    rank: 1,
+    totalScore: 9,
+    submissionCount: 3,
+    placementCount: 2,
+    tier: "top_10",
+    badges: ["Finalist - Austin 2025"],
+    scoreChange30d: 2.5,
+    lastUpdatedAt: "2026-02-06T00:00:00.000Z",
+    ...overrides
+  };
 }
 
-function renderWithSWR(ui: ReactElement) {
-  return render(
-    <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0, shouldRetryOnError: false }}>
-      {ui}
-    </SWRConfig>
-  );
+async function renderPage(searchParams: Record<string, string | string[] | undefined> = {}) {
+  const element = await LeaderboardPage({ searchParams: Promise.resolve(searchParams) });
+  return render(element);
 }
 
 describe("LeaderboardPage", () => {
   beforeEach(() => {
-    vi.restoreAllMocks();
+    serverFetchMock.mockReset();
+    pushMock.mockReset();
+    useSearchParamsMock.mockReset();
+    useSearchParamsMock.mockReturnValue(new URLSearchParams());
   });
 
   afterEach(() => {
     cleanup();
   });
 
-
-  it("loads leaderboard rows and applies filters", async () => {
-    const fetchMock = vi.fn<typeof fetch>(async (input) => {
-      const url = typeof input === "string" ? input : input.toString();
-      if (url.includes("format=feature") && url.includes("genre=drama")) {
-        return jsonResponse({
-          leaderboard: [
-            {
-              writerId: "writer_01",
-              rank: 1,
-              totalScore: 9,
-              submissionCount: 3,
-              placementCount: 2,
-              tier: "top_10",
-              badges: ["Finalist - Austin 2025"],
-              scoreChange30d: 2.5,
-              lastUpdatedAt: "2026-02-06T00:00:00.000Z"
-            }
-          ],
-          total: 1
-        });
-      }
-      return jsonResponse({ leaderboard: [], total: 0 });
+  it("renders leaderboard rows from serverFetch", async () => {
+    serverFetchMock.mockResolvedValue({
+      leaderboard: [leaderboardEntry()],
+      total: 1
     });
-    vi.stubGlobal("fetch", fetchMock);
 
-    renderWithSWR(<LeaderboardPage />);
-    const user = userEvent.setup();
+    await renderPage({ format: "feature", genre: "drama" });
 
-    // Wait for initial fetch to settle (button leaves "Refreshing..." state)
-    await screen.findByRole("button", { name: "Refresh leaderboard" });
-
-    await user.type(screen.getByLabelText("Format filter"), "feature");
-    await user.type(screen.getByLabelText("Genre filter"), "drama");
-    await user.click(screen.getByRole("button", { name: "Refresh leaderboard" }));
-
-    await screen.findAllByText("writer_01");
+    expect(serverFetchMock).toHaveBeenCalledWith("/api/v1/leaderboard", {
+      searchParams: { format: "feature", genre: "drama" }
+    });
+    expect(screen.getByText("writer_01")).toBeInTheDocument();
     expect(screen.getByText("9.0")).toBeInTheDocument();
     expect(screen.getByText("3 submitted")).toBeInTheDocument();
     expect(screen.getByText("2 placed")).toBeInTheDocument();
   });
 
-  it("renders tier badges", async () => {
-    const fetchMock = vi.fn<typeof fetch>(async () => {
-      return jsonResponse({
-        leaderboard: [
-          {
-            writerId: "writer_01",
-            rank: 1,
-            totalScore: 50,
-            submissionCount: 5,
-            placementCount: 3,
-            tier: "top_1",
-            badges: [],
-            scoreChange30d: 0,
-            lastUpdatedAt: "2026-02-06T00:00:00.000Z"
-          }
-        ],
-        total: 1
-      });
+  it("renders writer and score content in SSR HTML", async () => {
+    serverFetchMock.mockResolvedValue({
+      leaderboard: [leaderboardEntry({ writerId: "writer_server", totalScore: 42 })],
+      total: 1
     });
-    vi.stubGlobal("fetch", fetchMock);
 
-    renderWithSWR(<LeaderboardPage />);
-    await screen.findAllByText("writer_01");
-    // Tier badge is a span with the tier class, distinct from the <option> elements
+    const { container } = await renderPage();
+
+    expect(container.innerHTML).toContain("writer_server");
+    expect(container.innerHTML).toContain("42.0");
+  });
+
+  it("renders tier badges", async () => {
+    serverFetchMock.mockResolvedValue({
+      leaderboard: [leaderboardEntry({ totalScore: 50, submissionCount: 5, placementCount: 3, tier: "top_1", badges: [], scoreChange30d: 0 })],
+      total: 1
+    });
+
+    await renderPage();
+
     const tierBadges = screen.getAllByText("Top 1%");
     const badgeSpan = tierBadges.find((el) => el.tagName === "SPAN" && el.className.includes("rounded-full"));
     expect(badgeSpan).toBeTruthy();
   });
 
   it("renders badge chips", async () => {
-    const fetchMock = vi.fn<typeof fetch>(async () => {
-      return jsonResponse({
-        leaderboard: [
-          {
-            writerId: "writer_01",
-            rank: 1,
-            totalScore: 20,
-            submissionCount: 2,
-            placementCount: 1,
-            tier: null,
-            badges: ["Winner - Sundance 2026"],
-            scoreChange30d: 0,
-            lastUpdatedAt: "2026-02-06T00:00:00.000Z"
-          }
-        ],
-        total: 1
-      });
+    serverFetchMock.mockResolvedValue({
+      leaderboard: [leaderboardEntry({ totalScore: 20, submissionCount: 2, placementCount: 1, tier: null, badges: ["Winner - Sundance 2026"], scoreChange30d: 0 })],
+      total: 1
     });
-    vi.stubGlobal("fetch", fetchMock);
 
-    renderWithSWR(<LeaderboardPage />);
-    await screen.findAllByText("writer_01");
+    await renderPage();
+
     expect(screen.getByText("Winner - Sundance 2026")).toBeInTheDocument();
   });
 
   it("renders trending indicators", async () => {
-    const fetchMock = vi.fn<typeof fetch>(async () => {
-      return jsonResponse({
-        leaderboard: [
-          {
-            writerId: "writer_01",
-            rank: 1,
-            totalScore: 30,
-            submissionCount: 4,
-            placementCount: 2,
-            tier: "top_10",
-            badges: [],
-            scoreChange30d: 5.5,
-            lastUpdatedAt: "2026-02-06T00:00:00.000Z"
-          }
-        ],
-        total: 1
-      });
+    serverFetchMock.mockResolvedValue({
+      leaderboard: [leaderboardEntry({ totalScore: 30, submissionCount: 4, placementCount: 2, scoreChange30d: 5.5 })],
+      total: 1
     });
-    vi.stubGlobal("fetch", fetchMock);
 
-    renderWithSWR(<LeaderboardPage />);
-    await screen.findAllByText("writer_01");
+    await renderPage();
+
     expect(screen.getByText(/5\.5/)).toBeInTheDocument();
   });
 
-  it("initial load renders empty state when no writers", async () => {
-    const fetchMock = vi.fn<typeof fetch>(async () => {
-      return jsonResponse({ leaderboard: [], total: 0 });
-    });
-    vi.stubGlobal("fetch", fetchMock);
+  it("renders empty state when no writers", async () => {
+    serverFetchMock.mockResolvedValue({ leaderboard: [], total: 0 });
 
-    renderWithSWR(<LeaderboardPage />);
+    await renderPage();
 
-    await screen.findByText("The spotlight is waiting");
+    expect(screen.getByText("The spotlight is waiting")).toBeInTheDocument();
     expect(screen.getByText("0 total")).toBeInTheDocument();
   });
 
-  it("changing a filter triggers a new fetch with updated URL", async () => {
-    const fetchMock = vi.fn<typeof fetch>(async (input) => {
-      const url = typeof input === "string" ? input : input.toString();
-      if (url.includes("format=feature")) {
-        return jsonResponse({
-          leaderboard: [
-            {
-              writerId: "writer_feature",
-              rank: 1,
-              totalScore: 15,
-              submissionCount: 5,
-              placementCount: 3,
-              tier: "top_10",
-              badges: [],
-              scoreChange30d: 0,
-              lastUpdatedAt: "2026-02-06T00:00:00.000Z"
-            }
-          ],
-          total: 1
-        });
-      }
-      return jsonResponse({ leaderboard: [], total: 0 });
-    });
-    vi.stubGlobal("fetch", fetchMock);
+  it("renders ApiError messages inline", async () => {
+    serverFetchMock.mockRejectedValue(new ApiError("Forbidden access", { status: 403 }));
 
-    renderWithSWR(<LeaderboardPage />);
-    const user = userEvent.setup();
+    await renderPage();
 
-    // Wait for initial fetch to complete
-    await screen.findByRole("button", { name: "Refresh leaderboard" });
-
-    // Change format filter — SWR auto-refetches because the cache key changes
-    await user.type(screen.getByLabelText("Format filter"), "feature");
-
-    // Wait for writer to appear (confirms the new-key fetch completed)
-    await screen.findByText("writer_feature");
-
-    // Verify a fetch was made with format=feature in the URL
-    const formatCalls = fetchMock.mock.calls.filter((args) => {
-      const url = typeof args[0] === "string" ? args[0] : String(args[0]);
-      return url.includes("format=feature");
-    });
-    expect(formatCalls.length).toBeGreaterThan(0);
+    expect(screen.getByText("Forbidden access")).toBeInTheDocument();
   });
 
-  it("ApiError 4xx renders error message", async () => {
-    const fetchMock = vi.fn<typeof fetch>(async () => {
-      return jsonResponse({ message: "Forbidden access" }, 403);
+  it("filter form pushes query string changes", async () => {
+    serverFetchMock.mockResolvedValue({ leaderboard: [], total: 0 });
+    useSearchParamsMock.mockReturnValue(new URLSearchParams("format=feature&genre=drama&tier=top_10&trending=true"));
+
+    await renderPage({ format: "feature", genre: "drama", tier: "top_10", trending: "true" });
+
+    expect(screen.getByLabelText("Format filter")).toHaveValue("feature");
+    expect(screen.getByLabelText("Genre filter")).toHaveValue("drama");
+    expect(screen.getByLabelText("Tier")).toHaveValue("top_10");
+    expect(screen.getByLabelText("Trending")).toBeChecked();
+
+    const user = userEvent.setup();
+    await user.clear(screen.getByLabelText("Format filter"));
+    await user.type(screen.getByLabelText("Format filter"), "short");
+    await user.selectOptions(screen.getByLabelText("Tier"), "top_25");
+    await user.click(screen.getByLabelText("Trending"));
+    await user.click(screen.getByRole("button", { name: "Refresh leaderboard" }));
+
+    await waitFor(() => {
+      expect(pushMock).toHaveBeenLastCalledWith("/leaderboard?format=short&genre=drama&tier=top_25");
     });
-    vi.stubGlobal("fetch", fetchMock);
+  });
 
-    renderWithSWR(<LeaderboardPage />);
+  it("reset clears filters", async () => {
+    serverFetchMock.mockResolvedValue({ leaderboard: [], total: 0 });
+    useSearchParamsMock.mockReturnValue(new URLSearchParams("format=feature"));
 
-    await screen.findByText("Forbidden access");
+    await renderPage({ format: "feature" });
+
+    await userEvent.setup().click(screen.getByRole("button", { name: "Reset" }));
+
+    expect(pushMock).toHaveBeenCalledWith("/leaderboard");
   });
 });

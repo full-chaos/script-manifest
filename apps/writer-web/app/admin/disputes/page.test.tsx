@@ -96,6 +96,7 @@ describe("AdminDisputesPage", () => {
     // Click the card-level button to open modal (type=button)
     const openBtns = screen.getAllByRole("button", { name: /resolve dispute/i });
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    await user.click(openBtns[0]!);
 
     // Fill required admin notes
     const notesField = screen.getByPlaceholderText(/explanation/i);

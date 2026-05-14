@@ -2,15 +2,43 @@
 
 import { useState, type FormEvent, useEffect } from "react";
 import Link from "next/link";
+import useSWRMutation from "swr/mutation";
 import { PasswordStrengthMeter } from "../components/PasswordStrengthMeter";
+import { fetcher, ApiError } from "../lib/fetcher";
+
+type ResetPasswordArg = { token: string; password: string };
+
+async function postResetPassword(
+  url: string,
+  { arg }: { arg: ResetPasswordArg }
+): Promise<void> {
+  await fetcher<void>(url, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(arg),
+  });
+}
+
+function extractBodyError(err: unknown): string | null {
+  if (!(err instanceof ApiError)) return null;
+  const b = err.body;
+  if (
+    b !== null &&
+    typeof b === "object" &&
+    "error" in b &&
+    typeof (b as Record<string, unknown>)["error"] === "string"
+  ) {
+    return (b as Record<string, unknown>)["error"] as string;
+  }
+  return null;
+}
 
 export default function ResetPasswordPage() {
   const [token, setToken] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState(false);
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -19,6 +47,27 @@ export default function ResetPasswordPage() {
       if (t) setToken(t);
     });
   }, []);
+
+  const { trigger, isMutating: submitting } = useSWRMutation(
+    "/api/v1/auth/reset-password",
+    postResetPassword,
+    {
+      throwOnError: false,
+      onSuccess() {
+        setSuccess(true);
+      },
+      onError(err: unknown) {
+        const code = extractBodyError(err);
+        if (code === "invalid_or_expired_token") {
+          setError("This reset link has expired or already been used. Please request a new one.");
+        } else if (err instanceof ApiError) {
+          setError(code ?? "Something went wrong.");
+        } else {
+          setError("Network error. Please try again.");
+        }
+      },
+    }
+  );
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -34,31 +83,7 @@ export default function ResetPasswordPage() {
       return;
     }
 
-    setSubmitting(true);
-
-    try {
-      const res = await fetch("/api/v1/auth/reset-password", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ token, password }),
-      });
-
-      if (!res.ok) {
-        const body = await res.json();
-        if (body.error === "invalid_or_expired_token") {
-          setError("This reset link has expired or already been used. Please request a new one.");
-        } else {
-          setError(body.error ?? "Something went wrong.");
-        }
-        return;
-      }
-
-      setSuccess(true);
-    } catch {
-      setError("Network error. Please try again.");
-    } finally {
-      setSubmitting(false);
-    }
+    await trigger({ token, password });
   }
 
   if (!token && !success) {

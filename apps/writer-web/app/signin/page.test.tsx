@@ -1,7 +1,10 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { SWRConfig } from "swr";
+import type { ReactElement } from "react";
 import { mockRefreshAuth, mockUseAuth } from "../../vitest.setup";
+import { fetcher } from "../lib/fetcher";
 import SignInPage from "./page";
 
 const mockReplace = vi.fn();
@@ -16,13 +19,31 @@ function jsonResponse(payload: unknown, status = 200): Response {
   });
 }
 
+function renderWithSWR(ui: ReactElement) {
+  return render(
+    <SWRConfig
+      value={{
+        fetcher,
+        provider: () => new Map(),
+        dedupingInterval: 0,
+        shouldRetryOnError: false,
+      }}
+    >
+      {ui}
+    </SWRConfig>
+  );
+}
+
 describe("SignInPage", () => {
   beforeEach(() => {
-    cleanup();
     mockUseAuth.mockReturnValue({ user: null, loading: false });
     mockRefreshAuth.mockReset();
     mockReplace.mockClear();
     vi.restoreAllMocks();
+  });
+
+  afterEach(() => {
+    cleanup();
   });
 
   it("registers a user and refreshes auth context", async () => {
@@ -42,7 +63,7 @@ describe("SignInPage", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<SignInPage />);
+    renderWithSWR(<SignInPage />);
     const user = userEvent.setup();
 
     await user.click(screen.getByRole("button", { name: "Create account" }));
@@ -70,7 +91,7 @@ describe("SignInPage", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<SignInPage />);
+    renderWithSWR(<SignInPage />);
     const user = userEvent.setup();
 
     await user.type(screen.getByLabelText("Email"), "writer@example.com");
@@ -118,7 +139,7 @@ describe("SignInPage", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<SignInPage />);
+    renderWithSWR(<SignInPage />);
     const user = userEvent.setup();
 
     await user.click(screen.getByRole("button", { name: "Continue with Google" }));
@@ -135,11 +156,14 @@ describe("SignInPage", () => {
 
 describe("SignInPage lockout hints", () => {
   beforeEach(() => {
-    cleanup();
     mockUseAuth.mockReturnValue({ user: null, loading: false });
     mockRefreshAuth.mockReset();
     mockReplace.mockClear();
     vi.restoreAllMocks();
+  });
+
+  afterEach(() => {
+    cleanup();
   });
 
   async function submitLoginForm(

@@ -2,12 +2,43 @@
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import useSWRMutation from "swr/mutation";
 import { refreshAuth, useAuth } from "../lib/AuthProvider";
 import { formatUserLabel } from "../lib/authSession";
 import { SignInIllustration } from "../components/illustrations";
 import { PasswordStrengthMeter } from "../components/PasswordStrengthMeter";
+import { fetcher, ApiError } from "../lib/fetcher";
 
 type AuthMode = "register" | "login";
+
+type LoginArg = { email: string; password: string };
+type RegisterArg = { email: string; password: string; displayName: string; acceptTerms: boolean };
+type AuthArg = LoginArg | RegisterArg;
+
+async function postAuth(
+  url: string,
+  { arg }: { arg: AuthArg }
+): Promise<unknown> {
+  return fetcher(url, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(arg),
+  });
+}
+
+function extractBodyError(err: unknown): string | null {
+  if (!(err instanceof ApiError)) return null;
+  const b = err.body;
+  if (
+    b !== null &&
+    typeof b === "object" &&
+    "error" in b &&
+    typeof (b as Record<string, unknown>)["error"] === "string"
+  ) {
+    return (b as Record<string, unknown>)["error"] as string;
+  }
+  return null;
+}
 
 export default function SignInPage() {
   const router = useRouter();
@@ -18,7 +49,6 @@ export default function SignInPage() {
   const [displayName, setDisplayName] = useState("");
   const [status, setStatus] = useState<string>("");
   const [failureCount, setFailureCount] = useState(0);
-  const [submitting, setSubmitting] = useState(false);
   const [oauthSubmitting, setOauthSubmitting] = useState(false);
   const [acceptTerms, setAcceptTerms] = useState(false);
 
@@ -62,44 +92,44 @@ export default function SignInPage() {
 
   const modeLabel = useMemo(() => (mode === "register" ? "Create account" : "Sign in"), [mode]);
 
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setStatus("");
-    setSubmitting(true);
+  const authKey = mode === "register" ? "/api/v1/auth/register" : "/api/v1/auth/login";
 
-    try {
-      const payload =
-        mode === "register"
-          ? { email, password, displayName, acceptTerms }
-          : {
-              email,
-              password
-            };
-      const response = await fetch(
-        mode === "register" ? "/api/v1/auth/register" : "/api/v1/auth/login",
-        {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify(payload)
+  const { trigger: triggerAuth, isMutating: submitting } = useSWRMutation(
+    authKey,
+    postAuth,
+    {
+      throwOnError: false,
+      onSuccess() {
+        refreshAuth();
+        setPassword("");
+        router.replace(mode === "register" ? "/verify-email" : "/");
+      },
+      onError(err: unknown) {
+        const bodyError = extractBodyError(err);
+        if (bodyError !== null) {
+          setStatus(`Error: ${bodyError}`);
+        } else if (err instanceof Error) {
+          setStatus(err.message);
+        } else {
+          setStatus("unknown_error");
         }
-      );
-      const body = await response.json();
-      if (!response.ok) {
-        setStatus(body.error ? `Error: ${body.error}` : "Unable to authenticate.");
         if (mode === "login") {
           setFailureCount((c) => c + 1);
         }
-        return;
-      }
-
-      refreshAuth();
-      setPassword("");
-      router.replace(mode === "register" ? "/verify-email" : "/");
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : "unknown_error");
-    } finally {
-      setSubmitting(false);
+      },
     }
+  );
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setStatus("");
+
+    const arg: AuthArg =
+      mode === "register"
+        ? { email, password, displayName, acceptTerms }
+        : { email, password };
+
+    await triggerAuth(arg);
   }
 
   async function signOut() {

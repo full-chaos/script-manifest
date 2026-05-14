@@ -1,7 +1,10 @@
 "use client";
 
-import { useState, useCallback, useEffect, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
+import useSWR from "swr";
+import useSWRMutation from "swr/mutation";
 import { useAuth } from "../../lib/AuthProvider";
+import { fetcher, ApiError } from "../../lib/fetcher";
 
 type MfaState =
   | { step: "loading" }
@@ -12,6 +15,42 @@ type MfaState =
   | { step: "backup-codes"; codes: string[] }
   | { step: "confirm-disable" };
 
+type MfaStatusResponse = { mfaEnabled: boolean };
+type MfaSetupResponse = { secret: string; otpauthUrl: string };
+type MfaVerifyResponse = { backupCodes: string[] };
+
+function extractBodyError(err: unknown): string | null {
+  if (!(err instanceof ApiError)) return null;
+  const b = err.body;
+  if (
+    b !== null &&
+    typeof b === "object" &&
+    "error" in b &&
+    typeof (b as Record<string, unknown>)["error"] === "string"
+  ) {
+    return (b as Record<string, unknown>)["error"] as string;
+  }
+  return null;
+}
+
+async function postMfa<T>(url: string): Promise<T> {
+  return fetcher<T>(url, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+  });
+}
+
+async function postMfaWithBody<T, A>(
+  url: string,
+  { arg }: { arg: A }
+): Promise<T> {
+  return fetcher<T>(url, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(arg),
+  });
+}
+
 export default function SecuritySettingsPage() {
   const { user, loading: authLoading } = useAuth();
   const [mfaState, setMfaState] = useState<MfaState>({ step: "loading" });
@@ -19,35 +58,87 @@ export default function SecuritySettingsPage() {
   const [password, setPassword] = useState("");
   const [disableCode, setDisableCode] = useState("");
   const [error, setError] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [loaded, setLoaded] = useState(false);
 
-  // Load MFA status on first render
-  const loadStatus = useCallback(async () => {
-    if (!user) return;
-    try {
-      const res = await fetch("/api/v1/auth/mfa/status", {
-        credentials: "include"
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setMfaState(data.mfaEnabled ? { step: "enabled" } : { step: "disabled" });
-      } else {
-        setMfaState({ step: "disabled" });
-      }
-    } catch {
+  // Auth-paused key: null while auth resolves or no user
+  const mfaKey = authLoading || !user ? null : "/api/v1/auth/mfa/status";
+
+  useSWR<MfaStatusResponse>(mfaKey, fetcher, {
+    onSuccess(d) {
+      setMfaState(d.mfaEnabled ? { step: "enabled" } : { step: "disabled" });
+    },
+    onError() {
       setError("Failed to load MFA status.");
       setMfaState({ step: "disabled" });
-    } finally {
-      setLoaded(true);
-    }
-  }, [user]);
+    },
+  });
 
-  useEffect(() => {
-    if (!loaded && user) {
-      queueMicrotask(() => { void loadStatus(); });
+  const { trigger: triggerSetup, isMutating: settingUp } = useSWRMutation<
+    MfaSetupResponse
+  >(
+    "/api/v1/auth/mfa/setup",
+    postMfa,
+    {
+      throwOnError: false,
+      onSuccess(data) {
+        setMfaState({ step: "setup", secret: data.secret, otpauthUrl: data.otpauthUrl });
+      },
+      onError(err: unknown) {
+        const code = extractBodyError(err);
+        setError(code === "mfa_already_enabled" ? "MFA is already enabled." : (code ?? "Setup failed."));
+      },
     }
-  }, [loadStatus, loaded, user]);
+  );
+
+  const { trigger: triggerVerify, isMutating: verifying } = useSWRMutation<
+    MfaVerifyResponse,
+    unknown,
+    string,
+    { code: string }
+  >(
+    "/api/v1/auth/mfa/verify-setup",
+    postMfaWithBody,
+    {
+      throwOnError: false,
+      onSuccess(data) {
+        setTotpCode("");
+        setMfaState({ step: "backup-codes", codes: data.backupCodes });
+      },
+      onError(err: unknown) {
+        const code = extractBodyError(err);
+        setError(code === "invalid_totp_code" ? "Invalid code. Please try again." : (code ?? "Verification failed."));
+      },
+    }
+  );
+
+  const { trigger: triggerDisable, isMutating: disabling } = useSWRMutation<
+    void,
+    unknown,
+    string,
+    { password: string; code: string }
+  >(
+    "/api/v1/auth/mfa/disable",
+    postMfaWithBody,
+    {
+      throwOnError: false,
+      onSuccess() {
+        setPassword("");
+        setDisableCode("");
+        setMfaState({ step: "disabled" });
+      },
+      onError(err: unknown) {
+        const code = extractBodyError(err);
+        if (code === "invalid_password") {
+          setError("Incorrect password.");
+        } else if (code === "invalid_totp_code") {
+          setError("Invalid authentication code.");
+        } else {
+          setError(code ?? "Failed to disable MFA.");
+        }
+      },
+    }
+  );
+
+  const submitting = settingUp || verifying || disabling;
 
   if (!authLoading && !user) {
     return (
@@ -67,83 +158,19 @@ export default function SecuritySettingsPage() {
 
   async function handleStartSetup() {
     setError("");
-    setSubmitting(true);
-    try {
-      const res = await fetch("/api/v1/auth/mfa/setup", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        credentials: "include"
-      });
-      if (!res.ok) {
-        const body = await res.json();
-        setError(body.error === "mfa_already_enabled" ? "MFA is already enabled." : (body.error ?? "Setup failed."));
-        return;
-      }
-      const data = await res.json();
-      setMfaState({ step: "setup", secret: data.secret, otpauthUrl: data.otpauthUrl });
-    } catch {
-      setError("Network error. Please try again.");
-    } finally {
-      setSubmitting(false);
-    }
+    await triggerSetup();
   }
 
   async function handleVerifySetup(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError("");
-    setSubmitting(true);
-    try {
-      const res = await fetch("/api/v1/auth/mfa/verify-setup", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ code: totpCode })
-      });
-      if (!res.ok) {
-        const body = await res.json();
-        setError(body.error === "invalid_totp_code" ? "Invalid code. Please try again." : (body.error ?? "Verification failed."));
-        return;
-      }
-      const data = await res.json();
-      setTotpCode("");
-      setMfaState({ step: "backup-codes", codes: data.backupCodes });
-    } catch {
-      setError("Network error. Please try again.");
-    } finally {
-      setSubmitting(false);
-    }
+    await triggerVerify({ code: totpCode });
   }
 
   async function handleDisable(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError("");
-    setSubmitting(true);
-    try {
-      const res = await fetch("/api/v1/auth/mfa/disable", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ password, code: disableCode })
-      });
-      if (!res.ok) {
-        const body = await res.json();
-        if (body.error === "invalid_password") {
-          setError("Incorrect password.");
-        } else if (body.error === "invalid_totp_code") {
-          setError("Invalid authentication code.");
-        } else {
-          setError(body.error ?? "Failed to disable MFA.");
-        }
-        return;
-      }
-      setPassword("");
-      setDisableCode("");
-      setMfaState({ step: "disabled" });
-    } catch {
-      setError("Network error. Please try again.");
-    } finally {
-      setSubmitting(false);
-    }
+    await triggerDisable({ password, code: disableCode });
   }
 
   function handleCopyBackupCodes(codes: string[]) {
@@ -186,7 +213,7 @@ export default function SecuritySettingsPage() {
             onClick={handleStartSetup}
             disabled={submitting}
           >
-            {submitting ? "Starting setup..." : "Enable Two-Factor Authentication"}
+            {settingUp ? "Starting setup..." : "Enable Two-Factor Authentication"}
           </button>
         )}
 
@@ -242,7 +269,7 @@ export default function SecuritySettingsPage() {
                 className="btn btn-primary w-full justify-center"
                 disabled={submitting || totpCode.length !== 6}
               >
-                {submitting ? "Verifying..." : "Verify and Enable"}
+                {verifying ? "Verifying..." : "Verify and Enable"}
               </button>
               <button
                 type="button"
@@ -312,10 +339,10 @@ export default function SecuritySettingsPage() {
             </div>
             <button
               type="button"
-              className="btn border border-red-500 text-red-600 hover:bg-red-50 w-full justify-center"
+              className="btn btn-secondary w-full justify-center"
               onClick={() => { setMfaState({ step: "confirm-disable" }); setError(""); }}
             >
-              Disable Two-Factor Authentication
+              Disable 2FA
             </button>
           </div>
         )}
@@ -323,9 +350,8 @@ export default function SecuritySettingsPage() {
         {/* Confirm disable */}
         {mfaState.step === "confirm-disable" && (
           <form className="stack" onSubmit={handleDisable}>
-            <p className="text-sm text-red-600 font-medium">
-              To disable two-factor authentication, enter your password and a code from your
-              authenticator app.
+            <p className="text-sm text-foreground-secondary">
+              Enter your password and current authenticator code to disable 2FA.
             </p>
 
             <label className="stack-tight">
@@ -368,7 +394,7 @@ export default function SecuritySettingsPage() {
                 className="btn bg-red-600 text-white hover:bg-red-700 flex-1"
                 disabled={submitting || !password || disableCode.length !== 6}
               >
-                {submitting ? "Disabling..." : "Disable 2FA"}
+                {disabling ? "Disabling..." : "Disable 2FA"}
               </button>
             </div>
           </form>

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import type { Route } from "next";
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import type {
   Project,
   ProjectCoWriter,
@@ -11,11 +11,14 @@ import type {
   ScriptAccessRequest,
   ScriptRegisterResponse
 } from "@script-manifest/contracts";
+import useSWR from "swr";
+import useSWRMutation from "swr/mutation";
 import { EmptyState } from "../components/emptyState";
 import { Modal } from "../components/modal";
 import { SkeletonCard } from "../components/skeleton";
 import { useToast } from "../components/toast";
 import { useAuth } from "../lib/AuthProvider";
+import { fetcher, ApiError } from "../lib/fetcher";
 import { type ScriptUploadProxyResponse, uploadScriptViaProxy } from "../lib/scriptUpload";
 
 type ProjectForm = {
@@ -80,13 +83,9 @@ function getScriptContentType(file: File): string {
 export default function ProjectsPage() {
   const toast = useToast();
   const { user, loading: authLoading } = useAuth();
-  const [ownerUserId, setOwnerUserId] = useState("");
-  const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState("");
-  const [coWriters, setCoWriters] = useState<ProjectCoWriter[]>([]);
-  const [drafts, setDrafts] = useState<ProjectDraft[]>([]);
   const [selectedScriptId, setSelectedScriptId] = useState("");
-  const [accessRequests, setAccessRequests] = useState<ScriptAccessRequest[]>([]);
+  const [mutating, setMutating] = useState(false);
 
   const [projectForm, setProjectForm] = useState<ProjectForm>(initialProjectForm);
   const [coWriterUserId, setCoWriterUserId] = useState("");
@@ -102,213 +101,128 @@ export default function ProjectsPage() {
   const [draftModalOpen, setDraftModalOpen] = useState(false);
   const [accessRequestModalOpen, setAccessRequestModalOpen] = useState(false);
 
-  const [loading, setLoading] = useState(false);
-  const [initialLoading, setInitialLoading] = useState(true);
-  const [contextLoading, setContextLoading] = useState(false);
-  const [status, setStatus] = useState("");
   const [requesterUserId, setRequesterUserId] = useState("");
   const [accessRequestReason, setAccessRequestReason] = useState("");
   const [decisionReason, setDecisionReason] = useState("");
 
+  // Auth-paused key: null while auth is resolving or no user — SWR will not fetch.
+  const ownerUserId = user?.id ?? "";
+  const authPausedBase = authLoading || !ownerUserId ? null : ownerUserId;
+
+  const projectsKey = authPausedBase
+    ? `/api/v1/projects?ownerUserId=${encodeURIComponent(ownerUserId)}`
+    : null;
+  const coWritersKey = selectedProjectId
+    ? `/api/v1/projects/${encodeURIComponent(selectedProjectId)}/co-writers`
+    : null;
+  const draftsKey = selectedProjectId
+    ? `/api/v1/projects/${encodeURIComponent(selectedProjectId)}/drafts`
+    : null;
+  const accessRequestsKey =
+    selectedScriptId && ownerUserId
+      ? `/api/v1/scripts/${encodeURIComponent(selectedScriptId)}/access-requests?ownerUserId=${encodeURIComponent(ownerUserId)}`
+      : null;
+
+  const {
+    data: projectsData,
+    isLoading: projectsLoading,
+    mutate: mutateProjects,
+  } = useSWR<{ projects: Project[] }>(projectsKey, {
+    onSuccess(data) {
+      const rows = data.projects;
+      setSelectedProjectId((cur) => {
+        const stillSelected = rows.some((p) => p.id === cur);
+        return stillSelected ? cur : (rows[0]?.id ?? "");
+      });
+    },
+    onError(err: unknown) {
+      toast.error(err instanceof ApiError ? err.message : "Failed to load projects.");
+    },
+  });
+
+  const {
+    data: coWritersData,
+    isLoading: coWritersLoading,
+    mutate: mutateCoWriters,
+  } = useSWR<{ coWriters: ProjectCoWriter[] }>(coWritersKey, {
+    onError(err: unknown) {
+      toast.error(err instanceof ApiError ? err.message : "Failed to load co-writers.");
+    },
+  });
+
+  const {
+    data: draftsData,
+    isLoading: draftsLoading,
+    mutate: mutateDrafts,
+  } = useSWR<{ drafts: ProjectDraft[] }>(draftsKey, {
+    onSuccess(data) {
+      const nextDrafts = data.drafts;
+      const primary = nextDrafts.find((d) => d.isPrimary && d.lifecycleState === "active");
+      const fallback = nextDrafts.find((d) => d.lifecycleState === "active") ?? nextDrafts[0];
+      const scriptId = primary?.scriptId ?? fallback?.scriptId ?? "";
+      setSelectedScriptId(scriptId);
+    },
+    onError(err: unknown) {
+      toast.error(err instanceof ApiError ? err.message : "Failed to load drafts.");
+    },
+  });
+
+  const {
+    data: accessRequestsData,
+    isLoading: accessRequestsLoading,
+    mutate: mutateAccessRequests,
+  } = useSWR<{ accessRequests: ScriptAccessRequest[] }>(accessRequestsKey, {
+    onError(err: unknown) {
+      toast.error(err instanceof ApiError ? err.message : "Failed to load access requests.");
+    },
+  });
+
+  const projects = projectsData?.projects ?? [];
+  const coWriters = coWritersData?.coWriters ?? [];
+  const drafts = draftsData?.drafts ?? [];
+  const accessRequests = accessRequestsData?.accessRequests ?? [];
   const selectedProject = projects.find((project) => project.id === selectedProjectId) ?? null;
+  const isInitialLoading = projectsLoading && !!ownerUserId;
+  const contextLoading = coWritersLoading || draftsLoading || accessRequestsLoading;
 
-  const loadAccessRequests = useCallback(async (scriptId: string) => {
-    if (!scriptId) {
-      setAccessRequests([]);
-      return;
+  const { trigger: triggerCreateProject, isMutating: projectCreating } = useSWRMutation(
+    projectsKey,
+    async (_key: string | null, { arg }: { arg: ProjectCreateRequest }) =>
+      fetcher<{ project: Project }>("/api/v1/projects", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(arg),
+      }),
+    {
+      populateCache: false,
+      throwOnError: false,
+      onSuccess(data) {
+        const created = data.project;
+        void mutateProjects(
+          (cur) => ({ projects: [created, ...(cur?.projects ?? [])] }),
+          { revalidate: false }
+        );
+        setProjectForm(initialProjectForm);
+        setProjectModalOpen(false);
+        setSelectedProjectId(created.id);
+        setSelectedScriptId("");
+        toast.success("Project created.");
+        void fetch("/api/v1/onboarding-progress", {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ firstScriptUploaded: true }),
+        });
+      },
+      onError(err: unknown) {
+        toast.error(err instanceof ApiError ? err.message : "Failed to create project.");
+      },
     }
+  );
 
-    try {
-      const response = await fetch(
-        `/api/v1/scripts/${encodeURIComponent(scriptId)}/access-requests?ownerUserId=${encodeURIComponent(ownerUserId)}`,
-        { cache: "no-store", headers: {} }
-      );
-      const body = await response.json();
-      if (!response.ok) {
-        toast.error(body.error ? `${body.error as string}` : "Unable to load access requests.");
-        return;
-      }
-
-      setAccessRequests((body.accessRequests as ScriptAccessRequest[]) ?? []);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to load access requests.");
-    }
-  }, [ownerUserId, toast]);
-
-  const loadProjectContext = useCallback(async (projectId: string) => {
-    if (!projectId) {
-      setCoWriters([]);
-      setDrafts([]);
-      setAccessRequests([]);
-      setSelectedScriptId("");
-      return;
-    }
-
-    setContextLoading(true);
-    try {
-      const authHeaders = {};
-      const [coWritersResponse, draftsResponse] = await Promise.all([
-        fetch(`/api/v1/projects/${encodeURIComponent(projectId)}/co-writers`, { cache: "no-store", headers: authHeaders }),
-        fetch(`/api/v1/projects/${encodeURIComponent(projectId)}/drafts`, { cache: "no-store", headers: authHeaders })
-      ]);
-      const [coWritersBody, draftsBody] = await Promise.all([
-        coWritersResponse.json(),
-        draftsResponse.json()
-      ]);
-
-      if (!coWritersResponse.ok || !draftsResponse.ok) {
-        toast.error("Failed to load co-writers or drafts.");
-        return;
-      }
-
-      setCoWriters(coWritersBody.coWriters as ProjectCoWriter[]);
-      const nextDrafts = draftsBody.drafts as ProjectDraft[];
-      setDrafts(nextDrafts);
-      const primaryDraft = nextDrafts.find((draft) => draft.isPrimary && draft.lifecycleState === "active");
-      const fallbackDraft = nextDrafts.find((draft) => draft.lifecycleState === "active") ?? nextDrafts[0];
-      const nextScriptId = primaryDraft?.scriptId ?? fallbackDraft?.scriptId ?? "";
-      setSelectedScriptId(nextScriptId);
-      await loadAccessRequests(nextScriptId);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to load project context.");
-    } finally {
-      setContextLoading(false);
-    }
-  }, [loadAccessRequests, toast]);
-
-  async function createAccessRequest(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!selectedScriptId) {
-      toast.error("Select a script before creating an access request.");
-      return;
-    }
-    if (!requesterUserId.trim()) {
-      toast.error("Requester user ID is required.");
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const response = await fetch(
-        `/api/v1/scripts/${encodeURIComponent(selectedScriptId)}/access-requests`,
-        {
-          method: "POST",
-          headers: { "content-type": "application/json", ...{} },
-          body: JSON.stringify({
-            requesterUserId: requesterUserId.trim(),
-            ownerUserId: ownerUserId,
-            reason: accessRequestReason.trim() || undefined
-          })
-        }
-      );
-      const body = await response.json();
-      if (!response.ok) {
-        toast.error(body.error ? `${body.error as string}` : "Unable to create access request.");
-        return;
-      }
-
-      setRequesterUserId("");
-      setAccessRequestReason("");
-      setAccessRequestModalOpen(false);
-      await loadAccessRequests(selectedScriptId);
-      toast.success("Access request recorded.");
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to create access request.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function decideAccessRequest(requestId: string, action: "approve" | "reject") {
-    if (!selectedScriptId) {
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const response = await fetch(
-        `/api/v1/scripts/${encodeURIComponent(selectedScriptId)}/access-requests/${encodeURIComponent(requestId)}/${action}`,
-        {
-          method: "POST",
-          headers: { "content-type": "application/json", ...{} },
-          body: JSON.stringify({
-            decisionReason: decisionReason.trim() || undefined
-          })
-        }
-      );
-      const body = await response.json();
-      if (!response.ok) {
-        toast.error(body.error ? `${body.error as string}` : `Unable to ${action} access request.`);
-        return;
-      }
-
-      await loadAccessRequests(selectedScriptId);
-      setDecisionReason("");
-      toast.success(`Access request ${action}d.`);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : `Failed to ${action} access request.`);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function selectProject(projectId: string) {
+  function selectProject(projectId: string) {
     setSelectedProjectId(projectId);
-    await loadProjectContext(projectId);
+    setSelectedScriptId(""); // will be re-initialized when drafts load via onSuccess
   }
-
-  const loadProjects = useCallback(async (explicitOwnerId?: string) => {
-    const targetOwnerId = explicitOwnerId ?? ownerUserId;
-    if (!targetOwnerId.trim()) {
-      setStatus("Sign in to load your projects.");
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const response = await fetch(
-        `/api/v1/projects?ownerUserId=${encodeURIComponent(targetOwnerId)}`,
-        { cache: "no-store", headers: {} }
-      );
-      const body = await response.json();
-      if (!response.ok) {
-        toast.error(body.error ? `${body.error as string}` : "Unable to load projects.");
-        return;
-      }
-
-      const rows = body.projects as Project[];
-      setProjects(rows);
-      const stillSelected = rows.some((project) => project.id === selectedProjectId);
-      const nextSelected = stillSelected ? selectedProjectId : (rows[0]?.id ?? "");
-      setSelectedProjectId(nextSelected);
-      await loadProjectContext(nextSelected);
-      setStatus(`Loaded ${rows.length as number} projects.`);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to load projects.");
-    } finally {
-      setLoading(false);
-      setInitialLoading(false);
-    }
-  }, [loadProjectContext, ownerUserId, selectedProjectId, toast]);
-
-  useEffect(() => {
-    if (authLoading) return;
-
-    queueMicrotask(() => {
-      if (!user) {
-        setStatus("Sign in to load your projects.");
-        setInitialLoading(false);
-        return;
-      }
-      setOwnerUserId(user.id);
-    });
-  }, [user, authLoading]);
-
-  useEffect(() => {
-    if (ownerUserId) {
-      queueMicrotask(() => { void loadProjects(ownerUserId); });
-    }
-  }, [loadProjects, ownerUserId]);
 
   async function createProject(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -316,8 +230,6 @@ export default function ProjectsPage() {
       toast.error("Owner ID is required.");
       return;
     }
-
-    setLoading(true);
 
     const payload: ProjectCreateRequest = {
       title: projectForm.title,
@@ -329,38 +241,11 @@ export default function ProjectsPage() {
       isDiscoverable: projectForm.isDiscoverable
     };
 
-    try {
-      const response = await fetch("/api/v1/projects", {
-        method: "POST",
-        headers: { "content-type": "application/json", ...{} },
-        body: JSON.stringify(payload)
-      });
-      const body = await response.json();
-      if (!response.ok) {
-        toast.error(body.error ? `${body.error as string}` : "Unable to create project.");
-        return;
-      }
-
-      const created = body.project as Project;
-      setProjectForm(initialProjectForm);
-      setProjectModalOpen(false);
-      setProjects((current) => [created, ...current]);
-      await selectProject(created.id);
-      toast.success("Project created.");
-      void fetch("/api/v1/onboarding-progress", {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ firstScriptUploaded: true }),
-      });
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to create project.");
-    } finally {
-      setLoading(false);
-    }
+    await triggerCreateProject(payload);
   }
 
   async function deleteProject(projectId: string) {
-    setLoading(true);
+    setMutating(true);
     try {
       const response = await fetch(`/api/v1/projects/${encodeURIComponent(projectId)}`, {
         method: "DELETE",
@@ -373,17 +258,17 @@ export default function ProjectsPage() {
       }
 
       const remaining = projects.filter((project) => project.id !== projectId);
-      setProjects(remaining);
+      void mutateProjects({ projects: remaining }, { revalidate: false });
       if (selectedProjectId === projectId) {
         const next = remaining[0]?.id ?? "";
         setSelectedProjectId(next);
-        await loadProjectContext(next);
+        setSelectedScriptId("");
       }
       toast.success("Project deleted.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to delete project.");
     } finally {
-      setLoading(false);
+      setMutating(false);
     }
   }
 
@@ -394,7 +279,7 @@ export default function ProjectsPage() {
       return;
     }
 
-    setLoading(true);
+    setMutating(true);
     try {
       const response = await fetch(
         `/api/v1/projects/${encodeURIComponent(selectedProjectId)}/co-writers`,
@@ -416,12 +301,12 @@ export default function ProjectsPage() {
       setCoWriterUserId("");
       setCoWriterCreditOrder(2);
       setCoWriterModalOpen(false);
-      await loadProjectContext(selectedProjectId);
+      void mutateCoWriters();
       toast.success("Co-writer added.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to add co-writer.");
     } finally {
-      setLoading(false);
+      setMutating(false);
     }
   }
 
@@ -430,7 +315,7 @@ export default function ProjectsPage() {
       return;
     }
 
-    setLoading(true);
+    setMutating(true);
     try {
       const response = await fetch(
         `/api/v1/projects/${encodeURIComponent(selectedProjectId)}/co-writers/${encodeURIComponent(coWriterId)}`,
@@ -442,12 +327,12 @@ export default function ProjectsPage() {
         return;
       }
 
-      await loadProjectContext(selectedProjectId);
+      void mutateCoWriters();
       toast.success("Co-writer removed.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to remove co-writer.");
     } finally {
-      setLoading(false);
+      setMutating(false);
     }
   }
 
@@ -476,14 +361,15 @@ export default function ProjectsPage() {
         contentType,
         headers: {}
       });
+
       if (!uploadResponse.ok) {
         const detailPayload = (await uploadResponse.json().catch(async () => ({
           detail: await uploadResponse.text()
         }))) as { detail?: string; error?: string };
-        const detailMessage = detailPayload.detail ?? detailPayload.error ?? "";
-        toast.error(detailMessage ? `Upload failed: ${detailMessage}` : "Upload failed.");
+        toast.error(detailPayload.detail ?? detailPayload.error ?? "File upload failed.");
         return;
       }
+
       const uploadBody = (await uploadResponse.json()) as ScriptUploadProxyResponse;
 
       setUploadStep("registering");
@@ -499,26 +385,19 @@ export default function ProjectsPage() {
           size: draftUploadFile.size
         })
       });
-      const registerBody = (await registerResponse.json()) as
-        | ScriptRegisterResponse
-        | { error?: string };
+      const registerBody = (await registerResponse.json()) as ScriptRegisterResponse | { error?: string };
       if (!registerResponse.ok) {
-        toast.error(
-          "error" in registerBody && registerBody.error
-            ? `${registerBody.error}`
-            : "Unable to register uploaded script."
-        );
+        toast.error("error" in registerBody && registerBody.error ? registerBody.error : "Failed to register script.");
         return;
       }
 
-      const registerPayload = registerBody as ScriptRegisterResponse;
-      const nextScriptId = registerPayload.script.scriptId;
-      setDraftForm((current) => ({ ...current, scriptId: nextScriptId }));
-      setUploadedScriptId(nextScriptId);
+      const registeredId = (registerBody as ScriptRegisterResponse).script.scriptId;
+      setUploadedScriptId(registeredId);
+      setDraftForm((current) => ({ ...current, scriptId: registeredId }));
       setUploadStep("done");
-      toast.success(`Script uploaded and registered (${nextScriptId}).`);
+      toast.success("Script uploaded and registered.");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Script upload failed.");
+      toast.error(error instanceof Error ? error.message : "Upload failed.");
     } finally {
       setScriptUploadLoading(false);
     }
@@ -526,16 +405,12 @@ export default function ProjectsPage() {
 
   async function createDraft(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!selectedProjectId || !ownerUserId) {
-      toast.error("Select a project and sign in first.");
-      return;
-    }
-    if (!draftForm.scriptId.trim()) {
-      toast.error("Upload/register a script or enter a script ID first.");
+    if (!selectedProjectId) {
+      toast.error("Select a project first.");
       return;
     }
 
-    setLoading(true);
+    setMutating(true);
     try {
       const response = await fetch(`/api/v1/projects/${encodeURIComponent(selectedProjectId)}/drafts`, {
         method: "POST",
@@ -559,12 +434,12 @@ export default function ProjectsPage() {
       setUploadedScriptId("");
       setUploadStep("idle");
       setDraftModalOpen(false);
-      await loadProjectContext(selectedProjectId);
+      void mutateDrafts();
       toast.success("Draft created.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to create draft.");
     } finally {
-      setLoading(false);
+      setMutating(false);
     }
   }
 
@@ -573,7 +448,7 @@ export default function ProjectsPage() {
       return;
     }
 
-    setLoading(true);
+    setMutating(true);
     try {
       const response = await fetch(
         `/api/v1/projects/${encodeURIComponent(selectedProjectId)}/drafts/${encodeURIComponent(draftId)}/primary`,
@@ -588,12 +463,12 @@ export default function ProjectsPage() {
         return;
       }
 
-      await loadProjectContext(selectedProjectId);
+      void mutateDrafts();
       toast.success("Primary draft updated.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to set primary draft.");
     } finally {
-      setLoading(false);
+      setMutating(false);
     }
   }
 
@@ -602,7 +477,7 @@ export default function ProjectsPage() {
       return;
     }
 
-    setLoading(true);
+    setMutating(true);
     try {
       const response = await fetch(
         `/api/v1/projects/${encodeURIComponent(selectedProjectId)}/drafts/${encodeURIComponent(draftId)}`,
@@ -618,14 +493,91 @@ export default function ProjectsPage() {
         return;
       }
 
-      await loadProjectContext(selectedProjectId);
+      void mutateDrafts();
       toast.success("Draft archived.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to archive draft.");
     } finally {
-      setLoading(false);
+      setMutating(false);
     }
   }
+
+  async function createAccessRequest(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedScriptId) {
+      toast.error("Select a script before creating an access request.");
+      return;
+    }
+    if (!requesterUserId.trim()) {
+      toast.error("Requester user ID is required.");
+      return;
+    }
+
+    setMutating(true);
+    try {
+      const response = await fetch(
+        `/api/v1/scripts/${encodeURIComponent(selectedScriptId)}/access-requests`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json", ...{} },
+          body: JSON.stringify({
+            requesterUserId: requesterUserId.trim(),
+            reason: accessRequestReason.trim() || undefined
+          })
+        }
+      );
+      const body = await response.json();
+      if (!response.ok) {
+        toast.error(body.error ? `${body.error as string}` : "Unable to create access request.");
+        return;
+      }
+
+      setRequesterUserId("");
+      setAccessRequestReason("");
+      setAccessRequestModalOpen(false);
+      void mutateAccessRequests();
+      toast.success("Access request recorded.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to create access request.");
+    } finally {
+      setMutating(false);
+    }
+  }
+
+  async function decideAccessRequest(requestId: string, action: "approve" | "reject") {
+    if (!selectedScriptId) {
+      return;
+    }
+
+    setMutating(true);
+    try {
+      const response = await fetch(
+        `/api/v1/scripts/${encodeURIComponent(selectedScriptId)}/access-requests/${encodeURIComponent(requestId)}/${action}`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json", ...{} },
+          body: JSON.stringify({
+            decisionReason: decisionReason.trim() || undefined
+          })
+        }
+      );
+      const body = await response.json();
+      if (!response.ok) {
+        toast.error(body.error ? `${body.error as string}` : `Unable to ${action} access request.`);
+        return;
+      }
+
+      void mutateAccessRequests();
+      setDecisionReason("");
+      toast.success(`Access request ${action}d.`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : `Failed to ${action} access request.`);
+    } finally {
+      setMutating(false);
+    }
+  }
+
+  const loading = projectCreating || mutating;
 
   return (
     <section className="space-y-4">
@@ -638,7 +590,7 @@ export default function ProjectsPage() {
         </p>
         <div className="inline-form">
           <span className="badge">{ownerUserId ? `ID: ${ownerUserId}` : "Not signed in"}</span>
-          <button type="button" className="btn btn-secondary" onClick={() => void loadProjects()} disabled={loading || !ownerUserId}>
+          <button type="button" className="btn btn-secondary" onClick={() => void mutateProjects()} disabled={loading || !ownerUserId}>
             {loading ? "Refreshing..." : "Refresh projects"}
           </button>
           <button type="button" className="btn btn-primary" onClick={() => setProjectModalOpen(true)} disabled={!ownerUserId}>
@@ -663,7 +615,7 @@ export default function ProjectsPage() {
           <span className="badge">{projects.length} total</span>
         </div>
 
-        {initialLoading && ownerUserId ? (
+        {isInitialLoading ? (
           <div className="grid gap-3 md:grid-cols-2">
             <SkeletonCard />
             <SkeletonCard />
@@ -678,7 +630,7 @@ export default function ProjectsPage() {
           />
         ) : null}
 
-        {!initialLoading ? (
+        {!isInitialLoading ? (
           <div className="grid gap-3 md:grid-cols-2">
             {projects.map((project) => {
               const active = project.id === selectedProjectId;
@@ -703,7 +655,7 @@ export default function ProjectsPage() {
                     <button
                       type="button"
                       className={active ? "btn btn-primary" : "btn btn-secondary"}
-                      onClick={() => void selectProject(project.id)}
+                      onClick={() => selectProject(project.id)}
                       disabled={contextLoading}
                     >
                       {active ? "Selected" : "Select"}
@@ -737,25 +689,25 @@ export default function ProjectsPage() {
           <EmptyState
             icon="👆"
             title="Select a project"
-            description="Choose a project above to manage its co-writers, drafts, and access requests."
+            description="Choose a project above to manage co-writers, drafts, and script access."
           />
         ) : (
           <div className="stack">
-            <section className="grid gap-3 md:grid-cols-2">
-              <article className="subcard stack">
-                <div className="subcard-header">
-                  <h3 className="text-2xl text-foreground">Co-Writers</h3>
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
-                    onClick={() => setCoWriterModalOpen(true)}
-                    disabled={loading || contextLoading}
-                  >
-                    Add co-writer
-                  </button>
-                </div>
+            <section className="stack">
+              <div className="subcard-header">
+                <h3 className="text-2xl text-foreground">Co-Writers</h3>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setCoWriterModalOpen(true)}
+                  disabled={loading || contextLoading}
+                >
+                  Add co-writer
+                </button>
+              </div>
 
-                {coWriters.length === 0 ? <p className="muted">No co-writers added.</p> : null}
+              {coWriters.length === 0 ? <p className="muted">No co-writers added yet.</p> : null}
+              <article className="subcard stack">
                 {coWriters.map((coWriter) => (
                   <article key={coWriter.coWriterUserId} className="rounded-xl border border-zinc-300/60 bg-surface p-3">
                     <div className="subcard-header">
@@ -812,18 +764,17 @@ export default function ProjectsPage() {
                       </button>
                       <button
                         type="button"
-                        className="btn btn-danger"
+                        className="btn btn-secondary"
                         onClick={() => void archiveDraft(draft.id)}
                         disabled={loading || contextLoading || draft.lifecycleState === "archived"}
                       >
-                        Archive draft
+                        Archive
                       </button>
                       <button
                         type="button"
                         className={selectedScriptId === draft.scriptId ? "btn btn-primary" : "btn btn-secondary"}
                         onClick={() => {
                           setSelectedScriptId(draft.scriptId);
-                          void loadAccessRequests(draft.scriptId);
                         }}
                         disabled={loading || contextLoading}
                       >
@@ -853,7 +804,7 @@ export default function ProjectsPage() {
                 <button
                   type="button"
                   className="btn btn-secondary"
-                  onClick={() => void loadAccessRequests(selectedScriptId)}
+                  onClick={() => void mutateAccessRequests()}
                   disabled={loading || contextLoading}
                 >
                   Refresh access log
@@ -927,19 +878,17 @@ export default function ProjectsPage() {
               required
             />
           </label>
-
-          <label className="stack-tight" htmlFor="project-logline">
+          <label className="stack-tight">
             <span>Logline</span>
-            <input
-              id="project-logline"
-              className="input"
+            <textarea
+              className="input textarea"
+              rows={2}
               value={projectForm.logline}
               onChange={(event) =>
                 setProjectForm((current) => ({ ...current, logline: event.target.value }))
               }
             />
           </label>
-
           <label className="stack-tight">
             <span>Synopsis</span>
             <textarea
@@ -951,7 +900,6 @@ export default function ProjectsPage() {
               }
             />
           </label>
-
           <div className="grid-two">
             <label className="stack-tight">
               <span>Format</span>
@@ -961,10 +909,8 @@ export default function ProjectsPage() {
                 onChange={(event) =>
                   setProjectForm((current) => ({ ...current, format: event.target.value }))
                 }
-                required
               />
             </label>
-
             <label className="stack-tight">
               <span>Genre</span>
               <input
@@ -973,46 +919,39 @@ export default function ProjectsPage() {
                 onChange={(event) =>
                   setProjectForm((current) => ({ ...current, genre: event.target.value }))
                 }
-                required
               />
             </label>
           </div>
-
-          <div className="grid-two">
-            <label className="stack-tight">
-              <span>Page count</span>
-              <input
-                className="input"
-                type="number"
-                min={0}
-                value={projectForm.pageCount}
-                onChange={(event) =>
-                  setProjectForm((current) => ({
-                    ...current,
-                    pageCount: Number(event.target.value)
-                  }))
-                }
-              />
-            </label>
-
-            <label className="stack-tight checkbox">
-              <input
-                type="checkbox"
-                checked={projectForm.isDiscoverable}
-                onChange={(event) =>
-                  setProjectForm((current) => ({
-                    ...current,
-                    isDiscoverable: event.target.checked
-                  }))
-                }
-              />
-              <span>Discoverable</span>
-            </label>
-          </div>
-
+          <label className="stack-tight">
+            <span>Page count</span>
+            <input
+              className="input"
+              type="number"
+              value={projectForm.pageCount}
+              onChange={(event) =>
+                setProjectForm((current) => ({
+                  ...current,
+                  pageCount: Number(event.target.value)
+                }))
+              }
+            />
+          </label>
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={projectForm.isDiscoverable}
+              onChange={(event) =>
+                setProjectForm((current) => ({
+                  ...current,
+                  isDiscoverable: event.target.checked
+                }))
+              }
+            />
+            <span>Make discoverable</span>
+          </label>
           <div className="inline-form">
             <button type="submit" className="btn btn-primary" disabled={loading}>
-              {loading ? "Saving..." : "Create project"}
+              Create project
             </button>
           </div>
         </form>
@@ -1022,30 +961,29 @@ export default function ProjectsPage() {
         open={coWriterModalOpen}
         onClose={() => setCoWriterModalOpen(false)}
         title="Add co-writer"
-        description="Assign a co-writer and credit order for the selected project."
+        description="Grant another writer co-authorship on this project."
       >
         <form className="stack" onSubmit={addCoWriter}>
-          <div className="grid-two">
-            <label className="stack-tight">
-              <span>Co-writer user ID</span>
-              <input
-                className="input"
-                value={coWriterUserId}
-                onChange={(event) => setCoWriterUserId(event.target.value)}
-                required
-              />
-            </label>
-            <label className="stack-tight">
-              <span>Credit order</span>
-              <input
-                className="input"
-                type="number"
-                min={1}
-                value={coWriterCreditOrder}
-                onChange={(event) => setCoWriterCreditOrder(Number(event.target.value))}
-              />
-            </label>
-          </div>
+          <label className="stack-tight">
+            <span>Co-writer user ID</span>
+            <input
+              className="input"
+              value={coWriterUserId}
+              onChange={(event) => setCoWriterUserId(event.target.value)}
+              placeholder="writer_02"
+              required
+            />
+          </label>
+          <label className="stack-tight">
+            <span>Credit order</span>
+            <input
+              className="input"
+              type="number"
+              min={1}
+              value={coWriterCreditOrder}
+              onChange={(event) => setCoWriterCreditOrder(Number(event.target.value))}
+            />
+          </label>
           <div className="inline-form">
             <button type="submit" className="btn btn-primary" disabled={loading || contextLoading}>
               Add co-writer
@@ -1116,6 +1054,7 @@ export default function ProjectsPage() {
                 onChange={(event) =>
                   setDraftForm((current) => ({ ...current, scriptId: event.target.value }))
                 }
+                placeholder="script_xxx"
                 required
               />
             </label>
@@ -1127,51 +1066,45 @@ export default function ProjectsPage() {
                 onChange={(event) =>
                   setDraftForm((current) => ({ ...current, versionLabel: event.target.value }))
                 }
-                required
+                placeholder="v1"
               />
             </label>
           </div>
-
           <label className="stack-tight">
             <span>Change summary</span>
             <textarea
               className="input textarea"
-              rows={3}
+              rows={2}
               value={draftForm.changeSummary}
               onChange={(event) =>
                 setDraftForm((current) => ({ ...current, changeSummary: event.target.value }))
               }
             />
           </label>
-
-          <div className="grid-two">
-            <label className="stack-tight">
-              <span>Page count</span>
-              <input
-                className="input"
-                type="number"
-                min={0}
-                value={draftForm.pageCount}
-                onChange={(event) =>
-                  setDraftForm((current) => ({
-                    ...current,
-                    pageCount: Number(event.target.value)
-                  }))
-                }
-              />
-            </label>
-            <label className="stack-tight checkbox">
-              <input
-                type="checkbox"
-                checked={draftForm.setPrimary}
-                onChange={(event) =>
-                  setDraftForm((current) => ({ ...current, setPrimary: event.target.checked }))
-                }
-              />
-              <span>Set as primary draft</span>
-            </label>
-          </div>
-
+          <label className="stack-tight">
+            <span>Page count</span>
+            <input
+              className="input"
+              type="number"
+              value={draftForm.pageCount}
+              onChange={(event) =>
+                setDraftForm((current) => ({
+                  ...current,
+                  pageCount: Number(event.target.value)
+                }))
+              }
+            />
+          </label>
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={draftForm.setPrimary}
+              onChange={(event) =>
+                setDraftForm((current) => ({ ...current, setPrimary: event.target.checked }))
+              }
+            />
+            <span>Set as primary draft</span>
+          </label>
           <div className="inline-form">
             <button
               type="submit"
@@ -1226,8 +1159,6 @@ export default function ProjectsPage() {
           </div>
         </form>
       </Modal>
-
-      {status ? <p className={status.startsWith("Error:") ? "status-error" : "status-note"}>{status}</p> : null}
     </section>
   );
 }

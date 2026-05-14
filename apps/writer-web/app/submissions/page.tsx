@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import type { Route } from "next";
 import type {
   Competition,
@@ -10,12 +10,15 @@ import type {
   Submission,
   SubmissionStatus
 } from "@script-manifest/contracts";
+import useSWR from "swr";
+import useSWRMutation from "swr/mutation";
 import { EmptyState } from "../components/emptyState";
 import { EmptyIllustration } from "../components/illustrations";
 import { Modal } from "../components/modal";
 import { SkeletonCard } from "../components/skeleton";
 import { useToast } from "../components/toast";
 import { useAuth } from "../lib/AuthProvider";
+import { fetcher, ApiError } from "../lib/fetcher";
 
 const statuses: SubmissionStatus[] = [
   "pending",
@@ -28,94 +31,116 @@ const statuses: SubmissionStatus[] = [
 export default function SubmissionsPage() {
   const toast = useToast();
   const { user, loading: authLoading } = useAuth();
-  const [writerId, setWriterId] = useState("");
   const [projectId, setProjectId] = useState("");
   const [competitionId, setCompetitionId] = useState("");
   const [status, setStatus] = useState<SubmissionStatus>("pending");
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [competitions, setCompetitions] = useState<Competition[]>([]);
-  const [submissions, setSubmissions] = useState<Submission[]>([]);
-  const [placements, setPlacements] = useState<PlacementListItem[]>([]);
   const [reassignTargets, setReassignTargets] = useState<Record<string, string>>({});
-  const [message, setMessage] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [initialLoading, setInitialLoading] = useState(true);
+  const [mutating, setMutating] = useState(false);
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [placementModalOpen, setPlacementModalOpen] = useState(false);
   const [targetSubmissionId, setTargetSubmissionId] = useState("");
   const [placementStatus, setPlacementStatus] = useState<SubmissionStatus>("quarterfinalist");
 
-  const loadData = useCallback(async (explicitWriterId?: string) => {
-    const targetWriterId = explicitWriterId ?? writerId;
-    if (!targetWriterId.trim()) {
-      setMessage("Sign in to load submissions.");
-      return;
+  // Auth-paused key: null while auth is resolving or no user — SWR will not fetch.
+  const writerId = user?.id ?? "";
+  const authPausedBase = authLoading || !writerId ? null : writerId;
+
+  const projectsKey = authPausedBase
+    ? `/api/v1/projects?ownerUserId=${encodeURIComponent(writerId)}`
+    : null;
+  const competitionsKey = "/api/v1/competitions";
+  const submissionsKey = authPausedBase
+    ? `/api/v1/submissions?writerId=${encodeURIComponent(writerId)}`
+    : null;
+  const placementsKey = authPausedBase
+    ? `/api/v1/placements?writerId=${encodeURIComponent(writerId)}`
+    : null;
+
+  const { data: projectsData, isLoading: projectsLoading } = useSWR<{ projects: Project[] }>(
+    projectsKey,
+    {
+      onSuccess(data) {
+        setProjectId((cur) => cur || data.projects[0]?.id || "");
+      },
+      onError(err: unknown) {
+        toast.error(err instanceof ApiError ? err.message : "Failed to load projects.");
+      },
     }
+  );
 
-    setLoading(true);
-    setMessage("");
-    try {
-      const authHeaders = {};
-      const [projectResponse, competitionResponse, submissionResponse] = await Promise.all([
-        fetch(`/api/v1/projects?ownerUserId=${encodeURIComponent(targetWriterId)}`, { cache: "no-store", headers: authHeaders }),
-        fetch("/api/v1/competitions", { cache: "no-store" }),
-        fetch(`/api/v1/submissions?writerId=${encodeURIComponent(targetWriterId)}`, { cache: "no-store", headers: authHeaders })
-      ]);
-      const placementsResponse = await fetch(
-        `/api/v1/placements?writerId=${encodeURIComponent(targetWriterId)}`,
-        { cache: "no-store", headers: authHeaders }
-      );
-      const [projectBody, competitionBody, submissionBody] = await Promise.all([
-        projectResponse.json(),
-        competitionResponse.json(),
-        submissionResponse.json()
-      ]);
-      const placementsBody = await placementsResponse.json();
+  const { data: competitionsData, isLoading: competitionsLoading } = useSWR<{
+    competitions: Competition[];
+  }>(competitionsKey, {
+    onSuccess(data) {
+      setCompetitionId((cur) => cur || data.competitions[0]?.id || "");
+    },
+    onError(err: unknown) {
+      toast.error(err instanceof ApiError ? err.message : "Failed to load competitions.");
+    },
+  });
 
-      if (!projectResponse.ok || !competitionResponse.ok || !submissionResponse.ok || !placementsResponse.ok) {
-        toast.error("Failed to load one or more submission dependencies.");
-        return;
-      }
-
-      const nextProjects = projectBody.projects as Project[];
-      const nextCompetitions = competitionBody.competitions as Competition[];
-      const nextSubmissions = submissionBody.submissions as Submission[];
-      setProjects(nextProjects);
-      setCompetitions(nextCompetitions);
-      setSubmissions(nextSubmissions);
-      setPlacements((placementsBody.placements as PlacementListItem[]) ?? []);
+  const {
+    data: submissionsData,
+    isLoading: submissionsLoading,
+    mutate: mutateSubmissions,
+  } = useSWR<{ submissions: Submission[] }>(submissionsKey, {
+    onSuccess(data) {
       setReassignTargets(
-        Object.fromEntries(nextSubmissions.map((entry) => [entry.id, entry.projectId]))
+        Object.fromEntries(data.submissions.map((entry) => [entry.id, entry.projectId]))
       );
-      setProjectId((current) => current || nextProjects[0]?.id || "");
-      setCompetitionId((current) => current || nextCompetitions[0]?.id || "");
-      setMessage("Submission data loaded.");
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to load submissions.");
-    } finally {
-      setLoading(false);
-      setInitialLoading(false);
+    },
+    onError(err: unknown) {
+      toast.error(err instanceof ApiError ? err.message : "Failed to load submissions.");
+    },
+  });
+
+  const {
+    data: placementsData,
+    isLoading: placementsLoading,
+    mutate: mutatePlacements,
+  } = useSWR<{ placements: PlacementListItem[] }>(placementsKey, {
+    onError(err: unknown) {
+      toast.error(err instanceof ApiError ? err.message : "Failed to load placements.");
+    },
+  });
+
+  const projects = projectsData?.projects ?? [];
+  const competitions = competitionsData?.competitions ?? [];
+  const submissions = submissionsData?.submissions ?? [];
+  const placements = placementsData?.placements ?? [];
+  const isInitialLoading =
+    (projectsLoading || submissionsLoading || placementsLoading || competitionsLoading) &&
+    !!writerId;
+
+  const { trigger: triggerCreate, isMutating: creating } = useSWRMutation(
+    submissionsKey,
+    async (
+      _key: string | null,
+      { arg }: { arg: { projectId: string; competitionId: string; status: SubmissionStatus } }
+    ) =>
+      fetcher<{ submission: Submission }>("/api/v1/submissions", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(arg),
+      }),
+    {
+      populateCache: false,
+      throwOnError: false,
+      onSuccess(data) {
+        const created = data.submission;
+        void mutateSubmissions(
+          (cur) => ({ submissions: [created, ...(cur?.submissions ?? [])] }),
+          { revalidate: false }
+        );
+        setReassignTargets((cur) => ({ ...cur, [created.id]: created.projectId }));
+        setCreateModalOpen(false);
+        toast.success("Submission recorded.");
+      },
+      onError(err: unknown) {
+        toast.error(err instanceof ApiError ? err.message : "Failed to create submission.");
+      },
     }
-  }, [toast, writerId]);
-
-  useEffect(() => {
-    if (authLoading) return;
-
-    queueMicrotask(() => {
-      if (!user) {
-        setMessage("Sign in to load submissions.");
-        setInitialLoading(false);
-        return;
-      }
-      setWriterId(user.id);
-    });
-  }, [user, authLoading]);
-
-  useEffect(() => {
-    if (writerId) {
-      queueMicrotask(() => { void loadData(writerId); });
-    }
-  }, [loadData, writerId]);
+  );
 
   async function createSubmission(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -123,38 +148,7 @@ export default function SubmissionsPage() {
       toast.error("Writer, project, and competition are required.");
       return;
     }
-
-    setLoading(true);
-    setMessage("");
-    try {
-      const response = await fetch("/api/v1/submissions", {
-        method: "POST",
-        headers: { "content-type": "application/json", ...{} },
-        body: JSON.stringify({
-          projectId,
-          competitionId,
-          status
-        })
-      });
-      const body = await response.json();
-      if (!response.ok) {
-        toast.error(body.error ? `${body.error as string}` : "Submission creation failed.");
-        return;
-      }
-
-      const created = body.submission as Submission;
-      setSubmissions((current) => [created, ...current]);
-      setReassignTargets((current) => ({
-        ...current,
-        [created.id]: created.projectId
-      }));
-      setCreateModalOpen(false);
-      toast.success("Submission recorded.");
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to create submission.");
-    } finally {
-      setLoading(false);
-    }
+    await triggerCreate({ projectId, competitionId, status });
   }
 
   async function moveSubmission(submissionId: string) {
@@ -164,29 +158,29 @@ export default function SubmissionsPage() {
       return;
     }
 
-    setLoading(true);
-    setMessage("");
+    setMutating(true);
     try {
-      const response = await fetch(`/api/v1/submissions/${encodeURIComponent(submissionId)}/project`, {
-        method: "PATCH",
-        headers: { "content-type": "application/json", ...{} },
-        body: JSON.stringify({ projectId: targetProjectId })
-      });
-      const body = await response.json();
-      if (!response.ok) {
-        toast.error(body.error ? `${body.error as string}` : "Submission move failed.");
-        return;
-      }
-
-      const updated = body.submission as Submission;
-      setSubmissions((current) =>
-        current.map((entry) => (entry.id === updated.id ? updated : entry))
+      const data = await fetcher<{ submission: Submission }>(
+        `/api/v1/submissions/${encodeURIComponent(submissionId)}/project`,
+        {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ projectId: targetProjectId }),
+        }
+      );
+      void mutateSubmissions(
+        (cur) => ({
+          submissions: (cur?.submissions ?? []).map((entry) =>
+            entry.id === data.submission.id ? data.submission : entry
+          ),
+        }),
+        { revalidate: false }
       );
       toast.success("Submission moved.");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to move submission.");
+      toast.error(error instanceof ApiError ? error.message : "Failed to move submission.");
     } finally {
-      setLoading(false);
+      setMutating(false);
     }
   }
 
@@ -197,63 +191,58 @@ export default function SubmissionsPage() {
       return;
     }
 
-    setLoading(true);
-    setMessage("");
+    setMutating(true);
     try {
-      const response = await fetch(
+      const data = await fetcher<{ submission?: Submission }>(
         `/api/v1/submissions/${encodeURIComponent(targetSubmissionId)}/placements`,
         {
           method: "POST",
-          headers: { "content-type": "application/json", ...{} },
-          body: JSON.stringify({ status: placementStatus })
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ status: placementStatus }),
         }
       );
-      const body = await response.json();
-      if (!response.ok) {
-        toast.error(body.error ? `${body.error as string}` : "Placement creation failed.");
-        return;
-      }
-
-      const updatedSubmission = body.submission as Submission | undefined;
-      if (updatedSubmission) {
-        setSubmissions((current) =>
-          current.map((entry) => (entry.id === updatedSubmission.id ? updatedSubmission : entry))
+      if (data.submission) {
+        void mutateSubmissions(
+          (cur) => ({
+            submissions: (cur?.submissions ?? []).map((entry) =>
+              entry.id === data.submission!.id ? data.submission! : entry
+            ),
+          }),
+          { revalidate: false }
         );
       }
-      await loadData();
-
+      void mutatePlacements();
       setPlacementModalOpen(false);
       setTargetSubmissionId("");
       toast.success("Placement recorded.");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to create placement.");
+      toast.error(error instanceof ApiError ? error.message : "Failed to create placement.");
     } finally {
-      setLoading(false);
+      setMutating(false);
     }
   }
 
-  async function verifyPlacement(placementId: string, verificationState: PlacementVerificationState) {
-    setLoading(true);
-    setMessage("");
+  async function verifyPlacement(
+    placementId: string,
+    verificationState: PlacementVerificationState
+  ) {
+    setMutating(true);
     try {
-      const response = await fetch(`/api/v1/placements/${encodeURIComponent(placementId)}/verify`, {
+      await fetcher(`/api/v1/placements/${encodeURIComponent(placementId)}/verify`, {
         method: "POST",
-        headers: { "content-type": "application/json", ...{} },
-        body: JSON.stringify({ verificationState })
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ verificationState }),
       });
-      const body = await response.json();
-      if (!response.ok) {
-        toast.error(body.error ? `${body.error as string}` : "Placement verification update failed.");
-        return;
-      }
-      await loadData();
+      void mutatePlacements();
       toast.success(`Placement marked ${verificationState}.`);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to verify placement.");
+      toast.error(error instanceof ApiError ? error.message : "Failed to verify placement.");
     } finally {
-      setLoading(false);
+      setMutating(false);
     }
   }
+
+  const loading = creating || mutating;
 
   return (
     <section className="space-y-4">
@@ -266,7 +255,7 @@ export default function SubmissionsPage() {
         </p>
         <div className="inline-form">
           <span className="badge">{writerId ? `ID: ${writerId}` : "Not signed in"}</span>
-          <button type="button" className="btn btn-secondary" onClick={() => void loadData()} disabled={loading || !writerId}>
+          <button type="button" className="btn btn-secondary" onClick={() => void mutateSubmissions()} disabled={loading || !writerId}>
             {loading ? "Refreshing..." : "Refresh submissions"}
           </button>
           <button
@@ -304,7 +293,7 @@ export default function SubmissionsPage() {
           <span className="badge">{submissions.length} total</span>
         </div>
 
-        {initialLoading && writerId ? (
+        {isInitialLoading ? (
           <div className="stack">
             <SkeletonCard />
             <SkeletonCard />
@@ -317,25 +306,30 @@ export default function SubmissionsPage() {
           />
         ) : null}
 
-        {!initialLoading
-          ? submissions.map((submission) => (
+        {!isInitialLoading ? (
+          <div className="stack">
+            {submissions.map((submission) => (
               <article key={submission.id} className="subcard">
                 <div className="subcard-header">
                   <strong>{submission.id}</strong>
                   <span className="badge">{submission.status}</span>
                 </div>
-                <p className="muted mt-2">
-                  project {submission.projectId} | competition {submission.competitionId}
-                </p>
-                <div className="inline-form mt-3">
+                <div className="mt-2 inline-form">
+                  <span className="text-sm text-muted">
+                    Project: {projects.find((p) => p.id === submission.projectId)?.title ?? submission.projectId}
+                  </span>
+                  <span className="text-sm text-muted">
+                    Competition: {competitions.find((c) => c.id === submission.competitionId)?.title ?? submission.competitionId}
+                  </span>
+                </div>
+                <div className="mt-3 inline-form">
                   <select
-                    className="input md:w-72"
-                    aria-label={`Move target for ${submission.id}`}
-                    value={reassignTargets[submission.id] ?? submission.projectId}
+                    className="input"
+                    value={reassignTargets[submission.id] ?? ""}
                     onChange={(event) =>
                       setReassignTargets((current) => ({
                         ...current,
-                        [submission.id]: event.target.value
+                        [submission.id]: event.target.value,
                       }))
                     }
                   >
@@ -391,8 +385,9 @@ export default function SubmissionsPage() {
                     ))}
                 </div>
               </article>
-            ))
-          : null}
+            ))}
+          </div>
+        ) : null}
       </article>
 
       <Modal
@@ -507,8 +502,6 @@ export default function SubmissionsPage() {
           </div>
         </form>
       </Modal>
-
-      {message ? <p className={message.startsWith("Error:") ? "status-error" : "status-note"}>{message}</p> : null}
     </section>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { useRef, useEffect, useState, type FormEvent } from "react";
 import type {
   FeedbackListing,
   FeedbackReview,
@@ -9,12 +9,15 @@ import type {
   ScriptRegisterResponse,
   TokenBalanceResponse
 } from "@script-manifest/contracts";
+import useSWR from "swr";
+import useSWRMutation from "swr/mutation";
 import { Modal } from "../components/modal";
 import { EmptyState } from "../components/emptyState";
 import { EmptyIllustration } from "../components/illustrations";
 import { SkeletonCard } from "../components/skeleton";
 import { useToast } from "../components/toast";
 import { useAuth } from "../lib/AuthProvider";
+import { fetcher, ApiError } from "../lib/fetcher";
 import { type ScriptUploadProxyResponse, uploadScriptViaProxy } from "../lib/scriptUpload";
 
 function createScriptId(): string {
@@ -80,21 +83,11 @@ const statusColors: Record<string, string> = {
 
 export default function FeedbackPage() {
   const toast = useToast();
-  const { user } = useAuth();
-  const [signedInUserId, setSignedInUserId] = useState("");
-  const [balance, setBalance] = useState<number | null>(null);
-  const [listings, setListings] = useState<FeedbackListing[]>([]);
-  const [myListings, setMyListings] = useState<FeedbackListing[]>([]);
-  const [loading, setLoading] = useState(false);
+  const { user, loading: authLoading } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>("available");
 
   // Project/draft picker
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [drafts, setDrafts] = useState<ProjectDraft[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState("");
-
-  // My reviews
-  const [myReviews, setMyReviews] = useState<FeedbackReview[]>([]);
 
   // Inline upload
   const [uploadFile, setUploadFile] = useState<File | null>(null);
@@ -138,119 +131,102 @@ export default function FeedbackPage() {
 
   const signupTokensGrantedRef = useRef(false);
 
-  useEffect(() => {
-    queueMicrotask(() => { setSignedInUserId(user?.id ?? ""); });
-  }, [user]);
+  // Auth-paused key: null while auth is resolving or no user — SWR will not fetch.
+  const signedInUserId = user?.id ?? "";
+  const authPausedBase = authLoading || !signedInUserId ? null : signedInUserId;
 
-  const loadBalance = useCallback(async () => {
-    try {
-      const response = await fetch("/api/v1/feedback/tokens/balance", {
-        headers: {}
-      });
-      if (response.ok) {
-        const body = (await response.json()) as TokenBalanceResponse;
-        setBalance(body.balance);
-      }
-    } catch {
+  const listingsKey = "/api/v1/feedback/listings?status=open";
+  const myListingsKey = authPausedBase
+    ? `/api/v1/feedback/listings?ownerUserId=${encodeURIComponent(signedInUserId)}`
+    : null;
+  const balanceKey = authPausedBase ? "/api/v1/feedback/tokens/balance" : null;
+  const projectsKey = authPausedBase
+    ? `/api/v1/projects?ownerUserId=${encodeURIComponent(signedInUserId)}`
+    : null;
+  const draftsKey = selectedProjectId
+    ? `/api/v1/projects/${encodeURIComponent(selectedProjectId)}/drafts`
+    : null;
+  const myReviewsKey = authPausedBase
+    ? `/api/v1/feedback/reviews?reviewerUserId=${encodeURIComponent(signedInUserId)}`
+    : null;
+
+  const {
+    data: listingsData,
+    isLoading: listingsLoading,
+    mutate: mutateListings,
+  } = useSWR<{ listings: FeedbackListing[] }>(listingsKey, {
+    onError(err: unknown) {
+      toast.error(err instanceof ApiError ? err.message : "Failed to load listings.");
+    },
+  });
+
+  const {
+    data: myListingsData,
+    mutate: mutateMyListings,
+  } = useSWR<{ listings: FeedbackListing[] }>(myListingsKey, {
+    onError(err: unknown) {
+      toast.error(err instanceof ApiError ? err.message : "Failed to load your listings.");
+    },
+  });
+
+  const {
+    data: balanceData,
+    mutate: mutateBalance,
+  } = useSWR<TokenBalanceResponse>(balanceKey, {
+    onError() {
       // Silently fail — balance will show as null
-    }
-  }, []);
+    },
+  });
 
-  const grantSignupTokens = useCallback(async () => {
-    try {
-      await fetch("/api/v1/feedback/tokens/grant-signup", {
-        method: "POST",
-        headers: {}
-      });
-      await loadBalance();
-    } catch {
-      // Grant is idempotent, failure is non-critical
-    }
-  }, [loadBalance]);
-
-  const loadListings = useCallback(async () => {
-    setLoading(true);
-    try {
-      const response = await fetch("/api/v1/feedback/listings?status=open", { cache: "no-store" });
-      const body = (await response.json()) as { listings?: FeedbackListing[] };
-      setListings(body.listings ?? []);
-
-      if (signedInUserId) {
-        const myResponse = await fetch(
-          `/api/v1/feedback/listings?ownerUserId=${encodeURIComponent(signedInUserId)}`,
-          { cache: "no-store" }
-        );
-        const myBody = (await myResponse.json()) as { listings?: FeedbackListing[] };
-        setMyListings(myBody.listings ?? []);
-      }
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to load listings.");
-    } finally {
-      setLoading(false);
-    }
-  }, [signedInUserId, toast]);
-
-  const loadProjects = useCallback(async () => {
-    try {
-      const response = await fetch(
-        `/api/v1/projects?ownerUserId=${encodeURIComponent(signedInUserId)}`,
-        { headers: {} }
-      );
-      if (response.ok) {
-        const body = (await response.json()) as { projects?: Project[] };
-        setProjects(body.projects ?? []);
-      }
-    } catch {
+  const {
+    data: projectsData,
+    mutate: mutateProjects,
+  } = useSWR<{ projects: Project[] }>(projectsKey, {
+    onError() {
       // Non-critical — user can still type IDs manually
-    }
-  }, [signedInUserId]);
+    },
+  });
 
-  async function loadDrafts(projectId: string) {
-    setDrafts([]);
-    if (!projectId) return;
-    try {
-      const response = await fetch(
-        `/api/v1/projects/${encodeURIComponent(projectId)}/drafts`,
-        { headers: {} }
-      );
-      if (response.ok) {
-        const body = (await response.json()) as { drafts?: ProjectDraft[] };
-        setDrafts(body.drafts ?? []);
-      }
-    } catch {
+  const { data: draftsData } = useSWR<{ drafts: ProjectDraft[] }>(draftsKey, {
+    onError() {
       // Non-critical
-    }
-  }
+    },
+  });
 
-  const loadMyReviews = useCallback(async () => {
-    try {
-      const response = await fetch(
-        `/api/v1/feedback/reviews?reviewerUserId=${encodeURIComponent(signedInUserId)}`,
-        { headers: {} }
-      );
-      if (response.ok) {
-        const body = (await response.json()) as { reviews?: FeedbackReview[] };
-        setMyReviews(body.reviews ?? []);
-      }
-    } catch {
+  const { data: myReviewsData } = useSWR<{ reviews: FeedbackReview[] }>(myReviewsKey, {
+    onError() {
       // Non-critical
+    },
+  });
+
+  const listings = listingsData?.listings ?? [];
+  const myListings = myListingsData?.listings ?? [];
+  const balance = balanceData?.balance ?? null;
+  const projects = projectsData?.projects ?? [];
+  const drafts = draftsData?.drafts ?? [];
+  const myReviews = myReviewsData?.reviews ?? [];
+  const loading = listingsLoading;
+
+  // Grant signup tokens once when the user first authenticates
+  const { trigger: triggerGrantSignup } = useSWRMutation(
+    balanceKey,
+    async () => {
+      await fetcher("/api/v1/feedback/tokens/grant-signup", { method: "POST" });
+      return fetcher<TokenBalanceResponse>("/api/v1/feedback/tokens/balance");
+    },
+    {
+      populateCache: (result: TokenBalanceResponse) => result,
+      revalidate: false,
+      throwOnError: false,
     }
-  }, [signedInUserId]);
+  );
 
   useEffect(() => {
-    if (signedInUserId) {
-      queueMicrotask(() => {
-        void loadBalance();
-        if (!signupTokensGrantedRef.current) {
-          signupTokensGrantedRef.current = true;
-          void grantSignupTokens();
-        }
-        void loadProjects();
-        void loadMyReviews();
-      });
+    if (balanceKey && !signupTokensGrantedRef.current) {
+      signupTokensGrantedRef.current = true;
+      void triggerGrantSignup();
     }
-    queueMicrotask(() => { void loadListings(); });
-  }, [grantSignupTokens, loadBalance, loadListings, loadMyReviews, loadProjects, signedInUserId]);
+  }, [balanceKey, triggerGrantSignup]);
 
   function handleProjectSelect(projectId: string) {
     setSelectedProjectId(projectId);
@@ -263,10 +239,8 @@ export default function FeedbackPage() {
         format: project.format,
         title: project.title
       }));
-      void loadDrafts(projectId);
     } else {
       setCreateForm((f) => ({ ...f, projectId, scriptId: "", pageCount: "" }));
-      setDrafts([]);
     }
   }
 
@@ -276,7 +250,7 @@ export default function FeedbackPage() {
       setCreateForm((f) => ({
         ...f,
         scriptId: draft.scriptId,
-        pageCount: String(draft.pageCount || "")
+        pageCount: String(draft.pageCount)
       }));
     }
   }
@@ -385,32 +359,46 @@ export default function FeedbackPage() {
         return;
       }
 
-      const response = await fetch("/api/v1/feedback/listings", {
-        method: "POST",
-        headers: { "content-type": "application/json", ...{} },
-        body: JSON.stringify({
-          projectId,
-          scriptId,
-          title: createForm.title,
-          description: createForm.description,
-          genre: createForm.genre,
-          format: createForm.format,
-          pageCount: Number(createForm.pageCount) || 0
-        })
-      });
-      const body = (await response.json()) as { listing?: FeedbackListing; error?: string };
-      if (!response.ok) {
-        toast.error(body.error === "insufficient_tokens" ? "Not enough tokens. Review others' scripts to earn more." : body.error ?? "Failed to create listing.");
+      const data = await fetcher<{ listing?: FeedbackListing; error?: string }>(
+        "/api/v1/feedback/listings",
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            projectId,
+            scriptId,
+            title: createForm.title,
+            description: createForm.description,
+            genre: createForm.genre,
+            format: createForm.format,
+            pageCount: Number(createForm.pageCount) || 0
+          }),
+        }
+      );
+
+      if (!data.listing) {
+        // error case handled by fetcher throwing ApiError
         return;
       }
+
       toast.success("Listing created! Your script is now available for feedback.");
       setCreateOpen(false);
       setCreateForm({ projectId: "", scriptId: "", title: "", description: "", genre: "", format: "", pageCount: "" });
       setUploadFile(null);
       setUploadStep("idle");
-      await Promise.all([loadListings(), loadBalance(), loadProjects()]);
+      void mutateListings();
+      void mutateMyListings();
+      void mutateBalance();
+      void mutateProjects();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to create listing.");
+      if (error instanceof ApiError && error.body && typeof error.body === "object" && "error" in error.body) {
+        const errBody = error.body as { error?: string };
+        toast.error(errBody.error === "insufficient_tokens"
+          ? "Not enough tokens. Review others' scripts to earn more."
+          : errBody.error ?? error.message);
+      } else {
+        toast.error(error instanceof Error ? error.message : "Failed to create listing.");
+      }
     } finally {
       setCreating(false);
       setUploadStep("idle");
@@ -419,37 +407,27 @@ export default function FeedbackPage() {
 
   async function handleClaim(listingId: string) {
     try {
-      const response = await fetch(`/api/v1/feedback/listings/${encodeURIComponent(listingId)}/claim`, {
+      await fetcher(`/api/v1/feedback/listings/${encodeURIComponent(listingId)}/claim`, {
         method: "POST",
-        headers: {}
       });
-      const body = (await response.json()) as { error?: string };
-      if (!response.ok) {
-        toast.error(body.error ?? "Failed to claim listing.");
-        return;
-      }
       toast.success("Claimed! You have 7 days to submit your review.");
-      await loadListings();
+      void mutateListings();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to claim listing.");
+      toast.error(error instanceof ApiError ? error.message : "Failed to claim listing.");
     }
   }
 
   async function handleCancel(listingId: string) {
     try {
-      const response = await fetch(`/api/v1/feedback/listings/${encodeURIComponent(listingId)}/cancel`, {
+      await fetcher(`/api/v1/feedback/listings/${encodeURIComponent(listingId)}/cancel`, {
         method: "POST",
-        headers: {}
       });
-      const body = (await response.json()) as { error?: string };
-      if (!response.ok) {
-        toast.error(body.error ?? "Failed to cancel listing.");
-        return;
-      }
       toast.success("Listing cancelled. Your token has been refunded.");
-      await Promise.all([loadListings(), loadBalance()]);
+      void mutateListings();
+      void mutateMyListings();
+      void mutateBalance();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to cancel listing.");
+      toast.error(error instanceof ApiError ? error.message : "Failed to cancel listing.");
     }
   }
 
@@ -474,30 +452,27 @@ export default function FeedbackPage() {
     if (!reviewTarget) return;
     setSubmittingReview(true);
     try {
-      const response = await fetch(`/api/v1/feedback/reviews/${encodeURIComponent(reviewTarget.id)}/submit`, {
+      await fetcher(`/api/v1/feedback/reviews/${encodeURIComponent(reviewTarget.id)}/submit`, {
         method: "POST",
-        headers: { "content-type": "application/json", ...{} },
+        headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          rubric: {
-            storyStructure: { score: Number(rubricForm.storyStructureScore), comment: rubricForm.storyStructureComment },
-            characters: { score: Number(rubricForm.charactersScore), comment: rubricForm.charactersComment },
-            dialogue: { score: Number(rubricForm.dialogueScore), comment: rubricForm.dialogueComment },
-            craftVoice: { score: Number(rubricForm.craftVoiceScore), comment: rubricForm.craftVoiceComment }
-          },
+          storyStructureScore: Number(rubricForm.storyStructureScore),
+          storyStructureComment: rubricForm.storyStructureComment,
+          charactersScore: Number(rubricForm.charactersScore),
+          charactersComment: rubricForm.charactersComment,
+          dialogueScore: Number(rubricForm.dialogueScore),
+          dialogueComment: rubricForm.dialogueComment,
+          craftVoiceScore: Number(rubricForm.craftVoiceScore),
+          craftVoiceComment: rubricForm.craftVoiceComment,
           overallComment: rubricForm.overallComment
-        })
+        }),
       });
-      const body = (await response.json()) as { error?: string };
-      if (!response.ok) {
-        toast.error(body.error ?? "Failed to submit review.");
-        return;
-      }
-      toast.success("Review submitted! You earned 1 token.");
+      toast.success("Review submitted! Your token has been released.");
       setReviewModalOpen(false);
-      setReviewTarget(null);
-      await Promise.all([loadListings(), loadBalance()]);
+      void mutateListings();
+      void mutateMyListings();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to submit review.");
+      toast.error(error instanceof ApiError ? error.message : "Failed to submit review.");
     } finally {
       setSubmittingReview(false);
     }
@@ -514,20 +489,15 @@ export default function FeedbackPage() {
     event.preventDefault();
     setSubmittingRating(true);
     try {
-      const response = await fetch(`/api/v1/feedback/reviews/${encodeURIComponent(ratingReviewId)}/rate`, {
+      await fetcher(`/api/v1/feedback/reviews/${encodeURIComponent(ratingReviewId)}/rate`, {
         method: "POST",
-        headers: { "content-type": "application/json", ...{} },
-        body: JSON.stringify({ score: Number(ratingScore), comment: ratingComment })
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ score: Number(ratingScore), comment: ratingComment }),
       });
-      const body = (await response.json()) as { error?: string };
-      if (!response.ok) {
-        toast.error(body.error ?? "Failed to submit rating.");
-        return;
-      }
       toast.success("Rating submitted. Thank you for your feedback!");
       setRatingModalOpen(false);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to submit rating.");
+      toast.error(error instanceof ApiError ? error.message : "Failed to submit rating.");
     } finally {
       setSubmittingRating(false);
     }
@@ -761,7 +731,7 @@ export default function FeedbackPage() {
                 return (
                   <article key={listing.id} className="subcard">
                     <div className="flex gap-4">
-              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-violet-500/10 dark:bg-violet-500/20 text-lg font-bold text-violet-700 dark:text-violet-400">
+                      <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-violet-500/10 dark:bg-violet-500/20 text-lg font-bold text-violet-700 dark:text-violet-400">
                         {listing.title.charAt(0).toUpperCase()}
                       </span>
                       <div className="min-w-0 flex-1">
@@ -783,12 +753,10 @@ export default function FeedbackPage() {
                         </div>
                         {signedInUserId && listing.ownerUserId !== signedInUserId ? (
                           <div className="mt-3">
-                            <button type="button" className="btn btn-primary" onClick={() => handleClaim(listing.id)}>
-                              Claim &amp; review
+                            <button type="button" className="btn btn-primary" onClick={() => void handleClaim(listing.id)}>
+                              Claim to review
                             </button>
                           </div>
-                        ) : listing.ownerUserId === signedInUserId ? (
-                          <p className="mt-2 text-xs text-muted">Your listing</p>
                         ) : null}
                       </div>
                     </div>
@@ -826,7 +794,7 @@ export default function FeedbackPage() {
                   </div>
                   <div className="mt-3 inline-form">
                     {listing.status === "open" ? (
-                      <button type="button" className="btn btn-secondary" onClick={() => handleCancel(listing.id)}>
+                      <button type="button" className="btn btn-secondary" onClick={() => void handleCancel(listing.id)}>
                         Cancel &amp; refund
                       </button>
                     ) : null}
@@ -896,7 +864,7 @@ export default function FeedbackPage() {
                             rel="noopener noreferrer"
                             className="btn btn-secondary"
                           >
-                            View Script
+                            Read script
                           </a>
                         ) : null}
                         {review.status === "in_progress" ? (
@@ -952,7 +920,6 @@ export default function FeedbackPage() {
                       value={rubricForm[commentKey]}
                       onChange={(e) => setRubricForm((f) => ({ ...f, [commentKey]: e.target.value }))}
                       required
-                      maxLength={2000}
                     />
                   </label>
                 </div>

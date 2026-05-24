@@ -20,7 +20,16 @@ export type GatewayContext = {
   industryPortalBase: string;
   programsServiceBase: string;
   partnerDashboardServiceBase: string;
+  metricsServiceBase?: string;
+  exportEventRecorder?: ExportEventRecorder;
 };
+
+export type ExportEventRecorder = (event: {
+  writerId: string;
+  format: "csv" | "zip";
+  status: "generated" | "failed";
+  requestId?: string;
+}) => Promise<void>;
 
 // ── Auth token TTL cache (CHAOS-581) ─────────────────────────────────
 const AUTH_CACHE_TTL_MS = Number(process.env.AUTH_CACHE_TTL_MS ?? 30_000); // default 30s

@@ -1,6 +1,9 @@
 import type { FastifyInstance } from "fastify";
 import archiver from "archiver";
+import { randomUUID } from "node:crypto";
+import { getPool } from "@script-manifest/db";
 import {
+  type ExportEventRecorder,
   type GatewayContext,
   getUserIdFromAuth,
   safeJsonParse
@@ -75,6 +78,26 @@ type ExportData = {
   placements: Record<string, unknown>[];
 };
 
+const defaultExportEventRecorder: ExportEventRecorder = async (event) => {
+  const pool = getPool();
+  await pool.query(
+    `INSERT INTO writer_export_events (id, writer_id, format, status, request_id)
+     VALUES ($1, $2, $3, $4, $5)`,
+    [`export_${randomUUID().replaceAll("-", "")}`, event.writerId, event.format, event.status, event.requestId ?? null]
+  );
+};
+
+async function recordExportEvent(ctx: GatewayContext, event: Parameters<ExportEventRecorder>[0]): Promise<void> {
+  const recorder = ctx.exportEventRecorder ?? defaultExportEventRecorder;
+  try {
+    await recorder(event);
+  } catch (error) {
+    // Export delivery must not fail solely because trust metrics instrumentation is unavailable.
+    // The metrics-service admin page surfaces zero/missing export events as a warning.
+    void error;
+  }
+}
+
 async function fetchExportData(ctx: GatewayContext, userId: string): Promise<ExportData> {
   const [profileRes, projectsRes, submissionsRes, placementsRes] = await Promise.all([
     ctx.requestFn(`${ctx.profileServiceBase}/internal/profiles/${encodeURIComponent(userId)}`, {
@@ -117,7 +140,13 @@ export function registerExportRoutes(server: FastifyInstance, ctx: GatewayContex
         return reply.status(401).send({ error: "unauthorized" });
       }
 
-      const data = await fetchExportData(ctx, userId);
+      let data: ExportData;
+      try {
+        data = await fetchExportData(ctx, userId);
+      } catch {
+        await recordExportEvent(ctx, { writerId: userId, format: "csv", status: "failed", requestId: req.id });
+        return reply.status(502).send({ error: "export_unavailable" });
+      }
 
       const csv = [
         buildProfileCsv(data.profile),
@@ -125,6 +154,8 @@ export function registerExportRoutes(server: FastifyInstance, ctx: GatewayContex
         buildSubmissionsCsv(data.submissions),
         buildPlacementsCsv(data.placements)
       ].join("\n");
+
+      await recordExportEvent(ctx, { writerId: userId, format: "csv", status: "generated", requestId: req.id });
 
       return reply
         .header("Content-Type", "text/csv")
@@ -141,7 +172,13 @@ export function registerExportRoutes(server: FastifyInstance, ctx: GatewayContex
         return reply.status(401).send({ error: "unauthorized" });
       }
 
-      const data = await fetchExportData(ctx, userId);
+      let data: ExportData;
+      try {
+        data = await fetchExportData(ctx, userId);
+      } catch {
+        await recordExportEvent(ctx, { writerId: userId, format: "zip", status: "failed", requestId: req.id });
+        return reply.status(502).send({ error: "export_unavailable" });
+      }
 
       const archive = archiver("zip", { zlib: { level: 9 } });
 
@@ -156,6 +193,8 @@ export function registerExportRoutes(server: FastifyInstance, ctx: GatewayContex
       archive.append(buildPlacementsCsv(data.placements), { name: "placements.csv" });
 
       await archive.finalize();
+
+      await recordExportEvent(ctx, { writerId: userId, format: "zip", status: "generated", requestId: req.id });
 
       return reply;
     }

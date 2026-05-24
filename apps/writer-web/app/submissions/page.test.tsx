@@ -178,6 +178,8 @@ describe("SubmissionsPage", () => {
         return jsonResponse({ submission: created }, 201);
       }
 
+      if (url === "/api/v1/onboarding-progress") return jsonResponse({ ok: true });
+
       return jsonResponse({});
     });
     vi.stubGlobal("fetch", fetchMock);
@@ -208,5 +210,70 @@ describe("SubmissionsPage", () => {
       "/api/v1/submissions",
       expect.objectContaining({ method: "POST" })
     );
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/onboarding-progress",
+      expect.objectContaining({
+        method: "PATCH",
+        body: JSON.stringify({ submissionRecorded: true }),
+      })
+    );
+  });
+
+  it("records placement activation after creating a placement", async () => {
+    const submission1 = {
+      id: "sub_1",
+      writerId: "writer_01",
+      projectId: "project_1",
+      competitionId: "comp_1",
+      status: "pending",
+      createdAt: "2026-02-06T00:00:00.000Z",
+      updatedAt: "2026-02-06T00:00:00.000Z",
+    };
+    const placements: Array<Record<string, unknown>> = [];
+
+    const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
+      const url = typeof input === "string" ? input : input.toString();
+      const method = (init?.method ?? "GET").toUpperCase();
+
+      if (url.includes("/api/v1/projects?")) return jsonResponse({ projects: [project1] });
+      if (url.includes("/api/v1/competitions")) return jsonResponse({ competitions: [competition1] });
+      if (url.includes("/api/v1/submissions?")) return jsonResponse({ submissions: [submission1] });
+      if (url.includes("/api/v1/placements?")) return jsonResponse({ placements });
+      if (url === "/api/v1/submissions/sub_1/placements" && method === "POST") {
+        placements.unshift({
+          id: "placement_1",
+          submissionId: "sub_1",
+          status: "quarterfinalist",
+          verificationState: "unverified",
+          createdAt: "2026-02-06T00:00:00.000Z",
+          updatedAt: "2026-02-06T00:00:00.000Z",
+        });
+        return jsonResponse({ submission: { ...submission1, status: "quarterfinalist" } }, 201);
+      }
+      if (url === "/api/v1/onboarding-progress") return jsonResponse({ ok: true });
+      return jsonResponse({});
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const user = userEvent.setup();
+    renderWithProviders(<SubmissionsPage />);
+
+    await waitFor(() => {
+      expect((screen.getByRole("button", { name: "Record placement" }) as HTMLButtonElement)).not.toBeDisabled();
+    });
+
+    await user.click(screen.getByRole("button", { name: "Record placement" }));
+    await user.selectOptions(await screen.findByLabelText("Submission"), "sub_1");
+    await user.click(screen.getByRole("button", { name: "Create placement" }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/v1/onboarding-progress",
+        expect.objectContaining({
+          method: "PATCH",
+          body: JSON.stringify({ placementRecorded: true }),
+        })
+      );
+    });
   });
 });

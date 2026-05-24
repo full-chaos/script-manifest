@@ -210,8 +210,8 @@ export default function ProjectsPage() {
         void fetch("/api/v1/onboarding-progress", {
           method: "PATCH",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ firstScriptUploaded: true }),
-        });
+          body: JSON.stringify({ projectAdded: true }),
+        }).catch(() => {});
       },
       onError(err: unknown) {
         toast.error(err instanceof ApiError ? err.message : "Failed to create project.");

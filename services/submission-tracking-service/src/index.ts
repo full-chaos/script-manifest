@@ -3,7 +3,10 @@ import { Counter } from "prom-client";
 import { bootstrapService, registerMetrics, registerSentryErrorHandler, setupErrorReporting, validateRequiredEnv, getAuthUserId, isMainModule, createFastifyServer } from "@script-manifest/service-utils";
 import { closePool } from "@script-manifest/db";
 import {
+  CreateHistoricalPlacementRequestSchema,
+  CreatePlacementEvidenceItemSchema,
   PlacementFiltersSchema,
+  PlacementEvidenceSchema,
   PlacementListItemSchema,
   PlacementCreateRequestSchema,
   PlacementSchema,
@@ -178,6 +181,87 @@ export function buildServer(options: SubmissionTrackingOptions = {}): FastifyIns
     return reply.status(201).send({ placement, submission: SubmissionSchema.parse(updatedSubmission) });
   });
 
+  server.post("/internal/placements/historical", async (req, reply) => {
+    const authUserId = getAuthUserId(req);
+    if (!authUserId) {
+      return reply.status(403).send({ error: "forbidden" });
+    }
+
+    const parsedBody = CreateHistoricalPlacementRequestSchema.safeParse(req.body);
+    if (!parsedBody.success) {
+      return reply.status(400).send({
+        error: "invalid_payload",
+        details: parsedBody.error.flatten()
+      });
+    }
+
+    const created = await repository.createHistoricalPlacement({
+      ...parsedBody.data,
+      recordedByUserId: authUserId
+    });
+    const evidence = await repository.listPlacementEvidence(created.placement.id);
+
+    submissionsCounter.inc();
+    return reply.status(201).send({
+      submission: SubmissionSchema.parse(created.submission),
+      placement: toPlacementDetail(PlacementSchema.parse(created.placement)),
+      evidence: evidence.map((item) => PlacementEvidenceSchema.parse(item))
+    });
+  });
+
+  server.post<{ Params: { placementId: string } }>("/internal/placements/:placementId/evidence", async (req, reply) => {
+    const authUserId = getAuthUserId(req);
+    if (!authUserId) {
+      return reply.status(403).send({ error: "forbidden" });
+    }
+
+    const placement = await repository.getPlacement(req.params.placementId);
+    if (!placement) {
+      return reply.status(404).send({ error: "placement_not_found" });
+    }
+
+    const submission = await repository.getSubmission(placement.submissionId);
+    if (!submission) {
+      return reply.status(404).send({ error: "submission_not_found" });
+    }
+
+    if (submission.writerId !== authUserId) {
+      return reply.status(403).send({ error: "forbidden" });
+    }
+
+    const parsedBody = CreatePlacementEvidenceItemSchema.safeParse(req.body);
+    if (!parsedBody.success) {
+      return reply.status(400).send({ error: "invalid_payload", details: parsedBody.error.flatten() });
+    }
+
+    const evidence = await repository.createPlacementEvidence({
+      ...parsedBody.data,
+      placementId: req.params.placementId,
+      uploadedByUserId: authUserId
+    });
+    return reply.status(201).send({ evidence: PlacementEvidenceSchema.parse(evidence) });
+  });
+
+  server.get<{ Params: { placementId: string } }>("/internal/placements/:placementId/evidence", async (req, reply) => {
+    const placement = await repository.getPlacement(req.params.placementId);
+    if (!placement) {
+      return reply.status(404).send({ error: "placement_not_found" });
+    }
+
+    const submission = await repository.getSubmission(placement.submissionId);
+    if (!submission) {
+      return reply.status(404).send({ error: "submission_not_found" });
+    }
+
+    const authUserId = getAuthUserId(req);
+    if (authUserId && authUserId !== submission.writerId) {
+      return reply.status(403).send({ error: "forbidden" });
+    }
+
+    const evidence = await repository.listPlacementEvidence(req.params.placementId);
+    return reply.send({ evidence: evidence.map((item) => PlacementEvidenceSchema.parse(item)) });
+  });
+
   server.get<{ Params: { submissionId: string } }>("/internal/submissions/:submissionId/placements", async (req, reply) => {
     const { submissionId } = req.params;
     const submission = await repository.getSubmission(submissionId);
@@ -256,12 +340,12 @@ export function buildServer(options: SubmissionTrackingOptions = {}): FastifyIns
       });
     }
 
-    const updatedPlacement = await repository.updatePlacementVerification(placementId, parsedBody.data.verificationState);
+    const updatedPlacement = await repository.updatePlacementVerification(placementId, parsedBody.data);
     if (!updatedPlacement) {
       return reply.status(404).send({ error: "placement_not_found" });
     }
 
-    return reply.send({ placement: PlacementSchema.parse(updatedPlacement) });
+    return reply.send({ placement: toPlacementDetail(PlacementSchema.parse(updatedPlacement)) });
   });
 
   return server;
@@ -272,8 +356,20 @@ function toPlacementListItem(placement: Placement, submission: Submission): Plac
     ...placement,
     writerId: submission.writerId,
     projectId: submission.projectId,
-    competitionId: submission.competitionId
+    competitionId: submission.competitionId,
+    badgeLabel: placementBadgeLabel(placement)
   });
+}
+
+function toPlacementDetail(placement: Placement): Placement & { badgeLabel: string } {
+  return { ...placement, badgeLabel: placementBadgeLabel(placement) };
+}
+
+function placementBadgeLabel(placement: Placement): string {
+  if (placement.verificationState === "verified") return "Verified";
+  if (placement.verificationState === "rejected") return "Rejected";
+  if (placement.isHistorical) return "Unverified — Historical";
+  return "Unverified";
 }
 
 export async function startServer(): Promise<void> {

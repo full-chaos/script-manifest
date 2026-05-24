@@ -4,7 +4,9 @@ import { useState, type FormEvent } from "react";
 import type { Route } from "next";
 import type {
   Competition,
+  CreateHistoricalPlacementRequest,
   PlacementListItem,
+  PlacementEvidenceKind,
   PlacementVerificationState,
   Project,
   Submission,
@@ -38,8 +40,18 @@ export default function SubmissionsPage() {
   const [mutating, setMutating] = useState(false);
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [placementModalOpen, setPlacementModalOpen] = useState(false);
+  const [historicalModalOpen, setHistoricalModalOpen] = useState(false);
   const [targetSubmissionId, setTargetSubmissionId] = useState("");
   const [placementStatus, setPlacementStatus] = useState<SubmissionStatus>("quarterfinalist");
+  const [historicalProjectId, setHistoricalProjectId] = useState("");
+  const [historicalCompetitionId, setHistoricalCompetitionId] = useState("");
+  const [historicalStatus, setHistoricalStatus] = useState<SubmissionStatus>("finalist");
+  const [historicalPlacementDate, setHistoricalPlacementDate] = useState("");
+  const [historicalSourceNote, setHistoricalSourceNote] = useState("");
+  const [historicalEvidenceUrl, setHistoricalEvidenceUrl] = useState("");
+  const [historicalEvidenceCaption, setHistoricalEvidenceCaption] = useState("");
+  const [historicalEvidenceKind, setHistoricalEvidenceKind] = useState<PlacementEvidenceKind>("document");
+  const [historicalEvidenceFile, setHistoricalEvidenceFile] = useState<File | null>(null);
 
   // Auth-paused key: null while auth is resolving or no user — SWR will not fetch.
   const writerId = user?.id ?? "";
@@ -61,6 +73,7 @@ export default function SubmissionsPage() {
     {
       onSuccess(data) {
         setProjectId((cur) => cur || data.projects[0]?.id || "");
+        setHistoricalProjectId((cur) => cur || data.projects[0]?.id || "");
       },
       onError(err: unknown) {
         toast.error(err instanceof ApiError ? err.message : "Failed to load projects.");
@@ -72,7 +85,8 @@ export default function SubmissionsPage() {
     competitions: Competition[];
   }>(competitionsKey, {
     onSuccess(data) {
-      setCompetitionId((cur) => cur || data.competitions[0]?.id || "");
+        setCompetitionId((cur) => cur || data.competitions[0]?.id || "");
+        setHistoricalCompetitionId((cur) => cur || data.competitions[0]?.id || "");
     },
     onError(err: unknown) {
       toast.error(err instanceof ApiError ? err.message : "Failed to load competitions.");
@@ -242,6 +256,88 @@ export default function SubmissionsPage() {
     }
   }
 
+  async function createHistoricalPlacement(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!writerId || !historicalProjectId || !historicalCompetitionId || !historicalPlacementDate || !historicalSourceNote.trim()) {
+      toast.error("Project, competition, date, and source note are required.");
+      return;
+    }
+    if (!historicalEvidenceFile && !historicalEvidenceUrl.trim()) {
+      toast.error("Attach an evidence file or URL.");
+      return;
+    }
+
+    setMutating(true);
+    try {
+      const scriptId = historicalEvidenceFile ? await uploadEvidenceFile(historicalEvidenceFile, writerId) : undefined;
+      const payload: CreateHistoricalPlacementRequest = {
+        projectId: historicalProjectId,
+        competitionId: historicalCompetitionId,
+        status: historicalStatus,
+        placementDate: historicalPlacementDate,
+        sourceNote: historicalSourceNote,
+        evidenceItems: [
+          {
+            kind: historicalEvidenceKind,
+            caption: historicalEvidenceCaption || undefined,
+            scriptId,
+            evidenceUrl: historicalEvidenceUrl || undefined
+          }
+        ]
+      };
+      await fetcher("/api/v1/placements/historical", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      void mutateSubmissions();
+      void mutatePlacements();
+      setHistoricalModalOpen(false);
+      setHistoricalSourceNote("");
+      setHistoricalEvidenceUrl("");
+      setHistoricalEvidenceCaption("");
+      setHistoricalEvidenceFile(null);
+      toast.success("Historical placement recorded for review.");
+    } catch (error) {
+      toast.error(error instanceof ApiError ? error.message : "Failed to record historical placement.");
+    } finally {
+      setMutating(false);
+    }
+  }
+
+  async function uploadEvidenceFile(file: File, ownerUserId: string): Promise<string> {
+    const scriptId = `evidence_${crypto.randomUUID()}`;
+    const uploadSession = await fetcher<{ uploadUrl: string; uploadFields: Record<string, string>; objectKey: string }>(
+      "/api/v1/scripts/upload-session",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ scriptId, ownerUserId, filename: file.name, contentType: file.type, size: file.size })
+      }
+    );
+    const formData = new FormData();
+    for (const [key, value] of Object.entries(uploadSession.uploadFields)) {
+      formData.append(key, value);
+    }
+    formData.append("file", file);
+    const uploadResponse = await fetch(uploadSession.uploadUrl, { method: "POST", body: formData });
+    if (!uploadResponse.ok) throw new Error("Evidence upload failed.");
+    await fetcher("/api/v1/scripts/register", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        scriptId,
+        ownerUserId,
+        objectKey: uploadSession.objectKey,
+        filename: file.name,
+        contentType: file.type,
+        size: file.size,
+        visibility: "evidence"
+      })
+    });
+    return scriptId;
+  }
+
   const loading = creating || mutating;
 
   return (
@@ -273,6 +369,14 @@ export default function SubmissionsPage() {
             disabled={!writerId || submissions.length === 0}
           >
             Record placement
+          </button>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => setHistoricalModalOpen(true)}
+            disabled={!writerId || projects.length === 0 || competitions.length === 0}
+          >
+            Record historical placement
           </button>
         </div>
       </article>
@@ -360,8 +464,9 @@ export default function SubmissionsPage() {
                         <div className="subcard-header">
                           <strong>{placement.id}</strong>
                           <span className="badge">
-                            {placement.status} | {placement.verificationState}
+                            {placement.status} | {placement.badgeLabel}
                           </span>
+                          {placement.isHistorical ? <span className="badge">Historical</span> : null}
                         </div>
                         <div className="inline-form mt-2">
                           <button
@@ -498,6 +603,84 @@ export default function SubmissionsPage() {
           <div className="inline-form">
             <button type="submit" className="btn btn-primary" disabled={loading}>
               {loading ? "Saving..." : "Create placement"}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal
+        open={historicalModalOpen}
+        onClose={() => setHistoricalModalOpen(false)}
+        title="Record historical placement"
+        description="Add a past placement with evidence so an admin can verify it."
+      >
+        <form className="stack" onSubmit={createHistoricalPlacement}>
+          <label className="stack-tight">
+            <span>Project</span>
+            <select className="input" value={historicalProjectId} onChange={(event) => setHistoricalProjectId(event.target.value)} required>
+              <option value="">Select project</option>
+              {projects.map((project) => (
+                <option key={project.id} value={project.id}>{project.title}</option>
+              ))}
+            </select>
+          </label>
+
+          <label className="stack-tight">
+            <span>Competition</span>
+            <select className="input" value={historicalCompetitionId} onChange={(event) => setHistoricalCompetitionId(event.target.value)} required>
+              <option value="">Select competition</option>
+              {competitions.map((competition) => (
+                <option key={competition.id} value={competition.id}>{competition.title}</option>
+              ))}
+            </select>
+          </label>
+
+          <label className="stack-tight">
+            <span>Placement status</span>
+            <select className="input" value={historicalStatus} onChange={(event) => setHistoricalStatus(event.target.value as SubmissionStatus)}>
+              {statuses.filter((value) => value !== "pending").map((entry) => (
+                <option key={entry} value={entry}>{entry}</option>
+              ))}
+            </select>
+          </label>
+
+          <label className="stack-tight">
+            <span>Placement date</span>
+            <input className="input" type="date" value={historicalPlacementDate} onChange={(event) => setHistoricalPlacementDate(event.target.value)} required />
+          </label>
+
+          <label className="stack-tight">
+            <span>Source note</span>
+            <textarea className="input min-h-24" value={historicalSourceNote} onChange={(event) => setHistoricalSourceNote(event.target.value)} maxLength={2000} required />
+          </label>
+
+          <label className="stack-tight">
+            <span>Evidence kind</span>
+            <select className="input" value={historicalEvidenceKind} onChange={(event) => setHistoricalEvidenceKind(event.target.value as PlacementEvidenceKind)}>
+              {(["screenshot", "pdf", "document", "url", "other"] as PlacementEvidenceKind[]).map((entry) => (
+                <option key={entry} value={entry}>{entry}</option>
+              ))}
+            </select>
+          </label>
+
+          <label className="stack-tight">
+            <span>Evidence file</span>
+            <input className="input" type="file" accept="application/pdf,image/png,image/jpeg,image/webp,text/plain" onChange={(event) => setHistoricalEvidenceFile(event.target.files?.[0] ?? null)} />
+          </label>
+
+          <label className="stack-tight">
+            <span>Evidence URL</span>
+            <input className="input" type="url" value={historicalEvidenceUrl} onChange={(event) => setHistoricalEvidenceUrl(event.target.value)} placeholder="https://example.com/results" />
+          </label>
+
+          <label className="stack-tight">
+            <span>Evidence caption</span>
+            <input className="input" value={historicalEvidenceCaption} onChange={(event) => setHistoricalEvidenceCaption(event.target.value)} maxLength={500} />
+          </label>
+
+          <div className="inline-form">
+            <button type="submit" className="btn btn-primary" disabled={loading}>
+              {loading ? "Saving..." : "Submit historical placement"}
             </button>
           </div>
         </form>

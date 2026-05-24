@@ -1,13 +1,23 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
-import type { Placement, PlacementFilters, Submission, SubmissionFilters } from "@script-manifest/contracts";
+import type {
+  CreateHistoricalPlacementData,
+  CreatePlacementEvidenceData,
+  Placement,
+  PlacementEvidence,
+  PlacementFilters,
+  PlacementVerificationUpdateData,
+  Submission,
+  SubmissionFilters
+} from "@script-manifest/contracts";
 import { buildServer } from "./index.js";
 import type { SubmissionTrackingRepository } from "./repository.js";
 
 class MemorySubmissionTrackingRepository implements SubmissionTrackingRepository {
   private readonly submissions = new Map<string, Submission>();
   private readonly placements = new Map<string, Placement>();
+  private readonly evidence = new Map<string, PlacementEvidence>();
 
   async init(): Promise<void> {
   }
@@ -96,6 +106,12 @@ class MemorySubmissionTrackingRepository implements SubmissionTrackingRepository
       createdAt: now,
       updatedAt: now,
       verifiedAt: null,
+      isHistorical: false,
+      sourceNote: null,
+      recordedByUserId: null,
+      reviewedByUserId: null,
+      reviewedAt: null,
+      reviewNotes: null,
     };
     this.placements.set(placement.id, placement);
     return placement;
@@ -105,7 +121,28 @@ class MemorySubmissionTrackingRepository implements SubmissionTrackingRepository
     return this.placements.get(id) ?? null;
   }
 
-  async updatePlacementVerification(id: string, verificationState: string): Promise<Placement | null> {
+  async createHistoricalPlacement(data: CreateHistoricalPlacementData): Promise<{ submission: Submission; placement: Placement }> {
+    const submission = await this.createSubmission({
+      writerId: data.recordedByUserId,
+      projectId: data.projectId,
+      competitionId: data.competitionId ?? `historical:${data.competitionNameFreeform}`,
+      status: data.status
+    });
+    const placement = await this.createPlacement(submission.id, data.status);
+    const historicalPlacement: Placement = {
+      ...placement,
+      isHistorical: true,
+      sourceNote: data.sourceNote,
+      recordedByUserId: data.recordedByUserId
+    };
+    this.placements.set(placement.id, historicalPlacement);
+    for (const item of data.evidenceItems) {
+      await this.createPlacementEvidence({ placementId: placement.id, uploadedByUserId: data.recordedByUserId, ...item });
+    }
+    return { submission, placement: historicalPlacement };
+  }
+
+  async updatePlacementVerification(id: string, data: PlacementVerificationUpdateData): Promise<Placement | null> {
     const placement = this.placements.get(id);
     if (!placement) {
       return null;
@@ -113,12 +150,36 @@ class MemorySubmissionTrackingRepository implements SubmissionTrackingRepository
     const now = new Date().toISOString();
     const updated: Placement = {
       ...placement,
-      verificationState: verificationState as Placement["verificationState"],
+      verificationState: data.verificationState,
       updatedAt: now,
-      verifiedAt: verificationState === "verified" ? now : null,
+      verifiedAt: data.verificationState === "verified" ? now : null,
+      reviewedByUserId: data.reviewedByUserId ?? null,
+      reviewedAt: data.reviewedByUserId ? now : null,
+      reviewNotes: data.reviewNotes ?? null,
     };
     this.placements.set(id, updated);
     return updated;
+  }
+
+  async createPlacementEvidence(data: CreatePlacementEvidenceData): Promise<PlacementEvidence> {
+    const now = new Date().toISOString();
+    const evidence: PlacementEvidence = {
+      id: `evidence_${randomUUID()}`,
+      placementId: data.placementId,
+      scriptId: data.scriptId ?? null,
+      evidenceUrl: data.evidenceUrl ?? null,
+      kind: data.kind,
+      caption: data.caption ?? null,
+      uploadedByUserId: data.uploadedByUserId,
+      createdAt: now,
+      updatedAt: now
+    };
+    this.evidence.set(evidence.id, evidence);
+    return evidence;
+  }
+
+  async listPlacementEvidence(placementId: string): Promise<PlacementEvidence[]> {
+    return Array.from(this.evidence.values()).filter((item) => item.placementId === placementId);
   }
 
   async listPlacementsBySubmission(submissionId: string): Promise<Placement[]> {
@@ -148,6 +209,9 @@ class MemorySubmissionTrackingRepository implements SubmissionTrackingRepository
         return [];
       }
       if (filters.verificationState && placement.verificationState !== filters.verificationState) {
+        return [];
+      }
+      if (filters.isHistorical !== undefined && placement.isHistorical !== filters.isHistorical) {
         return [];
       }
 

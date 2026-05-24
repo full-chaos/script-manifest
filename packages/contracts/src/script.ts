@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const ScriptVisibilitySchema = z.enum(["private", "approved_only", "public"]);
+export const ScriptVisibilitySchema = z.enum(["private", "approved_only", "public", "evidence"]);
 
 export type ScriptVisibility = z.infer<typeof ScriptVisibilitySchema>;
 
@@ -8,7 +8,7 @@ export const ScriptUploadSessionRequestSchema = z.object({
   scriptId: z.string().min(1),
   ownerUserId: z.string().min(1),
   filename: z.string().min(1),
-  contentType: z.enum(["application/pdf", "application/fountain", "text/plain"]),
+  contentType: z.enum(["application/pdf", "application/fountain", "text/plain", "image/png", "image/jpeg", "image/webp"]),
   size: z.coerce.number().int().nonnegative()
 });
 
@@ -38,6 +38,8 @@ export type ScriptFileRegistration = z.infer<typeof ScriptFileRegistrationSchema
 
 export const ScriptRegisterRequestSchema = ScriptFileRegistrationSchema.omit({
   registeredAt: true
+}).extend({
+  visibility: ScriptVisibilitySchema.default("private")
 });
 
 export type ScriptRegisterRequest = z.infer<typeof ScriptRegisterRequestSchema>;

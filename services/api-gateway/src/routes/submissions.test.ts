@@ -296,8 +296,13 @@ test("POST /api/v1/placements/:placementId/verify proxies and triggers ranking r
   });
 
   assert.equal(response.statusCode, 200);
-  assert.equal(urls[0], "http://submission-svc/internal/placements/placement_01/verify");
-  assert.equal(headers[0]?.["x-auth-user-id"], "writer_01");
+  // CHAOS-1805: verify route pre-fetches the placement to determine historical/admin gating,
+  // then proxies the verify call. Assert both happen and carry writer auth.
+  const verifyCallIdx = urls.findIndex(
+    (u) => u === "http://submission-svc/internal/placements/placement_01/verify"
+  );
+  assert.ok(verifyCallIdx >= 0, `expected verify proxy call, got urls=${JSON.stringify(urls)}`);
+  assert.equal(headers[verifyCallIdx]?.["x-auth-user-id"], "writer_01");
 
   // Wait briefly for the fire-and-forget ranking recompute
   await new Promise((resolve) => setTimeout(resolve, 50));

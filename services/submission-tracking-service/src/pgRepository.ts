@@ -121,9 +121,9 @@ export class PgSubmissionTrackingRepository implements SubmissionTrackingReposit
        SET verification_state = $2,
            updated_at = NOW(),
            verified_at = CASE WHEN $2 = 'verified' THEN NOW() ELSE NULL END,
-           reviewed_by_user_id = $3,
-           reviewed_at = CASE WHEN $3 IS NOT NULL THEN NOW() ELSE reviewed_at END,
-           review_notes = $4
+           reviewed_by_user_id = $3::text,
+           reviewed_at = CASE WHEN $3::text IS NOT NULL THEN NOW() ELSE reviewed_at END,
+           review_notes = $4::text
        WHERE id = $1
        RETURNING *`,
       [id, data.verificationState, data.reviewedByUserId ?? null, data.reviewNotes ?? null],

@@ -16,6 +16,9 @@ const STEP_TO_COLUMN = {
   shareUsed: "share_used"
 } as const;
 
+type OnboardingStepKey = keyof typeof STEP_TO_COLUMN;
+type OnboardingProgressFlags = Partial<Record<OnboardingStepKey, boolean>>;
+
 export function registerOnboardingRoutes(
   server: FastifyInstance,
   onboardingRepo: OnboardingRepository,
@@ -70,8 +73,9 @@ export function registerOnboardingRoutes(
         return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
       }
 
-      for (const stepKey of Object.keys(STEP_TO_COLUMN) as Array<keyof typeof STEP_TO_COLUMN>) {
-        if (parsed.data[stepKey]) {
+      const progressFlags = parsed.data as OnboardingProgressFlags;
+      for (const stepKey of Object.keys(STEP_TO_COLUMN) as OnboardingStepKey[]) {
+        if (progressFlags[stepKey]) {
           await onboardingRepo.markStepComplete(sessionData.user.id, STEP_TO_COLUMN[stepKey]);
         }
       }

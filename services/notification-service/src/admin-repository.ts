@@ -8,6 +8,17 @@ import type {
   CreateNotificationTemplateRequest,
   SendBroadcastRequest
 } from "@script-manifest/contracts";
+import type { PrivilegedAuditAction } from "@script-manifest/service-utils";
+
+export type NotificationAuditLogInput = {
+  adminUserId: string;
+  action: PrivilegedAuditAction;
+  targetType: string;
+  targetId: string;
+  details?: Record<string, unknown>;
+};
+
+export type NotificationAuditLogEntry = NotificationAuditLogInput & { id: string; createdAt: string };
 
 // ── Interface ──────────────────────────────────────────────────────
 
@@ -21,6 +32,7 @@ export interface NotificationAdminRepository {
   listBroadcasts(params: { status?: BroadcastStatus; page: number; limit: number }): Promise<{ broadcasts: NotificationBroadcast[]; total: number }>;
   updateBroadcastStatus(id: string, status: BroadcastStatus, recipientCount?: number): Promise<boolean>;
   getUserIdsByAudience(audience: string): Promise<string[]>;
+  createAuditLogEntry(input: NotificationAuditLogInput): Promise<NotificationAuditLogEntry>;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────
@@ -34,6 +46,7 @@ function toISOString(val: unknown): string {
 export class MemoryNotificationAdminRepository implements NotificationAdminRepository {
   private templates: NotificationTemplate[] = [];
   private broadcasts: NotificationBroadcast[] = [];
+  auditLog: NotificationAuditLogEntry[] = [];
   private users: Array<{ id: string; role: string }> = [];
 
   constructor(users?: Array<{ id: string; role: string }>) {
@@ -130,6 +143,12 @@ export class MemoryNotificationAdminRepository implements NotificationAdminRepos
     }
     return true;
   }
+
+  async createAuditLogEntry(input: NotificationAuditLogInput): Promise<NotificationAuditLogEntry> {
+    const entry = { id: randomUUID(), createdAt: new Date().toISOString(), ...input };
+    this.auditLog.push(entry);
+    return entry;
+  }
 }
 
 // ── PostgreSQL Implementation ─────────────────────────────────────
@@ -191,6 +210,45 @@ function mapBroadcast(row: BroadcastRow): NotificationBroadcast {
 export class PgNotificationAdminRepository implements NotificationAdminRepository {
   async init(): Promise<void> {
     // Tables are managed by migration 015
+    await getPool().query(`
+      CREATE TABLE IF NOT EXISTS notification_audit_log (
+        id TEXT PRIMARY KEY,
+        admin_user_id TEXT NOT NULL,
+        action TEXT NOT NULL,
+        target_type TEXT NOT NULL,
+        target_id TEXT NOT NULL,
+        details JSONB,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+  }
+
+  async createAuditLogEntry(input: NotificationAuditLogInput): Promise<NotificationAuditLogEntry> {
+    const id = randomUUID();
+    const result = await getPool().query<{
+      id: string;
+      admin_user_id: string;
+      action: NotificationAuditLogEntry["action"];
+      target_type: string;
+      target_id: string;
+      details: Record<string, unknown> | null;
+      created_at: Date;
+    }>(
+      `INSERT INTO notification_audit_log (id, admin_user_id, action, target_type, target_id, details)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id, admin_user_id, action, target_type, target_id, details, created_at`,
+      [id, input.adminUserId, input.action, input.targetType, input.targetId, input.details ?? null]
+    );
+    const row = result.rows[0]!;
+    return {
+      id: row.id,
+      adminUserId: row.admin_user_id,
+      action: row.action,
+      targetType: row.target_type,
+      targetId: row.target_id,
+      details: row.details ?? undefined,
+      createdAt: row.created_at.toISOString()
+    };
   }
 
   async getUserIdsByAudience(audience: string): Promise<string[]> {

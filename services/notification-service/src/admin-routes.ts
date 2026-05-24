@@ -49,6 +49,7 @@ export function registerNotificationAdminRoutes(server: FastifyInstance, adminRe
     }
 
     const template = await adminRepo.createTemplate({ ...parsed.data, createdBy: adminId });
+    await adminRepo.createAuditLogEntry({ adminUserId: adminId, action: "notification.admin.send", targetType: "notification_template", targetId: template.id, details: { action: "template.create" } });
     return reply.status(201).send({ template });
   });
 
@@ -81,6 +82,7 @@ export function registerNotificationAdminRoutes(server: FastifyInstance, adminRe
       );
     }
     await adminRepo.updateBroadcastStatus(broadcast.id, "sent", recipientCount);
+    await adminRepo.createAuditLogEntry({ adminUserId: adminId, action: "notification.admin.send", targetType: "notification_broadcast", targetId: broadcast.id, details: { audience: parsed.data.audience, recipientCount } });
 
     return reply.status(201).send({
       broadcast: {
@@ -119,6 +121,7 @@ export function registerNotificationAdminRoutes(server: FastifyInstance, adminRe
       );
     }
     await adminRepo.updateBroadcastStatus(broadcast.id, "sent", recipientCount);
+    await adminRepo.createAuditLogEntry({ adminUserId: adminId, action: "notification.admin.send", targetType: "notification_broadcast", targetId: broadcast.id, details: { audience, recipientCount } });
 
     return reply.status(201).send({
       broadcast: {

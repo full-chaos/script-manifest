@@ -1,205 +1,202 @@
 import assert from "node:assert/strict";
-import test from "node:test";
-import type {
-  Placement,
-  PlacementFilters,
-  PlacementVerificationState,
-  Submission,
-  SubmissionFilters,
-  SubmissionStatus
-} from "@script-manifest/contracts";
-import type { SubmissionTrackingRepository } from "./repository.js";
+import test, { mock } from "node:test";
 
-class MemorySubmissionTrackingRepository implements SubmissionTrackingRepository {
-  private readonly submissions = new Map<string, Submission>();
-  private readonly placements = new Map<string, Placement>();
-  private submissionCount = 0;
-  private placementCount = 0;
+type QueryResult = { rows: unknown[]; rowCount?: number };
+type QueryFn = (sql: string, values?: unknown[]) => Promise<QueryResult>;
 
-  async init(): Promise<void> {}
+let queryImpl: QueryFn = async () => ({ rows: [], rowCount: 0 });
+const query: QueryFn = async (sql, values = []) => queryImpl(sql, values);
 
-  async healthCheck(): Promise<{ database: boolean }> {
-    return { database: true };
+mock.module("@script-manifest/db", {
+  namedExports: {
+    getPool: () => ({ query }),
+    runMigrations: async () => undefined
   }
+});
 
-  async createSubmission(data: {
-    writerId: string;
-    projectId: string;
-    competitionId: string;
-    status: string;
-  }): Promise<Submission> {
-    const now = new Date("2026-03-01T00:00:00.000Z").toISOString();
-    const submission: Submission = {
-      id: `submission_${++this.submissionCount}`,
-      writerId: data.writerId,
-      projectId: data.projectId,
-      competitionId: data.competitionId,
-      status: data.status as SubmissionStatus,
-      createdAt: now,
-      updatedAt: now,
-    };
-    this.submissions.set(submission.id, submission);
-    return submission;
-  }
+const { PgSubmissionTrackingRepository } = await import("./pgRepository.js");
 
-  async getSubmission(id: string): Promise<Submission | null> {
-    return this.submissions.get(id) ?? null;
-  }
-
-  async updateSubmissionProject(id: string, projectId: string): Promise<Submission | null> {
-    const submission = this.submissions.get(id);
-    if (!submission) {
-      return null;
-    }
-
-    const updated: Submission = {
-      ...submission,
-      projectId,
-      updatedAt: new Date("2026-03-02T00:00:00.000Z").toISOString(),
-    };
-    this.submissions.set(id, updated);
-    return updated;
-  }
-
-  async updateSubmissionStatus(id: string, status: string): Promise<Submission | null> {
-    const submission = this.submissions.get(id);
-    if (!submission) {
-      return null;
-    }
-
-    const updated: Submission = {
-      ...submission,
-      status: status as SubmissionStatus,
-      updatedAt: new Date("2026-03-03T00:00:00.000Z").toISOString(),
-    };
-    this.submissions.set(id, updated);
-    return updated;
-  }
-
-  async listSubmissions(filters: SubmissionFilters): Promise<Submission[]> {
-    return Array.from(this.submissions.values()).filter((submission) => {
-      if (filters.writerId && submission.writerId !== filters.writerId) return false;
-      if (filters.projectId && submission.projectId !== filters.projectId) return false;
-      if (filters.competitionId && submission.competitionId !== filters.competitionId) return false;
-      if (filters.status && submission.status !== filters.status) return false;
-      return true;
-    });
-  }
-
-  async createPlacement(submissionId: string, status: string): Promise<Placement> {
-    const now = new Date("2026-03-04T00:00:00.000Z").toISOString();
-    const placement: Placement = {
-      id: `placement_${++this.placementCount}`,
-      submissionId,
-      status: status as SubmissionStatus,
-      verificationState: "pending",
-      createdAt: now,
-      updatedAt: now,
-      verifiedAt: null,
-    };
-    this.placements.set(placement.id, placement);
-    return placement;
-  }
-
-  async getPlacement(id: string): Promise<Placement | null> {
-    return this.placements.get(id) ?? null;
-  }
-
-  async updatePlacementVerification(id: string, verificationState: string): Promise<Placement | null> {
-    const placement = this.placements.get(id);
-    if (!placement) {
-      return null;
-    }
-
-    const now = new Date("2026-03-05T00:00:00.000Z").toISOString();
-    const updated: Placement = {
-      ...placement,
-      verificationState: verificationState as PlacementVerificationState,
-      updatedAt: now,
-      verifiedAt: verificationState === "verified" ? now : null,
-    };
-    this.placements.set(id, updated);
-    return updated;
-  }
-
-  async listPlacementsBySubmission(submissionId: string): Promise<Placement[]> {
-    return Array.from(this.placements.values()).filter((placement) => placement.submissionId === submissionId);
-  }
-
-  async listPlacements(filters: PlacementFilters): Promise<{ placement: Placement; submission: Submission }[]> {
-    return Array.from(this.placements.values()).flatMap((placement) => {
-      const submission = this.submissions.get(placement.submissionId);
-      if (!submission) {
-        return [];
-      }
-
-      if (filters.submissionId && placement.submissionId !== filters.submissionId) return [];
-      if (filters.writerId && submission.writerId !== filters.writerId) return [];
-      if (filters.projectId && submission.projectId !== filters.projectId) return [];
-      if (filters.competitionId && submission.competitionId !== filters.competitionId) return [];
-      if (filters.status && placement.status !== filters.status) return [];
-      if (filters.verificationState && placement.verificationState !== filters.verificationState) return [];
-
-      return [{ placement, submission }];
-    });
-  }
+function submissionRow(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    id: "submission_1",
+    writer_id: "writer_1",
+    project_id: "project_1",
+    competition_id: "comp_1",
+    status: "pending",
+    created_at: new Date("2026-03-01T00:00:00.000Z"),
+    updated_at: new Date("2026-03-02T00:00:00.000Z"),
+    ...overrides
+  };
 }
 
-test("SubmissionTrackingRepository supports the submission and placement lifecycle", async () => {
-  const repo = new MemorySubmissionTrackingRepository();
+function placementRow(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    id: "placement_1",
+    submission_id: "submission_1",
+    status: "quarterfinalist",
+    verification_state: "pending",
+    created_at: new Date("2026-03-03T00:00:00.000Z"),
+    updated_at: new Date("2026-03-04T00:00:00.000Z"),
+    verified_at: null,
+    ...overrides
+  };
+}
 
-  await repo.init();
-  assert.deepEqual(await repo.healthCheck(), { database: true });
+test("PgSubmissionTrackingRepository updates and retrieves submissions", async () => {
+  const calls: Array<{ sql: string; values: unknown[] }> = [];
 
-  const submission = await repo.createSubmission({
+  queryImpl = async (sql, values = []) => {
+    calls.push({ sql, values });
+    if (sql.includes("SELECT * FROM submissions WHERE id = $1")) {
+      return { rows: [submissionRow()] };
+    }
+    if (sql.includes("SET project_id = $2")) {
+      return { rows: [submissionRow({ project_id: "project_2" })], rowCount: 1 };
+    }
+    if (sql.includes("SET status = $2")) {
+      return { rows: [submissionRow({ status: "semifinalist" })], rowCount: 1 };
+    }
+    return { rows: [] };
+  };
+
+  const repo = new PgSubmissionTrackingRepository();
+  const submission = await repo.getSubmission("submission_1");
+  const projectUpdated = await repo.updateSubmissionProject("submission_1", "project_2");
+  const statusUpdated = await repo.updateSubmissionStatus("submission_1", "semifinalist");
+
+  assert.equal(submission?.writerId, "writer_1");
+  assert.equal(projectUpdated?.projectId, "project_2");
+  assert.equal(statusUpdated?.status, "semifinalist");
+  assert.deepEqual(calls.map((call) => call.values), [
+    ["submission_1"],
+    ["submission_1", "project_2"],
+    ["submission_1", "semifinalist"]
+  ]);
+});
+
+test("PgSubmissionTrackingRepository creates and verifies placements", async () => {
+  const calls: Array<{ sql: string; values: unknown[] }> = [];
+
+  queryImpl = async (sql, values = []) => {
+    calls.push({ sql, values });
+    if (sql.includes("INSERT INTO placements")) {
+      assert.match(String(values[0]), /^placement_/);
+      return { rows: [placementRow({ id: values[0] })], rowCount: 1 };
+    }
+    if (sql.includes("SELECT * FROM placements WHERE id = $1")) {
+      return { rows: [placementRow()] };
+    }
+    if (sql.includes("SET verification_state = $2")) {
+      return {
+        rows: [placementRow({ verification_state: "verified", verified_at: new Date("2026-03-05T00:00:00.000Z") })],
+        rowCount: 1
+      };
+    }
+    if (sql.includes("WHERE submission_id = $1")) {
+      return { rows: [placementRow()] };
+    }
+    return { rows: [] };
+  };
+
+  const repo = new PgSubmissionTrackingRepository();
+  const created = await repo.createPlacement("submission_1", "quarterfinalist");
+  const placement = await repo.getPlacement("placement_1");
+  const verified = await repo.updatePlacementVerification("placement_1", "verified");
+  const bySubmission = await repo.listPlacementsBySubmission("submission_1");
+
+  assert.equal(created.submissionId, "submission_1");
+  assert.equal(placement?.status, "quarterfinalist");
+  assert.equal(verified?.verificationState, "verified");
+  assert.equal(verified?.verifiedAt, "2026-03-05T00:00:00.000Z");
+  assert.equal(bySubmission.length, 1);
+  assert.deepEqual(calls.map((call) => call.values.slice(-2)), [
+    ["submission_1", "quarterfinalist"],
+    ["placement_1"],
+    ["placement_1", "verified"],
+    ["submission_1"]
+  ]);
+});
+
+test("PgSubmissionTrackingRepository listPlacements builds joined filters and maps rows", async () => {
+  let capturedSql = "";
+  let capturedValues: unknown[] = [];
+
+  queryImpl = async (sql, values = []) => {
+    capturedSql = sql;
+    capturedValues = values;
+    return {
+      rows: [
+        {
+          placement_id: "placement_1",
+          placement_submission_id: "submission_1",
+          placement_status: "quarterfinalist",
+          placement_verification_state: "verified",
+          placement_created_at: new Date("2026-03-03T00:00:00.000Z"),
+          placement_updated_at: new Date("2026-03-04T00:00:00.000Z"),
+          placement_verified_at: new Date("2026-03-05T00:00:00.000Z"),
+          submission_id: "submission_1",
+          submission_writer_id: "writer_1",
+          submission_project_id: "project_1",
+          submission_competition_id: "comp_1",
+          submission_status: "semifinalist",
+          submission_created_at: new Date("2026-03-01T00:00:00.000Z"),
+          submission_updated_at: new Date("2026-03-02T00:00:00.000Z")
+        }
+      ]
+    };
+  };
+
+  const repo = new PgSubmissionTrackingRepository();
+  const placements = await repo.listPlacements({
+    submissionId: "submission_1",
     writerId: "writer_1",
     projectId: "project_1",
     competitionId: "comp_1",
-    status: "pending",
+    status: "quarterfinalist",
+    verificationState: "verified"
   });
 
-  assert.equal(submission.id, "submission_1");
-  assert.equal(submission.status, "pending");
-  assert.equal((await repo.getSubmission(submission.id))?.writerId, "writer_1");
-
-  const projectUpdated = await repo.updateSubmissionProject(submission.id, "project_2");
-  assert.equal(projectUpdated?.projectId, "project_2");
-
-  const statusUpdated = await repo.updateSubmissionStatus(submission.id, "semifinalist");
-  assert.equal(statusUpdated?.status, "semifinalist");
-
-  const placement = await repo.createPlacement(submission.id, "quarterfinalist");
-  assert.equal(placement.id, "placement_1");
-  assert.equal(placement.verificationState, "pending");
-
-  const verified = await repo.updatePlacementVerification(placement.id, "verified");
-  assert.equal(verified?.verificationState, "verified");
-  assert.ok(verified?.verifiedAt);
-
-  const submissions = await repo.listSubmissions({ writerId: "writer_1", projectId: "project_2" });
-  assert.equal(submissions.length, 1);
-
-  const placementsBySubmission = await repo.listPlacementsBySubmission(submission.id);
-  assert.equal(placementsBySubmission.length, 1);
-
-  const placements = await repo.listPlacements({
-    writerId: "writer_1",
-    projectId: "project_2",
-    verificationState: "verified",
-  });
-  assert.equal(placements.length, 1);
-  assert.equal(placements[0]?.submission.id, submission.id);
-  assert.equal(placements[0]?.placement.id, placement.id);
+  assert.match(capturedSql, /INNER JOIN submissions s ON s.id = p.submission_id/);
+  assert.match(capturedSql, /p.submission_id = \$1/);
+  assert.match(capturedSql, /s.writer_id = \$2/);
+  assert.match(capturedSql, /s.project_id = \$3/);
+  assert.match(capturedSql, /s.competition_id = \$4/);
+  assert.match(capturedSql, /p.status = \$5/);
+  assert.match(capturedSql, /p.verification_state = \$6/);
+  assert.deepEqual(capturedValues, ["submission_1", "writer_1", "project_1", "comp_1", "quarterfinalist", "verified"]);
+  assert.deepEqual(placements, [
+    {
+      placement: {
+        id: "placement_1",
+        submissionId: "submission_1",
+        status: "quarterfinalist",
+        verificationState: "verified",
+        createdAt: "2026-03-03T00:00:00.000Z",
+        updatedAt: "2026-03-04T00:00:00.000Z",
+        verifiedAt: "2026-03-05T00:00:00.000Z"
+      },
+      submission: {
+        id: "submission_1",
+        writerId: "writer_1",
+        projectId: "project_1",
+        competitionId: "comp_1",
+        status: "semifinalist",
+        createdAt: "2026-03-01T00:00:00.000Z",
+        updatedAt: "2026-03-02T00:00:00.000Z"
+      }
+    }
+  ]);
 });
 
-test("SubmissionTrackingRepository returns null when records are missing", async () => {
-  const repo = new MemorySubmissionTrackingRepository();
+test("PgSubmissionTrackingRepository returns null when updates miss", async () => {
+  queryImpl = async () => ({ rows: [], rowCount: 0 });
+
+  const repo = new PgSubmissionTrackingRepository();
 
   assert.equal(await repo.getSubmission("missing"), null);
   assert.equal(await repo.getPlacement("missing"), null);
   assert.equal(await repo.updateSubmissionProject("missing", "project_1"), null);
   assert.equal(await repo.updateSubmissionStatus("missing", "semifinalist"), null);
   assert.equal(await repo.updatePlacementVerification("missing", "verified"), null);
-  assert.deepEqual(await repo.listSubmissions({ writerId: "missing" }), []);
-  assert.deepEqual(await repo.listPlacements({ writerId: "missing" }), []);
-});
+}
+);

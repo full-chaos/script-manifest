@@ -1,247 +1,137 @@
 import assert from "node:assert/strict";
-import test from "node:test";
-import type { Competition } from "@script-manifest/contracts";
-import type { CompetitionDirectoryRepository } from "./repository.js";
+import { beforeEach, mock, test } from "node:test";
 
-function createCompetition(overrides: Partial<Competition> & Pick<Competition, "id" | "title" | "format" | "genre" | "deadline">): Competition {
+type QueryResult = { rows: unknown[]; rowCount?: number };
+type QueryFn = (sql: string, values?: unknown[]) => Promise<QueryResult>;
+
+const publishCalls: unknown[] = [];
+let queryImpl: QueryFn = async () => ({ rows: [], rowCount: 0 });
+const query: QueryFn = async (sql, values = []) => queryImpl(sql, values);
+
+const { toFtsPrefixQuery } = await import("@script-manifest/db");
+
+mock.module("@script-manifest/db", {
+  namedExports: {
+    getPool: () => ({ query }),
+    runMigrations: async () => undefined,
+    toFtsPrefixQuery
+  }
+});
+
+mock.module("@script-manifest/service-utils", {
+  namedExports: {
+    publishSearchSyncEvent: async (event: unknown) => {
+      publishCalls.push(event);
+    }
+  }
+});
+
+const { PgCompetitionDirectoryRepository } = await import("./pgRepository.js");
+
+beforeEach(() => {
+  publishCalls.length = 0;
+  queryImpl = async () => ({ rows: [], rowCount: 0 });
+});
+
+function competitionRow(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
-    description: "",
-    feeUsd: 0,
+    id: "comp_1",
+    title: "Screenplay Sprint",
+    description: "Seed competition record",
+    format: "feature",
+    genre: "drama",
+    fee_usd: "25",
+    deadline: new Date("2026-05-01T23:59:59.000Z"),
     status: "active",
     visibility: "listed",
-    accessType: "open",
+    access_type: "open",
+    created_at: new Date("2026-01-01T00:00:00.000Z"),
+    updated_at: new Date("2026-01-02T00:00:00.000Z"),
     ...overrides
   };
 }
 
-class MemoryCompetitionDirectoryRepository implements CompetitionDirectoryRepository {
-  private readonly competitions = new Map<string, Competition>();
+test("PgCompetitionDirectoryRepository retrieves and lists mapped competitions", async () => {
+  const calls: Array<{ sql: string; values: unknown[] }> = [];
 
-  constructor(seed: Competition[] = []) {
-    for (const competition of seed) {
-      this.competitions.set(competition.id, competition);
+  queryImpl = async (sql, values = []) => {
+    calls.push({ sql, values });
+    if (sql.includes("WHERE id = $1")) {
+      return { rows: [competitionRow()] };
     }
-  }
-
-  async init(): Promise<void> {
-    return;
-  }
-
-  async healthCheck(): Promise<{ database: boolean }> {
-    return { database: true };
-  }
-
-  async upsertCompetition(competition: Competition): Promise<{ existed: boolean }> {
-    const existed = this.competitions.has(competition.id);
-    this.competitions.set(competition.id, competition);
-    return { existed };
-  }
-
-  async getCompetition(id: string): Promise<Competition | null> {
-    return this.competitions.get(id) ?? null;
-  }
-
-  async listCompetitions(filters: Parameters<CompetitionDirectoryRepository["listCompetitions"]>[0]): Promise<Competition[]> {
-    const loweredQuery = filters.query?.toLowerCase();
-
-    return Array.from(this.competitions.values()).filter((competition) => {
-      if (!filters.includeCancelled && competition.status === "cancelled") {
-        return false;
-      }
-
-      if (!filters.includeHidden && competition.visibility === "unlisted") {
-        return false;
-      }
-
-      if (loweredQuery && !`${competition.title} ${competition.description}`.toLowerCase().includes(loweredQuery)) {
-        return false;
-      }
-
-      if (filters.format && competition.format.toLowerCase() !== filters.format.toLowerCase()) {
-        return false;
-      }
-
-      if (filters.genre && competition.genre.toLowerCase() !== filters.genre.toLowerCase()) {
-        return false;
-      }
-
-      if (typeof filters.maxFeeUsd === "number" && competition.feeUsd > filters.maxFeeUsd) {
-        return false;
-      }
-
-      if (filters.deadlineBefore && new Date(competition.deadline) >= filters.deadlineBefore) {
-        return false;
-      }
-
-      return true;
-    });
-  }
-
-  async getAllCompetitions(): Promise<Competition[]> {
-    return Array.from(this.competitions.values());
-  }
-
-  async cancelCompetition(id: string): Promise<Competition | null> {
-    const competition = this.competitions.get(id);
-    if (!competition || competition.status === "cancelled") {
-      return null;
+    if (sql.includes("ORDER BY created_at")) {
+      return { rows: [competitionRow(), competitionRow({ id: "comp_2", title: "TV Pilot Challenge", fee_usd: 50 })] };
     }
+    return { rows: [] };
+  };
 
-    const updated = { ...competition, status: "cancelled" as const };
-    this.competitions.set(id, updated);
-    return updated;
-  }
+  const repo = new PgCompetitionDirectoryRepository();
+  const competition = await repo.getCompetition("comp_1");
+  const allCompetitions = await repo.getAllCompetitions();
 
-  async updateVisibility(id: string, visibility: Competition["visibility"]): Promise<Competition | null> {
-    const competition = this.competitions.get(id);
-    if (!competition) {
-      return null;
-    }
-
-    const updated = { ...competition, visibility };
-    this.competitions.set(id, updated);
-    return updated;
-  }
-
-  async updateAccessType(id: string, accessType: Competition["accessType"]): Promise<Competition | null> {
-    const competition = this.competitions.get(id);
-    if (!competition) {
-      return null;
-    }
-
-    const updated = { ...competition, accessType };
-    this.competitions.set(id, updated);
-    return updated;
-  }
-}
-
-test("CompetitionDirectoryRepository contract stores and retrieves competitions", async () => {
-  const repo = new MemoryCompetitionDirectoryRepository([
-    createCompetition({
-      id: "comp_1",
-      title: "Screenplay Sprint",
-      description: "Seed competition record for local development",
-      format: "feature",
-      genre: "drama",
-      feeUsd: 25,
-      deadline: "2026-05-01T23:59:59Z"
-    })
-  ]);
-
-  assert.deepEqual(await repo.healthCheck(), { database: true });
-  await repo.init();
-
-  const created = await repo.upsertCompetition(
-    createCompetition({
-      id: "comp_2",
-      title: "TV Pilot Challenge",
-      description: "Serialized drama",
-      format: "tv",
-      genre: "drama",
-      feeUsd: 50,
-      deadline: "2026-07-01T23:59:59Z",
-      visibility: "unlisted"
-    })
-  );
-
-  assert.equal(created.existed, false);
-  assert.equal((await repo.getCompetition("comp_2"))?.title, "TV Pilot Challenge");
-
-  const updated = await repo.upsertCompetition(
-    createCompetition({
-      id: "comp_2",
-      title: "TV Pilot Challenge Updated",
-      description: "Serialized drama",
-      format: "tv",
-      genre: "drama",
-      feeUsd: 45,
-      deadline: "2026-07-15T23:59:59Z",
-      visibility: "unlisted"
-    })
-  );
-
-  assert.equal(updated.existed, true);
-  assert.equal((await repo.getCompetition("comp_2"))?.title, "TV Pilot Challenge Updated");
-  assert.equal((await repo.getCompetition("missing")), null);
-  assert.deepEqual((await repo.getAllCompetitions()).map((competition) => competition.id), ["comp_1", "comp_2"]);
+  assert.deepEqual(competition, {
+    id: "comp_1",
+    title: "Screenplay Sprint",
+    description: "Seed competition record",
+    format: "feature",
+    genre: "drama",
+    feeUsd: 25,
+    deadline: "2026-05-01T23:59:59.000Z",
+    status: "active",
+    visibility: "listed",
+    accessType: "open"
+  });
+  assert.deepEqual(allCompetitions.map((item) => item.id), ["comp_1", "comp_2"]);
+  assert.equal(calls[0]?.sql.trim(), "SELECT * FROM competitions WHERE id = $1");
+  assert.deepEqual(calls[0]?.values, ["comp_1"]);
+  assert.equal(calls[1]?.sql, "SELECT * FROM competitions ORDER BY created_at");
 });
 
-test("CompetitionDirectoryRepository contract filters hidden and cancelled competitions", async () => {
-  const repo = new MemoryCompetitionDirectoryRepository([
-    createCompetition({
-      id: "comp_1",
-      title: "Screenplay Sprint",
-      description: "Seed competition record for local development",
-      format: "feature",
-      genre: "drama",
-      feeUsd: 25,
-      deadline: "2026-05-01T23:59:59Z"
-    }),
-    createCompetition({
-      id: "comp_2",
-      title: "Festival Lab",
-      description: "Invite only festival",
-      format: "feature",
-      genre: "thriller",
-      feeUsd: 75,
-      deadline: "2026-09-01T23:59:59Z",
-      status: "cancelled",
-      visibility: "unlisted"
-    }),
-    createCompetition({
-      id: "comp_3",
-      title: "TV Pilot Challenge",
-      description: "Serialized drama",
-      format: "tv",
-      genre: "drama",
-      feeUsd: 50,
-      deadline: "2026-07-01T23:59:59Z",
-      visibility: "unlisted"
-    })
-  ]);
+test("PgCompetitionDirectoryRepository updates status, visibility, and access type with sync events", async () => {
+  const calls: Array<{ sql: string; values: unknown[] }> = [];
 
-  assert.deepEqual((await repo.listCompetitions({})).map((competition) => competition.id), ["comp_1"]);
-  assert.deepEqual(
-    (await repo.listCompetitions({
-      query: "serialized",
-      format: "tv",
-      genre: "drama",
-      maxFeeUsd: 60,
-      deadlineBefore: new Date("2026-08-01T00:00:00.000Z"),
-      includeHidden: true
-    })).map((competition) => competition.id),
-    ["comp_3"]
-  );
-  assert.deepEqual(
-    (await repo.listCompetitions({ includeHidden: true, includeCancelled: true })).map((competition) => competition.id),
-    ["comp_1", "comp_2", "comp_3"]
-  );
-});
+  queryImpl = async (sql, values = []) => {
+    calls.push({ sql, values });
+    if (sql.includes("SET status = 'cancelled'")) {
+      return { rows: [competitionRow({ status: "cancelled" })], rowCount: 1 };
+    }
+    if (sql.includes("SET visibility = $2")) {
+      return { rows: [competitionRow({ visibility: "unlisted" })], rowCount: 1 };
+    }
+    if (sql.includes("SET access_type = $2")) {
+      return { rows: [competitionRow({ access_type: "invite_only" })], rowCount: 1 };
+    }
+    return { rows: [] };
+  };
 
-test("CompetitionDirectoryRepository contract cancels and updates competition settings", async () => {
-  const repo = new MemoryCompetitionDirectoryRepository([
-    createCompetition({
-      id: "comp_1",
-      title: "Screenplay Sprint",
-      description: "Seed competition record for local development",
-      format: "feature",
-      genre: "drama",
-      feeUsd: 25,
-      deadline: "2026-05-01T23:59:59Z"
-    })
-  ]);
-
+  const repo = new PgCompetitionDirectoryRepository();
   const cancelled = await repo.cancelCompetition("comp_1");
+  const hidden = await repo.updateVisibility("comp_1", "unlisted");
+  const inviteOnly = await repo.updateAccessType("comp_1", "invite_only");
+
   assert.equal(cancelled?.status, "cancelled");
-  assert.equal(await repo.cancelCompetition("comp_1"), null);
+  assert.equal(hidden?.visibility, "unlisted");
+  assert.equal(inviteOnly?.accessType, "invite_only");
+  assert.deepEqual(calls.map((call) => call.values), [
+    ["comp_1"],
+    ["comp_1", "unlisted"],
+    ["comp_1", "invite_only"]
+  ]);
+  assert.equal(publishCalls.length, 3);
+  assert.deepEqual(
+    publishCalls.map((event) => (event as { collection: string; documentId: string; operation: string }).operation),
+    ["upsert", "upsert", "upsert"]
+  );
+});
+
+test("PgCompetitionDirectoryRepository returns null when competition updates miss", async () => {
+  queryImpl = async () => ({ rows: [], rowCount: 0 });
+
+  const repo = new PgCompetitionDirectoryRepository();
+
+  assert.equal(await repo.getCompetition("missing"), null);
   assert.equal(await repo.cancelCompetition("missing"), null);
-
-  const visibility = await repo.updateVisibility("comp_1", "unlisted");
-  assert.equal(visibility?.visibility, "unlisted");
-
-  const accessType = await repo.updateAccessType("comp_1", "invite_only");
-  assert.equal(accessType?.accessType, "invite_only");
-
   assert.equal(await repo.updateVisibility("missing", "listed"), null);
   assert.equal(await repo.updateAccessType("missing", "open"), null);
+  assert.equal(publishCalls.length, 0);
 });

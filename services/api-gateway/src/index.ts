@@ -33,6 +33,7 @@ import { registerFeatureFlagRoutes } from "./routes/feature-flags.js";
 import { registerMfaRoutes } from "./routes/mfa.js";
 import { registerOnboardingRoutes } from "./routes/onboarding.js";
 import { registerHealthRoutes } from "./routes/health.js";
+import { registerResumeRoutes } from "./routes/resume.js";
 import { registerIpBlocklist } from "./plugins/ipBlocklist.js";
 import { registerMetrics, registerSentryErrorHandler } from "@script-manifest/service-utils";
 
@@ -128,6 +129,7 @@ export async function buildServer(options: ApiGatewayOptions = {}): Promise<Fast
   registerAuthRoutes(server, ctx);
   registerMfaRoutes(server, ctx);
   registerProfileRoutes(server, ctx);
+  registerResumeRoutes(server, ctx);
   registerProjectRoutes(server, ctx);
   registerCompetitionRoutes(server, ctx);
   registerSubmissionRoutes(server, ctx);

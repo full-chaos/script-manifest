@@ -1,8 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { getPool, runMigrations } from "@script-manifest/db";
 import type {
+  CareerImportPreviewRow,
+  CommitCareerImportData,
+  CreateCareerImportPreviewData,
   CreateHistoricalPlacementData,
   CreatePlacementEvidenceData,
+  ImportCommitResponse,
+  ImportPreviewResponse,
   Placement,
   PlacementEvidence,
   PlacementFilters,
@@ -177,6 +182,95 @@ export class PgSubmissionTrackingRepository implements SubmissionTrackingReposit
     const result = await getPool().query<PlacementWithSubmissionRow>(query, values);
     return result.rows.map(mapPlacementWithSubmission);
   }
+
+  async createCareerImportPreview(data: CreateCareerImportPreviewData): Promise<ImportPreviewResponse> {
+    const id = `career_import_${randomUUID()}`;
+    const rows = data.rows.map((row, rowIndex) => validateCareerImportRow(row, rowIndex));
+    const succeeded = rows.filter((row) => row.status === "ok").length;
+    const failed = rows.length - succeeded;
+    const result = await getPool().query<CareerImportRow>(
+      `INSERT INTO career_history_imports (id, writer_id, filename, row_count, succeeded, failed, status, error_log)
+       VALUES ($1, $2, $3, $4, $5, $6, 'validated', $7::jsonb)
+       RETURNING *`,
+      [id, data.writerId, data.filename, rows.length, succeeded, failed, JSON.stringify(rows)]
+    );
+    return { batch: mapCareerImport(result.rows[0]!), rows };
+  }
+
+  async getCareerImport(batchId: string, writerId: string): Promise<ImportPreviewResponse | null> {
+    const result = await getPool().query<CareerImportRow>(
+      `SELECT * FROM career_history_imports WHERE id = $1 AND writer_id = $2`,
+      [batchId, writerId]
+    );
+    const row = result.rows[0];
+    if (!row) return null;
+    const batch = mapCareerImport(row);
+    return { batch, rows: batch.errorLog };
+  }
+
+  async commitCareerImport(data: CommitCareerImportData): Promise<ImportCommitResponse> {
+    const db = getPool();
+    const client = await db.connect();
+    try {
+      await client.query("BEGIN");
+      const importResult = await client.query<CareerImportRow>(
+        `SELECT * FROM career_history_imports WHERE id = $1 AND writer_id = $2 FOR UPDATE`,
+        [data.batchId, data.writerId]
+      );
+      const importRow = importResult.rows[0];
+      if (!importRow) {
+        await client.query("ROLLBACK");
+        return { batchId: data.batchId, committed: 0, skipped: data.acceptedRowIndices.length };
+      }
+
+      const accepted = new Set(data.acceptedRowIndices);
+      const statusOverrides = new Map((data.rowOverrides ?? []).map((override) => [override.rowIndex, override.status]));
+      const rows = mapCareerImport(importRow).errorLog
+        .filter((row) => accepted.has(row.rowIndex) && row.status === "ok")
+        .map((row) => ({ ...row, row: { ...row.row, status: statusOverrides.get(row.rowIndex) ?? row.row.status } }));
+      let committed = 0;
+      for (const previewRow of rows) {
+        const row = previewRow.row;
+        const projectId = await findOrCreateProject(client, data.writerId, row.project_title);
+        const competitionId = await findOrCreateCompetition(client, row.competition_name);
+        const submissionId = `submission_${randomUUID()}`;
+        const placementId = `placement_${randomUUID()}`;
+        const placementDate = normalizePlacementDate(row.placement_date, row.year);
+        await client.query(
+          `INSERT INTO submissions (id, writer_id, project_id, competition_id, status, import_source, import_batch_id)
+           VALUES ($1, $2, $3, $4, $5, 'recovered_csv', $6)`,
+          [submissionId, data.writerId, projectId, competitionId, row.status, data.batchId]
+        );
+        await client.query(
+          `INSERT INTO placements (id, submission_id, status, verification_state, is_historical, source_note, recorded_by_user_id, import_source, import_batch_id, created_at)
+           VALUES ($1, $2, $3, 'pending', TRUE, $4, $5, 'recovered_csv', $6, $7::timestamptz)`,
+          [placementId, submissionId, row.status, row.source_note || null, data.writerId, data.batchId, placementDate]
+        );
+        if (row.source_url.trim()) {
+          await client.query(
+            `INSERT INTO placement_evidence (id, placement_id, evidence_url, kind, caption, uploaded_by_user_id)
+             VALUES ($1, $2, $3, 'url', $4, $5)`,
+            [`evidence_${randomUUID()}`, placementId, row.source_url.trim(), row.source_note || "Recovered CSV source", data.writerId]
+          );
+        }
+        committed += 1;
+      }
+
+      await client.query(
+        `UPDATE career_history_imports
+         SET status = 'committed', committed_at = NOW(), succeeded = $3, failed = row_count - $3
+         WHERE id = $1 AND writer_id = $2`,
+        [data.batchId, data.writerId, committed]
+      );
+      await client.query("COMMIT");
+      return { batchId: data.batchId, committed, skipped: data.acceptedRowIndices.length - committed };
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
 }
 
 type SubmissionRow = {
@@ -185,6 +279,8 @@ type SubmissionRow = {
   project_id: string;
   competition_id: string;
   status: string;
+  import_source?: string;
+  import_batch_id?: string | null;
   created_at: Date;
   updated_at: Date;
 };
@@ -203,6 +299,8 @@ type PlacementRow = {
   reviewed_by_user_id?: string | null;
   reviewed_at?: Date | null;
   review_notes?: string | null;
+  import_source?: string;
+  import_batch_id?: string | null;
 };
 
 type PlacementWithSubmissionRow = {
@@ -219,13 +317,34 @@ type PlacementWithSubmissionRow = {
   placement_reviewed_by_user_id: string | null;
   placement_reviewed_at: Date | null;
   placement_review_notes: string | null;
+  placement_import_source: string;
+  placement_import_batch_id: string | null;
   submission_id: string;
   submission_writer_id: string;
   submission_project_id: string;
   submission_competition_id: string;
   submission_status: string;
+  submission_import_source: string;
+  submission_import_batch_id: string | null;
   submission_created_at: Date;
   submission_updated_at: Date;
+};
+
+type CareerImportRow = {
+  id: string;
+  writer_id: string;
+  filename: string | null;
+  row_count: number;
+  succeeded: number;
+  failed: number;
+  status: string;
+  error_log: unknown;
+  created_at: Date;
+  committed_at: Date | null;
+};
+
+type Queryable = {
+  query<T>(text: string, values?: unknown[]): Promise<{ rows: T[] }>;
 };
 
 type HistoricalPlacementRow = PlacementWithSubmissionRow;
@@ -262,17 +381,21 @@ function selectPlacementWithSubmission(placementAlias: string, submissionAlias: 
     ${placementAlias}.reviewed_by_user_id AS placement_reviewed_by_user_id,
     ${placementAlias}.reviewed_at AS placement_reviewed_at,
     ${placementAlias}.review_notes AS placement_review_notes,
+    ${placementAlias}.import_source AS placement_import_source,
+    ${placementAlias}.import_batch_id AS placement_import_batch_id,
     ${submissionAlias}.id AS submission_id,
     ${submissionAlias}.writer_id AS submission_writer_id,
     ${submissionAlias}.project_id AS submission_project_id,
     ${submissionAlias}.competition_id AS submission_competition_id,
     ${submissionAlias}.status AS submission_status,
+    ${submissionAlias}.import_source AS submission_import_source,
+    ${submissionAlias}.import_batch_id AS submission_import_batch_id,
     ${submissionAlias}.created_at AS submission_created_at,
     ${submissionAlias}.updated_at AS submission_updated_at`;
 }
 
 function mapSubmission(row: SubmissionRow): Submission {
-  return {
+  const submission: Submission = {
     id: row.id,
     writerId: row.writer_id,
     projectId: row.project_id,
@@ -281,10 +404,13 @@ function mapSubmission(row: SubmissionRow): Submission {
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
   };
+  if (row.import_source) submission.importSource = row.import_source as Submission["importSource"];
+  if (row.import_batch_id !== undefined) submission.importBatchId = row.import_batch_id;
+  return submission;
 }
 
 function mapPlacement(row: PlacementRow): Placement {
-  return {
+  const placement: Placement = {
     id: row.id,
     submissionId: row.submission_id,
     status: row.status as Placement["status"],
@@ -299,6 +425,9 @@ function mapPlacement(row: PlacementRow): Placement {
     reviewedAt: row.reviewed_at?.toISOString() ?? null,
     reviewNotes: row.review_notes ?? null,
   };
+  if (row.import_source) placement.importSource = row.import_source as Placement["importSource"];
+  if (row.import_batch_id !== undefined) placement.importBatchId = row.import_batch_id;
+  return placement;
 }
 
 function mapPlacementWithSubmission(row: PlacementWithSubmissionRow): { placement: Placement; submission: Submission } {
@@ -317,6 +446,8 @@ function mapPlacementWithSubmission(row: PlacementWithSubmissionRow): { placemen
       reviewed_by_user_id: row.placement_reviewed_by_user_id,
       reviewed_at: row.placement_reviewed_at,
       review_notes: row.placement_review_notes,
+      import_source: row.placement_import_source,
+      import_batch_id: row.placement_import_batch_id,
     }),
     submission: mapSubmission({
       id: row.submission_id,
@@ -324,10 +455,108 @@ function mapPlacementWithSubmission(row: PlacementWithSubmissionRow): { placemen
       project_id: row.submission_project_id,
       competition_id: row.submission_competition_id,
       status: row.submission_status,
+      import_source: row.submission_import_source,
+      import_batch_id: row.submission_import_batch_id,
       created_at: row.submission_created_at,
       updated_at: row.submission_updated_at,
     }),
   };
+}
+
+function mapCareerImport(row: CareerImportRow): ImportPreviewResponse["batch"] {
+  const parsedRows = Array.isArray(row.error_log)
+    ? row.error_log.map((entry) => careerImportPreviewRowFromUnknown(entry)).filter((entry): entry is CareerImportPreviewRow => entry !== null)
+    : [];
+  return {
+    id: row.id,
+    writerId: row.writer_id,
+    filename: row.filename,
+    rowCount: row.row_count,
+    succeeded: row.succeeded,
+    failed: row.failed,
+    status: row.status as ImportPreviewResponse["batch"]["status"],
+    errorLog: parsedRows,
+    createdAt: row.created_at.toISOString(),
+    committedAt: row.committed_at?.toISOString() ?? null
+  };
+}
+
+function careerImportPreviewRowFromUnknown(value: unknown): CareerImportPreviewRow | null {
+  if (!value || typeof value !== "object") return null;
+  const candidate = value as Partial<CareerImportPreviewRow>;
+  if (typeof candidate.rowIndex !== "number" || !candidate.row || !Array.isArray(candidate.errors)) return null;
+  return {
+    rowIndex: candidate.rowIndex,
+    row: {
+      project_title: String(candidate.row.project_title ?? ""),
+      competition_name: String(candidate.row.competition_name ?? ""),
+      year: String(candidate.row.year ?? ""),
+      status: String(candidate.row.status ?? ""),
+      placement_date: String(candidate.row.placement_date ?? ""),
+      source_url: String(candidate.row.source_url ?? ""),
+      source_note: String(candidate.row.source_note ?? "")
+    },
+    status: candidate.status === "ok" ? "ok" : "error",
+    errors: candidate.errors.map(String)
+  };
+}
+
+function validateCareerImportRow(row: CreateCareerImportPreviewData["rows"][number], rowIndex: number): CareerImportPreviewRow {
+  const errors: string[] = [];
+  if (!row.project_title.trim()) errors.push("project_title is required");
+  if (!row.competition_name.trim()) errors.push("competition_name is required");
+  if (!/^\d{4}$/.test(row.year.trim())) errors.push("year must be a 4-digit year");
+  if (!row.status.trim()) errors.push("status is required");
+  if (row.status.trim() && !["pending", "quarterfinalist", "semifinalist", "finalist", "winner"].includes(row.status.trim())) {
+    errors.push("status is not supported");
+  }
+  if (row.placement_date.trim() && Number.isNaN(Date.parse(row.placement_date.trim()))) {
+    errors.push("placement_date must be a valid date");
+  }
+  if (row.source_url.trim()) {
+    try {
+      const parsed = new URL(row.source_url.trim());
+      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") errors.push("source_url must be http or https");
+    } catch {
+      errors.push("source_url must be a valid URL");
+    }
+  }
+  return { rowIndex, row, status: errors.length === 0 ? "ok" : "error", errors };
+}
+
+async function findOrCreateProject(client: Queryable, writerId: string, title: string): Promise<string> {
+  const existing = await client.query<{ id: string }>(
+    `SELECT id FROM projects WHERE owner_user_id = $1 AND lower(title) = lower($2::text) LIMIT 1`,
+    [writerId, title.trim()]
+  );
+  if (existing.rows[0]) return existing.rows[0].id;
+  const id = `project_${randomUUID()}`;
+  await client.query(
+    `INSERT INTO projects (id, owner_user_id, title, format, genre, is_discoverable)
+     VALUES ($1, $2, $3, 'feature', 'unknown', FALSE)`,
+    [id, writerId, title.trim()]
+  );
+  return id;
+}
+
+async function findOrCreateCompetition(client: Queryable, title: string): Promise<string> {
+  const existing = await client.query<{ id: string }>(
+    `SELECT id FROM competitions WHERE lower(title) = lower($1::text) LIMIT 1`,
+    [title.trim()]
+  );
+  if (existing.rows[0]) return existing.rows[0].id;
+  const id = `competition_${randomUUID()}`;
+  await client.query(
+    `INSERT INTO competitions (id, title, description, format, genre, fee_usd, deadline, status, visibility)
+     VALUES ($1, $2, 'Imported recovered career-history competition stub.', 'feature', 'unknown', 0, NOW(), 'active', 'unlisted')`,
+    [id, title.trim()]
+  );
+  return id;
+}
+
+function normalizePlacementDate(rawPlacementDate: string, rawYear: string): string {
+  if (rawPlacementDate.trim()) return rawPlacementDate.trim();
+  return `${rawYear.trim()}-12-31T00:00:00.000Z`;
 }
 
 function mapPlacementEvidence(row: PlacementEvidenceRow): PlacementEvidence {

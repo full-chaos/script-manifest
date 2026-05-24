@@ -1,9 +1,15 @@
 import { type FastifyInstance } from "fastify";
+import Papa from "papaparse";
 import { Counter } from "prom-client";
 import { bootstrapService, registerMetrics, registerSentryErrorHandler, setupErrorReporting, validateRequiredEnv, getAuthUserId, isMainModule, createFastifyServer } from "@script-manifest/service-utils";
 import { closePool } from "@script-manifest/db";
 import {
   CreateHistoricalPlacementRequestSchema,
+  CsvRowSchema,
+  type CsvRow,
+  ImportCommitRequestSchema,
+  ImportCommitResponseSchema,
+  ImportPreviewResponseSchema,
   CreatePlacementEvidenceItemSchema,
   PlacementFiltersSchema,
   PlacementEvidenceSchema,
@@ -35,6 +41,10 @@ export type SubmissionTrackingOptions = {
 export function buildServer(options: SubmissionTrackingOptions = {}): FastifyInstance {
   const server = createFastifyServer({ logger: options.logger });
   const repository = options.repository ?? new PgSubmissionTrackingRepository();
+
+  server.addContentTypeParser(["text/csv", "application/csv"], { parseAs: "string" }, (_req, body, done) => {
+    done(null, body);
+  });
 
   const startedAt = Date.now();
 
@@ -209,6 +219,60 @@ export function buildServer(options: SubmissionTrackingOptions = {}): FastifyIns
     });
   });
 
+  server.post("/internal/career-imports", async (req, reply) => {
+    const authUserId = getAuthUserId(req);
+    if (!authUserId) {
+      return reply.status(403).send({ error: "forbidden" });
+    }
+
+    const csvBody = typeof req.body === "string" ? req.body : "";
+    if (!csvBody.trim()) {
+      return reply.status(400).send({ error: "empty_csv" });
+    }
+
+    const parsedCsv = parseCareerCsv(csvBody);
+    if (parsedCsv.error) {
+      return reply.status(400).send({ error: parsedCsv.error });
+    }
+
+    const filename = readStringQuery(req.query, "filename");
+    const preview = await repository.createCareerImportPreview({
+      writerId: authUserId,
+      filename: filename ? filename.slice(0, 255) : null,
+      rows: parsedCsv.rows
+    });
+    return reply.status(201).send(ImportPreviewResponseSchema.parse(preview));
+  });
+
+  server.get<{ Params: { batchId: string } }>("/internal/career-imports/:batchId", async (req, reply) => {
+    const authUserId = getAuthUserId(req);
+    if (!authUserId) {
+      return reply.status(403).send({ error: "forbidden" });
+    }
+    const preview = await repository.getCareerImport(req.params.batchId, authUserId);
+    if (!preview) {
+      return reply.status(404).send({ error: "import_not_found" });
+    }
+    return reply.send(ImportPreviewResponseSchema.parse(preview));
+  });
+
+  server.post<{ Params: { batchId: string } }>("/internal/career-imports/:batchId/commit", async (req, reply) => {
+    const authUserId = getAuthUserId(req);
+    if (!authUserId) {
+      return reply.status(403).send({ error: "forbidden" });
+    }
+    const requestBody = req.body && typeof req.body === "object" ? req.body : {};
+    const parsedBody = ImportCommitRequestSchema.safeParse({ ...requestBody, batchId: req.params.batchId });
+    if (!parsedBody.success) {
+      return reply.status(400).send({ error: "invalid_payload", details: parsedBody.error.flatten() });
+    }
+    const result = await repository.commitCareerImport({
+      ...parsedBody.data,
+      writerId: authUserId
+    });
+    return reply.send(ImportCommitResponseSchema.parse(result));
+  });
+
   server.post<{ Params: { placementId: string } }>("/internal/placements/:placementId/evidence", async (req, reply) => {
     const authUserId = getAuthUserId(req);
     if (!authUserId) {
@@ -366,10 +430,45 @@ function toPlacementDetail(placement: Placement): Placement & { badgeLabel: stri
 }
 
 function placementBadgeLabel(placement: Placement): string {
+  if (placement.importSource === "recovered_csv") return "Recovered";
   if (placement.verificationState === "verified") return "Verified";
   if (placement.verificationState === "rejected") return "Rejected";
   if (placement.isHistorical) return "Unverified — Historical";
   return "Unverified";
+}
+
+type ParsedCareerCsv = { rows: CsvRow[]; error: null } | { rows: []; error: string };
+
+function parseCareerCsv(csvBody: string): ParsedCareerCsv {
+  const result = Papa.parse<Record<string, string>>(csvBody, {
+    header: true,
+    skipEmptyLines: true,
+    transform(value) {
+      return value.trim();
+    }
+  });
+  if (result.errors.length > 0) {
+    return { rows: [], error: "invalid_csv" };
+  }
+  if (result.data.length > 500) {
+    return { rows: [], error: "too_many_rows" };
+  }
+  const rows = result.data.map((row) => CsvRowSchema.parse({
+    project_title: row.project_title ?? "",
+    competition_name: row.competition_name ?? "",
+    year: row.year ?? "",
+    status: row.status ?? "",
+    placement_date: row.placement_date ?? "",
+    source_url: row.source_url ?? "",
+    source_note: row.source_note ?? ""
+  }));
+  return { rows, error: null };
+}
+
+function readStringQuery(query: unknown, key: string): string | null {
+  if (!query || typeof query !== "object") return null;
+  const value = (query as Record<string, unknown>)[key];
+  return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
 export async function startServer(): Promise<void> {

@@ -47,7 +47,7 @@ export function registerFeatureFlagRoutes(
 
     await adminRepo.createAuditLogEntry({
       adminUserId: adminId,
-      action: "create_feature_flag",
+      action: "feature_flag.create",
       targetType: "feature_flag",
       targetId: flag.key,
       details: { description: flag.description }
@@ -74,7 +74,7 @@ export function registerFeatureFlagRoutes(
 
     await adminRepo.createAuditLogEntry({
       adminUserId: adminId,
-      action: "update_feature_flag",
+      action: "feature_flag.update",
       targetType: "feature_flag",
       targetId: updated.key,
       details: parsed.data
@@ -96,7 +96,7 @@ export function registerFeatureFlagRoutes(
 
     await adminRepo.createAuditLogEntry({
       adminUserId: adminId,
-      action: "delete_feature_flag",
+      action: "feature_flag.delete",
       targetType: "feature_flag",
       targetId: req.params.key
     });

@@ -10,6 +10,43 @@ import {
 import type { AdminRepository } from "./admin-repository.js";
 import { readAdminUserId, requireAdmin } from "./auth-helpers.js";
 
+type InternalAuditLogCreateRequest = {
+  action: string;
+  targetType: string;
+  targetId: string;
+  details?: Record<string, unknown> | null;
+  ipAddress?: string | null;
+};
+
+function parseInternalAuditLogCreateRequest(body: unknown): InternalAuditLogCreateRequest | null {
+  if (!body || typeof body !== "object") {
+    return null;
+  }
+  const candidate = body as Record<string, unknown>;
+  if (
+    typeof candidate.action !== "string" || candidate.action.length === 0 ||
+    typeof candidate.targetType !== "string" || candidate.targetType.length === 0 ||
+    typeof candidate.targetId !== "string" || candidate.targetId.length === 0
+  ) {
+    return null;
+  }
+  const details = candidate.details;
+  if (details !== undefined && details !== null && (typeof details !== "object" || Array.isArray(details))) {
+    return null;
+  }
+  const ipAddress = candidate.ipAddress;
+  if (ipAddress !== undefined && ipAddress !== null && typeof ipAddress !== "string") {
+    return null;
+  }
+  return {
+    action: candidate.action,
+    targetType: candidate.targetType,
+    targetId: candidate.targetId,
+    details: details === undefined ? null : details as Record<string, unknown> | null,
+    ipAddress: ipAddress === undefined ? null : ipAddress
+  };
+}
+
 function readUserId(headers: Record<string, unknown>): string | null {
   return readAdminUserId(headers);
 }
@@ -98,6 +135,26 @@ export function registerAdminRoutes(server: FastifyInstance, adminRepo: AdminRep
 
     const result = await adminRepo.listAuditLogEntries(parsed.data);
     return { entries: result.entries, total: result.total, page: parsed.data.page, limit: parsed.data.limit };
+  });
+
+  server.post("/internal/admin/audit-log", async (req, reply) => {
+    const adminId = requireAdmin(req.headers as Record<string, unknown>);
+    if (!adminId) return reply.status(403).send({ error: "forbidden" });
+
+    const parsed = parseInternalAuditLogCreateRequest(req.body);
+    if (!parsed) {
+      return reply.status(400).send({ error: "invalid_payload" });
+    }
+
+    const entry = await adminRepo.createAuditLogEntry({
+      adminUserId: adminId,
+      action: parsed.action,
+      targetType: parsed.targetType,
+      targetId: parsed.targetId,
+      details: parsed.details ?? undefined,
+      ipAddress: parsed.ipAddress ?? undefined
+    });
+    return reply.status(201).send({ entry });
   });
 
   // ── Content Reports (User-facing) ────────────────────────────

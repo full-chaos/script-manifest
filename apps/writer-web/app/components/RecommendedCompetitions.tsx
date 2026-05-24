@@ -21,7 +21,9 @@ export function RecommendedCompetitions({ projectId }: RecommendedCompetitionsPr
     }
   });
 
-  const recommendations = data?.recommendations.slice(0, 10) ?? [];
+  const recommendations = Array.isArray(data?.recommendations)
+    ? data.recommendations.slice(0, 10)
+    : [];
 
   async function updateOverride(recommendation: CompetitionRecommendation, action: "dismiss" | "pin") {
     const isPinnedAction = action === "pin";

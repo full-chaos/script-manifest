@@ -7,6 +7,60 @@ export const CoverageProviderStatusSchema = z.enum([
 ]);
 export type CoverageProviderStatus = z.infer<typeof CoverageProviderStatusSchema>;
 
+export const ProviderVerificationStateSchema = z.enum([
+  "unverified", "verified", "rejected", "suspended"
+]);
+export type ProviderVerificationState = z.infer<typeof ProviderVerificationStateSchema>;
+
+export const ProviderBadgeKindSchema = z.enum([
+  "verified_provider", "unverified_provider", "verification_rejected", "provider_suspended"
+]);
+export type ProviderBadgeKind = z.infer<typeof ProviderBadgeKindSchema>;
+
+export const ProviderBadgeSchema = z.object({
+  kind: ProviderBadgeKindSchema,
+  label: z.string(),
+  description: z.string(),
+  verifiedAt: z.string().nullable()
+});
+export type ProviderBadge = z.infer<typeof ProviderBadgeSchema>;
+
+export function getProviderBadgeForVerificationState(
+  state: ProviderVerificationState,
+  verifiedAt: string | null
+): ProviderBadge {
+  switch (state) {
+    case "verified":
+      return {
+        kind: "verified_provider",
+        label: "Verified provider",
+        description: "Script Manifest reviewed this provider's identity and coverage history.",
+        verifiedAt
+      };
+    case "rejected":
+      return {
+        kind: "verification_rejected",
+        label: "Verification rejected",
+        description: "This provider does not currently meet Script Manifest verification requirements.",
+        verifiedAt: null
+      };
+    case "suspended":
+      return {
+        kind: "provider_suspended",
+        label: "Verification suspended",
+        description: "This provider's verification is suspended while Script Manifest reviews their account.",
+        verifiedAt: null
+      };
+    case "unverified":
+      return {
+        kind: "unverified_provider",
+        label: "Unverified provider",
+        description: "This provider has not completed Script Manifest verification yet.",
+        verifiedAt: null
+      };
+  }
+}
+
 export const CoverageTierSchema = z.enum([
   "concept_notes", "early_draft", "polish_proofread", "competition_ready"
 ]);
@@ -37,6 +91,12 @@ export const CoverageProviderSchema = z.object({
   status: CoverageProviderStatusSchema,
   stripeAccountId: z.string().nullable(),
   stripeOnboardingComplete: z.boolean(),
+  verificationState: ProviderVerificationStateSchema,
+  verifiedAt: z.string().nullable(),
+  verifiedByUserId: z.string().nullable(),
+  verificationNotes: z.string().nullable(),
+  verificationUpdatedAt: z.string().nullable(),
+  badge: ProviderBadgeSchema,
   avgRating: z.number().nullable(),
   totalOrdersCompleted: z.number().int().nonnegative(),
   createdAt: z.string(),
@@ -71,6 +131,25 @@ export const CoverageProviderReviewRequestSchema = z.object({
   checklist: z.array(z.string().min(1).max(200)).max(30).default([])
 });
 export type CoverageProviderReviewRequest = z.infer<typeof CoverageProviderReviewRequestSchema>;
+
+export const ProviderVerificationRequestSchema = z.object({
+  state: z.enum(["verified", "unverified", "rejected", "suspended"]),
+  reason: z.string().max(2000).optional(),
+  checklist: z.array(z.string().min(1).max(200)).max(30).default([])
+});
+export type ProviderVerificationRequest = z.infer<typeof ProviderVerificationRequestSchema>;
+
+export const ProviderVerificationEventSchema = z.object({
+  id: z.string().min(1),
+  providerId: z.string().min(1),
+  adminUserId: z.string().min(1),
+  fromState: ProviderVerificationStateSchema.nullable(),
+  toState: ProviderVerificationStateSchema,
+  reason: z.string().nullable(),
+  checklist: z.array(z.string()).default([]),
+  createdAt: z.string()
+});
+export type ProviderVerificationEvent = z.infer<typeof ProviderVerificationEventSchema>;
 
 export const CoverageProviderReviewSchema = z.object({
   id: z.string().min(1),
@@ -263,6 +342,7 @@ export type CoverageServiceFilters = z.infer<typeof CoverageServiceFiltersSchema
 
 export const CoverageProviderFiltersSchema = z.object({
   status: CoverageProviderStatusSchema.optional(),
+  verificationState: ProviderVerificationStateSchema.optional(),
   specialty: z.string().optional(),
   limit: z.coerce.number().int().min(1).max(100).default(30),
   offset: z.coerce.number().int().min(0).default(0)

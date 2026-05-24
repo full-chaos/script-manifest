@@ -7,6 +7,7 @@ import {
   CoverageProviderCreateRequestSchema,
   CoverageProviderReviewRequestSchema,
   CoverageProviderUpdateRequestSchema,
+  ProviderVerificationRequestSchema,
   CoverageReviewCreateRequestSchema,
   CoverageServiceCreateRequestSchema,
   CoverageServiceUpdateRequestSchema
@@ -111,6 +112,40 @@ export function registerCoverageRoutes(server: FastifyInstance, ctx: GatewayCont
         headers: addAuthUserIdHeader({ "content-type": "application/json" }, adminId),
         body: JSON.stringify(parsed.data)
       }
+    );
+  });
+
+  // lgtm [js/missing-rate-limiting] Fastify route-level limiter config is applied below.
+  server.patch<{ Params: { providerId: string } }>("/api/v1/coverage/admin/providers/:providerId/verification", {
+    config: { rateLimit: { max: 20, timeWindow: "1 minute" } }
+  }, async (req, reply) => {
+    const adminId = await resolveAdminByRole(ctx.requestFn, ctx.identityServiceBase, req.headers, req.log);
+    if (!adminId) return reply.status(403).send({ error: "forbidden" });
+    const { providerId } = req.params;
+    const parsed = ProviderVerificationRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
+    }
+    return proxyJsonRequest(reply, ctx.requestFn,
+      `${ctx.coverageMarketplaceBase}/internal/admin/providers/${encodeURIComponent(providerId)}/verification`,
+      {
+        method: "PATCH",
+        headers: addAuthUserIdHeader({ "content-type": "application/json" }, adminId, "admin"),
+        body: JSON.stringify(parsed.data)
+      }
+    );
+  });
+
+  // lgtm [js/missing-rate-limiting] Fastify route-level limiter config is applied below.
+  server.get<{ Params: { providerId: string } }>("/api/v1/coverage/admin/providers/:providerId/verification-events", {
+    config: { rateLimit: { max: 20, timeWindow: "1 minute" } }
+  }, async (req, reply) => {
+    const adminId = await resolveAdminByRole(ctx.requestFn, ctx.identityServiceBase, req.headers, req.log);
+    if (!adminId) return reply.status(403).send({ error: "forbidden" });
+    const { providerId } = req.params;
+    return proxyJsonRequest(reply, ctx.requestFn,
+      `${ctx.coverageMarketplaceBase}/internal/admin/providers/${encodeURIComponent(providerId)}/verification-events`,
+      { method: "GET", headers: addAuthUserIdHeader({}, adminId, "admin") }
     );
   });
 

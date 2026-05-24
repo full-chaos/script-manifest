@@ -3,6 +3,9 @@ import type {
   CoverageProviderCreateRequest,
   CoverageProviderUpdateRequest,
   CoverageProviderFilters,
+  ProviderVerificationEvent,
+  ProviderVerificationRequest,
+  ProviderVerificationState,
   CoverageProviderReview,
   CoverageProviderReviewRequest,
   CoverageService,
@@ -34,6 +37,16 @@ export interface CoverageMarketplaceRepository {
   updateProviderStripe(providerId: string, stripeAccountId: string, onboardingComplete: boolean): Promise<CoverageProvider | null>;
   updateProviderStatus(providerId: string, status: string): Promise<CoverageProvider | null>;
   listProviders(filters: CoverageProviderFilters): Promise<CoverageProvider[]>;
+  updateProviderVerification(providerId: string, adminUserId: string, input: ProviderVerificationRequest): Promise<CoverageProvider | null>;
+  createProviderVerificationEvent(params: {
+    providerId: string;
+    adminUserId: string;
+    fromState: ProviderVerificationState | null;
+    toState: ProviderVerificationState;
+    reason?: string | null;
+    checklist?: string[];
+  }): Promise<ProviderVerificationEvent>;
+  listProviderVerificationEvents(providerId: string): Promise<ProviderVerificationEvent[]>;
   createProviderReview(providerId: string, reviewedByUserId: string, input: CoverageProviderReviewRequest): Promise<CoverageProviderReview>;
   listProviderReviews(providerId: string): Promise<CoverageProviderReview[]>;
 

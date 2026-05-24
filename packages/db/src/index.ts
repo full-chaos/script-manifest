@@ -1312,6 +1312,12 @@ export async function ensureCoverageMarketplaceTables(): Promise<void> {
         CHECK (status IN ('pending_verification', 'active', 'suspended', 'deactivated')),
       stripe_account_id TEXT,
       stripe_onboarding_complete BOOLEAN NOT NULL DEFAULT FALSE,
+      verification_state TEXT NOT NULL DEFAULT 'unverified'
+        CHECK (verification_state IN ('unverified', 'verified', 'rejected', 'suspended')),
+      verified_at TIMESTAMPTZ,
+      verified_by_user_id TEXT REFERENCES app_users(id),
+      verification_notes VARCHAR(2000),
+      verification_updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       avg_rating NUMERIC(3,2),
       total_orders_completed INTEGER NOT NULL DEFAULT 0,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -1320,6 +1326,8 @@ export async function ensureCoverageMarketplaceTables(): Promise<void> {
   `);
   await db.query(`CREATE INDEX IF NOT EXISTS idx_coverage_providers_user ON coverage_providers(user_id)`);
   await db.query(`CREATE INDEX IF NOT EXISTS idx_coverage_providers_status ON coverage_providers(status)`);
+  await db.query(`CREATE INDEX IF NOT EXISTS idx_coverage_providers_verification_state ON coverage_providers(verification_state)`);
+  await db.query(`CREATE INDEX IF NOT EXISTS idx_coverage_providers_verified ON coverage_providers(verified_at DESC) WHERE verification_state = 'verified'`);
 
   await db.query(`
     CREATE TABLE IF NOT EXISTS coverage_services (
@@ -1427,6 +1435,21 @@ export async function ensureCoverageMarketplaceTables(): Promise<void> {
   `);
   await db.query(`CREATE INDEX IF NOT EXISTS idx_coverage_provider_reviews_provider ON coverage_provider_reviews(provider_id)`);
   await db.query(`CREATE INDEX IF NOT EXISTS idx_coverage_provider_reviews_created ON coverage_provider_reviews(created_at DESC)`);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS provider_verification_events (
+      id TEXT PRIMARY KEY,
+      provider_id TEXT NOT NULL REFERENCES coverage_providers(id) ON DELETE CASCADE,
+      admin_user_id TEXT NOT NULL REFERENCES app_users(id),
+      from_state TEXT CHECK (from_state IS NULL OR from_state IN ('unverified', 'verified', 'rejected', 'suspended')),
+      to_state TEXT NOT NULL CHECK (to_state IN ('unverified', 'verified', 'rejected', 'suspended')),
+      reason VARCHAR(2000),
+      checklist TEXT[] NOT NULL DEFAULT '{}',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await db.query(`CREATE INDEX IF NOT EXISTS idx_provider_verification_events_provider_created ON provider_verification_events(provider_id, created_at DESC)`);
+  await db.query(`CREATE INDEX IF NOT EXISTS idx_provider_verification_events_admin_created ON provider_verification_events(admin_user_id, created_at DESC)`);
 
   await db.query(`
     CREATE TABLE IF NOT EXISTS coverage_dispute_events (

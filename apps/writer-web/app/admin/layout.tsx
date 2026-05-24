@@ -15,7 +15,8 @@ import {
   Bell,
   Search,
   ToggleRight,
-  ShieldBan
+  ShieldBan,
+  BadgeCheck
 } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
 
@@ -32,6 +33,7 @@ const navItems: NavItem[] = [
   { href: "/admin/rankings" as Route, label: "Rankings", icon: <Trophy className="h-4 w-4" aria-hidden="true" /> },
   { href: "/admin/competitions" as Route, label: "Competitions", icon: <Award className="h-4 w-4" aria-hidden="true" /> },
   { href: "/admin/disputes" as Route, label: "Disputes", icon: <AlertTriangle className="h-4 w-4" aria-hidden="true" /> },
+  { href: "/admin/providers" as Route, label: "Providers", icon: <BadgeCheck className="h-4 w-4" aria-hidden="true" /> },
   { href: "/admin/audit-log" as Route, label: "Audit Log", icon: <ScrollText className="h-4 w-4" aria-hidden="true" /> },
   { href: "/admin/notifications" as Route, label: "Notifications", icon: <Bell className="h-4 w-4" aria-hidden="true" /> },
   { href: "/admin/search" as Route, label: "Search", icon: <Search className="h-4 w-4" aria-hidden="true" /> },

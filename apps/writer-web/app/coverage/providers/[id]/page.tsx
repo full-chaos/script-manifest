@@ -8,6 +8,7 @@ import { EmptyIllustration } from "../../../components/illustrations";
 import { SkeletonCard } from "../../../components/skeleton";
 import { useToast } from "../../../components/toast";
 import { fetcher, ApiError } from "../../../lib/fetcher";
+import { ProviderVerificationBadge } from "../../components/ProviderVerificationBadge";
 
 export default function ProviderProfilePage() {
   const params = useParams();
@@ -83,6 +84,9 @@ export default function ProviderProfilePage() {
       <article className="hero-card hero-card--violet animate-in">
         <p className="eyebrow">Coverage Provider</p>
         <h1 className="text-4xl text-foreground">{provider.displayName}</h1>
+        <div className="mt-3 max-w-xl">
+          <ProviderVerificationBadge badge={provider.badge} variant="full" />
+        </div>
         {provider.bio ? <p className="max-w-3xl text-foreground-secondary">{provider.bio}</p> : null}
         <div className="mt-4 flex flex-wrap items-center gap-2">
           {provider.specialties.map((specialty) => (
@@ -103,6 +107,17 @@ export default function ProviderProfilePage() {
           <span className="text-sm text-foreground-secondary">
             {provider.totalOrdersCompleted} {provider.totalOrdersCompleted === 1 ? "order" : "orders"} completed
           </span>
+        </div>
+      </article>
+
+      <article className="panel stack animate-in animate-in-delay-1">
+        <h2 className="section-title">Trust & policies</h2>
+        <p className="text-sm text-foreground-secondary">
+          Review coverage deadlines, dispute handling, and refund outcomes before ordering coverage.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <a className="badge no-underline" href="/policies/coverage-sla">Coverage SLA</a>
+          <a className="badge no-underline" href="/policies/dispute-refund">Dispute & refund policy</a>
         </div>
       </article>
 

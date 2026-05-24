@@ -47,6 +47,17 @@ function makeProvider(overrides: Partial<CoverageProvider> = {}): CoverageProvid
     status: "pending_verification",
     stripeAccountId: "acct_01",
     stripeOnboardingComplete: false,
+    verificationState: "unverified",
+    verifiedAt: null,
+    verifiedByUserId: null,
+    verificationNotes: null,
+    verificationUpdatedAt: "2026-02-20T00:00:00.000Z",
+    badge: {
+      kind: "unverified_provider",
+      label: "Unverified provider",
+      description: "This provider has not completed Script Manifest verification yet.",
+      verifiedAt: null
+    },
     avgRating: null,
     totalOrdersCompleted: 0,
     createdAt: "2026-02-20T00:00:00.000Z",

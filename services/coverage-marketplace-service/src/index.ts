@@ -2,6 +2,7 @@ import { type FastifyInstance, type FastifyRequest } from "fastify";
 import rateLimit from "@fastify/rate-limit";
 import { randomUUID } from "node:crypto";
 import { Counter } from "prom-client";
+import { request as undiciRequest } from "undici";
 import { bootstrapService, createFastifyServer, registerMetrics, registerSentryErrorHandler, setupErrorReporting, validateRequiredEnv, getAuthUserId, isMainModule, readHeader, requireAdminServiceToken } from "@script-manifest/service-utils";
 import { closePool, healthCheck } from "@script-manifest/db";
 import {
@@ -9,6 +10,8 @@ import {
   CoverageProviderUpdateRequestSchema,
   CoverageProviderReviewRequestSchema,
   CoverageProviderFiltersSchema,
+  ProviderVerificationRequestSchema,
+  type ProviderVerificationState,
   CoverageServiceCreateRequestSchema,
   CoverageServiceUpdateRequestSchema,
   CoverageServiceFiltersSchema,
@@ -39,7 +42,14 @@ export type CoverageMarketplaceServiceOptions = {
   userPaymentProfileRepository?: UserPaymentProfileRepository;
   paymentGateway?: PaymentGateway;
   commissionRate?: number;
+  identityServiceBase?: string;
+  requestFn?: AuditRequestFn;
 };
+
+type AuditRequestFn = (
+  url: string,
+  options: { method: "POST"; headers: Record<string, string>; body: string }
+) => Promise<unknown>;
 
 function createPaymentGatewayFromEnv(): PaymentGateway {
   const secretKey = process.env.STRIPE_SECRET_KEY;
@@ -96,6 +106,57 @@ function isAdminServiceToken(headers: Record<string, unknown>): boolean {
   return requireAdminServiceToken(headers) !== null;
 }
 
+function providerVerificationAuditAction(state: ProviderVerificationState): string {
+  switch (state) {
+    case "verified":
+      return "verify_provider";
+    case "unverified":
+      return "unverify_provider";
+    case "rejected":
+      return "reject_provider_verification";
+    case "suspended":
+      return "suspend_provider_verification";
+  }
+}
+
+async function emitProviderVerificationAudit(params: {
+  identityServiceBase: string;
+  requestFn: AuditRequestFn;
+  headers: Record<string, unknown>;
+  adminUserId: string;
+  providerId: string;
+  fromState: ProviderVerificationState;
+  toState: ProviderVerificationState;
+  reason?: string | null;
+  checklist: string[];
+  logger: FastifyInstance["log"];
+}): Promise<void> {
+  try {
+    await params.requestFn(`${params.identityServiceBase}/internal/admin/audit-log`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-auth-user-id": params.adminUserId,
+        "x-service-token": String(params.headers["x-service-token"] ?? "")
+      },
+      body: JSON.stringify({
+        action: providerVerificationAuditAction(params.toState),
+        targetType: "provider",
+        targetId: params.providerId,
+        details: {
+          fromState: params.fromState,
+          toState: params.toState,
+          reason: params.reason ?? null,
+          checklist: params.checklist
+        }
+      })
+    });
+  } catch (error) {
+    params.logger.error({ error, providerId: params.providerId }, "failed to emit provider verification audit event");
+    throw error;
+  }
+}
+
 async function transferToProviderOrQueueRetry(params: {
   orderId: string;
   amountCents: number;
@@ -127,6 +188,8 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
   const userPaymentProfileRepository = options.userPaymentProfileRepository ?? new PgUserPaymentProfileRepository();
   const runHealthCheck = options.repository ? () => repository.healthCheck() : healthCheck;
   const paymentGateway = options.paymentGateway ?? createPaymentGatewayFromEnv();
+  const requestFn = options.requestFn ?? undiciRequest;
+  const identityServiceBase = options.identityServiceBase ?? process.env.IDENTITY_SERVICE_BASE_URL ?? "http://localhost:4005";
   const commissionRate = options.commissionRate ?? Number(process.env.PLATFORM_COMMISSION_RATE ?? "0.15");
   const autoCompleteDays = Number(process.env.COVERAGE_AUTO_COMPLETE_DAYS ?? "7");
   const maintenanceIntervalMs = Number(process.env.COVERAGE_SLA_MAINTENANCE_MS ?? "0");
@@ -359,6 +422,68 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
 
     const updatedProvider = await repository.updateProviderStatus(provider.id, nextStatus);
     return reply.send({ provider: updatedProvider, review });
+  });
+
+  server.patch<{ Params: { providerId: string } }>("/internal/admin/providers/:providerId/verification", async (req, reply) => {
+    const authUserId = getAuthUserId(req);
+    if (!authUserId) {
+      return reply.status(403).send({ error: "forbidden" });
+    }
+    if (!isAdminServiceToken(req.headers as Record<string, unknown>)) {
+      return reply.status(403).send({ error: "admin_required" });
+    }
+
+    const parsed = ProviderVerificationRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
+    }
+    const input = parsed.data;
+    if ((input.state === "rejected" || input.state === "suspended") && !input.reason) {
+      return reply.status(400).send({ error: "reason_required" });
+    }
+
+    const provider = await repository.getProvider(req.params.providerId);
+    if (!provider) {
+      return reply.status(404).send({ error: "provider_not_found" });
+    }
+    const fromState = provider.verificationState;
+
+    const updatedProvider = await repository.updateProviderVerification(provider.id, authUserId, input);
+    if (!updatedProvider) {
+      return reply.status(404).send({ error: "provider_not_found" });
+    }
+
+    await emitProviderVerificationAudit({
+      identityServiceBase,
+      requestFn,
+      headers: req.headers as Record<string, unknown>,
+      adminUserId: authUserId,
+      providerId: provider.id,
+      fromState,
+      toState: input.state,
+      reason: input.reason ?? null,
+      checklist: input.checklist ?? [],
+      logger: req.log
+    });
+
+    return reply.send({ provider: updatedProvider });
+  });
+
+  server.get<{ Params: { providerId: string } }>("/internal/admin/providers/:providerId/verification-events", async (req, reply) => {
+    const authUserId = getAuthUserId(req);
+    if (!authUserId) {
+      return reply.status(403).send({ error: "forbidden" });
+    }
+    if (!isAdminServiceToken(req.headers as Record<string, unknown>)) {
+      return reply.status(403).send({ error: "admin_required" });
+    }
+
+    const provider = await repository.getProvider(req.params.providerId);
+    if (!provider) {
+      return reply.status(404).send({ error: "provider_not_found" });
+    }
+    const events = await repository.listProviderVerificationEvents(provider.id);
+    return reply.send({ events });
   });
 
   // ── Service Routes ─────────────────────────────────────────────────

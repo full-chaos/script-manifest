@@ -95,7 +95,7 @@ export const PlacementListItemSchema = PlacementSchema.extend({
   writerId: z.string().min(1),
   projectId: z.string().min(1),
   competitionId: z.string().min(1),
-  badgeLabel: z.string().min(1)
+  badgeLabel: z.string().min(1).optional()
 });
 
 export type PlacementListItem = z.infer<typeof PlacementListItemSchema>;

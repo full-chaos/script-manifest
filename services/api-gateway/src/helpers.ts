@@ -221,11 +221,6 @@ export async function resolveAdminByRole(
   headers: Record<string, unknown>,
   logger?: AuthLogger
 ): Promise<string | null> {
-  const headerAdminUserId = readHeaderValue(headers, "x-admin-user-id");
-  if (headerAdminUserId) {
-    return headerAdminUserId;
-  }
-
   const authorization = readHeaderValue(headers, "authorization");
   const auth = await getUserAuthFromToken(requestFn, identityServiceBase, authorization, logger);
   if (auth?.role === "admin") {

@@ -337,15 +337,13 @@ test("getUserAuthFromToken returns user id and role", async () => {
   assert.deepEqual(result, { userId: "admin_1", role: "admin" });
 });
 
-test("resolveAdminByRole allows header and admin role only", async () => {
-  const headerResult = await resolveAdminByRole(
-    (async () => {
-      throw new Error("requestFn should not be called when x-admin-user-id is present");
-    }) as typeof request,
+test("resolveAdminByRole verifies authorization and ignores forged admin headers", async () => {
+  const forgedHeaderResult = await resolveAdminByRole(
+    (async () => jsonResponse({ user: { id: "writer_auth", role: "writer" } }, 200)) as typeof request,
     "http://identity",
-    { "x-admin-user-id": "forwarded_admin" }
+    { authorization: "Bearer writer_token", "x-admin-user-id": "forged_admin" }
   );
-  assert.equal(headerResult, "forwarded_admin");
+  assert.equal(forgedHeaderResult, null);
 
   const adminResult = await resolveAdminByRole(
     (async () => jsonResponse({ user: { id: "admin_auth", role: "admin" } }, 200)) as typeof request,

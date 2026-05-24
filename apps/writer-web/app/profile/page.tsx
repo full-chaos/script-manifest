@@ -170,6 +170,11 @@ export default function ProfilePage() {
       anchor.click();
       anchor.remove();
       URL.revokeObjectURL(url);
+      void fetch("/api/v1/onboarding-progress", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ exportUsed: true, activationEvent: "export_used" }),
+      });
       toast.success(`${format.toUpperCase()} export downloaded.`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Export failed.");
@@ -181,14 +186,19 @@ export default function ProfilePage() {
   return (
     <section className="space-y-4">
       <article className="hero-card hero-card--amber animate-in">
-        <p className="eyebrow eyebrow--amber">Writer Profile</p>
-        <h1 className="text-4xl text-foreground">Your public writer resume</h1>
+        <p className="eyebrow eyebrow--amber">My Proof</p>
+        <h1 className="text-4xl text-foreground">Your portable writer proof</h1>
         <p className="max-w-2xl text-foreground-secondary">
-          Keep your bio, genres, demographics, profile links, and search visibility current.
-          This profile underpins discovery and ranking surfaces.
+          Keep exportable proof of your scripts, submissions, placements, and access activity current.
+          This profile anchors discovery, sharing, and ranking confidence surfaces.
         </p>
         <div className="inline-form">
           <span className="badge">{writerId ? `ID: ${writerId}` : "Not signed in"}</span>
+          {profile?.customProfileUrl ? (
+            <a className="btn btn-secondary no-underline" href={profile.customProfileUrl}>
+              Share career page
+            </a>
+          ) : null}
           <button
             type="button"
             className="btn btn-secondary"

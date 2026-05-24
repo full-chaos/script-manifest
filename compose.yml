@@ -552,6 +552,7 @@ services:
       COMPETITION_DIRECTORY_SERVICE_URL: "http://competition-directory-service:4002"
       PROFILE_SERVICE_URL: "http://profile-project-service:4001"
       KAFKA_BROKERS: "redpanda:9092"
+      SERVICE_TOKEN_SECRET: "local-dev-token-secret"
     command: >
       sh -lc "/workspace/scripts/pnpm-install-once.sh /workspace && pnpm --filter @script-manifest/ranking-service dev"
     depends_on:

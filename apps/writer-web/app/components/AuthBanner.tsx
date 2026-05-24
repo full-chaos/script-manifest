@@ -6,6 +6,7 @@ import { useAuth } from "../lib/AuthProvider";
 import { FolderOpen, Send, Trophy, TrendingUp, UserPen, type LucideIcon } from "lucide-react";
 import { HeroIllustration, TrustIllustration } from "./illustrations";
 import { OnboardingChecklist } from "./OnboardingChecklist";
+import { NextDeadlinesPanel } from "./NextDeadlinesPanel";
 
 type SurfaceIconKey = "profile" | "projects" | "competitions" | "leaderboard" | "submissions";
 
@@ -107,6 +108,8 @@ export function AuthBanner({ writerSurfaces, trustPrinciples }: AuthBannerProps)
       </article>
 
       <OnboardingChecklist />
+
+      <NextDeadlinesPanel />
 
       <section aria-label="Quick actions" className="grid gap-3 md:grid-cols-2 xl:grid-cols-4 animate-stagger">
         {writerSurfaces.map((surface) => (

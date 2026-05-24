@@ -4,6 +4,7 @@ export * from "./project.js";
 export * from "./auth.js";
 export * from "./notification.js";
 export * from "./competition.js";
+export * from "./saved-competition.js";
 export * from "./script.js";
 export * from "./industry.js";
 export * from "./programs.js";

@@ -16,6 +16,9 @@ export const CompetitionSchema = z.object({
   format: z.string().min(1),
   genre: z.string().min(1),
   feeUsd: z.number().nonnegative().default(0),
+  location: z.string().optional(),
+  language: z.string().min(1).optional(),
+  feeTier: z.enum(["free", "low", "mid", "high"]).optional(),
   deadline: z.string().datetime({ offset: true }),
   status: CompetitionStatusSchema.default("active"),
   visibility: CompetitionVisibilitySchema.default("listed"),
@@ -31,6 +34,8 @@ export const CompetitionUpsertRequestSchema = z.object({
   format: z.string().min(1),
   genre: z.string().min(1),
   feeUsd: z.number().nonnegative().default(0),
+  location: z.string().default("Worldwide"),
+  language: z.string().min(1).default("en"),
   deadline: z.string().datetime({ offset: true })
 });
 
@@ -52,6 +57,9 @@ export const CompetitionFiltersSchema = z.object({
   query: z.string().trim().min(1).optional(),
   format: z.string().trim().min(1).optional(),
   genre: z.string().trim().min(1).optional(),
+  location: z.string().trim().min(1).optional(),
+  language: z.string().trim().min(1).optional(),
+  feeTier: z.enum(["free", "low", "mid", "high"]).optional(),
   maxFeeUsd: z.coerce.number().nonnegative().optional(),
   deadlineBefore: z.coerce.date().optional(),
   includeHidden: z.coerce.boolean().optional(),

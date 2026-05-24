@@ -14,6 +14,9 @@ export const competitionsSchema: CollectionCreateSchema = {
     { name: "format", type: "string", facet: true },
     { name: "genre", type: "string", facet: true },
     { name: "feeUsd", type: "float", facet: true },
+    { name: "location", type: "string", facet: true, optional: true },
+    { name: "language", type: "string", facet: true, optional: true },
+    { name: "feeTier", type: "string", facet: true, optional: true },
     { name: "deadline", type: "int64" },
     { name: "status", type: "string", facet: true },
     { name: "visibility", type: "string" },
@@ -31,6 +34,9 @@ export type CompetitionDocument = {
   format: string;
   genre: string;
   feeUsd: number;
+  location?: string;
+  language?: string;
+  feeTier?: string;
   deadline: number;
   status: string;
   visibility: string;
@@ -79,6 +85,18 @@ export async function searchCompetitions(
     filterParts.push(`genre:=${filters.genre}`);
   }
 
+  if (filters.location) {
+    filterParts.push(`location:=${filters.location}`);
+  }
+
+  if (filters.language) {
+    filterParts.push(`language:=${filters.language}`);
+  }
+
+  if (filters.feeTier) {
+    filterParts.push(`feeTier:=${filters.feeTier}`);
+  }
+
   if (typeof filters.maxFeeUsd === "number") {
     filterParts.push(`feeUsd:<=${filters.maxFeeUsd}`);
   }
@@ -95,7 +113,7 @@ export async function searchCompetitions(
     prefix: "true,true",
     filter_by: filterParts.length > 0 ? filterParts.join(" && ") : undefined,
     sort_by: filters.query ? "_text_match:desc,createdAt:desc" : "createdAt:desc",
-    facet_by: "format,genre,accessType",
+    facet_by: "format,genre,accessType,location,language,feeTier",
     per_page: 100,
     page: 1
   };

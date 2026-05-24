@@ -8,7 +8,8 @@ import {
   type GatewayContext,
   buildQuerySuffix,
   proxyJsonRequest,
-  resolveAdminByRole
+  resolveAdminByRole,
+  resolveUserId
 } from "../helpers.js";
 
 export function registerCompetitionRoutes(server: FastifyInstance, ctx: GatewayContext): void {
@@ -36,6 +37,55 @@ export function registerCompetitionRoutes(server: FastifyInstance, ctx: GatewayC
         headers: { "content-type": "application/json" },
         body: JSON.stringify(req.body ?? {})
       }
+    );
+  });
+
+  server.post<{ Params: { competitionId: string } }>("/api/v1/competitions/:competitionId/save", async (req, reply) => {
+    const { competitionId } = req.params;
+    const userId = await resolveUserId(ctx.requestFn, ctx.identityServiceBase, req.headers, req.log);
+    if (!userId) {
+      return reply.status(401).send({ error: "unauthorized" });
+    }
+
+    const body = req.body && typeof req.body === "object" ? req.body as { remindDaysBefore?: unknown } : {};
+    return proxyJsonRequest(
+      reply,
+      ctx.requestFn,
+      `${ctx.competitionDirectoryBase}/internal/competitions/${encodeURIComponent(competitionId)}/save`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ writerId: userId, remindDaysBefore: body.remindDaysBefore })
+      }
+    );
+  });
+
+  server.delete<{ Params: { competitionId: string } }>("/api/v1/competitions/:competitionId/save", async (req, reply) => {
+    const { competitionId } = req.params;
+    const userId = await resolveUserId(ctx.requestFn, ctx.identityServiceBase, req.headers, req.log);
+    if (!userId) {
+      return reply.status(401).send({ error: "unauthorized" });
+    }
+
+    return proxyJsonRequest(
+      reply,
+      ctx.requestFn,
+      `${ctx.competitionDirectoryBase}/internal/competitions/${encodeURIComponent(competitionId)}/save?writerId=${encodeURIComponent(userId)}`,
+      { method: "DELETE" }
+    );
+  });
+
+  server.get("/api/v1/writers/me/saved-competitions", async (req, reply) => {
+    const userId = await resolveUserId(ctx.requestFn, ctx.identityServiceBase, req.headers, req.log);
+    if (!userId) {
+      return reply.status(401).send({ error: "unauthorized" });
+    }
+
+    return proxyJsonRequest(
+      reply,
+      ctx.requestFn,
+      `${ctx.competitionDirectoryBase}/internal/writers/${encodeURIComponent(userId)}/saved-competitions`,
+      { method: "GET" }
     );
   });
 

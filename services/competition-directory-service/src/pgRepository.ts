@@ -1,8 +1,8 @@
 import { getPool, runMigrations, toFtsPrefixQuery } from "@script-manifest/db";
-import type { Competition, CompetitionAccessType, CompetitionFilters, CompetitionVisibility, SaveCompetitionRequest, SavedCompetition } from "@script-manifest/contracts";
+import type { Competition, CompetitionAccessType, CompetitionFilters, CompetitionVisibility, Project, SaveCompetitionRequest, SavedCompetition } from "@script-manifest/contracts";
 import { publishSearchSyncEvent } from "@script-manifest/service-utils";
 import { searchCompetitions as typesenseSearch, type CompetitionDocument } from "@script-manifest/search";
-import type { CompetitionDirectoryRepository, DueCompetitionReminderDispatch } from "./repository.js";
+import type { CompetitionDirectoryRepository, DueCompetitionReminderDispatch, FeeTier, PrestigeTier, RecommendationInput } from "./repository.js";
 
 const typesenseEnabled = process.env.TYPESENSE_ENABLED === "true";
 
@@ -24,6 +24,29 @@ type CompetitionRow = {
   updated_at: Date;
 };
 
+type ProjectRow = {
+  id: string;
+  owner_user_id: string;
+  title: string;
+  logline: string;
+  synopsis: string;
+  format: string;
+  genre: string;
+  language: string;
+  country: string | null;
+  page_count: number;
+  is_discoverable: boolean;
+  created_at: Date;
+  updated_at: Date;
+};
+
+type RecommendationCompetitionRow = CompetitionRow & {
+  is_dismissed: boolean;
+  is_pinned: boolean;
+  already_submitted: boolean;
+  prestige_tier: string | null;
+};
+
 function mapCompetition(row: CompetitionRow): Competition {
   return {
     id: row.id,
@@ -39,6 +62,24 @@ function mapCompetition(row: CompetitionRow): Competition {
     status: row.status as Competition["status"],
     visibility: row.visibility as Competition["visibility"],
     accessType: row.access_type as Competition["accessType"]
+  };
+}
+
+function mapProject(row: ProjectRow): Project {
+  return {
+    id: row.id,
+    ownerUserId: row.owner_user_id,
+    title: row.title,
+    logline: row.logline,
+    synopsis: row.synopsis,
+    format: row.format,
+    genre: row.genre,
+    language: row.language,
+    country: row.country,
+    pageCount: row.page_count,
+    isDiscoverable: row.is_discoverable,
+    createdAt: row.created_at.toISOString(),
+    updatedAt: row.updated_at.toISOString()
   };
 }
 
@@ -91,6 +132,22 @@ async function publishSync(operation: "upsert" | "delete", row: CompetitionRow |
   } catch {
     // Search sync is best-effort — never block the write path
   }
+}
+
+function normalizePrestigeTier(value: string | null): PrestigeTier {
+  if (value === "elite" || value === "premier" || value === "notable" || value === "standard") {
+    return value;
+  }
+  return "standard";
+}
+
+function mostCommonFeeTier(values: FeeTier[]): FeeTier | null {
+  if (values.length === 0) return null;
+  const counts = new Map<FeeTier, number>();
+  for (const value of values) {
+    counts.set(value, (counts.get(value) ?? 0) + 1);
+  }
+  return [...counts.entries()].sort((left, right) => right[1] - left[1])[0]?.[0] ?? null;
 }
 
 export class PgCompetitionDirectoryRepository implements CompetitionDirectoryRepository {
@@ -319,6 +376,110 @@ export class PgCompetitionDirectoryRepository implements CompetitionDirectoryRep
       remindDaysBefore: row.remind_days_before,
       competition: mapCompetition(row)
     }));
+  }
+
+  async getRecommendationContext(projectId: string, userId: string): Promise<{
+    project: Project;
+    competitions: RecommendationInput[];
+    preferredFeeTier: FeeTier | null;
+  } | null> {
+    const db = getPool();
+    const projectResult = await db.query<ProjectRow>(
+      `SELECT * FROM projects WHERE id = $1 AND owner_user_id = $2`,
+      [projectId, userId]
+    );
+    const projectRow = projectResult.rows[0];
+    if (!projectRow) return null;
+
+    const competitionResult = await db.query<RecommendationCompetitionRow>(
+      `SELECT c.*,
+              (pcd.competition_id IS NOT NULL) AS is_dismissed,
+              (pcp.competition_id IS NOT NULL) AS is_pinned,
+              (s.competition_id IS NOT NULL) AS already_submitted,
+              cp.tier AS prestige_tier
+       FROM competitions c
+       LEFT JOIN project_competition_dismissals pcd
+         ON pcd.project_id = $1 AND pcd.competition_id = c.id
+       LEFT JOIN project_competition_pins pcp
+         ON pcp.project_id = $1 AND pcp.competition_id = c.id
+       LEFT JOIN submissions s
+         ON s.project_id = $1 AND s.competition_id = c.id
+       LEFT JOIN competition_prestige cp
+         ON cp.competition_id = c.id
+       WHERE c.status = 'active'
+         AND c.visibility = 'listed'
+         AND c.deadline > NOW()
+       ORDER BY c.deadline ASC`,
+      [projectId]
+    );
+
+    const feeResult = await db.query<{ fee_tier: FeeTier }>(
+      `SELECT c.fee_tier
+       FROM submissions s
+       JOIN competitions c ON c.id = s.competition_id
+       WHERE s.writer_id = $1 AND c.fee_tier IS NOT NULL
+       ORDER BY s.created_at DESC
+       LIMIT 5`,
+      [userId]
+    );
+
+    return {
+      project: mapProject(projectRow),
+      competitions: competitionResult.rows.map((row) => ({
+        competition: mapCompetition(row),
+        isDismissed: row.is_dismissed,
+        isPinned: row.is_pinned,
+        alreadySubmitted: row.already_submitted,
+        prestigeTier: normalizePrestigeTier(row.prestige_tier)
+      })),
+      preferredFeeTier: mostCommonFeeTier(feeResult.rows.map((row) => row.fee_tier))
+    };
+  }
+
+  async dismissRecommendation(projectId: string, competitionId: string, userId: string): Promise<boolean> {
+    const result = await getPool().query(
+      `INSERT INTO project_competition_dismissals (project_id, competition_id, dismissed_by_user_id)
+       SELECT $1, $2, $3
+       WHERE EXISTS (SELECT 1 FROM projects WHERE id = $1 AND owner_user_id = $3)
+       ON CONFLICT (project_id, competition_id) DO UPDATE
+       SET dismissed_by_user_id = EXCLUDED.dismissed_by_user_id,
+           dismissed_at = NOW()`,
+      [projectId, competitionId, userId]
+    );
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  async undismissRecommendation(projectId: string, competitionId: string, userId: string): Promise<boolean> {
+    const result = await getPool().query(
+      `DELETE FROM project_competition_dismissals
+       WHERE project_id = $1 AND competition_id = $2
+         AND EXISTS (SELECT 1 FROM projects WHERE id = $1 AND owner_user_id = $3)`,
+      [projectId, competitionId, userId]
+    );
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  async pinRecommendation(projectId: string, competitionId: string, userId: string): Promise<boolean> {
+    const result = await getPool().query(
+      `INSERT INTO project_competition_pins (project_id, competition_id, pinned_by_user_id)
+       SELECT $1, $2, $3
+       WHERE EXISTS (SELECT 1 FROM projects WHERE id = $1 AND owner_user_id = $3)
+       ON CONFLICT (project_id, competition_id) DO UPDATE
+       SET pinned_by_user_id = EXCLUDED.pinned_by_user_id,
+           pinned_at = NOW()`,
+      [projectId, competitionId, userId]
+    );
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  async unpinRecommendation(projectId: string, competitionId: string, userId: string): Promise<boolean> {
+    const result = await getPool().query(
+      `DELETE FROM project_competition_pins
+       WHERE project_id = $1 AND competition_id = $2
+         AND EXISTS (SELECT 1 FROM projects WHERE id = $1 AND owner_user_id = $3)`,
+      [projectId, competitionId, userId]
+    );
+    return (result.rowCount ?? 0) > 0;
   }
 
   async listDueReminderDispatches(limit = 50): Promise<DueCompetitionReminderDispatch[]> {

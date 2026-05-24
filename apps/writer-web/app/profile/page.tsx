@@ -10,6 +10,7 @@ import { fetcher, ApiError } from "../lib/fetcher";
 import { SkeletonText } from "../components/skeleton";
 import { useToast } from "../components/toast";
 import { useAuth } from "../lib/AuthProvider";
+import { ResumeMetricsWidget } from "../components/ResumeMetricsWidget";
 
 type EditableProfile = {
   displayName: string;
@@ -20,6 +21,7 @@ type EditableProfile = {
   headshotUrl: string;
   customProfileUrl: string;
   isSearchable: boolean;
+  resumePublic: boolean;
 };
 
 const initialDraft: EditableProfile = {
@@ -31,6 +33,7 @@ const initialDraft: EditableProfile = {
   headshotUrl: "",
   customProfileUrl: "",
   isSearchable: true,
+  resumePublic: true,
 };
 
 function isPreviewableImageUrl(value: string): boolean {
@@ -61,6 +64,7 @@ function profileToDraft(p: WriterProfile): EditableProfile {
     headshotUrl: p.headshotUrl,
     customProfileUrl: p.customProfileUrl,
     isSearchable: p.isSearchable,
+    resumePublic: p.resumePublic ?? true,
   };
 }
 
@@ -149,6 +153,7 @@ export default function ProfilePage() {
       headshotUrl: draft.headshotUrl.trim(),
       customProfileUrl: draft.customProfileUrl.trim(),
       isSearchable: draft.isSearchable,
+      resumePublic: draft.resumePublic,
     };
 
     await triggerSave(payload);
@@ -351,6 +356,17 @@ export default function ProfilePage() {
               <span>Allow profile in search results</span>
             </label>
 
+            <label className="inline-form">
+              <input
+                type="checkbox"
+                checked={draft.resumePublic}
+                onChange={(event) =>
+                  setDraft((current) => ({ ...current, resumePublic: event.target.checked }))
+                }
+              />
+              <span>Public resume page</span>
+            </label>
+
             {isPreviewableImageUrl(draft.headshotUrl) ? (
               <div className="subcard">
                 <p className="eyebrow">Headshot Preview</p>
@@ -373,6 +389,8 @@ export default function ProfilePage() {
           </form>
         </article>
       ) : null}
+
+      {profile?.resumePublic === true ? <ResumeMetricsWidget profile={profile} /> : null}
 
       {writerId ? (
         <article className="panel">

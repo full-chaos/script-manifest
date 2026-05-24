@@ -15,6 +15,17 @@ import type {
   TokenTransaction,
   TokenTransactionReason
 } from "@script-manifest/contracts";
+import type { PrivilegedAuditAction } from "@script-manifest/service-utils";
+
+export type FeedbackAuditLogInput = {
+  adminUserId: string;
+  action: PrivilegedAuditAction;
+  targetType: string;
+  targetId: string;
+  details?: Record<string, unknown>;
+};
+
+export type FeedbackAuditLogEntry = FeedbackAuditLogInput & { id: string; createdAt: string };
 
 const SYSTEM_USER_ID = "SYSTEM";
 
@@ -80,6 +91,7 @@ export interface FeedbackExchangeRepository {
 
   // Abuse
   hasDuplicateReview(listingId: string, reviewerUserId: string): Promise<boolean>;
+  createAuditLogEntry(input: FeedbackAuditLogInput): Promise<FeedbackAuditLogEntry>;
 }
 
 export class PgFeedbackExchangeRepository implements FeedbackExchangeRepository {
@@ -88,6 +100,17 @@ export class PgFeedbackExchangeRepository implements FeedbackExchangeRepository 
       return;
     }
     await ensureFeedbackExchangeTables();
+    await getPool().query(`
+      CREATE TABLE IF NOT EXISTS feedback_audit_log (
+        id TEXT PRIMARY KEY,
+        admin_user_id TEXT NOT NULL,
+        action TEXT NOT NULL,
+        target_type TEXT NOT NULL,
+        target_id TEXT NOT NULL,
+        details JSONB,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
   }
 
   async healthCheck(): Promise<{ database: boolean }> {
@@ -559,6 +582,34 @@ export class PgFeedbackExchangeRepository implements FeedbackExchangeRepository 
       [listingId, reviewerUserId]
     );
     return Number(result.rows[0]?.count ?? 0) > 0;
+  }
+
+  async createAuditLogEntry(input: FeedbackAuditLogInput): Promise<FeedbackAuditLogEntry> {
+    const id = `audit_${randomUUID()}`;
+    const result = await getPool().query<{
+      id: string;
+      admin_user_id: string;
+      action: FeedbackAuditLogEntry["action"];
+      target_type: string;
+      target_id: string;
+      details: Record<string, unknown> | null;
+      created_at: Date;
+    }>(
+      `INSERT INTO feedback_audit_log (id, admin_user_id, action, target_type, target_id, details)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id, admin_user_id, action, target_type, target_id, details, created_at`,
+      [id, input.adminUserId, input.action, input.targetType, input.targetId, input.details ?? null]
+    );
+    const row = result.rows[0]!;
+    return {
+      id: row.id,
+      adminUserId: row.admin_user_id,
+      action: row.action,
+      targetType: row.target_type,
+      targetId: row.target_id,
+      details: row.details ?? undefined,
+      createdAt: row.created_at.toISOString()
+    };
   }
 }
 

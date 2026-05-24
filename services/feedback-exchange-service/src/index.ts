@@ -470,6 +470,13 @@ export function buildServer(options: FeedbackExchangeServiceOptions = {}): Fasti
     if (!resolved) {
       return reply.status(409).send({ error: "dispute_not_resolvable" });
     }
+    await repository.createAuditLogEntry({
+      adminUserId: authUserId,
+      action: "feedback.dispute.resolve",
+      targetType: "feedback_dispute",
+      targetId: disputeId,
+      details: { status: parsed.data.status }
+    });
 
     // If resolved for filer: strike reviewer + refund token
     if (parsed.data.status === "resolved_for_filer") {

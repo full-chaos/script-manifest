@@ -1,8 +1,9 @@
+import { randomUUID } from "node:crypto";
 import { getPool, runMigrations, toFtsPrefixQuery } from "@script-manifest/db";
 import type { Competition, CompetitionAccessType, CompetitionFilters, CompetitionVisibility, Project, SaveCompetitionRequest, SavedCompetition } from "@script-manifest/contracts";
 import { publishSearchSyncEvent } from "@script-manifest/service-utils";
 import { searchCompetitions as typesenseSearch, type CompetitionDocument } from "@script-manifest/search";
-import type { CompetitionDirectoryRepository, DueCompetitionReminderDispatch, FeeTier, PrestigeTier, RecommendationInput } from "./repository.js";
+import type { CompetitionAuditLogEntry, CompetitionAuditLogInput, CompetitionDirectoryRepository, DueCompetitionReminderDispatch, FeeTier, PrestigeTier, RecommendationInput } from "./repository.js";
 
 const typesenseEnabled = process.env.TYPESENSE_ENABLED === "true";
 
@@ -156,6 +157,45 @@ export class PgCompetitionDirectoryRepository implements CompetitionDirectoryRep
       return;
     }
     await runMigrations(getPool());
+    await getPool().query(`
+      CREATE TABLE IF NOT EXISTS competition_audit_log (
+        id TEXT PRIMARY KEY,
+        admin_user_id TEXT NOT NULL,
+        action TEXT NOT NULL,
+        target_type TEXT NOT NULL,
+        target_id TEXT NOT NULL,
+        details JSONB,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+  }
+
+  async createAuditLogEntry(input: CompetitionAuditLogInput): Promise<CompetitionAuditLogEntry> {
+    const id = `audit_${randomUUID()}`;
+    const result = await getPool().query<{
+      id: string;
+      admin_user_id: string;
+      action: CompetitionAuditLogEntry["action"];
+      target_type: string;
+      target_id: string;
+      details: Record<string, unknown> | null;
+      created_at: Date;
+    }>(
+      `INSERT INTO competition_audit_log (id, admin_user_id, action, target_type, target_id, details)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id, admin_user_id, action, target_type, target_id, details, created_at`,
+      [id, input.adminUserId, input.action, input.targetType, input.targetId, input.details ?? null]
+    );
+    const row = result.rows[0]!;
+    return {
+      id: row.id,
+      adminUserId: row.admin_user_id,
+      action: row.action,
+      targetType: row.target_type,
+      targetId: row.target_id,
+      details: row.details ?? undefined,
+      createdAt: row.created_at.toISOString()
+    };
   }
 
   async healthCheck(): Promise<{ database: boolean }> {

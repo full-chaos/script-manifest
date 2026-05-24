@@ -218,9 +218,14 @@ test("GET /internal/onboarding/status returns all false for new user", async (t:
     status: {
       emailVerified: false,
       profileCompleted: false,
+      projectAdded: false,
       firstScriptUploaded: false,
       competitionsVisited: false,
-      coverageVisited: false
+      coverageVisited: false,
+      submissionRecorded: false,
+      placementRecorded: false,
+      exportUsed: false,
+      shareUsed: false
     }
   });
 });
@@ -269,9 +274,14 @@ test("PATCH /internal/onboarding/progress marks single step complete", async (t:
 
   assert.equal(get.statusCode, 200);
   assert.equal(get.json().status.profileCompleted, true);
+  assert.equal(get.json().status.projectAdded, false);
   assert.equal(get.json().status.firstScriptUploaded, false);
   assert.equal(get.json().status.competitionsVisited, false);
   assert.equal(get.json().status.coverageVisited, false);
+  assert.equal(get.json().status.submissionRecorded, false);
+  assert.equal(get.json().status.placementRecorded, false);
+  assert.equal(get.json().status.exportUsed, false);
+  assert.equal(get.json().status.shareUsed, false);
 });
 
 test("PATCH /internal/onboarding/progress marks multiple steps complete", async (t: { after(fn: () => Promise<void>): void }) => {
@@ -288,7 +298,16 @@ test("PATCH /internal/onboarding/progress marks multiple steps complete", async 
     method: "PATCH",
     url: "/internal/onboarding/progress",
     headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
-    payload: { firstScriptUploaded: true, competitionsVisited: true, coverageVisited: true }
+    payload: {
+      projectAdded: true,
+      firstScriptUploaded: true,
+      competitionsVisited: true,
+      coverageVisited: true,
+      submissionRecorded: true,
+      placementRecorded: true,
+      exportUsed: true,
+      shareUsed: true
+    }
   });
 
   assert.equal(patch.statusCode, 200);
@@ -301,9 +320,14 @@ test("PATCH /internal/onboarding/progress marks multiple steps complete", async 
 
   assert.equal(get.statusCode, 200);
   assert.equal(get.json().status.profileCompleted, false);
+  assert.equal(get.json().status.projectAdded, true);
   assert.equal(get.json().status.firstScriptUploaded, true);
   assert.equal(get.json().status.competitionsVisited, true);
   assert.equal(get.json().status.coverageVisited, true);
+  assert.equal(get.json().status.submissionRecorded, true);
+  assert.equal(get.json().status.placementRecorded, true);
+  assert.equal(get.json().status.exportUsed, true);
+  assert.equal(get.json().status.shareUsed, true);
 });
 
 test("PATCH /internal/onboarding/progress returns 401 without auth", async (t: { after(fn: () => Promise<void>): void }) => {
@@ -354,9 +378,14 @@ test("PATCH /internal/onboarding/progress ignores invalid fields", async (t: { a
 
   assert.equal(get.statusCode, 200);
   assert.equal(get.json().status.profileCompleted, true);
+  assert.equal(get.json().status.projectAdded, false);
   assert.equal(get.json().status.firstScriptUploaded, false);
   assert.equal(get.json().status.competitionsVisited, false);
   assert.equal(get.json().status.coverageVisited, false);
+  assert.equal(get.json().status.submissionRecorded, false);
+  assert.equal(get.json().status.placementRecorded, false);
+  assert.equal(get.json().status.exportUsed, false);
+  assert.equal(get.json().status.shareUsed, false);
 });
 
 test("GET after PATCH reflects updated state", async (t: { after(fn: () => Promise<void>): void }) => {
@@ -386,9 +415,14 @@ test("GET after PATCH reflects updated state", async (t: { after(fn: () => Promi
   assert.deepEqual(get.json().status, {
     emailVerified: false,
     profileCompleted: true,
+    projectAdded: false,
     firstScriptUploaded: false,
     competitionsVisited: true,
-    coverageVisited: false
+    coverageVisited: false,
+    submissionRecorded: false,
+    placementRecorded: false,
+    exportUsed: false,
+    shareUsed: false
   });
 });
 

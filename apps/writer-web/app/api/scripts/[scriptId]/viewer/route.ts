@@ -38,6 +38,9 @@ export async function GET(
           { status: 502 }
         );
       }
+      if (!parseResult.data.access.isOwner) {
+        await recordScriptViewEvent(scriptId, "view");
+      }
       return NextResponse.json(parseResult.data);
     } catch (error) {
       return NextResponse.json(
@@ -86,6 +89,10 @@ export async function GET(
       );
     }
 
+    if (!parseResult.data.access.isOwner) {
+      await recordScriptViewEvent(scriptId, url.searchParams.get("download") === "1" ? "download" : "view", viewerUserId);
+    }
+
     return NextResponse.json(parseResult.data);
   } catch (error) {
     return NextResponse.json(
@@ -95,5 +102,18 @@ export async function GET(
       },
       { status: 502 }
     );
+  }
+}
+
+async function recordScriptViewEvent(scriptId: string, eventType: "view" | "download", viewerUserId?: string): Promise<void> {
+  try {
+    await fetch(new URL(`/internal/scripts/${encodeURIComponent(scriptId)}/view-event`, scriptStorageServiceBase), {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ eventType, viewerUserId }),
+      cache: "no-store"
+    });
+  } catch {
+    // Viewing should not fail because proof metric capture is temporarily unavailable.
   }
 }

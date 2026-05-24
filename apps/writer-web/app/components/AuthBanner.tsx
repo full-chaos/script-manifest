@@ -42,17 +42,17 @@ export function AuthBanner({ writerSurfaces, trustPrinciples }: AuthBannerProps)
       <section className="space-y-4">
         <article className="hero-card animate-in relative overflow-hidden">
           <div className="relative z-10">
-            <p className="eyebrow">Writer Hub</p>
+            <p className="eyebrow">Permanent Career Record</p>
             <h1 className="max-w-4xl font-display text-3xl font-semibold leading-tight text-foreground sm:text-4xl md:text-5xl lg:text-6xl">
-              Build your screenwriting portfolio without losing your history again.
+              Your screenwriting career record should not disappear.
             </h1>
             <p className="max-w-3xl text-base text-foreground-secondary md:text-lg">
-              Script Manifest gives writers a durable home for profiles, projects, submissions, and
-              discovery workflows. Your work stays portable and under your control.
+              Script Manifest keeps profile, projects, submissions, placements, export, and proof in one
+              portable record that stays under your control.
             </p>
             <div className="inline-form">
               <Link href="/signin" className="btn btn-primary no-underline">
-                Create account
+                Start your record
               </Link>
               <Link href="/competitions" className="btn btn-secondary no-underline">
                 Browse competitions
@@ -99,9 +99,11 @@ export function AuthBanner({ writerSurfaces, trustPrinciples }: AuthBannerProps)
   return (
     <section className="space-y-4">
       <article className="hero-card animate-in">
-        <p className="eyebrow">Welcome back</p>
+        <p className="eyebrow">Career record path</p>
         <h2 className="font-display text-4xl font-semibold text-foreground">{user.displayName}</h2>
-        <p className="text-foreground-secondary">Jump directly into your active writer workflow.</p>
+        <p className="text-foreground-secondary">
+          Profile → project → script → submission → placement → share. Keep every step exportable.
+        </p>
       </article>
 
       <OnboardingChecklist />

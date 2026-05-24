@@ -6,9 +6,14 @@ import type { IdentityRepository } from "./repository.js";
 
 const STEP_TO_COLUMN = {
   profileCompleted: "profile_completed",
+  projectAdded: "project_added",
   firstScriptUploaded: "first_script_uploaded",
   competitionsVisited: "competitions_visited",
-  coverageVisited: "coverage_visited"
+  coverageVisited: "coverage_visited",
+  submissionRecorded: "submission_recorded",
+  placementRecorded: "placement_recorded",
+  exportUsed: "export_used",
+  shareUsed: "share_used"
 } as const;
 
 export function registerOnboardingRoutes(
@@ -34,9 +39,14 @@ export function registerOnboardingRoutes(
         status: {
           emailVerified: sessionData.user.emailVerified,
           profileCompleted: progress.profileCompleted,
+          projectAdded: progress.projectAdded,
           firstScriptUploaded: progress.firstScriptUploaded,
           competitionsVisited: progress.competitionsVisited,
-          coverageVisited: progress.coverageVisited
+          coverageVisited: progress.coverageVisited,
+          submissionRecorded: progress.submissionRecorded,
+          placementRecorded: progress.placementRecorded,
+          exportUsed: progress.exportUsed,
+          shareUsed: progress.shareUsed
         }
       });
     }

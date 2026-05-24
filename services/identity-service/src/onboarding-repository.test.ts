@@ -9,9 +9,14 @@ test("MemoryOnboardingRepository getProgress creates default progress", async ()
   assert.deepEqual(progress, {
     userId: "user_1",
     profileCompleted: false,
+    projectAdded: false,
     firstScriptUploaded: false,
     competitionsVisited: false,
     coverageVisited: false,
+    submissionRecorded: false,
+    placementRecorded: false,
+    exportUsed: false,
+    shareUsed: false,
   });
 });
 
@@ -19,15 +24,25 @@ test("MemoryOnboardingRepository markStepComplete updates each supported step", 
   const repo = new MemoryOnboardingRepository();
 
   await repo.markStepComplete("user_1", "profile_completed");
+  await repo.markStepComplete("user_1", "project_added");
   await repo.markStepComplete("user_1", "first_script_uploaded");
   await repo.markStepComplete("user_1", "competitions_visited");
   await repo.markStepComplete("user_1", "coverage_visited");
+  await repo.markStepComplete("user_1", "submission_recorded");
+  await repo.markStepComplete("user_1", "placement_recorded");
+  await repo.markStepComplete("user_1", "export_used");
+  await repo.markStepComplete("user_1", "share_used");
 
   const progress = await repo.getProgress("user_1");
   assert.equal(progress.profileCompleted, true);
+  assert.equal(progress.projectAdded, true);
   assert.equal(progress.firstScriptUploaded, true);
   assert.equal(progress.competitionsVisited, true);
   assert.equal(progress.coverageVisited, true);
+  assert.equal(progress.submissionRecorded, true);
+  assert.equal(progress.placementRecorded, true);
+  assert.equal(progress.exportUsed, true);
+  assert.equal(progress.shareUsed, true);
 });
 
 test("MemoryOnboardingRepository reuses progress object for existing user", async () => {

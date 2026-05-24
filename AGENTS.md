@@ -83,6 +83,20 @@ linear i create "[Subtask] <subtask title>" \
     # CORRECT — gh pr create pushes the branch automatically:
     gh pr create --head <branch-name> --base main --title "..." --body "..."
 
+    # CORRECT — preserve multiline PR bodies/descriptions with heredoc + --body:
+    gh pr create --head <branch-name> --base main --title "..." --body "$(cat <<'EOF'
+    ## Summary
+    - First item
+    - Second item
+
+    ## Verification
+    - Command output or manual QA evidence
+    EOF
+    )"
+
+    # WRONG — --body-file can submit literal \n sequences instead of newlines:
+    gh pr create --head <branch-name> --base main --title "..." --body-file /tmp/pr-body.md
+
     # CORRECT — explicit refspec:
     git push origin HEAD:<branch-name>
 

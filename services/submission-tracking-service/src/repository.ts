@@ -1,6 +1,10 @@
 import type {
   CreateHistoricalPlacementData,
+  CommitCareerImportData,
+  CreateCareerImportPreviewData,
   CreatePlacementEvidenceData,
+  ImportCommitResponse,
+  ImportPreviewResponse,
   Placement,
   PlacementEvidence,
   PlacementFilters,
@@ -32,4 +36,8 @@ export interface SubmissionTrackingRepository {
   listPlacementEvidence(placementId: string): Promise<PlacementEvidence[]>;
   listPlacementsBySubmission(submissionId: string): Promise<Placement[]>;
   listPlacements(filters: PlacementFilters): Promise<{ placement: Placement; submission: Submission }[]>;
+
+  createCareerImportPreview(data: CreateCareerImportPreviewData): Promise<ImportPreviewResponse>;
+  getCareerImport(batchId: string, writerId: string): Promise<ImportPreviewResponse | null>;
+  commitCareerImport(data: CommitCareerImportData): Promise<ImportCommitResponse>;
 }

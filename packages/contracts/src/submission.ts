@@ -1,5 +1,8 @@
 import { z } from "zod";
 
+export const ImportSourceSchema = z.enum(["manual", "csv_import", "historical_form", "recovered_csv"]);
+export type ImportSource = z.infer<typeof ImportSourceSchema>;
+
 export const SubmissionStatusSchema = z.enum([
   "pending",
   "quarterfinalist",
@@ -16,6 +19,8 @@ export const SubmissionSchema = z.object({
   projectId: z.string().min(1),
   competitionId: z.string().min(1),
   status: SubmissionStatusSchema,
+  importSource: ImportSourceSchema.optional(),
+  importBatchId: z.string().nullable().optional(),
   createdAt: z.string().datetime({ offset: true }),
   updatedAt: z.string().datetime({ offset: true })
 });
@@ -70,7 +75,9 @@ export const PlacementSchema = z.object({
   recordedByUserId: z.string().nullable().default(null),
   reviewedByUserId: z.string().nullable().default(null),
   reviewedAt: z.string().datetime({ offset: true }).nullable().default(null),
-  reviewNotes: z.string().nullable().default(null)
+  reviewNotes: z.string().nullable().default(null),
+  importSource: ImportSourceSchema.optional(),
+  importBatchId: z.string().nullable().optional()
 });
 
 export type Placement = z.infer<typeof PlacementSchema>;

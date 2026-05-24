@@ -2,8 +2,12 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
 import type {
+  CommitCareerImportData,
+  CreateCareerImportPreviewData,
   CreateHistoricalPlacementData,
   CreatePlacementEvidenceData,
+  ImportCommitResponse,
+  ImportPreviewResponse,
   Placement,
   PlacementEvidence,
   PlacementFilters,
@@ -217,6 +221,18 @@ class MemorySubmissionTrackingRepository implements SubmissionTrackingRepository
 
       return [{ placement, submission }];
     });
+  }
+
+  async createCareerImportPreview(_data: CreateCareerImportPreviewData): Promise<ImportPreviewResponse> {
+    throw new Error("not implemented for this test");
+  }
+
+  async getCareerImport(_batchId: string, _writerId: string): Promise<ImportPreviewResponse | null> {
+    return null;
+  }
+
+  async commitCareerImport(_data: CommitCareerImportData): Promise<ImportCommitResponse> {
+    throw new Error("not implemented for this test");
   }
 }
 

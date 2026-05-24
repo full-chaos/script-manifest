@@ -476,6 +476,7 @@ export default function SubmissionsPage() {
                           <span className="badge">
                             {placement.status} | {placement.badgeLabel}
                           </span>
+                          {placement.importSource === "recovered_csv" ? <span className="badge">Recovered</span> : null}
                           {placement.isHistorical ? <span className="badge">Historical</span> : null}
                         </div>
                         <div className="inline-form mt-2">

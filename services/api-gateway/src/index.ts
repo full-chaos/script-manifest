@@ -14,6 +14,7 @@ import { registerProfileRoutes } from "./routes/profiles.js";
 import { registerProjectRoutes } from "./routes/projects.js";
 import { registerCompetitionRoutes } from "./routes/competitions.js";
 import { registerSubmissionRoutes } from "./routes/submissions.js";
+import { registerCareerImportRoutes } from "./routes/career-imports.js";
 import { registerScriptRoutes } from "./routes/scripts.js";
 import { registerExportRoutes } from "./routes/export.js";
 import { registerFeedbackRoutes } from "./routes/feedback.js";
@@ -130,6 +131,7 @@ export async function buildServer(options: ApiGatewayOptions = {}): Promise<Fast
   registerProjectRoutes(server, ctx);
   registerCompetitionRoutes(server, ctx);
   registerSubmissionRoutes(server, ctx);
+  registerCareerImportRoutes(server, ctx);
   registerScriptRoutes(server, ctx);
   registerExportRoutes(server, ctx);
   registerFeedbackRoutes(server, ctx);

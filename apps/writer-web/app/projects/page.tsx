@@ -15,6 +15,7 @@ import useSWR from "swr";
 import useSWRMutation from "swr/mutation";
 import { EmptyState } from "../components/emptyState";
 import { Modal } from "../components/modal";
+import { RecommendedCompetitions } from "../components/RecommendedCompetitions";
 import { SkeletonCard } from "../components/skeleton";
 import { useToast } from "../components/toast";
 import { useAuth } from "../lib/AuthProvider";
@@ -693,6 +694,8 @@ export default function ProjectsPage() {
           />
         ) : (
           <div className="stack">
+            <RecommendedCompetitions projectId={selectedProject.id} />
+
             <section className="stack">
               <div className="subcard-header">
                 <h3 className="text-2xl text-foreground">Co-Writers</h3>

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import useSWR from "swr";
 import useSWRMutation from "swr/mutation";
-import type { Competition } from "@script-manifest/contracts";
+import type { Competition, SavedCompetition } from "@script-manifest/contracts";
 import { Modal } from "../components/modal";
 import { EmptyState } from "../components/emptyState";
 import { EmptyIllustration } from "../components/illustrations";
@@ -18,13 +18,19 @@ type Filters = {
   format: string;
   genre: string;
   maxFeeUsd: string;
+  location: string;
+  language: string;
+  feeTier: string;
 };
 
 const initialFilters: Filters = {
   query: "",
   format: "",
   genre: "",
-  maxFeeUsd: ""
+  maxFeeUsd: "",
+  location: "",
+  language: "",
+  feeTier: ""
 };
 
 type DeadlineInfo = {
@@ -75,12 +81,19 @@ type CompetitionsResponse = {
   competitions: Competition[];
 };
 
+type SavedCompetitionsResponse = {
+  savedCompetitions: SavedCompetition[];
+};
+
 function buildKey(filters: Filters): string {
   const params = new URLSearchParams();
   if (filters.query.trim()) params.set("query", filters.query.trim());
   if (filters.format.trim()) params.set("format", filters.format.trim());
   if (filters.genre.trim()) params.set("genre", filters.genre.trim());
   if (filters.maxFeeUsd.trim()) params.set("maxFeeUsd", filters.maxFeeUsd.trim());
+  if (filters.location.trim()) params.set("location", filters.location.trim());
+  if (filters.language.trim()) params.set("language", filters.language.trim());
+  if (filters.feeTier.trim()) params.set("feeTier", filters.feeTier.trim());
   return `/api/v1/competitions?${params.toString()}`;
 }
 
@@ -128,7 +141,14 @@ export default function CompetitionsPage() {
     }
   );
 
+  const { data: savedData, mutate: mutateSaved } = useSWR<SavedCompetitionsResponse>(
+    signedInUserId ? "/api/v1/writers/me/saved-competitions" : null,
+    fetcher,
+    { shouldRetryOnError: false }
+  );
+
   const results = useMemo(() => data?.competitions ?? [], [data]);
+  const savedCompetitionIds = useMemo(() => new Set((savedData?.savedCompetitions ?? []).map((saved) => saved.competitionId)), [savedData]);
   const hasSearched = data !== undefined;
 
   const upcomingDeadlines = useMemo(() => {
@@ -210,6 +230,31 @@ export default function CompetitionsPage() {
     }
   }
 
+  async function toggleSavedCompetition(competition: Competition) {
+    if (!signedInUserId) {
+      toast.error("Sign in to save competitions.");
+      return;
+    }
+
+    const isSaved = savedCompetitionIds.has(competition.id);
+    try {
+      const response = await fetch(`/api/v1/competitions/${encodeURIComponent(competition.id)}/save`, {
+        method: isSaved ? "DELETE" : "POST",
+        headers: isSaved ? undefined : { "content-type": "application/json" },
+        body: isSaved ? undefined : JSON.stringify({ remindDaysBefore: [14, 7, 1] })
+      });
+      const body = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) {
+        toast.error(body.error ?? "Save update failed.");
+        return;
+      }
+      await mutateSaved();
+      toast.success(isSaved ? `Removed ${competition.title}.` : `Saved ${competition.title}.`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Save update failed.");
+    }
+  }
+
   return (
     <section className="space-y-4">
       <article className="hero-card animate-in">
@@ -265,6 +310,51 @@ export default function CompetitionsPage() {
                 onChange={(event) => setPendingFilters((current) => ({ ...current, maxFeeUsd: event.target.value }))}
               />
             </label>
+            <label className="stack-tight">
+              <span>Location</span>
+              <select
+                className="input"
+                value={pendingFilters.location}
+                onChange={(event) => setPendingFilters((current) => ({ ...current, location: event.target.value }))}
+              >
+                <option value="">Any location</option>
+                <option value="Worldwide">Worldwide</option>
+                <option value="US/Canada">US/Canada</option>
+                <option value="UK">UK</option>
+              </select>
+            </label>
+            <label className="stack-tight">
+              <span>Language</span>
+              <select
+                className="input"
+                value={pendingFilters.language}
+                onChange={(event) => setPendingFilters((current) => ({ ...current, language: event.target.value }))}
+              >
+                <option value="">Any language</option>
+                <option value="en">English</option>
+                <option value="es">Spanish</option>
+                <option value="fr">French</option>
+              </select>
+            </label>
+          </div>
+
+          <div className="inline-form" aria-label="Fee tier filters">
+            {([
+              ["", "Any fee"],
+              ["free", "Free"],
+              ["low", "<$30"],
+              ["mid", "<$70"],
+              ["high", "$70+"]
+            ] as Array<[string, string]>).map(([value, label]) => (
+              <button
+                key={value || "any"}
+                type="button"
+                className={pendingFilters.feeTier === value ? "btn btn-primary btn-sm" : "btn btn-secondary btn-sm"}
+                onClick={() => setPendingFilters((current) => ({ ...current, feeTier: value }))}
+              >
+                {label}
+              </button>
+            ))}
           </div>
 
           <div className="inline-form">
@@ -366,6 +456,8 @@ export default function CompetitionsPage() {
                   <div className="mt-2 flex flex-wrap items-center gap-2">
                     <span className="badge">{competition.format}</span>
                     <span className="badge">{competition.genre}</span>
+                    {competition.location ? <span className="badge">{competition.location}</span> : null}
+                    {competition.language ? <span className="badge">{competition.language}</span> : null}
                     {competition.feeUsd === 0 ? (
                       <span className="inline-flex items-center rounded-full border border-tide-500/30 dark:border-tide-500/40 bg-tide-500/10 dark:bg-tide-500/20 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-tide-700 dark:text-tide-500">
                         Free
@@ -375,6 +467,15 @@ export default function CompetitionsPage() {
                     )}
                   </div>
                   <div className="mt-3 inline-form">
+                    {signedInUserId ? (
+                      <button
+                        type="button"
+                        className={savedCompetitionIds.has(competition.id) ? "btn btn-primary btn-sm" : "btn btn-secondary btn-sm"}
+                        onClick={() => void toggleSavedCompetition(competition)}
+                      >
+                        {savedCompetitionIds.has(competition.id) ? "Saved" : "Save"}
+                      </button>
+                    ) : null}
                     {signedInUserId ? (
                       <button
                         type="button"

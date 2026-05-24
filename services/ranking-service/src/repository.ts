@@ -13,6 +13,20 @@ import type {
   WriterBadge
 } from "@script-manifest/contracts";
 import { ensureRankingTables, getPool } from "@script-manifest/db";
+import type { PrivilegedAuditAction } from "@script-manifest/service-utils";
+
+export type RankingAuditLogInput = {
+  adminUserId: string;
+  action: PrivilegedAuditAction;
+  targetType: string;
+  targetId: string;
+  details?: Record<string, unknown>;
+};
+
+export type RankingAuditLogEntry = RankingAuditLogInput & {
+  id: string;
+  createdAt: string;
+};
 
 export type WriterScoreRow = {
   writerId: string;
@@ -86,6 +100,9 @@ export interface RankingRepository {
   getAppeal(appealId: string): Promise<RankingAppeal | null>;
   listAppeals(status?: RankingAppealStatus): Promise<RankingAppeal[]>;
   resolveAppeal(appealId: string, resolvedByUserId: string, status: "upheld" | "rejected", resolutionNote: string): Promise<RankingAppeal | null>;
+
+  // Audit
+  createAuditLogEntry(input: RankingAuditLogInput): Promise<RankingAuditLogEntry>;
 }
 
 // ── PostgreSQL implementation ────────────────────────────────────────
@@ -96,6 +113,18 @@ export class PgRankingRepository implements RankingRepository {
       return;
     }
     await ensureRankingTables();
+    await getPool().query(`
+      CREATE TABLE IF NOT EXISTS ranking_audit_log (
+        id TEXT PRIMARY KEY,
+        admin_user_id TEXT NOT NULL,
+        action TEXT NOT NULL,
+        target_type TEXT NOT NULL,
+        target_id TEXT NOT NULL,
+        details JSONB,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+    await getPool().query(`CREATE INDEX IF NOT EXISTS idx_ranking_audit_created ON ranking_audit_log(created_at DESC)`);
   }
 
   async healthCheck(): Promise<{ database: boolean }> {
@@ -510,6 +539,17 @@ export class PgRankingRepository implements RankingRepository {
     );
     return rows[0] ? mapAppeal(rows[0]) : null;
   }
+
+  async createAuditLogEntry(input: RankingAuditLogInput): Promise<RankingAuditLogEntry> {
+    const id = `audit_${randomUUID()}`;
+    const { rows } = await getPool().query(
+      `INSERT INTO ranking_audit_log (id, admin_user_id, action, target_type, target_id, details)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id, admin_user_id, action, target_type, target_id, details, created_at`,
+      [id, input.adminUserId, input.action, input.targetType, input.targetId, input.details ?? null]
+    );
+    return mapAuditLogEntry(rows[0]);
+  }
 }
 
 // ── Row mappers ──────────────────────────────────────────────────────
@@ -586,5 +626,17 @@ function mapAppeal(row: Record<string, unknown>): RankingAppeal {
     resolvedByUserId: (row.resolved_by_user_id as string) ?? null,
     createdAt: (row.created_at as Date).toISOString(),
     updatedAt: (row.updated_at as Date).toISOString()
+  };
+}
+
+function mapAuditLogEntry(row: Record<string, unknown>): RankingAuditLogEntry {
+  return {
+    id: row.id as string,
+    adminUserId: row.admin_user_id as string,
+    action: row.action as RankingAuditLogEntry["action"],
+    targetType: row.target_type as string,
+    targetId: row.target_id as string,
+    details: (row.details as Record<string, unknown> | null) ?? undefined,
+    createdAt: (row.created_at as Date).toISOString()
   };
 }

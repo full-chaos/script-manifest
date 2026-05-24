@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { Competition, CompetitionAccessType, CompetitionFilters, CompetitionRecommendation, CompetitionVisibility, Project } from "@script-manifest/contracts";
 import { buildServer } from "./index.js";
-import type { CompetitionDirectoryRepository } from "./repository.js";
+import type { CompetitionAuditLogEntry, CompetitionAuditLogInput, CompetitionDirectoryRepository } from "./repository.js";
 import { request } from "undici";
 
 type RequestResult = Awaited<ReturnType<typeof request>>;
@@ -21,6 +21,7 @@ class MemoryCompetitionDirectoryRepository implements CompetitionDirectoryReposi
   private readonly competitions = new Map<string, Competition>();
   private readonly dismissed = new Set<string>();
   private readonly pinned = new Set<string>();
+  auditLog: CompetitionAuditLogEntry[] = [];
 
   constructor() {
     this.competitions.set("comp_001", {
@@ -184,6 +185,12 @@ class MemoryCompetitionDirectoryRepository implements CompetitionDirectoryReposi
     this.competitions.set(id, updated);
     return updated;
   }
+
+  async createAuditLogEntry(input: CompetitionAuditLogInput): Promise<CompetitionAuditLogEntry> {
+    const entry = { id: `audit_${this.auditLog.length + 1}`, createdAt: new Date().toISOString(), ...input };
+    this.auditLog.push(entry);
+    return entry;
+  }
 }
 
 test("competition directory filters seeded competitions", async (t) => {
@@ -286,9 +293,10 @@ test("competition deadline reminder publishes notification event", async (t) => 
 });
 
 test("competition admin curation route requires x-admin-user-id header", async (t) => {
+  const repository = new MemoryCompetitionDirectoryRepository();
   const server = buildServer({
     logger: false,
-    repository: new MemoryCompetitionDirectoryRepository(),
+    repository,
     requestFn: (async () => textResponse({ ok: true }, 201)) as typeof request
   });
   t.after(async () => {
@@ -325,6 +333,7 @@ test("competition admin curation route requires x-admin-user-id header", async (
     }
   });
   assert.equal(allowed.statusCode, 201);
+  assert.ok(repository.auditLog.some((entry) => entry.action === "competition.moderate" && entry.targetId === "comp_admin_1" && entry.adminUserId === "admin_writer"));
 });
 
 test("recommended competitions require project owner and support dismiss and pin overrides", async (t) => {

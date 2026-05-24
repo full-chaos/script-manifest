@@ -16,7 +16,7 @@ import type {
 } from "@script-manifest/contracts";
 import { BaseMemoryRepository, signServiceToken } from "@script-manifest/service-utils";
 import { buildServer } from "./index.js";
-import type { FeedbackExchangeRepository } from "./repository.js";
+import type { FeedbackAuditLogEntry, FeedbackAuditLogInput, FeedbackExchangeRepository } from "./repository.js";
 
 const SERVICE_SECRET = randomBytes(32).toString("hex");
 
@@ -36,6 +36,7 @@ class MemoryFeedbackExchangeRepository extends BaseMemoryRepository implements F
   private strikes = new Map<string, { userId: string; reason: string; active: boolean; expiresAt: Date }[]>();
   private suspensions = new Set<string>();
   private disputes = new Map<string, FeedbackDispute>();
+  auditLog: FeedbackAuditLogEntry[] = [];
   // Tokens
   async getBalance(userId: string): Promise<number> {
     let credits = 0;
@@ -347,6 +348,12 @@ class MemoryFeedbackExchangeRepository extends BaseMemoryRepository implements F
       if (review.listingId === listingId && review.reviewerUserId === reviewerUserId) return true;
     }
     return false;
+  }
+
+  async createAuditLogEntry(input: FeedbackAuditLogInput): Promise<FeedbackAuditLogEntry> {
+    const entry = { id: this.createId("audit"), createdAt: new Date().toISOString(), ...input };
+    this.auditLog.push(entry);
+    return entry;
   }
 }
 
@@ -820,7 +827,7 @@ test("dispute creation and no duplicates", async (t) => {
 });
 
 test("resolve dispute for filer strikes reviewer and refunds", async (t) => {
-  const { server } = createServer();
+  const { server, repo } = createServer();
   t.after(() => server.close());
 
   // Setup complete flow
@@ -873,6 +880,7 @@ test("resolve dispute for filer strikes reviewer and refunds", async (t) => {
   });
   assert.equal(resolveRes.statusCode, 200);
   assert.equal(resolveRes.json().dispute.status, "resolved_for_filer");
+  assert.ok(repo.auditLog.some((entry) => entry.action === "feedback.dispute.resolve" && entry.targetId === disputeId && entry.adminUserId === "admin_01"));
 
   // Check writer_02 got a strike
   const repRes = await server.inject({

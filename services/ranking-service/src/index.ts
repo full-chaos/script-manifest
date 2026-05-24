@@ -1,7 +1,7 @@
 import { type FastifyInstance } from "fastify";
 import { randomUUID } from "node:crypto";
 import { Counter } from "prom-client";
-import { bootstrapService, registerMetrics, registerSentryErrorHandler, setupErrorReporting, validateRequiredEnv, isMainModule, publishNotificationEvent, createFastifyServer } from "@script-manifest/service-utils";
+import { bootstrapService, registerMetrics, registerSentryErrorHandler, setupErrorReporting, validateRequiredEnv, isMainModule, publishNotificationEvent, createFastifyServer, requireAdminServiceToken } from "@script-manifest/service-utils";
 import { healthCheck } from "@script-manifest/db";
 import {
   CompetitionPrestigeUpsertRequestSchema,
@@ -159,18 +159,28 @@ export function buildServer(options: RankingServiceOptions = {}): FastifyInstanc
   });
 
   server.put<{ Params: { competitionId: string } }>("/internal/prestige/:competitionId", async (req, reply) => {
-    const userId = req.headers["x-auth-user-id"] as string | undefined;
-    if (!userId) return reply.status(403).send({ error: "forbidden" });
+    const adminId = requireAdminServiceToken(req.headers as Record<string, unknown>);
+    if (!adminId) return reply.status(403).send({ error: "forbidden" });
     const { competitionId } = req.params;
     const parsed = CompetitionPrestigeUpsertRequestSchema.safeParse(req.body);
     if (!parsed.success) return reply.status(400).send({ error: "invalid_payload" });
     const config = await repo.upsertPrestige(competitionId, parsed.data.tier, parsed.data.multiplier);
+    await repo.createAuditLogEntry({
+      adminUserId: adminId,
+      action: "ranking.prestige.update",
+      targetType: "competition",
+      targetId: competitionId,
+      details: { tier: parsed.data.tier, multiplier: parsed.data.multiplier }
+    });
     return { prestige: config };
   });
 
   // ── Recompute ──
 
-  server.post("/internal/recompute", async (_req, reply) => {
+  server.post("/internal/recompute", async (req, reply) => {
+    const adminId = requireAdminServiceToken(req.headers as Record<string, unknown>);
+    if (!adminId) return reply.status(403).send({ error: "forbidden" });
+
     const now = new Date().toISOString();
 
     // 1. Fetch all submissions
@@ -322,6 +332,14 @@ export function buildServer(options: RankingServiceOptions = {}): FastifyInstanc
 
     await repo.bulkUpsertWriterScores(scoreRows);
 
+    await repo.createAuditLogEntry({
+      adminUserId: adminId,
+      action: "ranking.recompute",
+      targetType: "ranking",
+      targetId: "full",
+      details: { writerCount: totalWriters, placementCount: placements.length }
+    });
+
     // 9. Duplicate submission detection
     const dupes = detectDuplicateSubmissions(
       submissions.map((s) => ({ writerId: s.writerId, competitionId: s.competitionId, projectId: s.projectId }))
@@ -388,6 +406,13 @@ export function buildServer(options: RankingServiceOptions = {}): FastifyInstanc
     if (!parsed.success) return reply.status(400).send({ error: "invalid_payload" });
     const appeal = await repo.resolveAppeal(appealId, userId, parsed.data.status, parsed.data.resolutionNote);
     if (!appeal) return reply.status(404).send({ error: "not_found" });
+    await repo.createAuditLogEntry({
+      adminUserId: userId,
+      action: "ranking.appeal.resolve",
+      targetType: "ranking_appeal",
+      targetId: appealId,
+      details: { status: parsed.data.status }
+    });
 
     try {
       await publisher({
@@ -421,6 +446,13 @@ export function buildServer(options: RankingServiceOptions = {}): FastifyInstanc
     if (!parsed.success) return reply.status(400).send({ error: "invalid_payload" });
     const flag = await repo.resolveFlag(flagId, userId, parsed.data.status);
     if (!flag) return reply.status(404).send({ error: "not_found" });
+    await repo.createAuditLogEntry({
+      adminUserId: userId,
+      action: "ranking.flag.resolve",
+      targetType: "anti_gaming_flag",
+      targetId: flagId,
+      details: { status: parsed.data.status }
+    });
     return { flag };
   });
 

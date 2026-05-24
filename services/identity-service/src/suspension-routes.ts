@@ -36,7 +36,7 @@ export function registerSuspensionRoutes(
     // Audit log
     await adminRepo.createAuditLogEntry({
       adminUserId: adminId,
-      action: "suspend_user",
+      action: "user.suspend",
       targetType: "user",
       targetId,
       details: {
@@ -77,7 +77,7 @@ export function registerSuspensionRoutes(
     // Audit log
     await adminRepo.createAuditLogEntry({
       adminUserId: adminId,
-      action: "ban_user",
+      action: "user.suspend",
       targetType: "user",
       targetId,
       details: {
@@ -112,7 +112,7 @@ export function registerSuspensionRoutes(
     // Audit log
     await adminRepo.createAuditLogEntry({
       adminUserId: adminId,
-      action: "unsuspend_user",
+      action: "user.suspend",
       targetType: "user",
       targetId,
       details: {

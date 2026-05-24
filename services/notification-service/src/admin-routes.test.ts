@@ -82,6 +82,7 @@ function createServer() {
   return {
     server,
     memoryRepo,
+    adminRepo,
     cleanup: async () => {
       await server.close();
       if (originalSecret !== undefined) {
@@ -96,7 +97,7 @@ function createServer() {
 // ── Template Tests ──────────────────────────────────────────────
 
 test("POST /internal/admin/notifications/templates creates a template", async (t) => {
-  const { server, cleanup } = createServer();
+  const { server, adminRepo, cleanup } = createServer();
   t.after(cleanup);
 
   const res = await server.inject({
@@ -116,6 +117,7 @@ test("POST /internal/admin/notifications/templates creates a template", async (t
   assert.ok(body.template.id);
   assert.equal(body.template.name, "Welcome Email");
   assert.equal(body.template.status, "active");
+  assert.ok(adminRepo.auditLog.some((entry) => entry.action === "notification.admin.send" && entry.targetId === body.template.id));
 });
 
 test("POST /internal/admin/notifications/templates returns 403 without admin auth", async (t) => {
@@ -195,7 +197,7 @@ test("GET /internal/admin/notifications/templates returns 403 without admin auth
 // ── Broadcast Tests ─────────────────────────────────────────────
 
 test("POST /internal/admin/notifications/broadcast fans out events to all users", async (t) => {
-  const { server, memoryRepo, cleanup } = createServer();
+  const { server, memoryRepo, adminRepo, cleanup } = createServer();
   t.after(cleanup);
 
   const res = await server.inject({
@@ -220,6 +222,7 @@ test("POST /internal/admin/notifications/broadcast fans out events to all users"
     const count = await memoryRepo.getUnreadCount(user.id);
     assert.equal(count, 1, `expected 1 unread notification for ${user.id}`);
   }
+  assert.ok(adminRepo.auditLog.some((entry) => entry.action === "notification.admin.send" && entry.targetId === body.broadcast.id));
 });
 
 test("POST /internal/admin/notifications/broadcast fans out only to matching role", async (t) => {
@@ -283,7 +286,7 @@ test("POST /internal/admin/notifications/broadcast returns 400 for invalid paylo
 // ── Direct Notification Tests ───────────────────────────────────
 
 test("POST /internal/admin/notifications/direct sends to specific user", async (t) => {
-  const { server, cleanup } = createServer();
+  const { server, adminRepo, cleanup } = createServer();
   t.after(cleanup);
 
   const res = await server.inject({
@@ -302,6 +305,7 @@ test("POST /internal/admin/notifications/direct sends to specific user", async (
   assert.equal(body.broadcast.audience, "user:user_42");
   assert.equal(body.broadcast.recipientCount, 1);
   assert.equal(body.broadcast.status, "sent");
+  assert.ok(adminRepo.auditLog.some((entry) => entry.action === "notification.admin.send" && entry.details?.audience === "user:user_42"));
 });
 
 test("POST /internal/admin/notifications/direct returns 403 without admin auth", async (t) => {

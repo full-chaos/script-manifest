@@ -392,7 +392,7 @@ test("suspension creates audit log entry", async () => {
     });
 
     const auditLog = await adminRepo.listAuditLogEntries({ page: 1, limit: 50 });
-    assert.ok(auditLog.entries.some((e) => e.action === "suspend_user" && e.targetId === "user_1"));
+    assert.ok(auditLog.entries.some((e) => e.action === "user.suspend" && e.targetId === "user_1"));
   } finally {
     cleanup();
   }
@@ -409,7 +409,7 @@ test("ban creates audit log entry", async () => {
     });
 
     const auditLog = await adminRepo.listAuditLogEntries({ page: 1, limit: 50 });
-    assert.ok(auditLog.entries.some((e) => e.action === "ban_user" && e.targetId === "user_1"));
+    assert.ok(auditLog.entries.some((e) => e.action === "user.suspend" && e.targetId === "user_1"));
   } finally {
     cleanup();
   }
@@ -427,7 +427,7 @@ test("unsuspend creates audit log entry", async () => {
     });
 
     const auditLog = await adminRepo.listAuditLogEntries({ page: 1, limit: 50 });
-    assert.ok(auditLog.entries.some((e) => e.action === "unsuspend_user" && e.targetId === "user_1"));
+    assert.ok(auditLog.entries.some((e) => e.action === "user.suspend" && e.targetId === "user_1"));
   } finally {
     cleanup();
   }

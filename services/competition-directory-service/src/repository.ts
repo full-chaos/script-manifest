@@ -1,5 +1,16 @@
 import type { Competition, CompetitionAccessType, CompetitionFilters, CompetitionVisibility, Project, SaveCompetitionRequest, SavedCompetition } from "@script-manifest/contracts";
+import type { PrivilegedAuditAction } from "@script-manifest/service-utils";
 import type { FeeTier, PrestigeTier, RecommendationInput } from "./recommendationEngine.js";
+
+export type CompetitionAuditLogInput = {
+  adminUserId: string;
+  action: PrivilegedAuditAction;
+  targetType: string;
+  targetId: string;
+  details?: Record<string, unknown>;
+};
+
+export type CompetitionAuditLogEntry = CompetitionAuditLogInput & { id: string; createdAt: string };
 
 export type DueCompetitionReminderDispatch = {
   id: string;
@@ -39,6 +50,7 @@ export interface CompetitionDirectoryRepository extends CompetitionReminderDispa
   cancelCompetition(id: string): Promise<Competition | null>;
   updateVisibility(id: string, visibility: CompetitionVisibility): Promise<Competition | null>;
   updateAccessType(id: string, accessType: CompetitionAccessType): Promise<Competition | null>;
+  createAuditLogEntry(input: CompetitionAuditLogInput): Promise<CompetitionAuditLogEntry>;
 }
 
 export type { FeeTier, PrestigeTier, RecommendationInput };

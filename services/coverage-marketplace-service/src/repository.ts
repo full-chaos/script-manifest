@@ -24,6 +24,17 @@ import type {
   CoverageDisputeEvent,
   CoverageDisputeStatus
 } from "@script-manifest/contracts";
+import type { PrivilegedAuditAction } from "@script-manifest/service-utils";
+
+export type CoverageAuditLogInput = {
+  adminUserId: string;
+  action: PrivilegedAuditAction;
+  targetType: string;
+  targetId: string;
+  details?: Record<string, unknown>;
+};
+
+export type CoverageAuditLogEntry = CoverageAuditLogInput & { id: string; createdAt: string };
 
 export interface CoverageMarketplaceRepository {
   init(): Promise<void>;
@@ -123,4 +134,6 @@ export interface CoverageMarketplaceRepository {
     payload: unknown;
   }): Promise<{ id: string; alreadyProcessed: boolean }>;
   updateWebhookLogStatus(id: string, status: string, errorMessage?: string): Promise<void>;
+
+  createAuditLogEntry(input: CoverageAuditLogInput): Promise<CoverageAuditLogEntry>;
 }

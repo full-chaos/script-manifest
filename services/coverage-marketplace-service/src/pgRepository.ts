@@ -30,7 +30,7 @@ import type {
   CoverageDisputeEvent,
   CoverageDisputeStatus
 } from "@script-manifest/contracts";
-import type { CoverageMarketplaceRepository } from "./repository.js";
+import type { CoverageAuditLogEntry, CoverageAuditLogInput, CoverageMarketplaceRepository } from "./repository.js";
 
 export class PgCoverageMarketplaceRepository implements CoverageMarketplaceRepository {
   async init(): Promise<void> {
@@ -38,6 +38,45 @@ export class PgCoverageMarketplaceRepository implements CoverageMarketplaceRepos
       return;
     }
     await ensureCoverageMarketplaceTables();
+    await getPool().query(`
+      CREATE TABLE IF NOT EXISTS coverage_audit_log (
+        id TEXT PRIMARY KEY,
+        admin_user_id TEXT NOT NULL,
+        action TEXT NOT NULL,
+        target_type TEXT NOT NULL,
+        target_id TEXT NOT NULL,
+        details JSONB,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+  }
+
+  async createAuditLogEntry(input: CoverageAuditLogInput): Promise<CoverageAuditLogEntry> {
+    const id = `audit_${randomUUID()}`;
+    const result = await getPool().query<{
+      id: string;
+      admin_user_id: string;
+      action: CoverageAuditLogEntry["action"];
+      target_type: string;
+      target_id: string;
+      details: Record<string, unknown> | null;
+      created_at: Date;
+    }>(
+      `INSERT INTO coverage_audit_log (id, admin_user_id, action, target_type, target_id, details)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id, admin_user_id, action, target_type, target_id, details, created_at`,
+      [id, input.adminUserId, input.action, input.targetType, input.targetId, input.details ?? null]
+    );
+    const row = result.rows[0]!;
+    return {
+      id: row.id,
+      adminUserId: row.admin_user_id,
+      action: row.action,
+      targetType: row.target_type,
+      targetId: row.target_id,
+      details: row.details ?? undefined,
+      createdAt: row.created_at.toISOString()
+    };
   }
 
   async healthCheck(): Promise<{ database: boolean }> {

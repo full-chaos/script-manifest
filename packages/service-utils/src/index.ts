@@ -15,3 +15,4 @@ export { registerHealthRoutes, type RegisterHealthRoutesOptions, type HealthChec
 export { BaseMemoryRepository } from "./testing/BaseMemoryRepository.js";
 export { getKafkaClient, _resetKafkaClient } from "./kafka.js";
 export { makeServiceHeaders, verifyInternalToken, requireServiceToken, requireAdminServiceToken, resolveServiceSecret } from "./serviceHeaders.js";
+export { PRIVILEGED_AUDIT_ACTIONS, type PrivilegedAuditAction } from "./auditEvents.js";

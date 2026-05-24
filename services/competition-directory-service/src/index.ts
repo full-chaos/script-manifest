@@ -203,7 +203,9 @@ export function buildServer(options: CompetitionDirectoryOptions = {}): FastifyI
       });
     }
 
-    return upsertCompetition(parsedBody.data, repository, reply);
+    const result = await upsertCompetition(parsedBody.data, repository, reply);
+    await repository.createAuditLogEntry({ adminUserId, action: "competition.moderate", targetType: "competition", targetId: parsedBody.data.id, details: { action: "create" } });
+    return result;
   });
 
   server.put<{ Params: { competitionId: string } }>("/internal/admin/competitions/:competitionId", async (req, reply) => {
@@ -224,7 +226,9 @@ export function buildServer(options: CompetitionDirectoryOptions = {}): FastifyI
       });
     }
 
-    return upsertCompetition(parsedBody.data, repository, reply);
+    const result = await upsertCompetition(parsedBody.data, repository, reply);
+    await repository.createAuditLogEntry({ adminUserId, action: "competition.moderate", targetType: "competition", targetId: competitionId, details: { action: "update" } });
+    return result;
   });
 
   server.post<{ Params: { competitionId: string } }>("/internal/admin/competitions/:competitionId/cancel", async (req, reply) => {
@@ -238,6 +242,7 @@ export function buildServer(options: CompetitionDirectoryOptions = {}): FastifyI
     if (!competition) {
       return reply.status(404).send({ error: "not_found_or_already_cancelled" });
     }
+    await repository.createAuditLogEntry({ adminUserId, action: "competition.moderate", targetType: "competition", targetId: competitionId, details: { action: "cancel" } });
 
     return reply.send({ competition, cancelled: true });
   });
@@ -258,6 +263,7 @@ export function buildServer(options: CompetitionDirectoryOptions = {}): FastifyI
     if (!competition) {
       return reply.status(404).send({ error: "not_found" });
     }
+    await repository.createAuditLogEntry({ adminUserId, action: "competition.moderate", targetType: "competition", targetId: competitionId, details: { action: "visibility", visibility: parsed.data.visibility } });
 
     return reply.send({ competition });
   });
@@ -278,6 +284,7 @@ export function buildServer(options: CompetitionDirectoryOptions = {}): FastifyI
     if (!competition) {
       return reply.status(404).send({ error: "not_found" });
     }
+    await repository.createAuditLogEntry({ adminUserId, action: "competition.moderate", targetType: "competition", targetId: competitionId, details: { action: "access_type", accessType: parsed.data.accessType } });
 
     return reply.send({ competition });
   });

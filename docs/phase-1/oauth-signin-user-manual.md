@@ -35,5 +35,5 @@ To enable real Google OAuth:
 
 - Provider support: `google` (OpenID Connect with PKCE).
 - Scopes requested: `openid email profile`.
-- Session handling stays the same as email/password (`script_manifest_session` in local storage).
+- Session handling stays the same as email/password: the session token is stored in the HttpOnly `sm_session` cookie set by the writer-web BFF, and frontend user state is read from the `AuthProvider` React context (`/api/v1/auth/me`).
 - The gateway and frontend proxy routes are provider-agnostic (`:provider` / `[provider]`), so no gateway changes are needed to switch providers.

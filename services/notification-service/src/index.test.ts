@@ -5,6 +5,7 @@ import { signServiceToken } from "@script-manifest/service-utils";
 import type { NotificationEventEnvelope } from "@script-manifest/contracts";
 import { buildServer } from "./index.js";
 import type { NotificationRepository } from "./repository.js";
+import { MemoryNotificationAdminRepository } from "./admin-repository.js";
 
 class MemoryNotificationRepository implements NotificationRepository {
   private readonly events: NotificationEventEnvelope[] = [];
@@ -65,7 +66,8 @@ function createServer() {
   process.env.SERVICE_TOKEN_SECRET = SERVICE_SECRET;
 
   const memoryRepo = new MemoryNotificationRepository();
-  const server = buildServer({ logger: false, repository: memoryRepo });
+  const adminRepository = new MemoryNotificationAdminRepository();
+  const server = buildServer({ logger: false, repository: memoryRepo, adminRepository });
 
   return {
     server,

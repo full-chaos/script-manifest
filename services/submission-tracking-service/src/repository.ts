@@ -1,6 +1,10 @@
 import type {
+  CreateHistoricalPlacementData,
+  CreatePlacementEvidenceData,
   Placement,
+  PlacementEvidence,
   PlacementFilters,
+  PlacementVerificationUpdateData,
   Submission,
   SubmissionFilters,
 } from "@script-manifest/contracts";
@@ -21,8 +25,11 @@ export interface SubmissionTrackingRepository {
   listSubmissions(filters: SubmissionFilters): Promise<Submission[]>;
 
   createPlacement(submissionId: string, status: string): Promise<Placement>;
+  createHistoricalPlacement(data: CreateHistoricalPlacementData): Promise<{ submission: Submission; placement: Placement }>;
   getPlacement(id: string): Promise<Placement | null>;
-  updatePlacementVerification(id: string, verificationState: string): Promise<Placement | null>;
+  updatePlacementVerification(id: string, data: PlacementVerificationUpdateData): Promise<Placement | null>;
+  createPlacementEvidence(data: CreatePlacementEvidenceData): Promise<PlacementEvidence>;
+  listPlacementEvidence(placementId: string): Promise<PlacementEvidence[]>;
   listPlacementsBySubmission(submissionId: string): Promise<Placement[]>;
   listPlacements(filters: PlacementFilters): Promise<{ placement: Placement; submission: Submission }[]>;
 }

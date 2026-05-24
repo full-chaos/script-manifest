@@ -38,6 +38,12 @@ function placementRow(overrides: Record<string, unknown> = {}): Record<string, u
     created_at: new Date("2026-03-03T00:00:00.000Z"),
     updated_at: new Date("2026-03-04T00:00:00.000Z"),
     verified_at: null,
+    is_historical: false,
+    source_note: null,
+    recorded_by_user_id: null,
+    reviewed_by_user_id: null,
+    reviewed_at: null,
+    review_notes: null,
     ...overrides
   };
 }
@@ -101,7 +107,7 @@ test("PgSubmissionTrackingRepository creates and verifies placements", async () 
   const repo = new PgSubmissionTrackingRepository();
   const created = await repo.createPlacement("submission_1", "quarterfinalist");
   const placement = await repo.getPlacement("placement_1");
-  const verified = await repo.updatePlacementVerification("placement_1", "verified");
+  const verified = await repo.updatePlacementVerification("placement_1", { verificationState: "verified" });
   const bySubmission = await repo.listPlacementsBySubmission("submission_1");
 
   assert.equal(created.submissionId, "submission_1");
@@ -112,7 +118,7 @@ test("PgSubmissionTrackingRepository creates and verifies placements", async () 
   assert.deepEqual(calls.map((call) => call.values.slice(-2)), [
     ["submission_1", "quarterfinalist"],
     ["placement_1"],
-    ["placement_1", "verified"],
+    [null, null],
     ["submission_1"]
   ]);
 });
@@ -134,6 +140,12 @@ test("PgSubmissionTrackingRepository listPlacements builds joined filters and ma
           placement_created_at: new Date("2026-03-03T00:00:00.000Z"),
           placement_updated_at: new Date("2026-03-04T00:00:00.000Z"),
           placement_verified_at: new Date("2026-03-05T00:00:00.000Z"),
+          placement_is_historical: true,
+          placement_source_note: "Archive note",
+          placement_recorded_by_user_id: "writer_1",
+          placement_reviewed_by_user_id: "admin_1",
+          placement_reviewed_at: new Date("2026-03-06T00:00:00.000Z"),
+          placement_review_notes: "Looks good",
           submission_id: "submission_1",
           submission_writer_id: "writer_1",
           submission_project_id: "project_1",
@@ -153,7 +165,8 @@ test("PgSubmissionTrackingRepository listPlacements builds joined filters and ma
     projectId: "project_1",
     competitionId: "comp_1",
     status: "quarterfinalist",
-    verificationState: "verified"
+    verificationState: "verified",
+    isHistorical: true
   });
 
   assert.match(capturedSql, /INNER JOIN submissions s ON s.id = p.submission_id/);
@@ -163,7 +176,8 @@ test("PgSubmissionTrackingRepository listPlacements builds joined filters and ma
   assert.match(capturedSql, /s.competition_id = \$4/);
   assert.match(capturedSql, /p.status = \$5/);
   assert.match(capturedSql, /p.verification_state = \$6/);
-  assert.deepEqual(capturedValues, ["submission_1", "writer_1", "project_1", "comp_1", "quarterfinalist", "verified"]);
+  assert.match(capturedSql, /p.is_historical = \$7/);
+  assert.deepEqual(capturedValues, ["submission_1", "writer_1", "project_1", "comp_1", "quarterfinalist", "verified", true]);
   assert.deepEqual(placements, [
     {
       placement: {
@@ -173,7 +187,13 @@ test("PgSubmissionTrackingRepository listPlacements builds joined filters and ma
         verificationState: "verified",
         createdAt: "2026-03-03T00:00:00.000Z",
         updatedAt: "2026-03-04T00:00:00.000Z",
-        verifiedAt: "2026-03-05T00:00:00.000Z"
+        verifiedAt: "2026-03-05T00:00:00.000Z",
+        isHistorical: true,
+        sourceNote: "Archive note",
+        recordedByUserId: "writer_1",
+        reviewedByUserId: "admin_1",
+        reviewedAt: "2026-03-06T00:00:00.000Z",
+        reviewNotes: "Looks good"
       },
       submission: {
         id: "submission_1",
@@ -197,6 +217,6 @@ test("PgSubmissionTrackingRepository returns null when updates miss", async () =
   assert.equal(await repo.getPlacement("missing"), null);
   assert.equal(await repo.updateSubmissionProject("missing", "project_1"), null);
   assert.equal(await repo.updateSubmissionStatus("missing", "semifinalist"), null);
-  assert.equal(await repo.updatePlacementVerification("missing", "verified"), null);
+  assert.equal(await repo.updatePlacementVerification("missing", { verificationState: "verified" }), null);
 }
 );

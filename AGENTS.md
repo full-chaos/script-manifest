@@ -62,15 +62,23 @@ linear i create "[Subtask] <subtask title>" \
 - Add every mirrored issue to the `Script Manifest` project in Linear.
 - **NEVER commit or push directly to `main`.** ALL changes go through feature branches + PRs.
   - This applies to every change, no matter how small — config files, one-liners, CI tweaks, everything.
-  - **Always create a git worktree** for new work to isolate changes from the main checkout:
+  - **One-time setup per clone**:
     ```bash
-    git fetch origin
-    git worktree add ../script-manifest-<feature> -b <branch-name> origin/main
-    cd ../script-manifest-<feature>
+    scripts/setup-hooks.sh
+    ```
+    Activates the shared pre-push hook (blocks `<feature> → origin/main` pushes) and sets `push.default=current`.
+  - **Create new worktrees with the helper** (handles upstream tracking + hook activation):
+    ```bash
+    scripts/new-worktree.sh <branch-name>
+    # equivalent to:
+    #   git fetch origin
+    #   git worktree add ../script-manifest-<branch> -b <branch> origin/main
+    #   git branch --unset-upstream <branch>
+    #   (cd ../script-manifest-<branch> && scripts/setup-hooks.sh)
     ```
   - Branch format: `<change-type:feat,chore,sec,fix,docs>/<issue>-<short description>` (example: `feat/TICK-111-add-new-thing`).
   - Keep all commits for that feature on its dedicated branch until merged.
-  - **Pushing worktree branches**: Worktrees created from `origin/main` track `main` as upstream. A bare `git push` will push to `main`, not the feature branch. **Always use `gh pr create` to push and open the PR in one step**, or push explicitly with `git push origin HEAD:<branch-name>`:
+  - **Pushing worktree branches**: with `scripts/new-worktree.sh` + `scripts/setup-hooks.sh` applied, `git push` is safe — it targets the same-named remote branch via `push.default=current`, and the pre-push hook refuses any `<feature> → main` push. If you bypass the helpers (raw `git worktree add -b <feature> origin/main`), the worktree tracks `origin/main` and a plain `git push` will target main; use one of the explicit forms instead:
     ```bash
     # CORRECT — gh pr create pushes the branch automatically:
     gh pr create --head <branch-name> --base main --title "..." --body "..."
@@ -78,7 +86,7 @@ linear i create "[Subtask] <subtask title>" \
     # CORRECT — explicit refspec:
     git push origin HEAD:<branch-name>
 
-    # WRONG — pushes to tracked upstream (main):
+    # WRONG (only if helpers were skipped) — pushes to tracked upstream (main):
     git push
     git push -u origin <branch-name>
     ```

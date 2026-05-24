@@ -8,10 +8,10 @@ test("logged-out home page renders with stable hero UX", async ({ page }) => {
   await page.goto("/");
   await expect(
     page.getByRole("heading", {
-      name: /Build your screenwriting portfolio without losing your history again/i
+      name: /Your screenwriting career record should not disappear./i
     })
   ).toBeVisible();
-  await expect(page.getByRole("link", { name: "Create account" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Start your record" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Browse competitions" })).toBeVisible();
 
   await expectNoSeriousA11yViolations(page);

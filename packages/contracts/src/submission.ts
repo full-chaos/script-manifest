@@ -64,7 +64,13 @@ export const PlacementSchema = z.object({
   verificationState: PlacementVerificationStateSchema,
   createdAt: z.string().datetime({ offset: true }),
   updatedAt: z.string().datetime({ offset: true }),
-  verifiedAt: z.string().datetime({ offset: true }).nullable()
+  verifiedAt: z.string().datetime({ offset: true }).nullable(),
+  isHistorical: z.boolean().default(false),
+  sourceNote: z.string().nullable().default(null),
+  recordedByUserId: z.string().nullable().default(null),
+  reviewedByUserId: z.string().nullable().default(null),
+  reviewedAt: z.string().datetime({ offset: true }).nullable().default(null),
+  reviewNotes: z.string().nullable().default(null)
 });
 
 export type Placement = z.infer<typeof PlacementSchema>;
@@ -76,7 +82,9 @@ export const PlacementCreateRequestSchema = z.object({
 export type PlacementCreateRequest = z.infer<typeof PlacementCreateRequestSchema>;
 
 export const PlacementVerificationUpdateRequestSchema = z.object({
-  verificationState: PlacementVerificationStateSchema
+  verificationState: PlacementVerificationStateSchema,
+  reviewedByUserId: z.string().min(1).optional(),
+  reviewNotes: z.string().max(2000).optional()
 });
 
 export type PlacementVerificationUpdateRequest = z.infer<
@@ -86,7 +94,8 @@ export type PlacementVerificationUpdateRequest = z.infer<
 export const PlacementListItemSchema = PlacementSchema.extend({
   writerId: z.string().min(1),
   projectId: z.string().min(1),
-  competitionId: z.string().min(1)
+  competitionId: z.string().min(1),
+  badgeLabel: z.string().min(1)
 });
 
 export type PlacementListItem = z.infer<typeof PlacementListItemSchema>;
@@ -97,7 +106,8 @@ export const PlacementFiltersSchema = z.object({
   projectId: z.string().trim().min(1).optional(),
   competitionId: z.string().trim().min(1).optional(),
   status: SubmissionStatusSchema.optional(),
-  verificationState: PlacementVerificationStateSchema.optional()
+  verificationState: PlacementVerificationStateSchema.optional(),
+  isHistorical: z.coerce.boolean().optional()
 });
 
 export type PlacementFilters = z.infer<typeof PlacementFiltersSchema>;

@@ -213,7 +213,7 @@ export function buildServer(options: ScriptStorageServiceOptions = {}): FastifyI
     });
     const script: ScriptRecord = {
       ...registration,
-      visibility: "private",
+      visibility: parseResult.data.visibility,
       approvedViewers: []
     };
     await repo.registerScript(script);

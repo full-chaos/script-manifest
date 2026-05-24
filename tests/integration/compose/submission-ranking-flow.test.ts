@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { signServiceToken } from "@script-manifest/service-utils";
 import {
   API_BASE_URL,
   COMPETITION_SERVICE_BASE_URL,
@@ -10,6 +11,17 @@ import {
   makeUnique,
   registerUser
 } from "./helpers.js";
+
+const SERVICE_TOKEN_SECRET = process.env.SERVICE_TOKEN_SECRET ?? "local-dev-token-secret";
+const ADMIN_USER_ID = "integration-admin";
+
+function adminServiceHeaders(): Record<string, string> {
+  return {
+    "content-type": "application/json",
+    "x-auth-user-id": ADMIN_USER_ID,
+    "x-service-token": signServiceToken({ sub: ADMIN_USER_ID, role: "admin" }, SERVICE_TOKEN_SECRET)
+  };
+}
 
 test("compose flow: submission placement drives ranking recompute", async () => {
   const session = await registerUser("ranking-writer");
@@ -105,7 +117,7 @@ test("compose flow: submission placement drives ranking recompute", async () => 
     `${RANKING_SERVICE_BASE_URL}/internal/recompute`,
     {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: adminServiceHeaders(),
       body: JSON.stringify({})
     },
     200

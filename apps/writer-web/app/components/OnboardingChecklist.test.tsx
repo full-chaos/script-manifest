@@ -47,7 +47,7 @@ describe("OnboardingChecklist", () => {
     vi.restoreAllMocks();
   });
 
-  it("renders 5 checklist items from server status", async () => {
+  it("renders the career-record activation checklist from server status", async () => {
     mockFetchStatus({
       emailVerified: false,
       profileCompleted: false,
@@ -59,14 +59,16 @@ describe("OnboardingChecklist", () => {
     render(<OnboardingChecklist />);
 
     await waitFor(() => {
-      expect(screen.getByText("Getting Started")).toBeInTheDocument();
+      expect(screen.getByText("Build your portable career record")).toBeInTheDocument();
     });
 
-    expect(screen.getByText("Verify email")).toBeInTheDocument();
-    expect(screen.getByText("Complete your profile")).toBeInTheDocument();
-    expect(screen.getByText("Upload your first script")).toBeInTheDocument();
-    expect(screen.getByText("Browse competitions")).toBeInTheDocument();
-    expect(screen.getByText("Explore coverage services")).toBeInTheDocument();
+    expect(screen.getByText("Create profile proof")).toBeInTheDocument();
+    expect(screen.getByText("Add your first project")).toBeInTheDocument();
+    expect(screen.getByText("Upload a script draft")).toBeInTheDocument();
+    expect(screen.getByText("Record a submission")).toBeInTheDocument();
+    expect(screen.getByText("Record a placement")).toBeInTheDocument();
+    expect(screen.getByText("Export or share your record")).toBeInTheDocument();
+    expect(screen.queryByText("Explore coverage services")).not.toBeInTheDocument();
   });
 
   it("doesn't render when localStorage onboarding-dismissed is true", () => {
@@ -87,14 +89,14 @@ describe("OnboardingChecklist", () => {
     render(<OnboardingChecklist />);
 
     await waitFor(() => {
-      expect(screen.getByText("Getting Started")).toBeInTheDocument();
+      expect(screen.getByText("Build your portable career record")).toBeInTheDocument();
     });
 
     const dismissButtons = screen.getAllByRole("button", { name: /dismiss/i });
     fireEvent.click(dismissButtons[0] as HTMLElement);
 
     expect(window.localStorage.getItem("onboarding-dismissed")).toBe("true");
-    expect(screen.queryByText("Getting Started")).not.toBeInTheDocument();
+    expect(screen.queryByText("Build your portable career record")).not.toBeInTheDocument();
   });
 
   it("shows checkmarks for completed items from server", async () => {
@@ -112,10 +114,10 @@ describe("OnboardingChecklist", () => {
       expect(screen.getByTestId("check-verify-email")).toBeInTheDocument();
     });
 
-    expect(screen.getByTestId("check-complete-profile")).toBeInTheDocument();
+    expect(screen.getByTestId("check-profile-proof")).toBeInTheDocument();
     expect(screen.getByTestId("uncheck-upload-script")).toBeInTheDocument();
-    expect(screen.getByTestId("uncheck-browse-competitions")).toBeInTheDocument();
-    expect(screen.getByTestId("uncheck-explore-coverage")).toBeInTheDocument();
+    expect(screen.getByTestId("uncheck-record-submission")).toBeInTheDocument();
+    expect(screen.getByTestId("uncheck-export-share")).toBeInTheDocument();
   });
 
   it("shows all items checked when everything is complete", async () => {
@@ -133,10 +135,10 @@ describe("OnboardingChecklist", () => {
       expect(screen.getByTestId("check-verify-email")).toBeInTheDocument();
     });
 
-    expect(screen.getByTestId("check-complete-profile")).toBeInTheDocument();
+    expect(screen.getByTestId("check-profile-proof")).toBeInTheDocument();
     expect(screen.getByTestId("check-upload-script")).toBeInTheDocument();
-    expect(screen.getByTestId("check-browse-competitions")).toBeInTheDocument();
-    expect(screen.getByTestId("check-explore-coverage")).toBeInTheDocument();
+    expect(screen.getByTestId("check-record-submission")).toBeInTheDocument();
+    expect(screen.getByTestId("check-record-placement")).toBeInTheDocument();
   });
 
   it("still renders with all-false when fetch fails", async () => {
@@ -145,7 +147,7 @@ describe("OnboardingChecklist", () => {
     render(<OnboardingChecklist />);
 
     await waitFor(() => {
-      expect(screen.getByText("Getting Started")).toBeInTheDocument();
+      expect(screen.getByText("Build your portable career record")).toBeInTheDocument();
     });
 
     expect(screen.getByTestId("uncheck-verify-email")).toBeInTheDocument();

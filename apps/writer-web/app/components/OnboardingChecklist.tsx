@@ -50,27 +50,39 @@ export function OnboardingChecklist() {
       checked: s?.emailVerified ?? false,
     },
     {
-      id: "complete-profile",
-      label: "Complete your profile",
+      id: "profile-proof",
+      label: "Create profile proof",
       href: "/profile" as Route,
       checked: s?.profileCompleted ?? false,
     },
     {
-      id: "upload-script",
-      label: "Upload your first script",
+      id: "add-project",
+      label: "Add your first project",
       href: "/projects" as Route,
       checked: s?.firstScriptUploaded ?? false,
     },
     {
-      id: "browse-competitions",
-      label: "Browse competitions",
-      href: "/competitions" as Route,
+      id: "upload-script",
+      label: "Upload a script draft",
+      href: "/projects" as Route,
+      checked: s?.firstScriptUploaded ?? false,
+    },
+    {
+      id: "record-submission",
+      label: "Record a submission",
+      href: "/submissions" as Route,
       checked: s?.competitionsVisited ?? false,
     },
     {
-      id: "explore-coverage",
-      label: "Explore coverage services",
-      href: "/coverage" as Route,
+      id: "record-placement",
+      label: "Record a placement",
+      href: "/submissions" as Route,
+      checked: s?.coverageVisited ?? false,
+    },
+    {
+      id: "export-share",
+      label: "Export or share your record",
+      href: "/profile" as Route,
       checked: s?.coverageVisited ?? false,
     },
   ];
@@ -86,7 +98,7 @@ export function OnboardingChecklist() {
         <X className="h-5 w-5" />
       </button>
 
-      <h2 className="font-display text-xl font-semibold text-foreground mb-4">Getting Started</h2>
+      <h2 className="font-display text-xl font-semibold text-foreground mb-4">Build your portable career record</h2>
       
       <ul className="space-y-3">
         {checklistItems.map((item) => (

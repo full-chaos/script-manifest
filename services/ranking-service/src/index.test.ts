@@ -15,9 +15,10 @@ import type {
   TierDesignation,
   WriterBadge
 } from "@script-manifest/contracts";
-import { BaseMemoryRepository } from "@script-manifest/service-utils";
+import { BaseMemoryRepository, signServiceToken } from "@script-manifest/service-utils";
 import { buildServer } from "./index.js";
 import type { RankingRepository, WriterScoreRow, PlacementScoreRow } from "./repository.js";
+import type { RankingAuditLogInput, RankingAuditLogEntry } from "./repository.js";
 import { request } from "undici";
 
 type RequestResult = Awaited<ReturnType<typeof request>>;
@@ -32,6 +33,26 @@ function jsonResponse(payload: unknown, statusCode = 200): RequestResult {
   } as RequestResult;
 }
 
+const TEST_SERVICE_TOKEN_SECRET = "ranking-test-secret";
+
+function adminServiceHeaders(adminUserId = "admin_01"): Record<string, string> {
+  return {
+    "x-auth-user-id": adminUserId,
+    "x-service-token": signServiceToken({ sub: adminUserId, role: "admin" }, TEST_SERVICE_TOKEN_SECRET)
+  };
+}
+
+async function withServiceTokenSecret<T>(fn: () => T | Promise<T>): Promise<T> {
+  const previous = process.env.SERVICE_TOKEN_SECRET;
+  process.env.SERVICE_TOKEN_SECRET = TEST_SERVICE_TOKEN_SECRET;
+  try {
+    return await fn();
+  } finally {
+    if (previous === undefined) delete process.env.SERVICE_TOKEN_SECRET;
+    else process.env.SERVICE_TOKEN_SECRET = previous;
+  }
+}
+
 // ── MemoryRankingRepository ─────────────────────────────────────────
 
 class MemoryRankingRepository extends BaseMemoryRepository implements RankingRepository {
@@ -42,6 +63,7 @@ class MemoryRankingRepository extends BaseMemoryRepository implements RankingRep
   snapshots: Array<{ writerId: string; totalScore: number; date: string }> = [];
   flags: AntiGamingFlag[] = [];
   appeals: RankingAppeal[] = [];
+  auditLog: RankingAuditLogEntry[] = [];
   // Prestige
   async getPrestige(competitionId: string) { return this.prestige.get(competitionId) ?? null; }
   async upsertPrestige(competitionId: string, tier: PrestigeTier, multiplier: number) {
@@ -148,6 +170,12 @@ class MemoryRankingRepository extends BaseMemoryRepository implements RankingRep
     a.resolutionNote = resolutionNote;
     return a;
   }
+
+  async createAuditLogEntry(input: RankingAuditLogInput) {
+    const entry: RankingAuditLogEntry = { id: this.createId("audit"), createdAt: new Date().toISOString(), ...input };
+    this.auditLog.push(entry);
+    return entry;
+  }
 }
 
 // ── Helper to build test server ─────────────────────────────────────
@@ -202,28 +230,38 @@ test("methodology endpoint returns scoring constants", async (t) => {
   assert.equal(body.timeDecayHalfLifeDays, 365);
 });
 
-test("prestige upsert requires auth", async (t) => {
+test("prestige upsert requires admin service token", async (t) => {
   const { server } = createTestServer();
   t.after(() => server.close());
 
-  const res = await server.inject({
+  const missingToken = await server.inject({
     method: "PUT",
     url: "/internal/prestige/comp_1",
+    headers: { "x-auth-user-id": "admin_01" },
     payload: { tier: "elite", multiplier: 2.0 }
   });
-  assert.equal(res.statusCode, 403);
+  assert.equal(missingToken.statusCode, 403);
+
+  const writerToken = await withServiceTokenSecret(() => signServiceToken({ sub: "writer_01", role: "writer" }, TEST_SERVICE_TOKEN_SECRET));
+  const wrongRole = await server.inject({
+    method: "PUT",
+    url: "/internal/prestige/comp_1",
+    headers: { "x-auth-user-id": "writer_01", "x-service-token": writerToken },
+    payload: { tier: "elite", multiplier: 2.0 }
+  });
+  assert.equal(wrongRole.statusCode, 403);
 });
 
 test("prestige upsert stores and retrieves config", async (t) => {
   const { server, repo } = createTestServer();
   t.after(() => server.close());
 
-  const res = await server.inject({
+  const res = await withServiceTokenSecret(() => server.inject({
     method: "PUT",
     url: "/internal/prestige/comp_1",
-    headers: { "x-auth-user-id": "admin_01" },
+    headers: adminServiceHeaders(),
     payload: { tier: "elite", multiplier: 2.0 }
-  });
+  }));
   assert.equal(res.statusCode, 200);
 
   const getRes = await server.inject({ method: "GET", url: "/internal/prestige/comp_1" });
@@ -231,6 +269,7 @@ test("prestige upsert stores and retrieves config", async (t) => {
   const config = getRes.json().prestige;
   assert.equal(config.tier, "elite");
   assert.equal(config.multiplier, 2);
+  assert.ok(repo.auditLog.some((entry) => entry.action === "ranking.prestige.update" && entry.targetId === "comp_1" && entry.adminUserId === "admin_01"));
 });
 
 test("full recompute flow computes scores and assigns ranks", async (t) => {
@@ -266,11 +305,11 @@ test("full recompute flow computes scores and assigns ranks", async (t) => {
   const { server, repo } = createTestServer({ requestFn });
   t.after(() => server.close());
 
-  const res = await server.inject({
+  const res = await withServiceTokenSecret(() => server.inject({
     method: "POST",
     url: "/internal/recompute",
-    headers: { "x-auth-user-id": "admin_01" }
-  });
+    headers: adminServiceHeaders()
+  }));
 
   assert.equal(res.statusCode, 200);
   const body = res.json();
@@ -293,10 +332,25 @@ test("full recompute flow computes scores and assigns ranks", async (t) => {
   assert.ok(w1.totalScore > 0);
   assert.ok(w1.badges.length > 0);
 
+  assert.ok(repo.auditLog.some((entry) => entry.action === "ranking.recompute" && entry.adminUserId === "admin_01"));
+
   // Check badges endpoint
   const badgeRes = await server.inject({ method: "GET", url: "/internal/writers/w1/badges" });
   assert.equal(badgeRes.statusCode, 200);
   assert.ok(badgeRes.json().badges.length > 0);
+});
+
+test("full recompute requires admin service token", async (t) => {
+  const { server } = createTestServer();
+  t.after(() => server.close());
+
+  const res = await server.inject({
+    method: "POST",
+    url: "/internal/recompute",
+    headers: { "x-auth-user-id": "admin_01" }
+  });
+
+  assert.equal(res.statusCode, 403);
 });
 
 test("leaderboard tier filter works", async (t) => {
@@ -327,7 +381,7 @@ test("leaderboard trending sort works", async (t) => {
 });
 
 test("appeal creation and resolution", async (t) => {
-  const { server, events } = createTestServer();
+  const { server, repo, events } = createTestServer();
   t.after(() => server.close());
 
   // Create appeal
@@ -355,6 +409,7 @@ test("appeal creation and resolution", async (t) => {
   });
   assert.equal(resolveRes.statusCode, 200);
   assert.equal(resolveRes.json().appeal.status, "upheld");
+  assert.ok(repo.auditLog.some((entry) => entry.action === "ranking.appeal.resolve" && entry.targetId === appeal.id && entry.adminUserId === "admin_01"));
 
   // Notification sent
   assert.equal(events.length, 1);
@@ -395,6 +450,7 @@ test("anti-gaming flag resolve", async (t) => {
   });
   assert.equal(res.statusCode, 200);
   assert.equal(res.json().flag.status, "dismissed");
+  assert.ok(repo.auditLog.some((entry) => entry.action === "ranking.flag.resolve" && entry.targetId === flag.id && entry.adminUserId === "admin_01"));
 });
 
 test("incremental recompute returns 202", async (t) => {
@@ -445,11 +501,11 @@ test("duplicate submissions create anti-gaming flags during recompute", async (t
   const { server, repo } = createTestServer({ requestFn });
   t.after(() => server.close());
 
-  const res = await server.inject({
+  const res = await withServiceTokenSecret(() => server.inject({
     method: "POST",
     url: "/internal/recompute",
-    headers: { "x-auth-user-id": "admin_01" }
-  });
+    headers: adminServiceHeaders()
+  }));
 
   assert.equal(res.statusCode, 200);
   assert.equal(res.json().flagsCreated, 1);

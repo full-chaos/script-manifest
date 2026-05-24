@@ -219,7 +219,7 @@ describe("ProfilePage", () => {
     expect(profilePutCalls).toHaveLength(1); // exactly one PUT
   });
 
-  it("frames profile as proof and records export/share activation", async () => {
+  it("frames profile as proof and records export activation", async () => {
     const user = userEvent.setup();
     const profile = {
       id: "writer_01",
@@ -240,10 +240,8 @@ describe("ProfilePage", () => {
         return jsonResponse({});
       });
     vi.stubGlobal("fetch", fetchMock);
-    vi.stubGlobal("URL", {
-      createObjectURL: vi.fn(() => "blob:export"),
-      revokeObjectURL: vi.fn(),
-    });
+    vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:export");
+    vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
 
     renderWithProviders(<ProfilePage />);
 
@@ -258,9 +256,33 @@ describe("ProfilePage", () => {
         "/api/v1/onboarding-progress",
         expect.objectContaining({
           method: "PATCH",
-          body: JSON.stringify({ exportUsed: true, activationEvent: "export_used" }),
+          body: JSON.stringify({ exportUsed: true }),
         })
       );
     });
+  });
+
+  it("does not render unsafe custom profile URLs as share links", async () => {
+    const profile = {
+      id: "writer_01",
+      displayName: "Writer One",
+      bio: "Proof bio",
+      genres: ["Drama"],
+      demographics: [] as string[],
+      representationStatus: "unrepresented" as const,
+      headshotUrl: "",
+      customProfileUrl: "javascript:alert(1)",
+      isSearchable: true,
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>().mockResolvedValueOnce(jsonResponse({ profile }))
+    );
+
+    renderWithProviders(<ProfilePage />);
+
+    await screen.findByText("My Proof");
+
+    expect(screen.queryByRole("link", { name: "Share career page" })).not.toBeInTheDocument();
   });
 });

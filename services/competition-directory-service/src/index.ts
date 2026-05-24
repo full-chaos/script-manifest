@@ -1,4 +1,4 @@
-import { type FastifyInstance, type FastifyReply } from "fastify";
+import { type FastifyInstance, type FastifyReply, type FastifyRequest } from "fastify";
 import { randomUUID } from "node:crypto";
 import { request } from "undici";
 import { bootstrapService, registerMetrics, registerSentryErrorHandler, setupErrorReporting, validateRequiredEnv, isMainModule, readHeader, createFastifyServer } from "@script-manifest/service-utils";
@@ -17,6 +17,7 @@ import { z } from "zod";
 import type { CompetitionDirectoryRepository } from "./repository.js";
 import { PgCompetitionDirectoryRepository } from "./pgRepository.js";
 import { startCompetitionReminderWorker } from "./reminderWorker.js";
+import { recommendForProject } from "./recommendationEngine.js";
 
 type RequestFn = typeof request;
 
@@ -139,6 +140,41 @@ export function buildServer(options: CompetitionDirectoryOptions = {}): FastifyI
     const { writerId } = req.params;
     const savedCompetitions = await repository.listSavedCompetitions(writerId);
     return reply.send({ savedCompetitions });
+  });
+
+  server.get<{ Params: { projectId: string }; Querystring: { includeDismissed?: string } }>("/internal/projects/:projectId/recommended-competitions", async (req, reply) => {
+    const userId = readHeader(req, "x-auth-user-id");
+    if (!userId) {
+      return reply.status(401).send({ error: "unauthorized" });
+    }
+
+    const context = await repository.getRecommendationContext(req.params.projectId, userId);
+    if (!context) {
+      return reply.status(404).send({ error: "project_not_found" });
+    }
+
+    return reply.send(recommendForProject(req.params.projectId, {
+      project: context.project,
+      competitions: context.competitions,
+      preferredFeeTier: context.preferredFeeTier,
+      includeDismissed: req.query.includeDismissed === "true"
+    }));
+  });
+
+  server.post<{ Params: { projectId: string; competitionId: string } }>("/internal/projects/:projectId/recommendations/:competitionId/dismiss", async (req, reply) => {
+    return updateRecommendationOverride(req.params.projectId, req.params.competitionId, req, reply, repository.dismissRecommendation.bind(repository));
+  });
+
+  server.delete<{ Params: { projectId: string; competitionId: string } }>("/internal/projects/:projectId/recommendations/:competitionId/dismiss", async (req, reply) => {
+    return updateRecommendationOverride(req.params.projectId, req.params.competitionId, req, reply, repository.undismissRecommendation.bind(repository));
+  });
+
+  server.post<{ Params: { projectId: string; competitionId: string } }>("/internal/projects/:projectId/recommendations/:competitionId/pin", async (req, reply) => {
+    return updateRecommendationOverride(req.params.projectId, req.params.competitionId, req, reply, repository.pinRecommendation.bind(repository));
+  });
+
+  server.delete<{ Params: { projectId: string; competitionId: string } }>("/internal/projects/:projectId/recommendations/:competitionId/pin", async (req, reply) => {
+    return updateRecommendationOverride(req.params.projectId, req.params.competitionId, req, reply, repository.unpinRecommendation.bind(repository));
   });
 
   server.post("/internal/competitions", async (req, reply) => {
@@ -353,4 +389,22 @@ async function upsertCompetition(
     upserted: true,
     created: !existed
   });
+}
+
+async function updateRecommendationOverride(
+  projectId: string,
+  competitionId: string,
+  req: FastifyRequest,
+  reply: FastifyReply,
+  action: (projectId: string, competitionId: string, userId: string) => Promise<boolean>
+) {
+  const userId = readHeader(req, "x-auth-user-id");
+  if (!userId) {
+    return reply.status(401).send({ error: "unauthorized" });
+  }
+  const updated = await action(projectId, competitionId, userId);
+  if (!updated) {
+    return reply.status(404).send({ error: "project_or_competition_not_found" });
+  }
+  return reply.send({ updated: true });
 }

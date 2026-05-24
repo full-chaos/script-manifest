@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { Competition, CompetitionAccessType, CompetitionFilters, CompetitionVisibility } from "@script-manifest/contracts";
+import type { Competition, CompetitionAccessType, CompetitionFilters, CompetitionRecommendation, CompetitionVisibility, Project } from "@script-manifest/contracts";
 import { buildServer } from "./index.js";
 import type { CompetitionDirectoryRepository } from "./repository.js";
 import { request } from "undici";
@@ -19,6 +19,8 @@ function textResponse(payload: unknown, statusCode = 200): RequestResult {
 
 class MemoryCompetitionDirectoryRepository implements CompetitionDirectoryRepository {
   private readonly competitions = new Map<string, Competition>();
+  private readonly dismissed = new Set<string>();
+  private readonly pinned = new Set<string>();
 
   constructor() {
     this.competitions.set("comp_001", {
@@ -97,6 +99,58 @@ class MemoryCompetitionDirectoryRepository implements CompetitionDirectoryReposi
 
   async listSavedCompetitions(): Promise<[]> {
     return [];
+  }
+
+  async getRecommendationContext(projectId: string, userId: string) {
+    if (projectId !== "project_1" || userId !== "writer_1") return null;
+    const project: Project = {
+      id: "project_1",
+      ownerUserId: "writer_1",
+      title: "Moon Harbor",
+      logline: "",
+      synopsis: "",
+      format: "feature",
+      genre: "drama",
+      language: "en",
+      country: "US",
+      pageCount: 100,
+      isDiscoverable: false,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z"
+    };
+    return {
+      project,
+      competitions: Array.from(this.competitions.values()).map((competition) => ({
+        competition,
+        isDismissed: this.dismissed.has(competition.id),
+        isPinned: this.pinned.has(competition.id),
+        alreadySubmitted: false,
+        prestigeTier: competition.id === "comp_001" ? "elite" as const : "standard" as const
+      })),
+      preferredFeeTier: "low" as const
+    };
+  }
+
+  async dismissRecommendation(projectId: string, competitionId: string, userId: string): Promise<boolean> {
+    if (projectId !== "project_1" || userId !== "writer_1") return false;
+    this.dismissed.add(competitionId);
+    return true;
+  }
+
+  async undismissRecommendation(projectId: string, competitionId: string, userId: string): Promise<boolean> {
+    if (projectId !== "project_1" || userId !== "writer_1") return false;
+    return this.dismissed.delete(competitionId);
+  }
+
+  async pinRecommendation(projectId: string, competitionId: string, userId: string): Promise<boolean> {
+    if (projectId !== "project_1" || userId !== "writer_1") return false;
+    this.pinned.add(competitionId);
+    return true;
+  }
+
+  async unpinRecommendation(projectId: string, competitionId: string, userId: string): Promise<boolean> {
+    if (projectId !== "project_1" || userId !== "writer_1") return false;
+    return this.pinned.delete(competitionId);
   }
 
   async listDueReminderDispatches(): Promise<[]> {
@@ -271,4 +325,70 @@ test("competition admin curation route requires x-admin-user-id header", async (
     }
   });
   assert.equal(allowed.statusCode, 201);
+});
+
+test("recommended competitions require project owner and support dismiss and pin overrides", async (t) => {
+  const repository = new MemoryCompetitionDirectoryRepository();
+  const server = buildServer({
+    logger: false,
+    repository,
+    requestFn: (async () => textResponse({ ok: true }, 201)) as typeof request
+  });
+  t.after(async () => {
+    await server.close();
+  });
+
+  const unauthorized = await server.inject({
+    method: "GET",
+    url: "/internal/projects/project_1/recommended-competitions"
+  });
+  assert.equal(unauthorized.statusCode, 401);
+
+  const first = await server.inject({
+    method: "GET",
+    url: "/internal/projects/project_1/recommended-competitions",
+    headers: { "x-auth-user-id": "writer_1" }
+  });
+  assert.equal(first.statusCode, 200);
+  const firstPayload = first.json() as { recommendations: CompetitionRecommendation[] };
+  assert.equal(firstPayload.recommendations[0]?.competition.id, "comp_001");
+
+  const dismiss = await server.inject({
+    method: "POST",
+    url: "/internal/projects/project_1/recommendations/comp_001/dismiss",
+    headers: { "x-auth-user-id": "writer_1" }
+  });
+  assert.equal(dismiss.statusCode, 200);
+
+  const afterDismiss = await server.inject({
+    method: "GET",
+    url: "/internal/projects/project_1/recommended-competitions",
+    headers: { "x-auth-user-id": "writer_1" }
+  });
+  assert.equal(afterDismiss.statusCode, 200);
+  const dismissedPayload = afterDismiss.json() as { recommendations: CompetitionRecommendation[] };
+  assert.equal(dismissedPayload.recommendations.length, 0);
+
+  const unDismiss = await server.inject({
+    method: "DELETE",
+    url: "/internal/projects/project_1/recommendations/comp_001/dismiss",
+    headers: { "x-auth-user-id": "writer_1" }
+  });
+  assert.equal(unDismiss.statusCode, 200);
+
+  const pin = await server.inject({
+    method: "POST",
+    url: "/internal/projects/project_1/recommendations/comp_001/pin",
+    headers: { "x-auth-user-id": "writer_1" }
+  });
+  assert.equal(pin.statusCode, 200);
+
+  const afterPin = await server.inject({
+    method: "GET",
+    url: "/internal/projects/project_1/recommended-competitions",
+    headers: { "x-auth-user-id": "writer_1" }
+  });
+  const pinnedPayload = afterPin.json() as { recommendations: CompetitionRecommendation[] };
+  assert.equal(pinnedPayload.recommendations[0]?.score, 100);
+  assert.equal(pinnedPayload.recommendations[0]?.isPinned, true);
 });

@@ -1,4 +1,5 @@
-import type { Competition, CompetitionAccessType, CompetitionFilters, CompetitionVisibility, SaveCompetitionRequest, SavedCompetition } from "@script-manifest/contracts";
+import type { Competition, CompetitionAccessType, CompetitionFilters, CompetitionVisibility, Project, SaveCompetitionRequest, SavedCompetition } from "@script-manifest/contracts";
+import type { FeeTier, PrestigeTier, RecommendationInput } from "./recommendationEngine.js";
 
 export type DueCompetitionReminderDispatch = {
   id: string;
@@ -25,8 +26,19 @@ export interface CompetitionDirectoryRepository extends CompetitionReminderDispa
   saveCompetition(input: SaveCompetitionRequest & { competitionId: string }): Promise<SavedCompetition>;
   unsaveCompetition(writerId: string, competitionId: string): Promise<boolean>;
   listSavedCompetitions(writerId: string): Promise<SavedCompetition[]>;
+  getRecommendationContext(projectId: string, userId: string): Promise<{
+    project: Project;
+    competitions: RecommendationInput[];
+    preferredFeeTier: FeeTier | null;
+  } | null>;
+  dismissRecommendation(projectId: string, competitionId: string, userId: string): Promise<boolean>;
+  undismissRecommendation(projectId: string, competitionId: string, userId: string): Promise<boolean>;
+  pinRecommendation(projectId: string, competitionId: string, userId: string): Promise<boolean>;
+  unpinRecommendation(projectId: string, competitionId: string, userId: string): Promise<boolean>;
 
   cancelCompetition(id: string): Promise<Competition | null>;
   updateVisibility(id: string, visibility: CompetitionVisibility): Promise<Competition | null>;
   updateAccessType(id: string, accessType: CompetitionAccessType): Promise<Competition | null>;
 }
+
+export type { FeeTier, PrestigeTier, RecommendationInput };

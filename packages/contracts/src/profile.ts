@@ -10,7 +10,8 @@ export const WriterProfileSchema = z.object({
   representationStatus: z.enum(["represented", "unrepresented", "seeking_rep"]),
   headshotUrl: OptionalUrlStringSchema.default(""),
   customProfileUrl: OptionalUrlStringSchema.default(""),
-  isSearchable: z.boolean().default(true)
+  isSearchable: z.boolean().default(true),
+  resumePublic: z.boolean().default(true).optional()
 });
 
 export type WriterProfile = z.infer<typeof WriterProfileSchema>;
@@ -25,7 +26,8 @@ export const WriterProfileUpdateRequestSchema = z.object({
     .optional(),
   headshotUrl: OptionalUrlStringSchema.optional(),
   customProfileUrl: OptionalUrlStringSchema.optional(),
-  isSearchable: z.boolean().optional()
+  isSearchable: z.boolean().optional(),
+  resumePublic: z.boolean().optional()
 });
 
 export type WriterProfileUpdateRequest = z.infer<typeof WriterProfileUpdateRequestSchema>;

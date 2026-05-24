@@ -358,6 +358,13 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
     }
 
     const updatedProvider = await repository.updateProviderStatus(provider.id, nextStatus);
+    await repository.createAuditLogEntry({
+      adminUserId: authUserId,
+      action: "provider.review",
+      targetType: "coverage_provider",
+      targetId: provider.id,
+      details: { decision: input.decision, nextStatus }
+    });
     return reply.send({ provider: updatedProvider, review });
   });
 
@@ -1012,6 +1019,13 @@ export function buildServer(options: CoverageMarketplaceServiceOptions = {}): Fa
     if (!resolved) {
       return reply.status(409).send({ error: "dispute_not_resolvable" });
     }
+    await repository.createAuditLogEntry({
+      adminUserId: authUserId,
+      action: "coverage.dispute.resolve",
+      targetType: "coverage_dispute",
+      targetId: disputeId,
+      details: { status: parsed.data.status, refundAmountCents: parsed.data.refundAmountCents ?? null }
+    });
     if (!order) {
       return reply.send({ dispute: resolved });
     }

@@ -36,7 +36,7 @@ function adminServiceHeaders(): Record<string, string> {
     "content-type": "application/json"
   };
 }
-import type { CoverageMarketplaceRepository } from "./repository.js";
+import type { CoverageAuditLogEntry, CoverageAuditLogInput, CoverageMarketplaceRepository } from "./repository.js";
 import { MemoryPaymentGateway } from "./paymentGateway.js";
 import { MemoryUserPaymentProfileRepository } from "./userPaymentProfileRepository.js";
 import { createScheduler } from "./scheduler.js";
@@ -50,6 +50,7 @@ class MemoryCoverageMarketplaceRepository extends BaseMemoryRepository implement
   private disputes = new Map<string, CoverageDispute>();
   private providerReviews = new Map<string, CoverageProviderReview>();
   private disputeEvents = new Map<string, CoverageDisputeEvent>();
+  auditLog: CoverageAuditLogEntry[] = [];
   private paymentRetries = new Map<string, {
     id: string;
     orderId: string;
@@ -509,6 +510,12 @@ class MemoryCoverageMarketplaceRepository extends BaseMemoryRepository implement
   getRetryEntries() {
     return Array.from(this.paymentRetries.values());
   }
+
+  async createAuditLogEntry(input: CoverageAuditLogInput): Promise<CoverageAuditLogEntry> {
+    const entry = { id: this.createId("audit"), createdAt: new Date().toISOString(), ...input };
+    this.auditLog.push(entry);
+    return entry;
+  }
 }
 
 function createServer() {
@@ -704,7 +711,7 @@ test("list providers returns array", async (t) => {
 });
 
 test("admin provider review queue and review decisions work", async (t) => {
-  const { server } = createServer();
+  const { server, repo } = createServer();
   t.after(() => server.close());
 
   const createRes = await server.inject({
@@ -751,6 +758,7 @@ test("admin provider review queue and review decisions work", async (t) => {
   assert.equal(reviewRes.statusCode, 200);
   assert.equal(reviewRes.json().provider.status, "suspended");
   assert.equal(reviewRes.json().review.decision, "suspended");
+  assert.ok(repo.auditLog.some((entry) => entry.action === "provider.review" && entry.targetId === provider.id && entry.adminUserId === "admin_01"));
 });
 
 // ── Service Tests ────────────────────────────────────────────────────
@@ -1817,6 +1825,7 @@ test("resolve dispute with refund works", async (t) => {
   assert.equal(res.statusCode, 200);
   assert.equal(res.json().dispute.status, "resolved_refund");
   assert.equal(gateway.refunds.length, 1);
+  assert.ok(repo.auditLog.some((entry) => entry.action === "coverage.dispute.resolve" && entry.targetId === dispute.id && entry.adminUserId === "admin_01"));
 });
 
 test("resolve dispute with no refund completes order and logs events", async (t) => {

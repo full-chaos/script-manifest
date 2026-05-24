@@ -6,6 +6,9 @@ import type {
   CoverageProviderCreateRequest,
   CoverageProviderUpdateRequest,
   CoverageProviderFilters,
+  ProviderVerificationEvent,
+  ProviderVerificationRequest,
+  ProviderVerificationState,
   CoverageProviderReview,
   CoverageProviderReviewRequest,
   CoverageService,
@@ -24,10 +27,21 @@ import type {
   CoverageDisputeEvent,
   CoverageDisputeStatus
 } from "@script-manifest/contracts";
+import { getProviderBadgeForVerificationState } from "@script-manifest/contracts";
 import { BaseMemoryRepository, signServiceToken } from "@script-manifest/service-utils";
-import { buildServer } from "./index.js";
+import { buildServer, type CoverageMarketplaceServiceOptions } from "./index.js";
 
 const SERVICE_SECRET = randomBytes(32).toString("hex");
+
+function upstreamJsonResponse(payload: unknown, statusCode = 201) {
+  return {
+    statusCode,
+    body: {
+      json: async () => payload,
+      text: async () => JSON.stringify(payload)
+    }
+  };
+}
 
 function adminServiceHeaders(): Record<string, string> {
   return {
@@ -49,6 +63,7 @@ class MemoryCoverageMarketplaceRepository extends BaseMemoryRepository implement
   private reviews = new Map<string, CoverageReview>();
   private disputes = new Map<string, CoverageDispute>();
   private providerReviews = new Map<string, CoverageProviderReview>();
+  private providerVerificationEvents = new Map<string, ProviderVerificationEvent>();
   private disputeEvents = new Map<string, CoverageDisputeEvent>();
   private paymentRetries = new Map<string, {
     id: string;
@@ -69,6 +84,12 @@ class MemoryCoverageMarketplaceRepository extends BaseMemoryRepository implement
       status: "pending_verification",
       stripeAccountId: null,
       stripeOnboardingComplete: false,
+      verificationState: "unverified",
+      verifiedAt: null,
+      verifiedByUserId: null,
+      verificationNotes: null,
+      verificationUpdatedAt: new Date().toISOString(),
+      badge: getProviderBadgeForVerificationState("unverified", null),
       avgRating: null,
       totalOrdersCompleted: 0,
       createdAt: new Date().toISOString(),
@@ -124,10 +145,61 @@ class MemoryCoverageMarketplaceRepository extends BaseMemoryRepository implement
     if (filters.status) {
       results = results.filter((p) => p.status === filters.status);
     }
+    if (filters.verificationState) {
+      results = results.filter((p) => p.verificationState === filters.verificationState);
+    }
     if (filters.specialty) {
       results = results.filter((p) => p.specialties.includes(filters.specialty!));
     }
     return results.slice(0, filters.limit ?? 30);
+  }
+
+  async updateProviderVerification(providerId: string, adminUserId: string, input: ProviderVerificationRequest): Promise<CoverageProvider | null> {
+    const provider = this.providers.get(providerId);
+    if (!provider) return null;
+    const fromState = provider.verificationState;
+    provider.verificationState = input.state;
+    provider.verifiedAt = input.state === "verified" ? new Date().toISOString() : null;
+    provider.verifiedByUserId = input.state === "verified" ? adminUserId : null;
+    provider.verificationNotes = input.reason ?? null;
+    provider.verificationUpdatedAt = new Date().toISOString();
+    provider.updatedAt = new Date().toISOString();
+    provider.badge = getProviderBadgeForVerificationState(provider.verificationState, provider.verifiedAt);
+    await this.createProviderVerificationEvent({
+      providerId,
+      adminUserId,
+      fromState,
+      toState: input.state,
+      reason: input.reason ?? null,
+      checklist: input.checklist ?? []
+    });
+    return provider;
+  }
+
+  async createProviderVerificationEvent(params: {
+    providerId: string;
+    adminUserId: string;
+    fromState: ProviderVerificationState | null;
+    toState: ProviderVerificationState;
+    reason?: string | null;
+    checklist?: string[];
+  }): Promise<ProviderVerificationEvent> {
+    const event: ProviderVerificationEvent = {
+      id: this.createId("pve"),
+      providerId: params.providerId,
+      adminUserId: params.adminUserId,
+      fromState: params.fromState,
+      toState: params.toState,
+      reason: params.reason ?? null,
+      checklist: params.checklist ?? [],
+      createdAt: new Date().toISOString()
+    };
+    this.providerVerificationEvents.set(event.id, event);
+    return event;
+  }
+
+  async listProviderVerificationEvents(providerId: string): Promise<ProviderVerificationEvent[]> {
+    return Array.from(this.providerVerificationEvents.values()).filter((event) => event.providerId === providerId);
   }
 
   async createProviderReview(providerId: string, reviewedByUserId: string, input: CoverageProviderReviewRequest): Promise<CoverageProviderReview> {
@@ -511,7 +583,7 @@ class MemoryCoverageMarketplaceRepository extends BaseMemoryRepository implement
   }
 }
 
-function createServer() {
+function createServer(options: { requestFn?: CoverageMarketplaceServiceOptions["requestFn"] } = {}) {
   const originalSecret = process.env.SERVICE_TOKEN_SECRET;
   process.env.SERVICE_TOKEN_SECRET = SERVICE_SECRET;
   const repo = new MemoryCoverageMarketplaceRepository();
@@ -522,7 +594,9 @@ function createServer() {
     repository: repo,
     userPaymentProfileRepository: userPaymentProfileRepo,
     paymentGateway: gateway,
-    commissionRate: 0.15
+    commissionRate: 0.15,
+    requestFn: options.requestFn,
+    identityServiceBase: "http://identity-svc"
   });
   server.addHook("onClose", () => {
     if (originalSecret === undefined) {
@@ -751,6 +825,79 @@ test("admin provider review queue and review decisions work", async (t) => {
   assert.equal(reviewRes.statusCode, 200);
   assert.equal(reviewRes.json().provider.status, "suspended");
   assert.equal(reviewRes.json().review.decision, "suspended");
+});
+
+test("admin provider verification endpoint requires admin service role, reason for rejected/suspended, emits audit, and returns badge", async (t) => {
+  const auditCalls: Array<{ url: string; body: string; headers: Record<string, string> }> = [];
+  const { server } = createServer({
+    requestFn: async (url, options) => {
+      auditCalls.push({
+        url: String(url),
+        body: String(options?.body ?? ""),
+        headers: (options?.headers as Record<string, string> | undefined) ?? {}
+      });
+      return upstreamJsonResponse({ entry: { id: "audit_01" } });
+    }
+  });
+  t.after(() => server.close());
+
+  const createRes = await server.inject({
+    method: "POST",
+    url: "/internal/providers",
+    headers: { "x-auth-user-id": "provider_01", "content-type": "application/json" },
+    payload: {
+      displayName: "Verify Me",
+      bio: "Bio",
+      specialties: ["drama"]
+    }
+  });
+  const provider = createRes.json().provider;
+
+  const authOnly = await server.inject({
+    method: "PATCH",
+    url: `/internal/admin/providers/${provider.id}/verification`,
+    headers: { "x-auth-user-id": "admin_01", "content-type": "application/json" },
+    payload: { state: "verified" }
+  });
+  assert.equal(authOnly.statusCode, 403);
+  assert.equal(authOnly.json().error, "admin_required");
+
+  const missingReason = await server.inject({
+    method: "PATCH",
+    url: `/internal/admin/providers/${provider.id}/verification`,
+    headers: adminServiceHeaders(),
+    payload: { state: "suspended" }
+  });
+  assert.equal(missingReason.statusCode, 400);
+  assert.equal(missingReason.json().error, "reason_required");
+
+  const verified = await server.inject({
+    method: "PATCH",
+    url: `/internal/admin/providers/${provider.id}/verification`,
+    headers: adminServiceHeaders(),
+    payload: { state: "verified", reason: "Identity reviewed", checklist: ["identity", "references"] }
+  });
+  assert.equal(verified.statusCode, 200);
+  assert.equal(verified.json().provider.verificationState, "verified");
+  assert.equal(verified.json().provider.badge.kind, "verified_provider");
+
+  const events = await server.inject({
+    method: "GET",
+    url: `/internal/admin/providers/${provider.id}/verification-events`,
+    headers: adminServiceHeaders()
+  });
+  assert.equal(events.statusCode, 200);
+  assert.equal(events.json().events[0].toState, "verified");
+
+  assert.equal(auditCalls.length, 1);
+  assert.equal(auditCalls[0]?.url, "http://identity-svc/internal/admin/audit-log");
+  assert.equal(auditCalls[0]?.headers["x-auth-user-id"], "admin_01");
+  const auditBody = JSON.parse(auditCalls[0]!.body);
+  assert.equal(auditBody.action, "verify_provider");
+  assert.equal(auditBody.targetType, "provider");
+  assert.equal(auditBody.targetId, provider.id);
+  assert.equal(auditBody.details.fromState, "unverified");
+  assert.equal(auditBody.details.toState, "verified");
 });
 
 // ── Service Tests ────────────────────────────────────────────────────

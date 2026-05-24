@@ -7,7 +7,7 @@ function getApiGatewayBase(): string {
   return process.env.API_GATEWAY_URL ?? defaultGatewayBase;
 }
 
-const ADMIN_PATH_PREFIX = "/api/v1/admin/";
+const ADMIN_PATH_PREFIXES = ["/api/v1/admin/", "/api/v1/coverage/admin/"];
 
 type RoleResult =
   | { kind: "resolved"; role: string | null; userId: string | null }
@@ -55,7 +55,7 @@ export async function proxyRequest(request: Request, path: string): Promise<Next
     headers.set("authorization", resolvedAuthorization);
   }
 
-  if (path.startsWith(ADMIN_PATH_PREFIX)) {
+  if (ADMIN_PATH_PREFIXES.some((prefix) => path.startsWith(prefix))) {
     const result = await resolveCallerRole(resolvedAuthorization);
     if (result.kind === "unavailable") {
       return NextResponse.json(

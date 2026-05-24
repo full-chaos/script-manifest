@@ -129,6 +129,7 @@ describe("ProfilePage", () => {
           headshotUrl: "https://cdn.example.com/writer-updated.jpg",
           customProfileUrl: "https://profiles.example.com/writer-updated",
           isSearchable: false,
+          resumePublic: true,
         }),
       })
     );

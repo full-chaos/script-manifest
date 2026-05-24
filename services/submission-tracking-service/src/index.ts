@@ -369,6 +369,14 @@ export function buildServer(options: SubmissionTrackingOptions = {}): FastifyIns
     return reply.send({ placements: filteredPlacements });
   });
 
+  server.get<{ Params: { writerId: string } }>("/internal/writers/:writerId/verified-placements", async (req) => {
+    const { writerId } = req.params;
+    const placements = (await repository.listPlacements({ writerId, verificationState: "verified" }))
+      .map(({ placement, submission }) => toPlacementListItem(PlacementSchema.parse(placement), SubmissionSchema.parse(submission)))
+      .filter((placement) => placement.verificationState === "verified");
+    return { placements };
+  });
+
   server.get<{ Params: { placementId: string } }>("/internal/placements/:placementId", async (req, reply) => {
     const { placementId } = req.params;
     const placement = await repository.getPlacement(placementId);
@@ -429,8 +437,9 @@ function toPlacementDetail(placement: Placement): Placement & { badgeLabel: stri
   return { ...placement, badgeLabel: placementBadgeLabel(placement) };
 }
 
-function placementBadgeLabel(placement: Placement): string {
+export function placementBadgeLabel(placement: Placement): string {
   if (placement.importSource === "recovered_csv") return "Recovered";
+  if (placement.isHistorical && placement.verificationState === "verified") return "Historical — Verified";
   if (placement.verificationState === "verified") return "Verified";
   if (placement.verificationState === "rejected") return "Rejected";
   if (placement.isHistorical) return "Unverified — Historical";

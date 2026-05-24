@@ -1,5 +1,6 @@
 import { getPool } from "@script-manifest/db";
-import type { ScriptFileRegistration, ScriptVisibility } from "@script-manifest/contracts";
+import type { ScriptFileRegistration, ScriptViewEventCreateRequest, ScriptVisibility } from "@script-manifest/contracts";
+import { randomUUID } from "node:crypto";
 
 export type ScriptRecord = ScriptFileRegistration & {
   visibility: ScriptVisibility;
@@ -14,6 +15,8 @@ export interface ScriptStorageRepository {
   updateVisibility(scriptId: string, visibility: ScriptVisibility): Promise<void>;
   addApprovedViewer(scriptId: string, viewerId: string): Promise<void>;
   listScripts(): Promise<ScriptRecord[]>;
+  listPublicScripts(ownerUserId: string): Promise<ScriptRecord[]>;
+  recordScriptViewEvent(scriptId: string, input: ScriptViewEventCreateRequest): Promise<boolean>;
 }
 
 // ── PostgreSQL implementation ─────────────────────────────────────────────
@@ -110,6 +113,27 @@ export class PgScriptStorageRepository implements ScriptStorageRepository {
     );
     return rows.map(mapRow);
   }
+
+  async listPublicScripts(ownerUserId: string): Promise<ScriptRecord[]> {
+    const { rows } = await getPool().query(
+      "SELECT * FROM scripts WHERE owner_user_id = $1 AND visibility = 'public' ORDER BY registered_at DESC",
+      [ownerUserId]
+    );
+    return rows.map(mapRow);
+  }
+
+  async recordScriptViewEvent(scriptId: string, input: ScriptViewEventCreateRequest): Promise<boolean> {
+    const script = await this.getScript(scriptId);
+    if (!script) return false;
+    await getPool().query(
+      `
+        INSERT INTO script_view_events (id, script_id, owner_user_id, viewer_user_id, event_type, occurred_at)
+        VALUES ($1, $2, $3, $4, $5, COALESCE($6::timestamptz, NOW()))
+      `,
+      [`sve_${randomUUID()}`, scriptId, script.ownerUserId, input.viewerUserId ?? null, input.eventType, input.occurredAt ?? null]
+    );
+    return true;
+  }
 }
 
 // ── In-memory implementation (for tests) ─────────────────────────────────
@@ -159,6 +183,14 @@ export class MemoryScriptStorageRepository implements ScriptStorageRepository {
 
   async listScripts(): Promise<ScriptRecord[]> {
     return Array.from(this.scripts.values());
+  }
+
+  async listPublicScripts(ownerUserId: string): Promise<ScriptRecord[]> {
+    return Array.from(this.scripts.values()).filter((script) => script.ownerUserId === ownerUserId && script.visibility === "public");
+  }
+
+  async recordScriptViewEvent(scriptId: string, _input: ScriptViewEventCreateRequest): Promise<boolean> {
+    return this.scripts.has(scriptId);
   }
 }
 

@@ -11,6 +11,7 @@ import {
   ScriptFileRegistrationSchema,
   ScriptRegisterRequestSchema,
   ScriptRegisterResponseSchema,
+  ScriptViewEventCreateRequestSchema,
   ScriptUploadSessionRequestSchema,
   ScriptUploadSessionResponseSchema,
   ScriptViewRequestSchema,
@@ -277,6 +278,34 @@ export function buildServer(options: ScriptStorageServiceOptions = {}): FastifyI
     });
 
     return reply.send(responsePayload);
+  });
+
+  server.get<{ Params: { writerId: string } }>("/internal/writers/:writerId/public-scripts", async (req) => {
+    const scripts = await repo.listPublicScripts(req.params.writerId);
+    return {
+      scripts: scripts.map((script) => ({
+        scriptId: script.scriptId,
+        ownerUserId: script.ownerUserId,
+        filename: script.filename,
+        contentType: script.contentType,
+        size: script.size,
+        registeredAt: script.registeredAt,
+        viewerPath: `/projects/${encodeURIComponent(script.scriptId)}/viewer`,
+        viewerUrl: `/projects/${encodeURIComponent(script.scriptId)}/viewer`
+      }))
+    };
+  });
+
+  server.post<{ Params: { scriptId: string } }>("/internal/scripts/:scriptId/view-event", async (req, reply) => {
+    const parsed = ScriptViewEventCreateRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
+    }
+    const recorded = await repo.recordScriptViewEvent(req.params.scriptId, parsed.data);
+    if (!recorded) {
+      return reply.status(404).send({ error: "script_not_found" });
+    }
+    return reply.status(201).send({ recorded: true });
   });
 
   server.post<{ Params: { scriptId: string } }>("/internal/scripts/:scriptId/approve-viewer", async (req, reply) => {

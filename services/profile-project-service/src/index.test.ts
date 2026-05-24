@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { request } from "undici";
 import type {
+  ResumeMetricsResponse,
+  WriterResume,
   NotificationEventEnvelope,
   Project,
   ProjectCoWriter,
@@ -32,6 +35,7 @@ class MemoryRepository extends BaseMemoryRepository implements ProfileProjectRep
   private nextProject = 1;
   private nextDraft = 1;
   private nextAccessRequest = 1;
+  private resumeViews: Array<{ writerId: string; ipHash: string; userAgentHash: string; viewedAt: string }> = [];
 
   constructor() {
     super();
@@ -44,7 +48,32 @@ class MemoryRepository extends BaseMemoryRepository implements ProfileProjectRep
       representationStatus: "unrepresented",
       headshotUrl: "",
       customProfileUrl: "",
-      isSearchable: true
+      isSearchable: true,
+      resumePublic: true
+    });
+    this.profiles.set("writer_02", {
+      id: "writer_02",
+      displayName: "Writer Two",
+      bio: "Hidden search profile",
+      genres: ["Comedy"],
+      demographics: [],
+      representationStatus: "unrepresented",
+      headshotUrl: "",
+      customProfileUrl: "hidden-search",
+      isSearchable: false,
+      resumePublic: true
+    });
+    this.profiles.set("writer_03", {
+      id: "writer_03",
+      displayName: "Writer Three",
+      bio: "Hidden resume profile",
+      genres: ["Horror"],
+      demographics: [],
+      representationStatus: "seeking_rep",
+      headshotUrl: "",
+      customProfileUrl: "hidden-resume",
+      isSearchable: true,
+      resumePublic: false
     });
   }
 
@@ -54,6 +83,40 @@ class MemoryRepository extends BaseMemoryRepository implements ProfileProjectRep
 
   async getProfile(writerId: string): Promise<WriterProfile | null> {
     return this.profiles.get(writerId) ?? null;
+  }
+
+  async resolveResumeProfile(writerIdOrCustomUrl: string): Promise<WriterProfile | null> {
+    return this.profiles.get(writerIdOrCustomUrl) ?? Array.from(this.profiles.values()).find((profile) => profile.customProfileUrl === writerIdOrCustomUrl) ?? null;
+  }
+
+  async recordResumePageView(writerId: string, input: {
+    ipHash: string;
+    userAgentHash: string;
+    viewedAt?: string;
+  }): Promise<boolean> {
+    const viewedAt = input.viewedAt ?? new Date().toISOString();
+    const recentCutoff = Date.parse(viewedAt) - 60_000;
+    const duplicate = this.resumeViews.some((view) =>
+      view.writerId === writerId &&
+      view.ipHash === input.ipHash &&
+      view.userAgentHash === input.userAgentHash &&
+      Date.parse(view.viewedAt) >= recentCutoff
+    );
+    if (duplicate) return false;
+    this.resumeViews.push({ writerId, ...input, viewedAt });
+    return true;
+  }
+
+  async getResumeMetrics(writerId: string): Promise<ResumeMetricsResponse> {
+    const views = this.resumeViews.filter((view) => view.writerId === writerId).length;
+    return {
+      writerId,
+      totalViews7d: views,
+      totalViews30d: views,
+      totalScriptDownloads: 0,
+      verifiedPlacementsCount: 0,
+      projectsCount: Array.from(this.projects.values()).filter((project) => project.ownerUserId === writerId && project.isDiscoverable).length
+    };
   }
 
   async upsertProfile(
@@ -370,6 +433,96 @@ test("profile-project-service returns profile when available", async (t) => {
   assert.equal(response.json().profile.headshotUrl, "");
   assert.equal(response.json().profile.customProfileUrl, "");
   assert.equal(response.json().profile.isSearchable, true);
+});
+
+test("resume endpoint returns 404 when profile is not searchable", async (t) => {
+  const server = buildServer({ logger: false, repository: new MemoryRepository(), publisher: async () => undefined });
+  t.after(async () => { await server.close(); });
+
+  const response = await server.inject({ method: "GET", url: "/internal/writers/hidden-search/resume" });
+
+  assert.equal(response.statusCode, 404);
+  assert.equal(response.json().error, "resume_not_found");
+});
+
+test("resume endpoint returns 404 when public resume is disabled", async (t) => {
+  const server = buildServer({ logger: false, repository: new MemoryRepository(), publisher: async () => undefined });
+  t.after(async () => { await server.close(); });
+
+  const response = await server.inject({ method: "GET", url: "/internal/writers/hidden-resume/resume" });
+
+  assert.equal(response.statusCode, 404);
+  assert.equal(response.json().error, "resume_not_found");
+});
+
+test("resume endpoint resolves custom URL and filters to verified placement payload from submission service", async (t) => {
+  const repository = new MemoryRepository();
+  await repository.upsertProfile("writer_01", { customProfileUrl: "writer-one" });
+  await repository.createProject({
+    ownerUserId: "writer_01",
+    title: "Discoverable Script",
+    logline: "A verified writer ships proof.",
+    synopsis: "",
+    format: "feature",
+    genre: "drama",
+    pageCount: 101,
+    isDiscoverable: true
+  });
+  await repository.createProject({
+    ownerUserId: "writer_01",
+    title: "Private Script",
+    logline: "Should stay hidden.",
+    synopsis: "",
+    format: "feature",
+    genre: "drama",
+    pageCount: 101,
+    isDiscoverable: false
+  });
+
+  const requestedUrls: string[] = [];
+  const requestFn = (async (url) => {
+    const target = String(url);
+    requestedUrls.push(target);
+    const body = target.includes("/verified-placements")
+      ? { placements: [{ id: "placement_verified", submissionId: "sub_1", writerId: "writer_01", projectId: "project_1", competitionId: "austin", status: "finalist", verificationState: "verified", isHistorical: false, badgeLabel: "Verified", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), verifiedAt: new Date().toISOString(), sourceNote: null, recordedByUserId: null, reviewedByUserId: null, reviewedAt: null, reviewNotes: null }] }
+      : target.includes("/public-scripts")
+        ? { scripts: [] }
+        : target.includes("/badges")
+          ? { badges: [] }
+          : target.includes("/score")
+            ? { writerId: "writer_01", totalScore: 12, rank: 4, tier: "rising", scoreChange30d: 1 }
+            : {};
+    return { statusCode: 200, body: { json: async () => body, text: async () => JSON.stringify(body) }, headers: {} };
+  }) as typeof request;
+  const server = buildServer({ logger: false, repository, publisher: async () => undefined, requestFn });
+  t.after(async () => { await server.close(); });
+
+  const response = await server.inject({ method: "GET", url: "/internal/writers/writer-one/resume" });
+
+  assert.equal(response.statusCode, 200);
+  const resume = response.json().resume as WriterResume;
+  assert.equal(resume.profile.id, "writer_01");
+  assert.equal(resume.projects.length, 1);
+  assert.equal(resume.placements.length, 1);
+  assert.equal(resume.placements[0]?.verificationState, "verified");
+  assert.ok(requestedUrls.some((url) => url.endsWith("/internal/writers/writer_01/verified-placements")));
+});
+
+test("resume page view records once per ip and user-agent hash within 60 seconds", async (t) => {
+  const repository = new MemoryRepository();
+  const server = buildServer({ logger: false, repository, publisher: async () => undefined });
+  t.after(async () => { await server.close(); });
+
+  const payload = { ipHash: "ip_hash", userAgentHash: "ua_hash", viewedAt: "2026-01-01T00:00:00.000Z" };
+  const first = await server.inject({ method: "POST", url: "/internal/writers/writer_01/resume-views", payload });
+  const second = await server.inject({ method: "POST", url: "/internal/writers/writer_01/resume-views", payload: { ...payload, viewedAt: "2026-01-01T00:00:30.000Z" } });
+  const metrics = await repository.getResumeMetrics("writer_01");
+
+  assert.equal(first.statusCode, 201);
+  assert.equal(first.json().recorded, true);
+  assert.equal(second.statusCode, 200);
+  assert.equal(second.json().recorded, false);
+  assert.equal(metrics.totalViews30d, 1);
 });
 
 test("profile-project-service round-trips rich profile fields", async (t) => {

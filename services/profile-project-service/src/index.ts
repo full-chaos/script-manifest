@@ -9,12 +9,16 @@ import {
   ProjectDraftUpdateRequestSchema,
   ProjectFiltersSchema,
   ProjectUpdateRequestSchema,
+  ResumeMetricsResponseSchema,
+  ResumePageViewCreateRequestSchema,
   ScriptAccessRequestCreateRequestSchema,
   ScriptAccessRequestDecisionRequestSchema,
   ScriptAccessRequestFiltersSchema,
+  WriterResumeSchema,
   WriterProfileUpdateRequestSchema
 } from "@script-manifest/contracts";
 import { randomUUID } from "node:crypto";
+import { request as undiciRequest } from "undici";
 import {
   type ProfileProjectRepository,
   PgProfileProjectRepository
@@ -22,11 +26,16 @@ import {
 import { registerMetrics, registerSentryErrorHandler } from "@script-manifest/service-utils";
 
 type PublishNotificationEvent = typeof publishNotificationEvent;
+type RequestFn = typeof undiciRequest;
 
 export type ProfileProjectServiceOptions = {
   logger?: boolean;
   publisher?: PublishNotificationEvent;
   repository?: ProfileProjectRepository;
+  requestFn?: RequestFn;
+  submissionTrackingBase?: string;
+  scriptStorageBase?: string;
+  rankingServiceBase?: string;
 };
 
 // lgtm [js/missing-rate-limiting]
@@ -34,6 +43,10 @@ export function buildServer(options: ProfileProjectServiceOptions = {}): Fastify
   const server = createFastifyServer({ logger: options.logger });
   const publisher = options.publisher ?? publishNotificationEvent;
   const repository = options.repository ?? new PgProfileProjectRepository();
+  const requestFn = options.requestFn ?? undiciRequest;
+  const submissionTrackingBase = options.submissionTrackingBase ?? process.env.SUBMISSION_TRACKING_SERVICE_URL ?? "http://localhost:4004";
+  const scriptStorageBase = options.scriptStorageBase ?? process.env.SCRIPT_STORAGE_SERVICE_URL ?? "http://localhost:4011";
+  const rankingServiceBase = options.rankingServiceBase ?? process.env.RANKING_SERVICE_URL ?? "http://localhost:4007";
   const runHealthCheck = options.repository ? () => repository.healthCheck() : healthCheck;
 
   server.addHook("onReady", async () => {
@@ -79,6 +92,80 @@ export function buildServer(options: ProfileProjectServiceOptions = {}): Fastify
       }
       const ok = Object.values(checks).every(Boolean);
       return reply.status(ok ? 200 : 503).send({ service: "profile-project-service", ok, checks });
+    }
+  });
+
+  server.get<{ Params: { writerIdOrCustomUrl: string } }>("/internal/writers/:writerIdOrCustomUrl/resume", {
+    config: { rateLimit: { max: 60, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
+      const profile = await repository.resolveResumeProfile(req.params.writerIdOrCustomUrl);
+      if (!profile || !profile.isSearchable || profile.resumePublic === false) {
+        return reply.status(404).send({ error: "resume_not_found" });
+      }
+
+      const [placementsBody, scriptsBody, badgesBody, scoreBody] = await Promise.all([
+        fetchJson<{ placements?: unknown[] }>(requestFn, `${submissionTrackingBase}/internal/writers/${encodeURIComponent(profile.id)}/verified-placements`, req.log),
+        fetchJson<{ scripts?: unknown[] }>(requestFn, `${scriptStorageBase}/internal/writers/${encodeURIComponent(profile.id)}/public-scripts`, req.log),
+        fetchJson<{ badges?: unknown[] }>(requestFn, `${rankingServiceBase}/internal/writers/${encodeURIComponent(profile.id)}/badges`, req.log),
+        fetchJson<Record<string, unknown>>(requestFn, `${rankingServiceBase}/internal/writers/${encodeURIComponent(profile.id)}/score`, req.log)
+      ]);
+
+      const projects = (await repository.listProjects({ ownerUserId: profile.id, limit: 100, offset: 0 })).filter((project) => project.isDiscoverable);
+      const metrics = await repository.getResumeMetrics(profile.id);
+      const placements = placementsBody.placements ?? [];
+      const scripts = scriptsBody.scripts ?? [];
+      const badges = badgesBody.badges ?? [];
+      const resume = WriterResumeSchema.parse({
+        profile: {
+          id: profile.id,
+          displayName: profile.displayName,
+          bio: profile.bio,
+          headshotUrl: profile.headshotUrl,
+          customProfileUrl: profile.customProfileUrl,
+          representationStatus: profile.representationStatus,
+          genres: profile.genres,
+          resumePublic: profile.resumePublic
+        },
+        projects,
+        placements,
+        badges,
+        ranking: {
+          totalScore: Number(scoreBody.totalScore ?? 0),
+          rank: Number(scoreBody.rank ?? 0),
+          tier: typeof scoreBody.tier === "string" ? scoreBody.tier : "unranked",
+          scoreChange30d: Number(scoreBody.scoreChange30d ?? 0)
+        },
+        hostedScripts: scripts,
+        proofMetrics: {
+          ...metrics,
+          verifiedPlacementsCount: placements.length,
+          projectsCount: projects.length
+        }
+      });
+      return reply.send({ resume });
+    }
+  });
+
+  server.post<{ Params: { writerId: string } }>("/internal/writers/:writerId/resume-views", {
+    config: { rateLimit: { max: 120, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
+      const parsed = ResumePageViewCreateRequestSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: "invalid_payload", details: parsed.error.flatten() });
+      }
+      const recorded = await repository.recordResumePageView(req.params.writerId, parsed.data);
+      return reply.status(recorded ? 201 : 200).send({ recorded });
+    }
+  });
+
+  server.get<{ Params: { writerId: string } }>("/internal/writers/:writerId/resume-metrics", {
+    config: { rateLimit: { max: 40, timeWindow: "1 minute" } },
+    handler: async (req, reply) => {
+      const authUserId = getAuthUserId(req);
+      if (authUserId !== req.params.writerId) {
+        return reply.status(403).send({ error: "forbidden" });
+      }
+      return reply.send({ metrics: ResumeMetricsResponseSchema.parse(await repository.getResumeMetrics(req.params.writerId)) });
     }
   });
 
@@ -582,6 +669,19 @@ export function buildServer(options: ProfileProjectServiceOptions = {}): Fastify
   });
 
   return server;
+}
+
+async function fetchJson<T>(requestFn: RequestFn, url: string, logger: FastifyInstance["log"]): Promise<T> {
+  try {
+    const response = await requestFn(url, { method: "GET" });
+    if (response.statusCode >= 400) {
+      return {} as T;
+    }
+    return (await response.body.json()) as T;
+  } catch (error) {
+    logger.warn({ error, url }, "resume aggregation dependency unavailable");
+    return {} as T;
+  }
 }
 
 export async function startServer(): Promise<void> {

@@ -1,7 +1,7 @@
 {
   "services": {
     "lines": 25,
-    "functions": 33,
+    "functions": 35,
     "statements": 25,
     "branches": 48
   },

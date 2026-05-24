@@ -265,15 +265,16 @@ describe("CompetitionsPage — branch coverage", () => {
   });
 
   it("shows skeleton while loading", async () => {
-    let resolveFn: ((value: Response) => void) | null = null;
+    let resolveResponse!: (value: Response) => void;
+    const pendingResponse = new Promise<Response>((resolve) => {
+      resolveResponse = resolve;
+    });
     vi.stubGlobal(
       "fetch",
       vi.fn<typeof fetch>(async (input) => {
         const url = typeof input === "string" ? input : input.toString();
         if (url.startsWith("/api/v1/competitions?")) {
-          return new Promise<Response>((res) => {
-            resolveFn = res;
-          });
+          return pendingResponse;
         }
         return jsonResponse({});
       })
@@ -286,7 +287,7 @@ describe("CompetitionsPage — branch coverage", () => {
     expect(screen.getByRole("button", { name: "Searching..." })).toBeInTheDocument();
 
     // Cleanup: resolve so component doesn't dangle
-    resolveFn?.(jsonResponse({ competitions: [] }));
+    resolveResponse(jsonResponse({ competitions: [] }));
   });
 
   it("surfaces ApiError message via toast when search endpoint fails", async () => {

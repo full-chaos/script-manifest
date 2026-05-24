@@ -60,10 +60,12 @@ describe("ResumeMetricsWidget", () => {
 
   it("renders real metrics once SWR resolves", async () => {
     mockFetchResume({
+      writerId: "writer_test",
       totalViews7d: 12,
       totalViews30d: 47,
       totalScriptDownloads: 3,
       verifiedPlacementsCount: 1,
+      projectsCount: 5,
     });
 
     render(<ResumeMetricsWidget profile={makeProfile()} />, { wrapper: Wrapper });

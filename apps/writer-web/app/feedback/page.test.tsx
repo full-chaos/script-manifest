@@ -995,7 +995,7 @@ describe("FeedbackPage form, token, and review coverage", () => {
       info: vi.fn(),
     } as ReturnType<typeof toastModule.useToast>);
     const fetchSpy = mockFeedbackFetch({
-      listings: [feedbackListing({ id: "listing_1", title: "Reviewable Script", reviewDeadline: deadlineIn(2) })],
+      listings: [feedbackListing({ id: "listing_1", title: "Reviewable Script", reviewDeadline: deadlineIn(2) as unknown as null })],
       myReviews: [feedbackReview({ id: "review_in_progress", listingId: "listing_1", status: "in_progress" })],
     });
 

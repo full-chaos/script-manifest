@@ -25,3 +25,4 @@ export * from "./ip-blocking.js";
 export * from "./onboarding.js";
 export * from "./search-sync.js";
 export * from "./writer-resume.js";
+export * from "./trust-proof-metrics.js";

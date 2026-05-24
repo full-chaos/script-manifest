@@ -97,6 +97,16 @@ function buildMockRequestFn() {
   }) as typeof request;
 }
 
+function createEventRecorder() {
+  const events: Array<{ writerId: string; format: "csv" | "zip"; status: "generated" | "failed" }> = [];
+  return {
+    events,
+    recorder: async (event: { writerId: string; format: "csv" | "zip"; status: "generated" | "failed"; requestId?: string }) => {
+      events.push({ writerId: event.writerId, format: event.format, status: event.status });
+    }
+  };
+}
+
 test("export/csv returns 401 when not authenticated", async (t) => {
   const server = await buildServer({
     logger: false,
@@ -140,9 +150,11 @@ test("export/zip returns 401 when not authenticated", async (t) => {
 });
 
 test("export/csv returns CSV with expected headers and data", async (t) => {
+  const { events, recorder } = createEventRecorder();
   const server = await buildServer({
     logger: false,
     requestFn: buildMockRequestFn(),
+    exportEventRecorder: recorder,
     identityServiceBase: "http://identity-svc",
     profileServiceBase: "http://profile-svc",
     submissionTrackingBase: "http://submission-svc"
@@ -189,6 +201,60 @@ test("export/csv returns CSV with expected headers and data", async (t) => {
   assert.match(body, /id,submission_id,status,verification_state,created_at,updated_at/);
   assert.match(body, /"place_001"/);
   assert.match(body, /"verified"/);
+  assert.deepEqual(events, [{ writerId: "writer_01", format: "csv", status: "generated" }]);
+});
+
+test("export/zip records a generated event after archive generation succeeds", async (t) => {
+  const { events, recorder } = createEventRecorder();
+  const server = await buildServer({
+    logger: false,
+    requestFn: buildMockRequestFn(),
+    exportEventRecorder: recorder,
+    identityServiceBase: "http://identity-svc",
+    profileServiceBase: "http://profile-svc",
+    submissionTrackingBase: "http://submission-svc"
+  });
+  t.after(async () => {
+    await server.close();
+  });
+
+  const response = await server.inject({
+    method: "GET",
+    url: "/api/v1/export/zip",
+    headers: { authorization: "Bearer sess_test" }
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(events, [{ writerId: "writer_01", format: "zip", status: "generated" }]);
+});
+
+test("export/csv records a failed event when export data fetch fails for a known user", async (t) => {
+  const { events, recorder } = createEventRecorder();
+  const server = await buildServer({
+    logger: false,
+    requestFn: (async (url: string | URL) => {
+      const urlStr = String(url);
+      if (urlStr.includes("/internal/auth/me")) {
+        return jsonResponse({ user: { id: "writer_01", role: "writer" } });
+      }
+      throw new Error("profile service unavailable");
+    }) as typeof request,
+    exportEventRecorder: recorder,
+    identityServiceBase: "http://identity-svc",
+    profileServiceBase: "http://profile-svc"
+  });
+  t.after(async () => {
+    await server.close();
+  });
+
+  const response = await server.inject({
+    method: "GET",
+    url: "/api/v1/export/csv",
+    headers: { authorization: "Bearer sess_test" }
+  });
+
+  assert.equal(response.statusCode, 502);
+  assert.deepEqual(events, [{ writerId: "writer_01", format: "csv", status: "failed" }]);
 });
 
 test("export/csv escapes double quotes in values", async (t) => {

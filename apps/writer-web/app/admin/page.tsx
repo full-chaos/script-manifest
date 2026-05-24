@@ -3,7 +3,7 @@
 import useSWR from "swr";
 import Link from "next/link";
 import type { Route } from "next";
-import { Users, Shield, Trophy } from "lucide-react";
+import { Users, Shield, Trophy, BarChart3 } from "lucide-react";
 import { SkeletonCard } from "../components/skeleton";
 import { useToast } from "../components/toast";
 import { fetcher, ApiError } from "../lib/fetcher";
@@ -66,6 +66,12 @@ const quickActions: QuickAction[] = [
     label: "Rankings",
     description: "Monitor leaderboard integrity and scoring",
     icon: <Trophy className="h-5 w-5 text-tide-600 dark:text-tide-400" aria-hidden="true" />
+  },
+  {
+    href: "/admin/trust-metrics" as Route,
+    label: "Trust Metrics",
+    description: "Review public proof counters, source stamps, and refresh status",
+    icon: <BarChart3 className="h-5 w-5 text-green-700 dark:text-green-400" aria-hidden="true" />
   }
 ];
 
@@ -129,7 +135,7 @@ export default function AdminDashboardPage() {
 
       <article className="panel stack animate-in animate-in-delay-2">
         <h2 className="section-title">Quick Actions</h2>
-        <div className="grid gap-3 md:grid-cols-3">
+        <div className="grid gap-3 md:grid-cols-4">
           {quickActions.map((action) => (
             <Link
               key={action.href}

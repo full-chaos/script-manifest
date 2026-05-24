@@ -34,6 +34,7 @@ import { registerMfaRoutes } from "./routes/mfa.js";
 import { registerOnboardingRoutes } from "./routes/onboarding.js";
 import { registerHealthRoutes } from "./routes/health.js";
 import { registerResumeRoutes } from "./routes/resume.js";
+import { registerTrustProofMetricsRoutes } from "./routes/trust-proof-metrics.js";
 import { registerIpBlocklist } from "./plugins/ipBlocklist.js";
 import { registerMetrics, registerSentryErrorHandler } from "@script-manifest/service-utils";
 
@@ -52,6 +53,8 @@ export type ApiGatewayOptions = {
   industryPortalBase?: string;
   programsServiceBase?: string;
   partnerDashboardServiceBase?: string;
+  metricsServiceBase?: string;
+  exportEventRecorder?: GatewayContext["exportEventRecorder"];
   enableIpBlocklist?: boolean;
   redisUrl?: string;
 };
@@ -121,7 +124,9 @@ export async function buildServer(options: ApiGatewayOptions = {}): Promise<Fast
     notificationServiceBase: options.notificationServiceBase ?? "http://localhost:4010",
     industryPortalBase: options.industryPortalBase ?? "http://localhost:4009",
     programsServiceBase: options.programsServiceBase ?? "http://localhost:4012",
-    partnerDashboardServiceBase: options.partnerDashboardServiceBase ?? "http://localhost:4013"
+    partnerDashboardServiceBase: options.partnerDashboardServiceBase ?? "http://localhost:4013",
+    metricsServiceBase: options.metricsServiceBase ?? "http://localhost:4014",
+    exportEventRecorder: options.exportEventRecorder
   };
 
   registerHealthRoutes(server, ctx);
@@ -130,6 +135,7 @@ export async function buildServer(options: ApiGatewayOptions = {}): Promise<Fast
   registerMfaRoutes(server, ctx);
   registerProfileRoutes(server, ctx);
   registerResumeRoutes(server, ctx);
+  registerTrustProofMetricsRoutes(server, ctx);
   registerProjectRoutes(server, ctx);
   registerCompetitionRoutes(server, ctx);
   registerSubmissionRoutes(server, ctx);
@@ -177,6 +183,7 @@ export async function startServer(): Promise<void> {
     "INDUSTRY_PORTAL_SERVICE_URL",
     "PROGRAMS_SERVICE_URL",
     "PARTNER_DASHBOARD_SERVICE_URL",
+    "METRICS_SERVICE_URL",
     "SERVICE_TOKEN_SECRET", // CHAOS-914: required in production to prevent random fallback
   ]);
   boot.phase("env validated");
@@ -195,6 +202,7 @@ export async function startServer(): Promise<void> {
     industryPortalBase: process.env.INDUSTRY_PORTAL_SERVICE_URL,
     programsServiceBase: process.env.PROGRAMS_SERVICE_URL,
     partnerDashboardServiceBase: process.env.PARTNER_DASHBOARD_SERVICE_URL,
+    metricsServiceBase: process.env.METRICS_SERVICE_URL,
     enableIpBlocklist: true,
     redisUrl: process.env.REDIS_URL,
   });

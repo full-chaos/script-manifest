@@ -1,4 +1,4 @@
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { mockUseAuth } from "../../vitest.setup";
 import { SiteHeader } from "./siteHeader";
@@ -11,6 +11,7 @@ vi.mock("next/navigation", () => ({
 
 describe("SiteHeader", () => {
   beforeEach(() => {
+    cleanup();
     mockUseAuth.mockReturnValue({ user: null, loading: false });
     mockPathname = "/";
   });
@@ -22,7 +23,7 @@ describe("SiteHeader", () => {
       "href",
       "/signin"
     );
-    expect(screen.queryByRole("link", { name: "Projects" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "My Work" })).not.toBeInTheDocument();
   });
 
   it("shows signed-in navigation", async () => {
@@ -40,7 +41,13 @@ describe("SiteHeader", () => {
     render(<SiteHeader />);
 
     expect(await screen.findByText("Writer One")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Projects" })).toHaveAttribute("href", "/projects");
+    expect(screen.getByRole("link", { name: "My Work" })).toHaveAttribute("href", "/projects");
+    expect(screen.getByRole("link", { name: "My Submissions" })).toHaveAttribute("href", "/submissions");
+    expect(screen.getByRole("link", { name: "My Proof" })).toHaveAttribute("href", "/profile");
+    expect(screen.getByRole("link", { name: "My Feedback" })).toHaveAttribute("href", "/feedback");
+    expect(screen.getByRole("link", { name: "My Discovery" })).toHaveAttribute("href", "/competitions");
+    expect(screen.queryByRole("link", { name: "Coverage" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Leaderboard" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Writer One/i })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Admin" })).not.toBeInTheDocument();
   });
@@ -67,7 +74,7 @@ describe("SiteHeader", () => {
   });
 
   it("shows current page label on mobile when menu is closed", async () => {
-    mockPathname = "/leaderboard";
+    mockPathname = "/competitions";
 
     render(<SiteHeader />);
 
@@ -77,12 +84,12 @@ describe("SiteHeader", () => {
     expect(menuButton).toBeDefined();
     expect(menuButton?.getAttribute("aria-expanded")).toBe("false");
 
-    // Current page label "Leaderboard" should be visible somewhere in the document
-    expect(screen.getAllByText("Leaderboard").length).toBeGreaterThan(0);
+    // Current page label "My Discovery" should be visible somewhere in the document
+    expect(screen.getAllByText("My Discovery").length).toBeGreaterThan(0);
   });
 
   it("hides current page label on mobile when menu is open", async () => {
-    mockPathname = "/leaderboard";
+    mockPathname = "/competitions";
 
     const { container } = render(<SiteHeader />);
 
@@ -116,7 +123,7 @@ describe("SiteHeader", () => {
     const mobileSection = container.querySelector(".lg\\:hidden");
     const labelSpan = mobileSection?.querySelector("span.text-xs");
 
-    // "Projects" link requires sign-in, so label should not be shown in mobile section when not signed in
+    // "My Work" link requires sign-in, so label should not be shown in mobile section when not signed in
     expect(labelSpan).not.toBeInTheDocument();
   });
 
@@ -140,9 +147,9 @@ describe("SiteHeader", () => {
     const mobileSection = container.querySelector(".lg\\:hidden");
     const labelSpan = mobileSection?.querySelector("span.text-xs");
 
-    // Now signed in, so "Projects" should be visible in mobile label
+    // Now signed in, so "My Work" should be visible in mobile label
     expect(labelSpan).toBeInTheDocument();
-    expect(labelSpan?.textContent).toBe("Projects");
+    expect(labelSpan?.textContent).toBe("My Work");
   });
 
   it("toggles aria-label when mobile menu is opened and closed", async () => {

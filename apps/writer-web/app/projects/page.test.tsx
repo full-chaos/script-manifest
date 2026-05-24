@@ -194,5 +194,12 @@ describe("ProjectsPage", () => {
       "/api/v1/projects",
       expect.objectContaining({ method: "POST" })
     );
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/onboarding-progress",
+      expect.objectContaining({
+        method: "PATCH",
+        body: JSON.stringify({ projectAdded: true }),
+      })
+    );
   });
 });

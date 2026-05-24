@@ -149,6 +149,11 @@ export default function SubmissionsPage() {
         setReassignTargets((cur) => ({ ...cur, [created.id]: created.projectId }));
         setCreateModalOpen(false);
         toast.success("Submission recorded.");
+        void fetch("/api/v1/onboarding-progress", {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ submissionRecorded: true }),
+        }).catch(() => {});
       },
       onError(err: unknown) {
         toast.error(err instanceof ApiError ? err.message : "Failed to create submission.");
@@ -229,6 +234,11 @@ export default function SubmissionsPage() {
       setPlacementModalOpen(false);
       setTargetSubmissionId("");
       toast.success("Placement recorded.");
+      void fetch("/api/v1/onboarding-progress", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ placementRecorded: true }),
+      }).catch(() => {});
     } catch (error) {
       toast.error(error instanceof ApiError ? error.message : "Failed to create placement.");
     } finally {

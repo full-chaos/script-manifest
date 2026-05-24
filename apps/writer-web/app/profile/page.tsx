@@ -41,6 +41,15 @@ function isPreviewableImageUrl(value: string): boolean {
   }
 }
 
+function getSafeHttpUrl(value: string): string | null {
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "http:" || parsed.protocol === "https:" ? parsed.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
 function profileToDraft(p: WriterProfile): EditableProfile {
   return {
     displayName: p.displayName,
@@ -114,6 +123,7 @@ export default function ProfilePage() {
   );
 
   const profile = profileData?.profile ?? null;
+  const shareUrl = profile?.customProfileUrl ? getSafeHttpUrl(profile.customProfileUrl) : null;
   const isBusy = isLoading || isMutating;
 
   async function handleSave(event: FormEvent<HTMLFormElement>) {
@@ -173,8 +183,8 @@ export default function ProfilePage() {
       void fetch("/api/v1/onboarding-progress", {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ exportUsed: true, activationEvent: "export_used" }),
-      });
+        body: JSON.stringify({ exportUsed: true }),
+      }).catch(() => {});
       toast.success(`${format.toUpperCase()} export downloaded.`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Export failed.");
@@ -194,8 +204,8 @@ export default function ProfilePage() {
         </p>
         <div className="inline-form">
           <span className="badge">{writerId ? `ID: ${writerId}` : "Not signed in"}</span>
-          {profile?.customProfileUrl ? (
-            <a className="btn btn-secondary no-underline" href={profile.customProfileUrl}>
+          {shareUrl ? (
+            <a className="btn btn-secondary no-underline" href={shareUrl}>
               Share career page
             </a>
           ) : null}

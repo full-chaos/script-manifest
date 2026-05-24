@@ -3,11 +3,15 @@ import {
   ensureCoverageMarketplaceTables,
   getPool
 } from "@script-manifest/db";
+import { getProviderBadgeForVerificationState } from "@script-manifest/contracts";
 import type {
   CoverageProvider,
   CoverageProviderCreateRequest,
   CoverageProviderUpdateRequest,
   CoverageProviderFilters,
+  ProviderVerificationEvent,
+  ProviderVerificationRequest,
+  ProviderVerificationState,
   CoverageProviderReview,
   CoverageProviderReviewRequest,
   CoverageService,
@@ -147,6 +151,10 @@ export class PgCoverageMarketplaceRepository implements CoverageMarketplaceRepos
       values.push(filters.status);
       conditions.push(`status = $${values.length}`);
     }
+    if (filters.verificationState) {
+      values.push(filters.verificationState);
+      conditions.push(`verification_state = $${values.length}`);
+    }
     if (filters.specialty) {
       values.push(filters.specialty);
       conditions.push(`$${values.length} = ANY(specialties)`);
@@ -167,6 +175,78 @@ export class PgCoverageMarketplaceRepository implements CoverageMarketplaceRepos
 
     const result = await db.query<ProviderRow>(query, values);
     return result.rows.map(mapProvider);
+  }
+
+  async updateProviderVerification(providerId: string, adminUserId: string, input: ProviderVerificationRequest): Promise<CoverageProvider | null> {
+    const client = await getPool().connect();
+    try {
+      await client.query("BEGIN");
+      const currentResult = await client.query<ProviderRow>(
+        `SELECT * FROM coverage_providers WHERE id = $1 FOR UPDATE`,
+        [providerId]
+      );
+      const current = currentResult.rows[0];
+      if (!current) {
+        await client.query("ROLLBACK");
+        return null;
+      }
+
+      const verifiedAt = input.state === "verified" ? new Date().toISOString() : null;
+      const verifiedByUserId = input.state === "verified" ? adminUserId : null;
+      const updatedResult = await client.query<ProviderRow>(
+        `UPDATE coverage_providers
+         SET verification_state = $2,
+             verified_at = $3,
+             verified_by_user_id = $4,
+             verification_notes = $5,
+             verification_updated_at = NOW(),
+             updated_at = NOW()
+         WHERE id = $1
+         RETURNING *`,
+        [providerId, input.state, verifiedAt, verifiedByUserId, input.reason ?? null]
+      );
+
+      await client.query(
+        `INSERT INTO provider_verification_events (id, provider_id, admin_user_id, from_state, to_state, reason, checklist)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [`pve_${randomUUID()}`, providerId, adminUserId, current.verification_state, input.state, input.reason ?? null, input.checklist ?? []]
+      );
+      await client.query("COMMIT");
+      return updatedResult.rows[0] ? mapProvider(updatedResult.rows[0]) : null;
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async createProviderVerificationEvent(params: {
+    providerId: string;
+    adminUserId: string;
+    fromState: ProviderVerificationState | null;
+    toState: ProviderVerificationState;
+    reason?: string | null;
+    checklist?: string[];
+  }): Promise<ProviderVerificationEvent> {
+    const db = getPool();
+    const id = `pve_${randomUUID()}`;
+    const result = await db.query<ProviderVerificationEventRow>(
+      `INSERT INTO provider_verification_events (id, provider_id, admin_user_id, from_state, to_state, reason, checklist)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING *`,
+      [id, params.providerId, params.adminUserId, params.fromState, params.toState, params.reason ?? null, params.checklist ?? []]
+    );
+    return mapProviderVerificationEvent(result.rows[0]!);
+  }
+
+  async listProviderVerificationEvents(providerId: string): Promise<ProviderVerificationEvent[]> {
+    const db = getPool();
+    const result = await db.query<ProviderVerificationEventRow>(
+      `SELECT * FROM provider_verification_events WHERE provider_id = $1 ORDER BY created_at DESC`,
+      [providerId]
+    );
+    return result.rows.map(mapProviderVerificationEvent);
   }
 
   async createProviderReview(providerId: string, reviewedByUserId: string, input: CoverageProviderReviewRequest): Promise<CoverageProviderReview> {
@@ -717,6 +797,11 @@ type ProviderRow = {
   status: string;
   stripe_account_id: string | null;
   stripe_onboarding_complete: boolean;
+  verification_state: ProviderVerificationState;
+  verified_at: Date | null;
+  verified_by_user_id: string | null;
+  verification_notes: string | null;
+  verification_updated_at: Date | null;
   avg_rating: string | null;
   total_orders_completed: number;
   created_at: Date;
@@ -733,10 +818,40 @@ function mapProvider(row: ProviderRow): CoverageProvider {
     status: row.status as CoverageProvider["status"],
     stripeAccountId: row.stripe_account_id,
     stripeOnboardingComplete: row.stripe_onboarding_complete,
+    verificationState: row.verification_state,
+    verifiedAt: row.verified_at?.toISOString() ?? null,
+    verifiedByUserId: row.verified_by_user_id,
+    verificationNotes: row.verification_notes,
+    verificationUpdatedAt: row.verification_updated_at?.toISOString() ?? null,
+    badge: getProviderBadgeForVerificationState(row.verification_state, row.verified_at?.toISOString() ?? null),
     avgRating: row.avg_rating ? Number(row.avg_rating) : null,
     totalOrdersCompleted: row.total_orders_completed,
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString()
+  };
+}
+
+type ProviderVerificationEventRow = {
+  id: string;
+  provider_id: string;
+  admin_user_id: string;
+  from_state: ProviderVerificationState | null;
+  to_state: ProviderVerificationState;
+  reason: string | null;
+  checklist: string[];
+  created_at: Date;
+};
+
+function mapProviderVerificationEvent(row: ProviderVerificationEventRow): ProviderVerificationEvent {
+  return {
+    id: row.id,
+    providerId: row.provider_id,
+    adminUserId: row.admin_user_id,
+    fromState: row.from_state,
+    toState: row.to_state,
+    reason: row.reason,
+    checklist: row.checklist ?? [],
+    createdAt: row.created_at.toISOString()
   };
 }
 

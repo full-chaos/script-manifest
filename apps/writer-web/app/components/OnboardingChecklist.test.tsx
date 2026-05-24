@@ -51,9 +51,14 @@ describe("OnboardingChecklist", () => {
     mockFetchStatus({
       emailVerified: false,
       profileCompleted: false,
+      projectAdded: false,
       firstScriptUploaded: false,
       competitionsVisited: false,
       coverageVisited: false,
+      submissionRecorded: false,
+      placementRecorded: false,
+      exportUsed: false,
+      shareUsed: false,
     });
 
     render(<OnboardingChecklist />);
@@ -81,9 +86,14 @@ describe("OnboardingChecklist", () => {
     mockFetchStatus({
       emailVerified: false,
       profileCompleted: false,
+      projectAdded: false,
       firstScriptUploaded: false,
       competitionsVisited: false,
       coverageVisited: false,
+      submissionRecorded: false,
+      placementRecorded: false,
+      exportUsed: false,
+      shareUsed: false,
     });
 
     render(<OnboardingChecklist />);
@@ -103,9 +113,14 @@ describe("OnboardingChecklist", () => {
     mockFetchStatus({
       emailVerified: true,
       profileCompleted: true,
+      projectAdded: true,
       firstScriptUploaded: false,
       competitionsVisited: false,
       coverageVisited: false,
+      submissionRecorded: true,
+      placementRecorded: false,
+      exportUsed: true,
+      shareUsed: false,
     });
 
     render(<OnboardingChecklist />);
@@ -115,18 +130,25 @@ describe("OnboardingChecklist", () => {
     });
 
     expect(screen.getByTestId("check-profile-proof")).toBeInTheDocument();
+    expect(screen.getByTestId("check-add-project")).toBeInTheDocument();
     expect(screen.getByTestId("uncheck-upload-script")).toBeInTheDocument();
-    expect(screen.getByTestId("uncheck-record-submission")).toBeInTheDocument();
-    expect(screen.getByTestId("uncheck-export-share")).toBeInTheDocument();
+    expect(screen.getByTestId("check-record-submission")).toBeInTheDocument();
+    expect(screen.getByTestId("uncheck-record-placement")).toBeInTheDocument();
+    expect(screen.getByTestId("check-export-share")).toBeInTheDocument();
   });
 
   it("shows all items checked when everything is complete", async () => {
     mockFetchStatus({
       emailVerified: true,
       profileCompleted: true,
+      projectAdded: true,
       firstScriptUploaded: true,
       competitionsVisited: true,
       coverageVisited: true,
+      submissionRecorded: true,
+      placementRecorded: true,
+      exportUsed: true,
+      shareUsed: true,
     });
 
     render(<OnboardingChecklist />);
@@ -136,9 +158,11 @@ describe("OnboardingChecklist", () => {
     });
 
     expect(screen.getByTestId("check-profile-proof")).toBeInTheDocument();
+    expect(screen.getByTestId("check-add-project")).toBeInTheDocument();
     expect(screen.getByTestId("check-upload-script")).toBeInTheDocument();
     expect(screen.getByTestId("check-record-submission")).toBeInTheDocument();
     expect(screen.getByTestId("check-record-placement")).toBeInTheDocument();
+    expect(screen.getByTestId("check-export-share")).toBeInTheDocument();
   });
 
   it("still renders with all-false when fetch fails", async () => {

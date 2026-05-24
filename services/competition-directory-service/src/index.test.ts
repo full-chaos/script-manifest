@@ -87,6 +87,26 @@ class MemoryCompetitionDirectoryRepository implements CompetitionDirectoryReposi
     return Array.from(this.competitions.values());
   }
 
+  async saveCompetition(): Promise<never> {
+    throw new Error("not implemented in test repository");
+  }
+
+  async unsaveCompetition(): Promise<boolean> {
+    return false;
+  }
+
+  async listSavedCompetitions(): Promise<[]> {
+    return [];
+  }
+
+  async listDueReminderDispatches(): Promise<[]> {
+    return [];
+  }
+
+  async markReminderDispatched(): Promise<void> {
+    return;
+  }
+
   async cancelCompetition(id: string): Promise<Competition | null> {
     const comp = this.competitions.get(id);
     if (!comp || comp.status === "cancelled") return null;

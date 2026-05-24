@@ -9,12 +9,14 @@ import {
   CompetitionVisibilityUpdateSchema,
   CompetitionAccessTypeUpdateSchema,
   NotificationEventEnvelopeSchema,
+  SaveCompetitionRequestSchema,
   type Competition,
   type CompetitionUpsertRequest
 } from "@script-manifest/contracts";
 import { z } from "zod";
 import type { CompetitionDirectoryRepository } from "./repository.js";
 import { PgCompetitionDirectoryRepository } from "./pgRepository.js";
+import { startCompetitionReminderWorker } from "./reminderWorker.js";
 
 type RequestFn = typeof request;
 
@@ -31,12 +33,18 @@ export function buildServer(options: CompetitionDirectoryOptions = {}): FastifyI
   const repository = options.repository ?? new PgCompetitionDirectoryRepository();
   const notificationServiceBase = options.notificationServiceBase ?? "http://localhost:4010";
   const startedAt = Date.now();
+  const reminderWorker = startCompetitionReminderWorker({
+    repository,
+    requestFn,
+    notificationServiceBase
+  });
 
   server.addHook("onReady", async () => {
     await repository.init();
   });
 
   server.addHook("onClose", async () => {
+    if (reminderWorker) clearInterval(reminderWorker);
     await closePool();
   });
 
@@ -98,6 +106,39 @@ export function buildServer(options: CompetitionDirectoryOptions = {}): FastifyI
     const results = await repository.listCompetitions(parsedFilters.data);
 
     return reply.send({ competitions: results });
+  });
+
+  server.post<{ Params: { competitionId: string } }>("/internal/competitions/:competitionId/save", async (req, reply) => {
+    const { competitionId } = req.params;
+    const parsedBody = SaveCompetitionRequestSchema.safeParse(req.body);
+    if (!parsedBody.success) {
+      return reply.status(400).send({ error: "invalid_payload", details: parsedBody.error.flatten() });
+    }
+
+    const competition = await repository.getCompetition(competitionId);
+    if (!competition) {
+      return reply.status(404).send({ error: "competition_not_found" });
+    }
+
+    const savedCompetition = await repository.saveCompetition({ ...parsedBody.data, competitionId });
+    return reply.status(201).send({ savedCompetition });
+  });
+
+  server.delete<{ Params: { competitionId: string }; Querystring: { writerId?: string } }>("/internal/competitions/:competitionId/save", async (req, reply) => {
+    const { competitionId } = req.params;
+    const writerId = req.query.writerId?.trim();
+    if (!writerId) {
+      return reply.status(400).send({ error: "writer_id_required" });
+    }
+
+    const removed = await repository.unsaveCompetition(writerId, competitionId);
+    return reply.send({ removed });
+  });
+
+  server.get<{ Params: { writerId: string } }>("/internal/writers/:writerId/saved-competitions", async (req, reply) => {
+    const { writerId } = req.params;
+    const savedCompetitions = await repository.listSavedCompetitions(writerId);
+    return reply.send({ savedCompetitions });
   });
 
   server.post("/internal/competitions", async (req, reply) => {
@@ -313,4 +354,3 @@ async function upsertCompetition(
     created: !existed
   });
 }
-

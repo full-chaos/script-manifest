@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { refreshAuth, useAuth } from "../../lib/AuthProvider";
 
@@ -12,7 +12,7 @@ export default function AccountSettingsPage() {
   const [error, setError] = useState("");
   const [deleted, setDeleted] = useState(false);
 
-  async function handleDelete(e: FormEvent<HTMLFormElement>) {
+  async function handleDelete(e: { preventDefault: () => void }) {
     e.preventDefault();
     setError("");
     setSubmitting(true);
@@ -98,6 +98,28 @@ export default function AccountSettingsPage() {
           <p className="text-foreground-secondary text-sm">
             Display name: <strong>{user?.displayName}</strong>
           </p>
+        </div>
+
+        <hr className="border-border/50" />
+
+        <div className="stack">
+          <h2 className="text-lg font-semibold text-foreground">Data Rights & Portability</h2>
+          <p className="text-foreground-secondary text-sm">
+            Download CSV or ZIP copies of your profile, projects, scripts, submissions, placements,
+            and access history from your portable proof page.
+          </p>
+          <p className="text-foreground-secondary text-sm">
+            If you are moving in from another tracker, import recovered history so your record stays
+            portable and writer-controlled.
+          </p>
+          <div className="inline-form">
+            <Link href="/profile#data-export" className="btn btn-secondary no-underline">
+              Export your data
+            </Link>
+            <Link href="/profile/import" className="btn btn-secondary no-underline">
+              Import recovered history
+            </Link>
+          </div>
         </div>
 
         <hr className="border-border/50" />

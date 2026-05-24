@@ -236,7 +236,7 @@ export default function ProfilePage() {
       ) : null}
 
       {writerId && isLoading ? (
-        <article className="panel">
+        <article id="data-export" className="panel">
           <div className="stack">
             <SkeletonText />
             <SkeletonText className="mt-4" />

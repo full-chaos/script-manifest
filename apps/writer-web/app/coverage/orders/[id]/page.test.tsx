@@ -61,6 +61,17 @@ function makeProvider(overrides: Partial<CoverageProvider> = {}): CoverageProvid
     status: "active",
     stripeAccountId: "acct_provider_01",
     stripeOnboardingComplete: true,
+    verificationState: "verified",
+    verifiedAt: "2026-02-15T10:00:00.000Z",
+    verifiedByUserId: "admin_01",
+    verificationNotes: "Identity and portfolio reviewed.",
+    verificationUpdatedAt: "2026-02-15T10:00:00.000Z",
+    badge: {
+      kind: "verified_provider",
+      label: "Verified provider",
+      description: "This provider has been reviewed by Script Manifest.",
+      verifiedAt: "2026-02-15T10:00:00.000Z"
+    },
     avgRating: 4.8,
     totalOrdersCompleted: 14,
     createdAt: "2026-02-10T10:00:00.000Z",

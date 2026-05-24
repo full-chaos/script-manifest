@@ -35,9 +35,28 @@ const service = {
 
 const provider = {
   id: "prov_01",
+  userId: "user_01",
   displayName: "Script Experts",
   bio: "Professional coverage since 2010",
+  specialties: ["Drama"],
+  status: "active" as const,
+  stripeAccountId: "acct_1",
+  stripeOnboardingComplete: true,
+  verificationState: "verified" as const,
+  verifiedAt: "2026-05-24T12:00:00.000Z",
+  verifiedByUserId: "admin_01",
+  verificationNotes: "Identity reviewed",
+  verificationUpdatedAt: "2026-05-24T12:00:00.000Z",
+  badge: {
+    kind: "verified_provider" as const,
+    label: "Verified provider",
+    description: "Script Manifest reviewed this provider's identity and coverage history.",
+    verifiedAt: "2026-05-24T12:00:00.000Z"
+  },
+  avgRating: null,
+  totalOrdersCompleted: 0,
   createdAt: "2026-01-01T00:00:00.000Z",
+  updatedAt: "2026-01-01T00:00:00.000Z",
 };
 
 async function renderPage(params: Record<string, string | string[] | undefined> = {}) {
@@ -66,6 +85,9 @@ describe("CoverageMarketplacePage", () => {
 
     expect(screen.getByText("Professional script coverage")).toBeInTheDocument();
     expect(screen.getByText("Coverage Marketplace")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Coverage SLA" })).toHaveAttribute("href", "/policies/coverage-sla");
+    expect(screen.getByRole("link", { name: "Dispute policy" })).toHaveAttribute("href", "/policies/dispute-refund");
+    expect(screen.getByRole("link", { name: "Refund policy" })).toHaveAttribute("href", "/policies/dispute-refund");
   });
 
   it("renders filter controls for tier and price", async () => {
@@ -107,6 +129,7 @@ describe("CoverageMarketplacePage", () => {
     expect(screen.getByText("$149.00")).toBeInTheDocument();
     expect(screen.getByText("5d turnaround")).toBeInTheDocument();
     expect(screen.getByText("Script Experts")).toBeInTheDocument();
+    expect(screen.getByText("Verified provider")).toBeInTheDocument();
   });
 
   it("shows 'Unknown Provider' when provider is not found for a service", async () => {

@@ -3,6 +3,7 @@ import { EmptyState } from "../components/emptyState";
 import { EmptyIllustration } from "../components/illustrations";
 import { ApiError } from "../lib/fetcher";
 import { serverFetch } from "../lib/serverFetch";
+import { ProviderVerificationBadge } from "./components/ProviderVerificationBadge";
 import { CoverageFilters, OnboardingPing } from "./filters";
 
 type CoverageSearchParams = Promise<Record<string, string | string[] | undefined>>;
@@ -46,6 +47,10 @@ function buildServicesSearchParams(filters: CoverageFiltersValue): URLSearchPara
 function getProviderName(providers: CoverageProvider[], providerId: string): string {
   const provider = providers.find((p) => p.id === providerId);
   return provider?.displayName ?? "Unknown Provider";
+}
+
+function getProvider(providers: CoverageProvider[], providerId: string): CoverageProvider | null {
+  return providers.find((p) => p.id === providerId) ?? null;
 }
 
 function formatPrice(cents: number): string {
@@ -96,6 +101,11 @@ export default async function CoverageMarketplacePage({
           Get detailed feedback from experienced coverage providers. Browse services by tier,
           price, and turnaround time to find the perfect fit for your script.
         </p>
+        <nav className="mt-4 flex flex-wrap gap-2" aria-label="Coverage policies">
+          <a className="badge no-underline" href="/policies/coverage-sla">Coverage SLA</a>
+          <a className="badge no-underline" href="/policies/dispute-refund">Dispute policy</a>
+          <a className="badge no-underline" href="/policies/dispute-refund">Refund policy</a>
+        </nav>
       </article>
 
       <CoverageFilters tier={filters.tier} minPrice={filters.minPrice} maxPrice={filters.maxPrice} />
@@ -112,7 +122,9 @@ export default async function CoverageMarketplacePage({
           />
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {services.map((service) => (
+            {services.map((service) => {
+              const provider = getProvider(providers, service.providerId);
+              return (
               <article key={service.id} className="subcard">
                 <div className="stack-tight">
                   <div className="flex items-start justify-between gap-2">
@@ -129,17 +141,19 @@ export default async function CoverageMarketplacePage({
                     <span className="badge">{service.turnaroundDays}d turnaround</span>
                     <span className="badge">Up to {service.maxPages}pp</span>
                   </div>
-                  <div className="mt-2 pt-2 border-t border-border/40">
+                  <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-border/40 pt-2">
                     <a
                       href={`/coverage/providers/${encodeURIComponent(service.providerId)}`}
                       className="text-sm text-tide-700 dark:text-tide-500 hover:underline"
                     >
                       {getProviderName(providers, service.providerId)}
                     </a>
+                    <ProviderVerificationBadge badge={provider?.badge} variant="compact" />
                   </div>
                 </div>
               </article>
-            ))}
+              );
+            })}
           </div>
         )}
       </article>

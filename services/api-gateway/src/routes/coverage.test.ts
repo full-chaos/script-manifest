@@ -186,6 +186,69 @@ test("GET /api/v1/coverage/providers/:providerId/stripe-onboarding requires auth
   assert.equal(headers[0]?.["x-auth-user-id"], "writer_01");
 });
 
+test("admin provider verification routes require admin role and forward admin identity", async (t) => {
+  const urls: string[] = [];
+  const headers: Record<string, string>[] = [];
+  const bodies: string[] = [];
+  const server = await buildServer({
+    logger: false,
+    requestFn: (async (url, options) => {
+      const urlStr = String(url);
+      if (urlStr.includes("/internal/auth/me")) {
+        const authHeader = (options?.headers as Record<string, string> | undefined)?.authorization;
+        return jsonResponse({
+          user: {
+            id: authHeader === "Bearer admin" ? "admin_01" : "writer_01",
+            email: "user@example.com",
+            displayName: "User",
+            role: authHeader === "Bearer admin" ? "admin" : "writer"
+          },
+          expiresAt: "2026-12-31T00:00:00.000Z"
+        });
+      }
+      urls.push(urlStr);
+      headers.push((options?.headers as Record<string, string> | undefined) ?? {});
+      bodies.push(String(options?.body ?? ""));
+      return jsonResponse(urlStr.endsWith("/verification-events") ? { events: [] } : { provider: { id: "provider_01" } });
+    }) as typeof request,
+    identityServiceBase: "http://identity-svc",
+    coverageMarketplaceBase: "http://coverage-svc"
+  });
+  t.after(async () => {
+    await server.close();
+  });
+
+  const nonAdmin = await server.inject({
+    method: "PATCH",
+    url: "/api/v1/coverage/admin/providers/provider_01/verification",
+    headers: { authorization: "Bearer writer" },
+    payload: { state: "verified" }
+  });
+  assert.equal(nonAdmin.statusCode, 403);
+
+  const mutation = await server.inject({
+    method: "PATCH",
+    url: "/api/v1/coverage/admin/providers/provider_01/verification",
+    headers: { authorization: "Bearer admin" },
+    payload: { state: "verified", reason: "Identity reviewed", checklist: ["identity"] }
+  });
+  assert.equal(mutation.statusCode, 200);
+
+  const events = await server.inject({
+    method: "GET",
+    url: "/api/v1/coverage/admin/providers/provider_01/verification-events",
+    headers: { authorization: "Bearer admin" }
+  });
+  assert.equal(events.statusCode, 200);
+
+  assert.equal(urls[0], "http://coverage-svc/internal/admin/providers/provider_01/verification");
+  assert.equal(headers[0]?.["x-auth-user-id"], "admin_01");
+  assert.match(headers[0]?.["x-service-token"] ?? "", /.+/);
+  assert.deepEqual(JSON.parse(bodies[0]!), { state: "verified", reason: "Identity reviewed", checklist: ["identity"] });
+  assert.equal(urls[1], "http://coverage-svc/internal/admin/providers/provider_01/verification-events");
+  assert.equal(headers[1]?.["x-auth-user-id"], "admin_01");
+});
+
 test("POST /api/v1/coverage/providers/:providerId/services requires auth", async (t) => {
   const urls: string[] = [];
   const headers: Record<string, string>[] = [];

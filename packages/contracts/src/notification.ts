@@ -2,6 +2,7 @@ import { z } from "zod";
 
 export const NotificationEventTypeSchema = z.enum([
   "deadline_reminder",
+  "competition_reminder",
   "script_access_requested",
   "script_access_approved",
   "script_downloaded",

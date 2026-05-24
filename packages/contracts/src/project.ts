@@ -8,6 +8,8 @@ export const ProjectSchema = z.object({
   synopsis: z.string().default(""),
   format: z.string().min(1),
   genre: z.string().min(1),
+  language: z.string().min(1).optional(),
+  country: z.string().nullable().optional(),
   pageCount: z.number().int().nonnegative().default(0),
   isDiscoverable: z.boolean().default(false),
   createdAt: z.string().datetime({ offset: true }),
@@ -22,6 +24,8 @@ export const ProjectCreateRequestSchema = z.object({
   synopsis: z.string().default(""),
   format: z.string().min(1),
   genre: z.string().min(1),
+  language: z.string().min(1).optional(),
+  country: z.string().nullable().optional(),
   pageCount: z.number().int().nonnegative().default(0),
   isDiscoverable: z.boolean().default(false)
 });
@@ -40,6 +44,8 @@ export const ProjectUpdateRequestSchema = z.object({
   synopsis: z.string().optional(),
   format: z.string().min(1).optional(),
   genre: z.string().min(1).optional(),
+  language: z.string().min(1).optional(),
+  country: z.string().nullable().optional(),
   pageCount: z.number().int().nonnegative().optional(),
   isDiscoverable: z.boolean().optional()
 });

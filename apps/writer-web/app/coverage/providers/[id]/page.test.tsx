@@ -20,6 +20,17 @@ const baseProvider = {
   status: "active",
   stripeAccountId: "acct_1",
   stripeOnboardingComplete: true,
+  verificationState: "verified",
+  verifiedAt: "2026-05-24T12:00:00.000Z",
+  verifiedByUserId: "admin_01",
+  verificationNotes: "Identity reviewed",
+  verificationUpdatedAt: "2026-05-24T12:00:00.000Z",
+  badge: {
+    kind: "verified_provider",
+    label: "Verified provider",
+    description: "Script Manifest reviewed this provider's identity and coverage history.",
+    verifiedAt: "2026-05-24T12:00:00.000Z"
+  },
   avgRating: 4.7,
   totalOrdersCompleted: 22,
   createdAt: "2026-01-01T00:00:00.000Z",
@@ -76,6 +87,11 @@ describe("ProviderProfilePage", () => {
     );
 
     expect(await screen.findByText("Provider One")).toBeInTheDocument();
+    expect(screen.getByText("Verified provider")).toBeInTheDocument();
+    expect(screen.getByText("Script Manifest reviewed this provider's identity and coverage history.")).toBeInTheDocument();
+    expect(screen.getByText("Trust & policies")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Coverage SLA" })).toHaveAttribute("href", "/policies/coverage-sla");
+    expect(screen.getByRole("link", { name: "Dispute & refund policy" })).toHaveAttribute("href", "/policies/dispute-refund");
     expect(screen.getByText("Services Offered")).toBeInTheDocument();
   });
 

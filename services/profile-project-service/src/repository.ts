@@ -14,6 +14,8 @@ import type {
   ProjectDraftUpdateRequest,
   ProjectFilters,
   ProjectUpdateRequest,
+  ResumeMetricsResponse,
+  ResumePageViewCreateRequest,
   ScriptAccessRequest,
   ScriptAccessRequestCreateRequest,
   ScriptAccessRequestFilters,
@@ -27,7 +29,10 @@ export interface ProfileProjectRepository {
   healthCheck(): Promise<{ database: boolean }>;
   userExists(userId: string): Promise<boolean>;
   getProfile(writerId: string): Promise<WriterProfile | null>;
+  resolveResumeProfile(writerIdOrCustomUrl: string): Promise<WriterProfile | null>;
   upsertProfile(writerId: string, update: WriterProfileUpdateRequest): Promise<WriterProfile | null>;
+  recordResumePageView(writerId: string, input: ResumePageViewCreateRequest): Promise<boolean>;
+  getResumeMetrics(writerId: string): Promise<ResumeMetricsResponse>;
   createProject(input: ProjectCreateInternal): Promise<Project | null>;
   listProjects(filters: ProjectFilters): Promise<Project[]>;
   getProject(projectId: string): Promise<Project | null>;
@@ -100,10 +105,11 @@ export class PgProfileProjectRepository implements ProfileProjectRepository {
       headshot_url: string;
       custom_profile_url: string;
       is_searchable: boolean;
+      resume_public: boolean;
     }>(
       `
         SELECT writer_id, display_name, bio, genres, demographics, representation_status,
-               headshot_url, custom_profile_url, is_searchable
+               headshot_url, custom_profile_url, is_searchable, resume_public
         FROM writer_profiles
         WHERE writer_id = $1
       `,
@@ -112,17 +118,7 @@ export class PgProfileProjectRepository implements ProfileProjectRepository {
 
     const row = profile.rows[0];
     if (row) {
-      return {
-        id: row.writer_id,
-        displayName: row.display_name,
-        bio: row.bio,
-        genres: row.genres,
-        demographics: row.demographics,
-        representationStatus: row.representation_status,
-        headshotUrl: row.headshot_url,
-        customProfileUrl: row.custom_profile_url,
-        isSearchable: row.is_searchable
-      };
+      return mapProfile(row);
     }
 
     const user = await db.query<{ id: string; display_name: string }>(
@@ -146,13 +142,14 @@ export class PgProfileProjectRepository implements ProfileProjectRepository {
       headshot_url: string;
       custom_profile_url: string;
       is_searchable: boolean;
+      resume_public: boolean;
     }>(
       `
         INSERT INTO writer_profiles (writer_id, display_name)
         VALUES ($1, $2)
         ON CONFLICT (writer_id) DO NOTHING
         RETURNING writer_id, display_name, bio, genres, demographics, representation_status,
-                  headshot_url, custom_profile_url, is_searchable
+                  headshot_url, custom_profile_url, is_searchable, resume_public
       `,
       [userRow.id, userRow.display_name]
     );
@@ -170,10 +167,11 @@ export class PgProfileProjectRepository implements ProfileProjectRepository {
         headshot_url: string;
         custom_profile_url: string;
         is_searchable: boolean;
+        resume_public: boolean;
       }>(
         `
           SELECT writer_id, display_name, bio, genres, demographics, representation_status,
-                 headshot_url, custom_profile_url, is_searchable
+                  headshot_url, custom_profile_url, is_searchable, resume_public
           FROM writer_profiles
           WHERE writer_id = $1
         `,
@@ -183,34 +181,30 @@ export class PgProfileProjectRepository implements ProfileProjectRepository {
       if (!refetchedRow) {
         return null;
       }
-      return {
-        id: refetchedRow.writer_id,
-        displayName: refetchedRow.display_name,
-        bio: refetchedRow.bio,
-        genres: refetchedRow.genres,
-        demographics: refetchedRow.demographics,
-        representationStatus: refetchedRow.representation_status,
-        headshotUrl: refetchedRow.headshot_url,
-        customProfileUrl: refetchedRow.custom_profile_url,
-        isSearchable: refetchedRow.is_searchable
-      };
+      return mapProfile(refetchedRow);
     }
 
     const insertedRow = inserted.rows[0];
     if (!insertedRow) {
       return null;
     }
-    return {
-      id: insertedRow.writer_id,
-      displayName: insertedRow.display_name,
-      bio: insertedRow.bio,
-      genres: insertedRow.genres,
-      demographics: insertedRow.demographics,
-      representationStatus: insertedRow.representation_status,
-      headshotUrl: insertedRow.headshot_url,
-      customProfileUrl: insertedRow.custom_profile_url,
-      isSearchable: insertedRow.is_searchable
-    };
+    return mapProfile(insertedRow);
+  }
+
+  async resolveResumeProfile(writerIdOrCustomUrl: string): Promise<WriterProfile | null> {
+    const db = getPool();
+    const result = await db.query<ProfileRow>(
+      `
+        SELECT writer_id, display_name, bio, genres, demographics, representation_status,
+               headshot_url, custom_profile_url, is_searchable, resume_public
+        FROM writer_profiles
+        WHERE writer_id = $1
+           OR custom_profile_url = $1
+           OR regexp_replace(custom_profile_url, '^https?://[^/]+/writers/', '') = $1
+      `,
+      [writerIdOrCustomUrl]
+    );
+    return result.rows[0] ? mapProfile(result.rows[0]) : null;
   }
 
   async upsertProfile(
@@ -228,6 +222,7 @@ export class PgProfileProjectRepository implements ProfileProjectRepository {
       headshot_url: string;
       custom_profile_url: string;
       is_searchable: boolean;
+      resume_public: boolean;
     }>(
       `
         UPDATE writer_profiles
@@ -239,10 +234,11 @@ export class PgProfileProjectRepository implements ProfileProjectRepository {
             headshot_url       = COALESCE($7, headshot_url),
             custom_profile_url = COALESCE($8, custom_profile_url),
             is_searchable      = COALESCE($9, is_searchable),
+            resume_public      = COALESCE($10, resume_public),
             updated_at         = NOW()
         WHERE writer_id = $1
         RETURNING writer_id, display_name, bio, genres, demographics,
-                  representation_status, headshot_url, custom_profile_url, is_searchable
+                  representation_status, headshot_url, custom_profile_url, is_searchable, resume_public
       `,
       [
         writerId,
@@ -253,7 +249,8 @@ export class PgProfileProjectRepository implements ProfileProjectRepository {
         update.representationStatus ?? null,
         update.headshotUrl ?? null,
         update.customProfileUrl ?? null,
-        update.isSearchable ?? null
+        update.isSearchable ?? null,
+        update.resumePublic ?? null
       ]
     );
 
@@ -261,17 +258,7 @@ export class PgProfileProjectRepository implements ProfileProjectRepository {
     if (!row) {
       return null;
     }
-    const profile = {
-      id: row.writer_id,
-      displayName: row.display_name,
-      bio: row.bio,
-      genres: row.genres,
-      demographics: row.demographics,
-      representationStatus: row.representation_status,
-      headshotUrl: row.headshot_url,
-      customProfileUrl: row.custom_profile_url,
-      isSearchable: row.is_searchable
-    };
+    const profile = mapProfile(row);
 
     try {
       await publishSearchSyncEvent({
@@ -361,6 +348,70 @@ export class PgProfileProjectRepository implements ProfileProjectRepository {
     }
 
     return null;
+  }
+
+  async recordResumePageView(writerId: string, input: ResumePageViewCreateRequest): Promise<boolean> {
+    const db = getPool();
+    const duplicate = await db.query<{ id: string }>(
+      `
+        SELECT id
+        FROM resume_page_views
+        WHERE writer_id = $1
+          AND ip_hash = $2
+          AND user_agent_hash = $3
+          AND viewed_at >= COALESCE($4::timestamptz, NOW()) - INTERVAL '60 seconds'
+        LIMIT 1
+      `,
+      [writerId, input.ipHash, input.userAgentHash, input.viewedAt ?? null]
+    );
+    if (duplicate.rows[0]) {
+      return false;
+    }
+
+    await db.query(
+      `
+        INSERT INTO resume_page_views (id, writer_id, viewer_user_id, referrer, user_agent_hash, ip_hash, viewed_at)
+        VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7::timestamptz, NOW()))
+      `,
+      [
+        `rpv_${randomUUID()}`,
+        writerId,
+        input.viewerUserId ?? null,
+        input.referrer ?? null,
+        input.userAgentHash,
+        input.ipHash,
+        input.viewedAt ?? null
+      ]
+    );
+    return true;
+  }
+
+  async getResumeMetrics(writerId: string): Promise<ResumeMetricsResponse> {
+    const db = getPool();
+    const result = await db.query<{
+      total_views_7d: string;
+      total_views_30d: string;
+      total_script_downloads: string;
+      projects_count: string;
+    }>(
+      `
+        SELECT
+          (SELECT COUNT(*)::text FROM resume_page_views WHERE writer_id = $1 AND viewed_at >= NOW() - INTERVAL '7 days') AS total_views_7d,
+          (SELECT COUNT(*)::text FROM resume_page_views WHERE writer_id = $1 AND viewed_at >= NOW() - INTERVAL '30 days') AS total_views_30d,
+          (SELECT COUNT(*)::text FROM script_view_events WHERE owner_user_id = $1 AND event_type = 'download') AS total_script_downloads,
+          (SELECT COUNT(*)::text FROM projects WHERE owner_user_id = $1 AND is_discoverable = TRUE) AS projects_count
+      `,
+      [writerId]
+    );
+    const row = result.rows[0];
+    return {
+      writerId,
+      totalViews7d: Number(row?.total_views_7d ?? 0),
+      totalViews30d: Number(row?.total_views_30d ?? 0),
+      totalScriptDownloads: Number(row?.total_script_downloads ?? 0),
+      verifiedPlacementsCount: 0,
+      projectsCount: Number(row?.projects_count ?? 0)
+    };
   }
 
   async listProjects(filters: ProjectFilters): Promise<Project[]> {
@@ -1029,6 +1080,34 @@ export class PgProfileProjectRepository implements ProfileProjectRepository {
     const row = result.rows[0];
     return row ? mapDraft(row) : null;
   }
+}
+
+type ProfileRow = {
+  writer_id: string;
+  display_name: string;
+  bio: string;
+  genres: string[];
+  demographics: string[];
+  representation_status: "represented" | "unrepresented" | "seeking_rep";
+  headshot_url: string;
+  custom_profile_url: string;
+  is_searchable: boolean;
+  resume_public: boolean;
+};
+
+function mapProfile(row: ProfileRow): WriterProfile {
+  return {
+    id: row.writer_id,
+    displayName: row.display_name,
+    bio: row.bio,
+    genres: row.genres,
+    demographics: row.demographics,
+    representationStatus: row.representation_status,
+    headshotUrl: row.headshot_url,
+    customProfileUrl: row.custom_profile_url,
+    isSearchable: row.is_searchable,
+    resumePublic: row.resume_public
+  };
 }
 
 function mapProject(row: {

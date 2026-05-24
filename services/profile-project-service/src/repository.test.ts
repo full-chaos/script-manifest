@@ -148,7 +148,8 @@ test("PgProfileProjectRepository userExists and getProfile map profile rows", as
             representation_status: "unrepresented",
             headshot_url: "https://cdn.example.com/writer_01.jpg",
             custom_profile_url: "https://profiles.example.com/writer-one",
-            is_searchable: true
+            is_searchable: true,
+            resume_public: true
           }
         ],
         rowCount: 1
@@ -170,7 +171,8 @@ test("PgProfileProjectRepository userExists and getProfile map profile rows", as
     representationStatus: "unrepresented",
     headshotUrl: "https://cdn.example.com/writer_01.jpg",
     customProfileUrl: "https://profiles.example.com/writer-one",
-    isSearchable: true
+    isSearchable: true,
+    resumePublic: true
   });
 });
 
@@ -189,6 +191,7 @@ test("PgProfileProjectRepository upsertProfile updates profile fields and publis
         "represented",
         null,
         "https://profiles.example.com/writer-one",
+        false,
         false
       ]);
       return {
@@ -202,7 +205,8 @@ test("PgProfileProjectRepository upsertProfile updates profile fields and publis
             representation_status: "represented",
             headshot_url: "https://cdn.example.com/writer_01.jpg",
             custom_profile_url: "https://profiles.example.com/writer-one",
-            is_searchable: false
+            is_searchable: false,
+            resume_public: false
           }
         ]
       };
@@ -216,7 +220,8 @@ test("PgProfileProjectRepository upsertProfile updates profile fields and publis
     genres: ["Drama", "Thriller"],
     representationStatus: "represented",
     customProfileUrl: "https://profiles.example.com/writer-one",
-    isSearchable: false
+    isSearchable: false,
+    resumePublic: false
   } satisfies WriterProfileUpdateRequest);
 
   assert.deepEqual(profile, {
@@ -228,7 +233,8 @@ test("PgProfileProjectRepository upsertProfile updates profile fields and publis
     representationStatus: "represented",
     headshotUrl: "https://cdn.example.com/writer_01.jpg",
     customProfileUrl: "https://profiles.example.com/writer-one",
-    isSearchable: false
+    isSearchable: false,
+    resumePublic: false
   });
   assert.equal(publishCalls.length, 1);
   assert.deepEqual(publishCalls[0], {

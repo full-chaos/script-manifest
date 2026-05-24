@@ -74,7 +74,7 @@ All services expose: `GET /health` (deep), `GET /health/live` (liveness), `GET /
 
 ### Auth Flow
 
-Frontend stores session in localStorage (`script_manifest_session`). Requests include `Authorization: Bearer <token>`. Gateway validates via identity service and propagates `x-auth-user-id`.
+Browser session token lives in an HttpOnly cookie (`sm_session`) set by the writer-web BFF. Browser requests hit the writer-web BFF proxy (`apps/writer-web/app/api/v1/_proxy.ts`), which reads the cookie and forwards `Authorization: Bearer <token>` to the gateway. Frontend session/user state is held in the `AuthProvider` React context (`apps/writer-web/app/lib/AuthProvider.tsx`), which fetches `/api/v1/auth/me` via SWR — there is no localStorage session cache. Gateway validates the token via identity service and propagates `x-auth-user-id` downstream.
 
 ### Contracts
 

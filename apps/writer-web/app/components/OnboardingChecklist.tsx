@@ -59,7 +59,7 @@ export function OnboardingChecklist() {
       id: "add-project",
       label: "Add your first project",
       href: "/projects" as Route,
-      checked: s?.firstScriptUploaded ?? false,
+      checked: s?.projectAdded ?? false,
     },
     {
       id: "upload-script",
@@ -71,19 +71,19 @@ export function OnboardingChecklist() {
       id: "record-submission",
       label: "Record a submission",
       href: "/submissions" as Route,
-      checked: s?.competitionsVisited ?? false,
+      checked: s?.submissionRecorded ?? false,
     },
     {
       id: "record-placement",
       label: "Record a placement",
       href: "/submissions" as Route,
-      checked: s?.coverageVisited ?? false,
+      checked: s?.placementRecorded ?? false,
     },
     {
       id: "export-share",
       label: "Export or share your record",
       href: "/profile" as Route,
-      checked: s?.coverageVisited ?? false,
+      checked: (s?.exportUsed ?? false) || (s?.shareUsed ?? false),
     },
   ];
 

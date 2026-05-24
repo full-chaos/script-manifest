@@ -6,9 +6,9 @@
     "branches": 48
   },
   "web": {
-    "lines": 48,
-    "functions": 50,
-    "statements": 48,
-    "branches": 55
+    "lines": 75,
+    "functions": 70,
+    "statements": 75,
+    "branches": 68
   }
 }

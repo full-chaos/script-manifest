@@ -34,6 +34,7 @@ describe("service-utils index re-exports", () => {
     "requireServiceToken",
     "requireAdminServiceToken",
     "resolveServiceSecret",
+    "PRIVILEGED_AUDIT_ACTIONS",
     "publishSearchSyncEvent",
     "disconnectSearchSyncProducer",
   ];

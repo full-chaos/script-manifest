@@ -6,6 +6,7 @@ import {
 } from "@script-manifest/contracts";
 import {
   type GatewayContext,
+  addAuthUserIdHeader,
   buildQuerySuffix,
   proxyJsonRequest,
   resolveAdminByRole,
@@ -87,6 +88,41 @@ export function registerCompetitionRoutes(server: FastifyInstance, ctx: GatewayC
       `${ctx.competitionDirectoryBase}/internal/writers/${encodeURIComponent(userId)}/saved-competitions`,
       { method: "GET" }
     );
+  });
+
+  server.get<{ Params: { projectId: string } }>("/api/v1/projects/:projectId/recommended-competitions", async (req, reply) => {
+    const { projectId } = req.params;
+    const userId = await resolveRecommendationProjectOwner(projectId, req.headers, req.log, ctx);
+    if (!userId) {
+      return reply.status(req.headers.authorization ? 403 : 401).send({ error: req.headers.authorization ? "forbidden" : "unauthorized" });
+    }
+
+    const querySuffix = buildQuerySuffix(req.query);
+    return proxyJsonRequest(
+      reply,
+      ctx.requestFn,
+      `${ctx.competitionDirectoryBase}/internal/projects/${encodeURIComponent(projectId)}/recommended-competitions${querySuffix}`,
+      {
+        method: "GET",
+        headers: addAuthUserIdHeader({}, userId)
+      }
+    );
+  });
+
+  server.post<{ Params: { projectId: string; competitionId: string } }>("/api/v1/projects/:projectId/recommendations/:competitionId/dismiss", async (req, reply) => {
+    return proxyRecommendationOverride(req.params.projectId, req.params.competitionId, "dismiss", "POST", req, reply, ctx);
+  });
+
+  server.delete<{ Params: { projectId: string; competitionId: string } }>("/api/v1/projects/:projectId/recommendations/:competitionId/dismiss", async (req, reply) => {
+    return proxyRecommendationOverride(req.params.projectId, req.params.competitionId, "dismiss", "DELETE", req, reply, ctx);
+  });
+
+  server.post<{ Params: { projectId: string; competitionId: string } }>("/api/v1/projects/:projectId/recommendations/:competitionId/pin", async (req, reply) => {
+    return proxyRecommendationOverride(req.params.projectId, req.params.competitionId, "pin", "POST", req, reply, ctx);
+  });
+
+  server.delete<{ Params: { projectId: string; competitionId: string } }>("/api/v1/projects/:projectId/recommendations/:competitionId/pin", async (req, reply) => {
+    return proxyRecommendationOverride(req.params.projectId, req.params.competitionId, "pin", "DELETE", req, reply, ctx);
   });
 
   server.post("/api/v1/admin/competitions", async (req, reply) => {
@@ -212,4 +248,58 @@ export function registerCompetitionRoutes(server: FastifyInstance, ctx: GatewayC
       }
     );
   });
+}
+
+type ProjectOwnerResponse = {
+  id?: string;
+  ownerUserId?: string;
+  project?: {
+    id?: string;
+    ownerUserId?: string;
+  };
+};
+
+async function resolveRecommendationProjectOwner(
+  projectId: string,
+  headers: Record<string, unknown>,
+  logger: Parameters<typeof resolveUserId>[3],
+  ctx: GatewayContext
+): Promise<string | null> {
+  const userId = await resolveUserId(ctx.requestFn, ctx.identityServiceBase, headers, logger);
+  if (!userId) return null;
+
+  const projectResponse = await ctx.requestFn(
+    `${ctx.profileServiceBase}/internal/projects/${encodeURIComponent(projectId)}`,
+    { method: "GET" }
+  );
+  if (projectResponse.statusCode !== 200) return null;
+
+  const body = await projectResponse.body.json() as ProjectOwnerResponse;
+  const ownerUserId = body.project?.ownerUserId ?? body.ownerUserId;
+  return ownerUserId === userId ? userId : null;
+}
+
+async function proxyRecommendationOverride(
+  projectId: string,
+  competitionId: string,
+  action: "dismiss" | "pin",
+  method: "POST" | "DELETE",
+  req: { headers: Record<string, unknown>; log: Parameters<typeof resolveUserId>[3] },
+  reply: Parameters<typeof proxyJsonRequest>[0],
+  ctx: GatewayContext
+) {
+  const userId = await resolveRecommendationProjectOwner(projectId, req.headers, req.log, ctx);
+  if (!userId) {
+    return reply.status(req.headers.authorization ? 403 : 401).send({ error: req.headers.authorization ? "forbidden" : "unauthorized" });
+  }
+
+  return proxyJsonRequest(
+    reply,
+    ctx.requestFn,
+    `${ctx.competitionDirectoryBase}/internal/projects/${encodeURIComponent(projectId)}/recommendations/${encodeURIComponent(competitionId)}/${action}`,
+    {
+      method,
+      headers: addAuthUserIdHeader({}, userId)
+    }
+  );
 }

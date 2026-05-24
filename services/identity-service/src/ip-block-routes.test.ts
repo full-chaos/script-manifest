@@ -415,7 +415,7 @@ test("IP block creates audit log entry", async () => {
     });
 
     const auditLog = await adminRepo.listAuditLogEntries({ page: 1, limit: 50 });
-    assert.ok(auditLog.entries.some((e) => e.action === "add_ip_block"));
+    assert.ok(auditLog.entries.some((e) => e.action === "security.ip_block.update"));
   } finally {
     cleanup();
   }
@@ -433,7 +433,7 @@ test("IP block removal creates audit log entry", async () => {
     });
 
     const auditLog = await adminRepo.listAuditLogEntries({ page: 1, limit: 50 });
-    assert.ok(auditLog.entries.some((e) => e.action === "remove_ip_block"));
+    assert.ok(auditLog.entries.some((e) => e.action === "security.ip_block.update"));
   } finally {
     cleanup();
   }

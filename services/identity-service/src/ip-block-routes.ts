@@ -55,7 +55,7 @@ export function registerIpBlockRoutes(
     // Audit log
     await adminRepo.createAuditLogEntry({
       adminUserId: adminId,
-      action: "add_ip_block",
+      action: "security.ip_block.update",
       targetType: "ip",
       targetId: parsed.data.ipAddress,
       details: {
@@ -82,7 +82,7 @@ export function registerIpBlockRoutes(
     // Audit log
     await adminRepo.createAuditLogEntry({
       adminUserId: adminId,
-      action: "remove_ip_block",
+      action: "security.ip_block.update",
       targetType: "ip_block",
       targetId: req.params.id,
       details: {}

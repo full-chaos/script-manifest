@@ -14,7 +14,7 @@ import type {
   WriterProfileUpdateRequest
 } from "@script-manifest/contracts";
 
-type QueryResult = { rows: any[]; rowCount?: number };
+type QueryResult = { rows: unknown[]; rowCount?: number };
 type QueryFn = (sql: string, values?: unknown[]) => Promise<QueryResult>;
 type Client = { query: QueryFn; release: () => void };
 

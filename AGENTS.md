@@ -10,30 +10,28 @@ export LINEAR_PROJECT="Script Manifest"
 export LINEAR_PROJECT_URL="https://linear.app/fullchaos/project/script-manifest-15384341055a"
 ```
 
-## Linear: Create Issues with `linear` CLI
+## Linear: Create Issues with `linear-cli`
+
+> Binary is **`linear-cli`** (Rust). There is no `linear` binary on PATH. The `linear-cli i ...` shortcut maps to `linear-cli issues ...`.
 
 Authenticate and confirm status:
 
 ```bash
-linear auth status
+linear-cli auth status
 ```
 
 If not authenticated:
 
 ```bash
-linear auth login
+linear-cli auth login
 ```
 
-Initialize default team (once per clone):
-
-```bash
-linear init   # Select CHAOS team
-```
+> No `init` subcommand exists — `linear-cli init` is a dangerous prefix match for `initiatives`. Pass `--team CHAOS` explicitly on every command, or rely on the auth-time default workspace.
 
 Create a feature issue in the project:
 
 ```bash
-linear i create "[Feature] <feature title>" \
+linear-cli i create "[Feature] <feature title>" \
   --team CHAOS \
   --project "Script Manifest" \
   --labels feature \
@@ -43,13 +41,13 @@ linear i create "[Feature] <feature title>" \
 Create task/subtask issues (use `--parent` for hierarchy):
 
 ```bash
-linear i create "[Task] <task title>" \
+linear-cli i create "[Task] <task title>" \
   --team CHAOS \
   --project "Script Manifest" \
   --labels task \
   --parent CHAOS-<feature-number>
 
-linear i create "[Subtask] <subtask title>" \
+linear-cli i create "[Subtask] <subtask title>" \
   --team CHAOS \
   --project "Script Manifest" \
   --labels subtask \
@@ -130,16 +128,16 @@ linear i create "[Subtask] <subtask title>" \
 This project uses **Linear** for issue tracking.
 Default team: **CHAOS**
 
-**IMPORTANT: Always use the `linear` CLI over Linear MCP tools.** The CLI is more efficient and consistent. Never use `mcp__claude_ai_Linear__*` tools when the `linear` CLI can accomplish the same task.
+**IMPORTANT: Always use the `linear-cli` over Linear MCP tools.** The CLI is more efficient and consistent. Never use `mcp__claude_ai_Linear__*` tools when `linear-cli` can accomplish the same task.
 
 ### Creating Issues
 
 ```bash
 # Create a simple issue
-linear issues create "Fix login bug" --team CHAOS --priority high
+linear-cli issues create "Fix login bug" --team CHAOS --priority high
 
 # Create with full details and dependencies
-linear issues create "Add OAuth integration" \
+linear-cli issues create "Add OAuth integration" \
   --team CHAOS \
   --description "Integrate Google and GitHub OAuth providers" \
   --parent CHAOS-100 \
@@ -148,13 +146,13 @@ linear issues create "Add OAuth integration" \
   --estimate 5
 
 # List and view issues
-linear issues list
-linear issues get CHAOS-123
+linear-cli issues list
+linear-cli issues get CHAOS-123
 ```
 
-### Claude Code Skills
+### Workflow Skills
 
-Available workflow skills (install with `linear skills install --all`):
+Available workflow skills (installed via the agent skills system, **not** via `linear-cli`):
 
 - `/prd` - Create agent-friendly tickets with PRDs and sub-issues
 - `/triage` - Analyze and prioritize backlog
@@ -162,4 +160,4 @@ Available workflow skills (install with `linear skills install --all`):
 - `/retro` - Generate sprint retrospectives
 - `/deps` - Analyze dependency chains
 
-Run `linear skills list` for details.
+Use the `skill` tool to list and load these.

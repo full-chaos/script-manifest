@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
+import { createHmac } from "node:crypto";
 import test from "node:test";
-import { signServiceToken } from "@script-manifest/service-utils";
 import {
   API_BASE_URL,
   COMPETITION_SERVICE_BASE_URL,
@@ -15,11 +15,27 @@ import {
 const SERVICE_TOKEN_SECRET = process.env.SERVICE_TOKEN_SECRET ?? "local-dev-token-secret";
 const ADMIN_USER_ID = "integration-admin";
 
+function base64url(data: string | Buffer): string {
+  const buffer = typeof data === "string" ? Buffer.from(data) : data;
+  return buffer.toString("base64url");
+}
+
+function signAdminServiceToken(): string {
+  const header = base64url(JSON.stringify({ alg: "HS256", typ: "JWT" }));
+  const now = Math.floor(Date.now() / 1000);
+  const payload = base64url(JSON.stringify({ sub: ADMIN_USER_ID, role: "admin", iat: now, exp: now + 300 }));
+  const signature = createHmac("sha256", SERVICE_TOKEN_SECRET)
+    .update(`${header}.${payload}`)
+    .digest();
+
+  return `${header}.${payload}.${base64url(signature)}`;
+}
+
 function adminServiceHeaders(): Record<string, string> {
   return {
     "content-type": "application/json",
     "x-auth-user-id": ADMIN_USER_ID,
-    "x-service-token": signServiceToken({ sub: ADMIN_USER_ID, role: "admin" }, SERVICE_TOKEN_SECRET)
+    "x-service-token": signAdminServiceToken()
   };
 }
 

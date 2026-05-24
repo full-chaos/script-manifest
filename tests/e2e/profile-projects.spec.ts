@@ -8,7 +8,7 @@ test("authenticated profile and projects journey is interactive and accessible",
 
   await page.goto("/profile");
   await expect(
-    page.getByRole("heading", { name: /Your public writer resume/i })
+    page.getByRole("heading", { name: /Your portable writer proof/i })
   ).toBeVisible();
   await expect(page.getByLabel("Display name")).toHaveValue("E2E Writer", { timeout: 10000 });
   await expect(page).toHaveScreenshot("profile-authenticated.png");

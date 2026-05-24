@@ -19,12 +19,11 @@ type NavLink = {
 
 const navLinks: NavLink[] = [
   { href: "/" as Route, label: "Home" },
-  { href: "/leaderboard" as Route, label: "Leaderboard" },
-  { href: "/competitions" as Route, label: "Competitions" },
-  { href: "/projects" as Route, label: "Projects", signedInOnly: true },
-  { href: "/submissions" as Route, label: "Submissions", signedInOnly: true },
-  { href: "/feedback" as Route, label: "Feedback", signedInOnly: true },
-  { href: "/coverage" as Route, label: "Coverage", signedInOnly: true },
+  { href: "/competitions" as Route, label: "My Discovery" },
+  { href: "/projects" as Route, label: "My Work", signedInOnly: true },
+  { href: "/submissions" as Route, label: "My Submissions", signedInOnly: true },
+  { href: "/profile" as Route, label: "My Proof", signedInOnly: true },
+  { href: "/feedback" as Route, label: "My Feedback", signedInOnly: true },
 ];
 
 function isActive(pathname: string, href: string): boolean {

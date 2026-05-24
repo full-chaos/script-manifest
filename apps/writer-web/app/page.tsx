@@ -10,32 +10,32 @@ type Surface = {
 
 const writerSurfaces: Surface[] = [
   {
-    title: "Profile",
-    description: "Create a public writer profile with your bio, genres, and representation status.",
+    title: "My Proof",
+    description: "Create the portable proof page that anchors your career record.",
     href: "/profile" as Route,
     iconKey: "profile"
   },
   {
-    title: "Projects",
-    description: "Manage scripts, co-writers, and your draft lifecycle in one workspace.",
+    title: "My Work",
+    description: "Manage scripts, co-writers, drafts, and access activity in one workspace.",
     href: "/projects" as Route,
     iconKey: "projects"
   },
   {
-    title: "Competitions",
+    title: "My Discovery",
     description: "Search opportunities by format, fee, genre, and deadline proximity.",
     href: "/competitions" as Route,
     iconKey: "competitions"
   },
   {
-    title: "Leaderboard",
-    description: "Track momentum with a lightweight public ranking of active writers.",
+    title: "Evidence-backed confidence",
+    description: "Read rankings as documented confidence signals, not verdicts.",
     href: "/leaderboard" as Route,
     iconKey: "leaderboard"
   },
   {
-    title: "Submissions",
-    description: "Track placements and move submissions across project drafts.",
+    title: "My Submissions",
+    description: "Track submissions, placements, and proof you can export or share.",
     href: "/submissions" as Route,
     iconKey: "submissions"
   }

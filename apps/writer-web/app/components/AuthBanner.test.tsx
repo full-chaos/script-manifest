@@ -25,8 +25,10 @@ describe("AuthBanner", () => {
     mockUseAuth.mockReturnValue({ user: null, loading: false });
     render(<AuthBanner writerSurfaces={writerSurfaces} trustPrinciples={trustPrinciples} />);
 
-    expect(screen.getByText("Writer Hub")).toBeInTheDocument();
-    expect(screen.getByText("Create account")).toBeInTheDocument();
+    expect(screen.getByText("Permanent Career Record")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /your screenwriting career record should not disappear/i })).toBeInTheDocument();
+    expect(screen.getByText(/profile, projects, submissions, placements, export, and proof/i)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Start your record" })).toHaveAttribute("href", "/signin");
   });
 
   it("renders authenticated welcome when user exists", () => {
@@ -43,7 +45,8 @@ describe("AuthBanner", () => {
 
     render(<AuthBanner writerSurfaces={writerSurfaces} trustPrinciples={trustPrinciples} />);
 
-    expect(screen.getByText("Welcome back")).toBeInTheDocument();
+    expect(screen.getByText("Career record path")).toBeInTheDocument();
     expect(screen.getByText("Writer One")).toBeInTheDocument();
+    expect(screen.getByText(/profile → project → script → submission → placement → share/i)).toBeInTheDocument();
   });
 });

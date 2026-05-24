@@ -218,4 +218,49 @@ describe("ProfilePage", () => {
     expect(profileGetCalls).toHaveLength(1); // exactly one GET — no re-fetch after save
     expect(profilePutCalls).toHaveLength(1); // exactly one PUT
   });
+
+  it("frames profile as proof and records export/share activation", async () => {
+    const user = userEvent.setup();
+    const profile = {
+      id: "writer_01",
+      displayName: "Writer One",
+      bio: "Proof bio",
+      genres: ["Drama"],
+      demographics: [] as string[],
+      representationStatus: "unrepresented" as const,
+      headshotUrl: "",
+      customProfileUrl: "https://profiles.example.com/writer-one",
+      isSearchable: true,
+    };
+    const fetchMock = vi.fn<typeof fetch>(async (input) => {
+        const url = typeof input === "string" ? input : input.toString();
+        if (url === "/api/v1/profiles/writer_01") return jsonResponse({ profile });
+        if (url === "/api/v1/export/csv") return jsonResponse({ ok: true });
+        if (url === "/api/v1/onboarding-progress") return jsonResponse({ ok: true });
+        return jsonResponse({});
+      });
+    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("URL", {
+      createObjectURL: vi.fn(() => "blob:export"),
+      revokeObjectURL: vi.fn(),
+    });
+
+    renderWithProviders(<ProfilePage />);
+
+    expect(await screen.findByText("My Proof")).toBeInTheDocument();
+    expect(screen.getByText(/exportable proof of your scripts, submissions, placements, and access activity/i)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Share career page" })).toHaveAttribute("href", "https://profiles.example.com/writer-one");
+
+    await user.click(screen.getByRole("button", { name: "Export CSV" }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/v1/onboarding-progress",
+        expect.objectContaining({
+          method: "PATCH",
+          body: JSON.stringify({ exportUsed: true, activationEvent: "export_used" }),
+        })
+      );
+    });
+  });
 });

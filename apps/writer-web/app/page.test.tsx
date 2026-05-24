@@ -14,10 +14,10 @@ describe("HomePage", () => {
 
     expect(
       await screen.findByText(
-        "Build your screenwriting portfolio without losing your history again."
+        "Your screenwriting career record should not disappear."
       )
     ).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Create account" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Start your record" })).toHaveAttribute(
       "href",
       "/signin"
     );
@@ -37,9 +37,9 @@ describe("HomePage", () => {
 
     render(<HomePage />);
 
-    expect(await screen.findByText("Welcome back")).toBeInTheDocument();
+    expect(await screen.findByText("Career record path")).toBeInTheDocument();
     expect(screen.getByText("Writer One")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Open Projects" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Open My Work" })).toHaveAttribute(
       "href",
       "/projects"
     );

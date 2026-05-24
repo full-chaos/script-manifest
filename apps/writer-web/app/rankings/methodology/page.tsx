@@ -22,9 +22,10 @@ export default function MethodologyPage() {
     <section className="space-y-4">
       <article className="hero-card hero-card--tide animate-in">
         <p className="eyebrow eyebrow--tide">Rankings</p>
-        <h1 className="text-4xl text-foreground">Scoring Methodology</h1>
+        <h1 className="text-4xl text-foreground">Evidence-backed confidence methodology</h1>
         <p className="max-w-3xl text-foreground-secondary">
-          Full transparency into how writer scores are calculated, weighted, and decayed over time.
+          Rankings are confidence signals, not verdicts. We show how source data, verified placements,
+          time decay, and appeals shape each public signal.
         </p>
       </article>
 
@@ -42,6 +43,21 @@ export default function MethodologyPage() {
                 status_weight &times; prestige &times; verification &times; time_decay &times; confidence
               </code>
             </p>
+            <p className="text-sm text-foreground-secondary">
+              Use rankings as directional proof alongside a writer&apos;s portfolio, submission history, and
+              placement context.
+            </p>
+          </article>
+
+          <article className="panel stack animate-in animate-in-delay-1">
+            <div className="subcard-header">
+              <h2 className="section-title">Source data requirements</h2>
+            </div>
+            <p className="text-foreground-secondary">
+              Public examples and appeal paths are part of the methodology: source placements must be
+              attributable, competition prestige must be documented, and suspected fraud or stale data can
+              be reviewed through appeals before it changes a writer&apos;s confidence signal.
+            </p>
           </article>
 
           <article className="panel stack animate-in animate-in-delay-2">
@@ -52,7 +68,7 @@ export default function MethodologyPage() {
               {Object.entries(methodology.statusWeights).map(([status, weight]) => (
                 <div key={status} className="subcard flex items-center justify-between">
                   <span className="capitalize text-foreground">{status}</span>
-                  <span className="font-mono font-bold text-primary-dark dark:text-primary">{weight}</span>
+                  <span className="font-mono font-bold text-primary-dark dark:text-primary">{Number(weight)}</span>
                 </div>
               ))}
             </div>
@@ -66,7 +82,7 @@ export default function MethodologyPage() {
               {Object.entries(methodology.prestigeMultipliers).map(([tier, mult]) => (
                 <div key={tier} className="subcard flex items-center justify-between">
                   <span className="capitalize text-foreground">{tier}</span>
-                  <span className="font-mono font-bold text-tide-700 dark:text-tide-500">{mult}x</span>
+                  <span className="font-mono font-bold text-tide-700 dark:text-tide-500">{Number(mult)}x</span>
                 </div>
               ))}
             </div>

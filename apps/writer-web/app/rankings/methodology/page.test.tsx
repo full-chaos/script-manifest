@@ -59,8 +59,9 @@ describe("MethodologyPage", () => {
 
     render(<MethodologyPage />);
 
-    expect(screen.getByText("Scoring Methodology")).toBeInTheDocument();
+    expect(screen.getByText("Evidence-backed confidence methodology")).toBeInTheDocument();
     expect(screen.getByText("Rankings")).toBeInTheDocument();
+    expect(screen.getByText(/rankings are confidence signals, not verdicts/i)).toBeInTheDocument();
   });
 
   it("renders loading state before data arrives", () => {
@@ -116,6 +117,8 @@ describe("MethodologyPage", () => {
     expect(screen.getByText("Time Decay & Confidence")).toBeInTheDocument();
     expect(screen.getByText("365 days")).toBeInTheDocument();
     expect(screen.getByText("5 evaluations")).toBeInTheDocument();
+    expect(screen.getByText("Source data requirements")).toBeInTheDocument();
+    expect(screen.getByText(/public examples and appeal paths/i)).toBeInTheDocument();
   });
 
   it("shows an error message when the fetch fails", async () => {

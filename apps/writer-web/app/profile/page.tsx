@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { useState, type FormEvent } from "react";
 import useSWR from "swr";
 import useSWRMutation from "swr/mutation";
@@ -217,6 +218,9 @@ export default function ProfilePage() {
           >
             {isLoading ? "Refreshing..." : "Refresh profile"}
           </button>
+          <Link className="btn btn-secondary no-underline" href="/profile/import">
+            Import recovered history
+          </Link>
         </div>
       </article>
 

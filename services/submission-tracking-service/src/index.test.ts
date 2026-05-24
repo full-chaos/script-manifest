@@ -456,3 +456,46 @@ test("submission tracking enforces placement visibility by writer", async (t) =>
   });
   assert.equal(forbiddenDetail.statusCode, 403);
 });
+
+test("verified placements endpoint returns only verified writer placements with server badge labels", async (t) => {
+  const memoryRepo = new MemorySubmissionTrackingRepository();
+  const server = buildServer({ logger: false, repository: memoryRepo });
+  t.after(async () => {
+    await server.close();
+  });
+
+  const verifiedSubmission = await server.inject({
+    method: "POST",
+    url: "/internal/submissions",
+    headers: { "x-auth-user-id": "writer_01" },
+    payload: { projectId: "project_01", competitionId: "comp_verified", status: "pending" }
+  });
+  const pendingSubmission = await server.inject({
+    method: "POST",
+    url: "/internal/submissions",
+    headers: { "x-auth-user-id": "writer_01" },
+    payload: { projectId: "project_02", competitionId: "comp_pending", status: "pending" }
+  });
+  const historicalSubmission = await memoryRepo.createHistoricalPlacement({
+    projectId: "project_03",
+    competitionId: "comp_hist",
+    competitionNameFreeform: "Historical Comp",
+    status: "winner",
+    placementDate: "2026-01-01T00:00:00.000Z",
+    sourceNote: "legacy import",
+    evidenceItems: [],
+    recordedByUserId: "writer_01"
+  });
+
+  const verifiedPlacement = await server.inject({ method: "POST", url: `/internal/submissions/${verifiedSubmission.json().submission.id}/placements`, headers: { "x-auth-user-id": "writer_01" }, payload: { status: "finalist" } });
+  await server.inject({ method: "POST", url: `/internal/submissions/${pendingSubmission.json().submission.id}/placements`, headers: { "x-auth-user-id": "writer_01" }, payload: { status: "semifinalist" } });
+  await server.inject({ method: "POST", url: `/internal/placements/${verifiedPlacement.json().placement.id}/verify`, payload: { verificationState: "verified" } });
+  await memoryRepo.updatePlacementVerification(historicalSubmission.placement.id, { verificationState: "verified" });
+
+  const response = await server.inject({ method: "GET", url: "/internal/writers/writer_01/verified-placements" });
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.json().placements.length, 2);
+  assert.deepEqual(response.json().placements.map((placement: { badgeLabel: string }) => placement.badgeLabel).sort(), ["Historical — Verified", "Verified"]);
+  assert.equal(response.json().placements.every((placement: { verificationState: string }) => placement.verificationState === "verified"), true);
+});

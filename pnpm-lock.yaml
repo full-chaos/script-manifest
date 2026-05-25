@@ -168,6 +168,9 @@ importers:
         specifier: ^4.4.3
         version: 4.4.3
     devDependencies:
+      '@types/node':
+        specifier: ^25.7.0
+        version: 25.9.1
       tsx:
         specifier: ^4.19.2
         version: 4.21.0
@@ -184,6 +187,9 @@ importers:
       '@prisma/client':
         specifier: ^7.8.0
         version: 7.8.0(prisma@7.8.0(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(magicast@0.5.2)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(typescript@6.0.3))(typescript@6.0.3)
+      '@types/node':
+        specifier: ^25.7.0
+        version: 25.9.1
       '@types/pg':
         specifier: ^8.20.0
         version: 8.20.0
@@ -9178,7 +9184,7 @@ snapshots:
 
   '@types/nodemailer@8.0.0':
     dependencies:
-      '@types/node': 25.7.0
+      '@types/node': 25.9.1
 
   '@types/oracledb@6.5.2':
     dependencies:
@@ -9200,7 +9206,7 @@ snapshots:
 
   '@types/pg@8.20.0':
     dependencies:
-      '@types/node': 25.7.0
+      '@types/node': 25.9.1
       pg-protocol: 1.13.0
       pg-types: 2.2.0
 

@@ -99,6 +99,12 @@ services:
     environment:
       <<: *no-telemetry
 
+  metrics-service:
+    ports:
+      - "127.0.0.1:4014:4014"
+    environment:
+      <<: *no-telemetry
+
   search-sync-worker:
     ports:
       - "127.0.0.1:4020:4020"

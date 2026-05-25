@@ -35,6 +35,7 @@ jobs:
           - feedback-exchange-service
           - industry-portal-service
           - identity-service
+          - metrics-service
           - notification-service
           - programs-service
           - partner-dashboard-service
@@ -119,6 +120,7 @@ jobs:
           - name: feedback-exchange-service
           - name: industry-portal-service
           - name: identity-service
+          - name: metrics-service
           - name: notification-service
           - name: programs-service
           - name: partner-dashboard-service

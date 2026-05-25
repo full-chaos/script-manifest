@@ -493,6 +493,26 @@ services:
           cpus: '0.5'
           memory: 512M
 
+  metrics-service:
+    image: ghcr.io/full-chaos/script-manifest/metrics-service:${IMAGE_TAG:?IMAGE_TAG is required}
+    env_file: ./.env
+    environment:
+      PORT: "4014"
+      NODE_ENV: production
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-manifest}:${POSTGRES_PASSWORD:?}@postgres:5432/${POSTGRES_DB:-manifest}"
+    healthcheck:
+      # metrics-service exposes /healthz instead of the project-standard
+      # /health/live; tracked as out-of-scope cleanup in CHAOS-1866.
+      test: ["CMD-SHELL", "curl -sf http://localhost:4014/healthz || exit 1"]
+      <<: *healthcheck
+    networks: [internal]
+    deploy:
+      <<: *deploy-service
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
   search-sync-worker:
     image: ghcr.io/full-chaos/script-manifest/search-sync-worker:${IMAGE_TAG:?IMAGE_TAG is required}
     env_file: ./.env
@@ -541,6 +561,7 @@ services:
       PARTNER_DASHBOARD_SERVICE_URL: "http://partner-dashboard-service:4013"
       COVERAGE_MARKETPLACE_SERVICE_URL: "http://coverage-marketplace-service:4008"
       INDUSTRY_PORTAL_SERVICE_URL: "http://industry-portal-service:4009"
+      METRICS_SERVICE_URL: "http://metrics-service:4014"
       COVERAGE_ADMIN_ALLOWLIST: ${COVERAGE_ADMIN_ALLOWLIST:-}
       INDUSTRY_ADMIN_ALLOWLIST: ${INDUSTRY_ADMIN_ALLOWLIST:-}
       NOTIFICATION_SERVICE_URL: "http://notification-service:4010"

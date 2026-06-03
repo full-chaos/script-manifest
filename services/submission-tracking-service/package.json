@@ -21,8 +21,8 @@
   },
   "devDependencies": {
     "@types/papaparse": "^5.3.16",
-    "@types/node": "^25.7.0",
-    "tsx": "^4.19.2",
+    "@types/node": "^25.9.1",
+    "tsx": "^4.22.4",
     "typescript": "^6.0.3"
   }
 }

@@ -8,7 +8,7 @@
 # the whole monorepo anyway, so we skip it and install directly.
 
 # ── Stage 1: Install deps & build ─────────────────────────────────────
-FROM node:25-alpine AS builder
+FROM node:26-alpine AS builder
 ENV NPM_CONFIG_REGISTRY=https://registry.npmjs.org/ \
     NPM_CONFIG_FETCH_RETRIES=5 \
     NPM_CONFIG_FETCH_RETRY_FACTOR=2 \
@@ -35,7 +35,7 @@ RUN --mount=type=cache,id=pnpm-store-db-migrator,target=/pnpm/store,sharing=lock
 RUN pnpm build
 
 # ── Stage 2: Production runtime ──────────────────────────────────────
-FROM node:25-alpine AS runner
+FROM node:26-alpine AS runner
 RUN apk update \
  && apk upgrade --no-cache zlib \
  && apk add --no-cache curl

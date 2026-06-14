@@ -7,6 +7,7 @@ updates:
       day: "monday"
     open-pull-requests-limit: 10
     groups:
+      # Scheduled version-update groups (applies-to: version-updates by default).
       production-deps:
         dependency-type: "production"
         update-types:
@@ -20,6 +21,15 @@ updates:
       types:
         patterns:
           - "@types/*"
+      # Security-update PRs are a separate track and ignore the groups above
+      # unless a group opts in with applies-to: security-updates. Batch them
+      # into a single PR instead of one-per-advisory. (Note: Dependabot cannot
+      # fix transitive-only pnpm vulns it has no manifest line to bump — those
+      # still require manual pnpm.overrides.)
+      npm-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
 
   - package-ecosystem: "github-actions"
     directory: "/"
@@ -34,6 +44,10 @@ updates:
           - "major"
           - "minor"
           - "patch"
+      actions-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
 
   - package-ecosystem: "docker"
     directory: "/infra/docker"
@@ -41,5 +55,9 @@ updates:
       interval: "monthly"
     groups:
       docker:
+        patterns:
+          - "*"
+      docker-security:
+        applies-to: security-updates
         patterns:
           - "*"

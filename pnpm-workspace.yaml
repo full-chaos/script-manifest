@@ -9,3 +9,9 @@ overrides:
   protobufjs@>=8.0.0 <8.0.2: ^8.0.2
   fast-uri@<3.1.2: ^3.1.2
   defu@<6.1.5: ^6.1.5
+  # Dependabot transitive security bumps (all single-major patch upgrades).
+  esbuild@<0.28.1: ">=0.28.1" # GHSA-gv7w-rqvm-qjhr (RCE, Deno), GHSA-g7r4-m6w7-qqqr
+  "@grpc/grpc-js@<1.14.4": ">=1.14.4" # GHSA-99f4-grh7-6pcq, GHSA-3hrh-pfw6-9m5x (crash)
+  hono@<4.12.21: ">=4.12.21" # GHSA-3hrh / cookie, JWT, IP, mount routing (prisma dev dep)
+  "@hono/node-server@<1.19.13": ">=1.19.13 <2" # GHSA-92pp-h63x-v22m (serveStatic bypass)
+  postcss@<8.5.10: ">=8.5.10" # GHSA-qx2v-qp2m-jg93 (stringify XSS)

@@ -18,8 +18,8 @@
     "fastify": "^5.8.5"
   },
   "devDependencies": {
-    "@types/node": "^25.7.0",
-    "tsx": "^4.19.2",
+    "@types/node": "^25.9.3",
+    "tsx": "^4.22.4",
     "typescript": "^6.0.3"
   }
 }

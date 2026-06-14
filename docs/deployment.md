@@ -192,16 +192,20 @@ pnpm manage-admin list
 **Inside a running container** (bundled as `scripts/manage-admin.cjs` in all service images):
 
 ```bash
+# The bundle lives at /app/scripts/manage-admin.cjs. Use the absolute path —
+# the container WORKDIR is /app/services/<service>, so a relative
+# `scripts/manage-admin.cjs` will not resolve.
+
 # Docker Compose
-docker exec -it <identity-service-container> node scripts/manage-admin.cjs promote user@example.com
+docker exec -it <identity-service-container> node /app/scripts/manage-admin.cjs promote user@example.com
 
 # Docker Swarm
 docker exec -it $(docker ps -q -f name=script-manifest_identity-service) \
-  node scripts/manage-admin.cjs promote user@example.com
+  node /app/scripts/manage-admin.cjs promote user@example.com
 
 # Kubernetes
 kubectl exec -it deploy/identity-service -n script-manifest -- \
-  node scripts/manage-admin.cjs promote user@example.com
+  node /app/scripts/manage-admin.cjs promote user@example.com
 ```
 
 The script reads `DATABASE_URL` from the environment. Inside containers, this is already set. From a local checkout targeting a remote database:

@@ -96,11 +96,10 @@ export async function runManageAdmin(args: string[], deps: ManageAdminDeps = def
   await deps.closePool();
 }
 
-const isMain =
-  typeof process.argv[1] === "string" &&
-  (process.argv[1].endsWith("/scripts/manage-admin.ts") ||
-    process.argv[1].endsWith("\\scripts\\manage-admin.ts") ||
-    process.argv[1].endsWith("manage-admin.ts"));
+// Match the entrypoint whether run as source (`manage-admin.ts` via tsx) or as
+// the bundled CLI (`manage-admin.cjs` in production images). Anchored on a path
+// separator + exact basename so it never matches `manage-admin.test.ts`.
+const isMain = /(^|[\\/])manage-admin\.(ts|cjs|mjs|js)$/.test(process.argv[1] ?? "");
 
 if (isMain) {
   runManageAdmin(process.argv.slice(2)).catch((err) => {

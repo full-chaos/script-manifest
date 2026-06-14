@@ -57,12 +57,17 @@ COPY --from=pruner /app/tsconfig.base.json ./tsconfig.base.json
 ARG SERVICE_NAME
 RUN pnpm build --filter=@script-manifest/${SERVICE_NAME}...
 
-# Bundle manage-admin CLI (self-contained, needs only pg at runtime)
-# esbuild may fail for services whose turbo-prune tree lacks packages/db;
-# create a stub so the COPY in the runner stage always succeeds.
+# Bundle manage-admin CLI fully self-contained (pg inlined; only the optional
+# pg-native C addon stays external since it can't be bundled). The import.meta
+# shim lets bundled ESM deps (migrate.ts, generated prisma client) load under
+# the cjs format — those paths are never invoked by the CLI but evaluate at
+# module load. esbuild may fail for services whose turbo-prune tree lacks
+# packages/db; create a stub so the COPY in the runner stage always succeeds.
 COPY --from=pruner /app/scripts/manage-admin.ts ./scripts/manage-admin.ts
 RUN npx esbuild scripts/manage-admin.ts --bundle --platform=node --format=cjs \
-    --outfile=scripts/manage-admin.cjs --external:pg --external:pg-native \
+    --outfile=scripts/manage-admin.cjs --external:pg-native \
+    --define:import.meta.url=__IMPORT_META_URL__ \
+    --banner:js="const __IMPORT_META_URL__=require('url').pathToFileURL(__filename).href;" \
     2>/dev/null || echo '#!/usr/bin/env node\nconsole.error("manage-admin not available in this image");process.exit(1);' > scripts/manage-admin.cjs
 
 # ── Stage 3: Production runtime ──────────────────────────────────────

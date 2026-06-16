@@ -211,8 +211,8 @@ importers:
   packages/email:
     dependencies:
       nodemailer:
-        specifier: ^8.0.7
-        version: 8.0.7
+        specifier: ^9.0.0
+        version: 9.0.0
       resend:
         specifier: ^6.12.4
         version: 6.12.4(@react-email/render@1.1.2(react-dom@19.2.7(react@19.2.7))(react@19.2.7))
@@ -5034,8 +5034,8 @@ packages:
     resolution: {integrity: sha512-Uzmd6LXpouKo8EUK68IjH4+E01w/hXyV3R3g/geCJo+rXLNfh1xucB+LOzYEOQPSiUK3h/xZf0cQGcSsmyL2Og==}
     engines: {node: '>=18'}
 
-  nodemailer@8.0.7:
-    resolution: {integrity: sha512-pkjE4mkBzQjdJT4/UmlKl3pX0rC9fZmjh7c6C9o7lv66Ac6w9WCnzPzhbPNxwZAzlF4mdq4CSWB5+FbK6FWCow==}
+  nodemailer@9.0.0:
+    resolution: {integrity: sha512-tbPTid7d/p9jAA8CRZ3iomvrMaST0o6NYuY7v6JQZHpPRZ61mLFSPKYd7342NtOFuej9/+L48SOIxwfu2uDvtw==}
     engines: {node: '>=6.0.0'}
 
   normalize-path@3.0.0:
@@ -10838,7 +10838,7 @@ snapshots:
 
   node-releases@2.0.47: {}
 
-  nodemailer@8.0.7: {}
+  nodemailer@9.0.0: {}
 
   normalize-path@3.0.0: {}
 

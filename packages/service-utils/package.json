@@ -28,7 +28,7 @@
     "fastify-metrics": "^13.2.0",
     "kafkajs": "^2.2.4",
     "pino": "^10.3.1",
-    "undici": "^8.4.1"
+    "undici": "^8.5.0"
   },
   "devDependencies": {
     "@types/node": "^25.9.3",

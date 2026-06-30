@@ -15,7 +15,7 @@
     "@script-manifest/db": "workspace:*",
     "@script-manifest/search": "workspace:*",
     "@script-manifest/service-utils": "workspace:*",
-    "fastify": "^5.8.5"
+    "fastify": "^5.9.0"
   },
   "devDependencies": {
     "@types/node": "^25.9.3",

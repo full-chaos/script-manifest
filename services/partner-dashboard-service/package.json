@@ -11,7 +11,7 @@
     "lint": "eslint src/"
   },
   "dependencies": {
-    "@fastify/rate-limit": "^10.2.1",
+    "@fastify/rate-limit": "^11.1.0",
     "@script-manifest/contracts": "workspace:*",
     "@script-manifest/service-utils": "workspace:*",
     "@script-manifest/db": "workspace:*",

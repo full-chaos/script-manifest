@@ -15,20 +15,20 @@
     "lint": "eslint src/"
   },
   "dependencies": {
-    "@opentelemetry/auto-instrumentations-node": "^0.77.0",
-    "@opentelemetry/exporter-metrics-otlp-grpc": "^0.219.0",
-    "@opentelemetry/exporter-trace-otlp-grpc": "^0.219.0",
-    "@opentelemetry/resources": "^2.8.0",
-    "@opentelemetry/sdk-metrics": "^2.8.0",
-    "@opentelemetry/sdk-node": "^0.219.0",
-    "@opentelemetry/semantic-conventions": "^1.41.1",
+    "@opentelemetry/auto-instrumentations-node": "^0.78.0",
+    "@opentelemetry/exporter-metrics-otlp-grpc": "^0.220.0",
+    "@opentelemetry/exporter-trace-otlp-grpc": "^0.220.0",
+    "@opentelemetry/resources": "^2.9.0",
+    "@opentelemetry/sdk-metrics": "^2.9.0",
+    "@opentelemetry/sdk-node": "^0.220.0",
+    "@opentelemetry/semantic-conventions": "^1.42.0",
     "@script-manifest/contracts": "workspace:*",
-    "@sentry/node": "^10.57.0",
-    "fastify": "^5.8.5",
-    "fastify-metrics": "^13.2.0",
+    "@sentry/node": "^10.63.0",
+    "fastify": "^5.10.0",
+    "fastify-metrics": "^13.2.1",
     "kafkajs": "^2.2.4",
     "pino": "^10.3.1",
-    "undici": "^8.4.1"
+    "undici": "^8.7.0"
   },
   "devDependencies": {
     "@types/node": "^25.9.3",

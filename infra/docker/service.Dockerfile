@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
 
 # ── Stage 1: Prune monorepo ──────────────────────────────────────────
-FROM node:25-alpine AS pruner
+FROM node:26-alpine AS pruner
 ENV NPM_CONFIG_REGISTRY=https://registry.npmjs.org/ \
     NPM_CONFIG_FETCH_RETRIES=5 \
     NPM_CONFIG_FETCH_RETRY_FACTOR=2 \
@@ -19,7 +19,7 @@ ARG SERVICE_NAME
 RUN turbo prune @script-manifest/${SERVICE_NAME} --docker
 
 # ── Stage 2: Install deps & build ────────────────────────────────────
-FROM node:25-alpine AS builder
+FROM node:26-alpine AS builder
 ENV NPM_CONFIG_REGISTRY=https://registry.npmjs.org/ \
     NPM_CONFIG_FETCH_RETRIES=5 \
     NPM_CONFIG_FETCH_RETRY_FACTOR=2 \
@@ -71,7 +71,7 @@ RUN npx esbuild scripts/manage-admin.ts --bundle --platform=node --format=cjs \
     2>/dev/null || echo '#!/usr/bin/env node\nconsole.error("manage-admin not available in this image");process.exit(1);' > scripts/manage-admin.cjs
 
 # ── Stage 3: Production runtime ──────────────────────────────────────
-FROM node:25-alpine AS runner
+FROM node:26-alpine AS runner
 RUN apk update \
  && apk upgrade --no-cache zlib \
  && apk add --no-cache curl
